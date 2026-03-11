@@ -39,6 +39,15 @@ export REPLAY_WORKER_ERR_BACKOFF_MIN_MS=250
 export REPLAY_WORKER_ERR_BACKOFF_MAX_MS=5000
 ```
 
+Make targets:
+
+```bash
+make help
+make db-up
+make migrate
+make run
+```
+
 Run migrations:
 
 ```bash
@@ -81,6 +90,14 @@ Server starts on `:8080` by default.
 
 ```bash
 docker compose -f docker-compose.postgres.yml up -d
+```
+
+You can also use:
+
+```bash
+make db-up
+make db-ps
+make db-down
 ```
 
 ## Quick Demo
@@ -163,4 +180,10 @@ Integration tests (real Postgres):
 export TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/lago_alpha_test?sslmode=disable'
 go test ./internal/api -run TestEndToEndPreviewReplayReconciliation -v
 go test ./migrations -run TestRunnerAppliesMigrationsIdempotently -v
+```
+
+Or run end-to-end integration workflow:
+
+```bash
+make test-integration
 ```
