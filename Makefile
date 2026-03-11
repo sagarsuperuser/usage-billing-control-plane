@@ -7,7 +7,7 @@ TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/lago_alpha_test
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit db-up db-down db-ps db-logs wait-db migrate run test-integration ci
+.PHONY: help fmt tidy test test-unit db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run test-integration ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -41,6 +41,14 @@ wait-db: ## Wait for Postgres health status
 
 migrate: ## Run SQL migrations using cmd/migrate
 	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/migrate
+
+migrate-up: migrate ## Alias for migrate (apply pending migrations)
+
+migrate-status: ## Show migration status (available/applied/pending/unknown)
+	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/migrate status
+
+migrate-verify: ## Verify no pending or unknown applied migrations remain
+	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/migrate verify
 
 run: ## Start API server
 	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/server

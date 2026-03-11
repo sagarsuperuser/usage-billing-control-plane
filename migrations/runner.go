@@ -61,7 +61,61 @@ func (r *Runner) Run(ctx context.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	if _, err := tx.ExecContext(ctx, `
+	if err := ensureSchemaMigrationsTable(ctx, tx); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, advisoryLockKey); err != nil {
+		return fmt.Errorf("acquire migration lock: %w", err)
+	}
+
+	applied, err := loadAppliedVersionSet(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	entries, err := loadMigrationEntries()
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if _, exists := applied[entry.Version]; exists {
+			continue
+		}
+
+		if _, err := tx.ExecContext(ctx, entry.SQL); err != nil {
+			return fmt.Errorf("apply migration %s: %w", entry.Name, err)
+		}
+
+		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, name) VALUES ($1, $2)`, entry.Version, entry.Name); err != nil {
+			return fmt.Errorf("record migration %s: %w", entry.Name, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migrations: %w", err)
+	}
+
+	return nil
+}
+
+type migrationEntry struct {
+	Version string
+	Name    string
+	SQL     string
+}
+
+type execContexter interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+type queryContexter interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+func ensureSchemaMigrationsTable(ctx context.Context, db execContexter) error {
+	if _, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -70,34 +124,36 @@ func (r *Runner) Run(ctx context.Context) error {
 	`); err != nil {
 		return fmt.Errorf("ensure schema_migrations table: %w", err)
 	}
+	return nil
+}
 
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, advisoryLockKey); err != nil {
-		return fmt.Errorf("acquire migration lock: %w", err)
+func loadAppliedVersionSet(ctx context.Context, db queryContexter) (map[string]struct{}, error) {
+	rows, err := db.QueryContext(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return nil, fmt.Errorf("load applied migrations: %w", err)
 	}
+	defer rows.Close()
 
 	applied := make(map[string]struct{})
-	rows, err := tx.QueryContext(ctx, `SELECT version FROM schema_migrations`)
-	if err != nil {
-		return fmt.Errorf("load applied migrations: %w", err)
-	}
 	for rows.Next() {
 		var version string
 		if err := rows.Scan(&version); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan applied migration: %w", err)
+			return nil, fmt.Errorf("scan applied migration: %w", err)
 		}
 		applied[version] = struct{}{}
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("iterate applied migrations: %w", err)
+		return nil, fmt.Errorf("iterate applied migrations: %w", err)
 	}
-	rows.Close()
+	return applied, nil
+}
 
+func loadMigrationEntries() ([]migrationEntry, error) {
 	entries, err := fs.ReadDir(migrationFiles, ".")
 	if err != nil {
-		return fmt.Errorf("read migration files: %w", err)
+		return nil, fmt.Errorf("read migration files: %w", err)
 	}
+
 	upEntries := make([]fs.DirEntry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".up.sql") {
@@ -109,39 +165,27 @@ func (r *Runner) Run(ctx context.Context) error {
 		return upEntries[i].Name() < upEntries[j].Name()
 	})
 
+	out := make([]migrationEntry, 0, len(upEntries))
 	for _, entry := range upEntries {
 		name := entry.Name()
 		version, err := parseVersion(name)
 		if err != nil {
-			return err
-		}
-		if _, exists := applied[version]; exists {
-			continue
+			return nil, err
 		}
 
 		sqlBytes, err := fs.ReadFile(migrationFiles, name)
 		if err != nil {
-			return fmt.Errorf("read migration %s: %w", name, err)
+			return nil, fmt.Errorf("read migration %s: %w", name, err)
 		}
 		sqlText := strings.TrimSpace(string(sqlBytes))
 		if sqlText == "" {
-			return fmt.Errorf("migration %s is empty", name)
+			return nil, fmt.Errorf("migration %s is empty", name)
 		}
 
-		if _, err := tx.ExecContext(ctx, sqlText); err != nil {
-			return fmt.Errorf("apply migration %s: %w", name, err)
-		}
-
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, name) VALUES ($1, $2)`, version, name); err != nil {
-			return fmt.Errorf("record migration %s: %w", name, err)
-		}
+		out = append(out, migrationEntry{Version: version, Name: name, SQL: sqlText})
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit migrations: %w", err)
-	}
-
-	return nil
+	return out, nil
 }
 
 func parseVersion(filename string) (string, error) {

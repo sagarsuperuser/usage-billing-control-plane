@@ -45,6 +45,8 @@ Make targets:
 make help
 make db-up
 make migrate
+make migrate-status
+make migrate-verify
 make run
 ```
 
@@ -52,6 +54,18 @@ Run migrations:
 
 ```bash
 go run ./cmd/migrate
+```
+
+Check migration status:
+
+```bash
+go run ./cmd/migrate status
+```
+
+Verify migration state (fails if pending or unknown applied versions exist):
+
+```bash
+go run ./cmd/migrate verify
 ```
 
 If you need boot-time migrations in non-CI environments:

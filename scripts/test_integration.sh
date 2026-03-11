@@ -30,5 +30,6 @@ if ! docker compose -f "$compose_file" exec -T postgres psql -U postgres -d post
 fi
 
 DATABASE_URL="$test_database_url" go run ./cmd/migrate
+DATABASE_URL="$test_database_url" go run ./cmd/migrate verify
 TEST_DATABASE_URL="$test_database_url" go test ./internal/api -run TestEndToEndPreviewReplayReconciliation -v
 TEST_DATABASE_URL="$test_database_url" go test ./migrations -run TestRunnerAppliesMigrationsIdempotently -v

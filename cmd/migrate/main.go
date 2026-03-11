@@ -14,17 +14,70 @@ import (
 	"lago-usage-billing-alpha/migrations"
 )
 
+type command string
+
+const (
+	commandUp     command = "up"
+	commandStatus command = "status"
+	commandVerify command = "verify"
+)
+
 func main() {
+	cmd, err := parseCommand(os.Args[1:])
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+
+	db, err := openDBFromEnv()
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	defer db.Close()
+
+	switch cmd {
+	case commandUp:
+		runUp(db)
+	case commandStatus:
+		runStatus(db)
+	case commandVerify:
+		runVerify(db)
+	default:
+		log.Fatalf("unsupported command: %s", cmd)
+	}
+}
+
+func parseCommand(args []string) (command, error) {
+	if len(args) == 0 {
+		return commandUp, nil
+	}
+
+	raw := args[0]
+	switch raw {
+	case string(commandUp):
+		return commandUp, nil
+	case string(commandStatus):
+		return commandStatus, nil
+	case string(commandVerify):
+		return commandVerify, nil
+	case "-h", "--help", "help":
+		printUsage()
+		os.Exit(0)
+	default:
+		return "", fmt.Errorf("unknown command %q\n\n%s", raw, usageText())
+	}
+	return "", nil
+}
+
+func openDBFromEnv() (*sql.DB, error) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is required")
+		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	defer db.Close()
 
 	db.SetMaxOpenConns(getIntEnv("DB_MAX_OPEN_CONNS", 20))
 	db.SetMaxIdleConns(getIntEnv("DB_MAX_IDLE_CONNS", 5))
@@ -33,48 +86,77 @@ func main() {
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), time.Duration(getIntEnv("DB_PING_TIMEOUT_SEC", 5))*time.Second)
 	defer pingCancel()
 	if err := db.PingContext(pingCtx); err != nil {
-		log.Fatalf("failed to ping database: %v", err)
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return db, nil
+}
+
+func runUp(db *sql.DB) {
+	before, err := migrations.GetStatus(context.Background(), db)
+	if err != nil {
+		log.Fatalf("failed to load migration status before run: %v", err)
 	}
 
 	migrationTimeout := time.Duration(getIntEnv("DB_MIGRATION_TIMEOUT_SEC", 60)) * time.Second
 	runner := migrations.NewRunner(db, migrations.WithTimeout(migrationTimeout))
 
-	before, err := countAppliedMigrations(db)
-	if err != nil {
-		log.Fatalf("failed to count applied migrations before run: %v", err)
-	}
-
 	started := time.Now().UTC()
 	if err := runner.Run(context.Background()); err != nil {
 		log.Fatalf("migration run failed: %v", err)
 	}
-	after, err := countAppliedMigrations(db)
+
+	after, err := migrations.GetStatus(context.Background(), db)
 	if err != nil {
-		log.Fatalf("failed to count applied migrations after run: %v", err)
+		log.Fatalf("failed to load migration status after run: %v", err)
 	}
 
-	appliedThisRun := after - before
+	appliedThisRun := len(after.Applied) - len(before.Applied)
 	if appliedThisRun < 0 {
 		appliedThisRun = 0
 	}
 	durationMs := time.Since(started).Milliseconds()
-	log.Printf("level=info component=migrate event=completed applied_this_run=%d total_applied=%d duration_ms=%d", appliedThisRun, after, durationMs)
+	log.Printf("level=info component=migrate event=completed applied_this_run=%d total_applied=%d pending=%d duration_ms=%d", appliedThisRun, len(after.Applied), len(after.Pending), durationMs)
 }
 
-func countAppliedMigrations(db *sql.DB) (int, error) {
-	var regclass sql.NullString
-	if err := db.QueryRow(`SELECT to_regclass('public.schema_migrations')::text`).Scan(&regclass); err != nil {
-		return 0, fmt.Errorf("check schema_migrations existence: %w", err)
-	}
-	if !regclass.Valid {
-		return 0, nil
+func runStatus(db *sql.DB) {
+	status, err := migrations.GetStatus(context.Background(), db)
+	if err != nil {
+		log.Fatalf("failed to load migration status: %v", err)
 	}
 
-	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
-		return 0, fmt.Errorf("count applied migrations: %w", err)
+	fmt.Printf("available=%d applied=%d pending=%d unknown_applied=%d\n", len(status.Available), len(status.Applied), len(status.Pending), len(status.UnknownApplied))
+
+	for _, pending := range status.Pending {
+		fmt.Printf("PENDING version=%s name=%s\n", pending.Version, pending.Name)
 	}
-	return count, nil
+	for _, unknown := range status.UnknownApplied {
+		fmt.Printf("UNKNOWN_APPLIED version=%s name=%s applied_at=%s\n", unknown.Version, unknown.Name, unknown.AppliedAt.Format(time.RFC3339))
+	}
+}
+
+func runVerify(db *sql.DB) {
+	if err := migrations.Verify(context.Background(), db); err != nil {
+		log.Fatalf("verification failed: %v", err)
+	}
+	log.Printf("level=info component=migrate event=verified")
+}
+
+func usageText() string {
+	return `Usage:
+  go run ./cmd/migrate [command]
+
+Commands:
+  up       Apply pending migrations (default)
+  status   Print migration status (available/applied/pending)
+  verify   Exit non-zero if pending or unknown applied migrations exist
+  help     Show this help
+`
+}
+
+func printUsage() {
+	fmt.Print(usageText())
 }
 
 func getIntEnv(key string, defaultVal int) int {

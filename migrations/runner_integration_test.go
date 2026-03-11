@@ -86,4 +86,26 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 			t.Fatalf("constraint %s should exist after migrations", constraint)
 		}
 	}
+
+	status, err := migrations.GetStatus(context.Background(), db)
+	if err != nil {
+		t.Fatalf("get migration status: %v", err)
+	}
+	if len(status.Pending) != 0 {
+		t.Fatalf("expected zero pending migrations after run, got %d", len(status.Pending))
+	}
+	if len(status.UnknownApplied) != 0 {
+		t.Fatalf("expected zero unknown applied migrations after run, got %d", len(status.UnknownApplied))
+	}
+
+	if err := migrations.Verify(context.Background(), db); err != nil {
+		t.Fatalf("verify migrations should pass: %v", err)
+	}
+
+	if _, err := db.Exec(`INSERT INTO schema_migrations (version, name) VALUES ('9999', '9999_manual_unknown.up.sql')`); err != nil {
+		t.Fatalf("insert unknown applied migration: %v", err)
+	}
+	if err := migrations.Verify(context.Background(), db); err == nil {
+		t.Fatalf("verify migrations should fail when unknown applied migrations exist")
+	}
 }
