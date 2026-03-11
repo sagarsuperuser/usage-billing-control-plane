@@ -4,21 +4,31 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	migrate "github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
 //go:embed *.up.sql
 var migrationFiles embed.FS
 
-const advisoryLockKey int64 = 22042026
+const (
+	defaultTimeout         = 60 * time.Second
+	defaultMigrationsTable = "schema_migrations"
+)
 
 type Runner struct {
 	db      *sql.DB
 	timeout time.Duration
+	table   string
 }
 
 type Option func(*Runner)
@@ -31,10 +41,20 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
+func WithMigrationsTable(table string) Option {
+	return func(r *Runner) {
+		table = strings.TrimSpace(table)
+		if table != "" {
+			r.table = table
+		}
+	}
+}
+
 func NewRunner(db *sql.DB, opts ...Option) *Runner {
 	r := &Runner{
 		db:      db,
-		timeout: 60 * time.Second,
+		timeout: defaultTimeout,
+		table:   defaultMigrationsTable,
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -43,155 +63,287 @@ func NewRunner(db *sql.DB, opts ...Option) *Runner {
 }
 
 func (r *Runner) Run(ctx context.Context) error {
+	ctx, cancel := r.withTimeoutContext(ctx)
+	defer cancel()
+
+	if err := prepareLegacyTableCompatibility(ctx, r.db, r.table); err != nil {
+		return err
+	}
+
+	m, err := r.newMigrator()
+	if err != nil {
+		return err
+	}
+
+	err = runWithContext(ctx, func() error {
+		err := m.Up()
+		if err == nil || errors.Is(err, migrate.ErrNoChange) {
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("apply migrations with golang-migrate: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Runner) Status(ctx context.Context) (StatusReport, error) {
+	ctx, cancel := r.withTimeoutContext(ctx)
+	defer cancel()
+
+	if err := prepareLegacyTableCompatibility(ctx, r.db, r.table); err != nil {
+		return StatusReport{}, err
+	}
+
+	available, err := listAvailableMigrations()
+	if err != nil {
+		return StatusReport{}, err
+	}
+
+	m, err := r.newMigrator()
+	if err != nil {
+		return StatusReport{}, err
+	}
+
+	currentVersion, dirty, hasVersion, err := currentVersion(m)
+	if err != nil {
+		return StatusReport{}, err
+	}
+
+	report := buildStatusReport(available, currentVersion, dirty, hasVersion)
+	return report, nil
+}
+
+func (r *Runner) Verify(ctx context.Context) error {
+	status, err := r.Status(ctx)
+	if err != nil {
+		return err
+	}
+
+	issues := make([]string, 0, 3)
+	if status.Dirty {
+		issues = append(issues, "database migration state is dirty")
+	}
+	if status.UnknownCurrent {
+		issues = append(issues, "current database version is unknown to local migration files")
+	}
+	if status.PendingCount > 0 {
+		issues = append(issues, fmt.Sprintf("pending migrations=%d", status.PendingCount))
+	}
+
+	if len(issues) > 0 {
+		return fmt.Errorf("migration verification failed: %s", strings.Join(issues, "; "))
+	}
+	return nil
+}
+
+func GetStatus(ctx context.Context, db *sql.DB, opts ...Option) (StatusReport, error) {
+	return NewRunner(db, opts...).Status(ctx)
+}
+
+func Verify(ctx context.Context, db *sql.DB, opts ...Option) error {
+	return NewRunner(db, opts...).Verify(ctx)
+}
+
+func (r *Runner) withTimeoutContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
-	if _, ok := ctx.Deadline(); !ok && r.timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, r.timeout)
-		defer cancel()
+	if _, hasDeadline := ctx.Deadline(); hasDeadline || r.timeout <= 0 {
+		return ctx, func() {}
 	}
+	return context.WithTimeout(ctx, r.timeout)
+}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+func (r *Runner) newMigrator() (*migrate.Migrate, error) {
+	sourceDriver, err := iofs.New(migrationFiles, ".")
 	if err != nil {
-		return fmt.Errorf("begin migration transaction: %w", err)
+		return nil, fmt.Errorf("create iofs migration source: %w", err)
 	}
-	defer func() {
-		_ = tx.Rollback()
+
+	dbDriver, err := postgres.WithInstance(r.db, &postgres.Config{MigrationsTable: r.table})
+	if err != nil {
+		return nil, fmt.Errorf("create postgres migration driver: %w", err)
+	}
+
+	m, err := migrate.NewWithInstance("iofs", sourceDriver, "postgres", dbDriver)
+	if err != nil {
+		return nil, fmt.Errorf("create golang-migrate instance: %w", err)
+	}
+
+	return m, nil
+}
+
+func runWithContext(ctx context.Context, fn func() error) error {
+	if ctx == nil {
+		return fn()
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- fn()
 	}()
 
-	if err := ensureSchemaMigrationsTable(ctx, tx); err != nil {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-done:
 		return err
 	}
-
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, advisoryLockKey); err != nil {
-		return fmt.Errorf("acquire migration lock: %w", err)
-	}
-
-	applied, err := loadAppliedVersionSet(ctx, tx)
-	if err != nil {
-		return err
-	}
-
-	entries, err := loadMigrationEntries()
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		if _, exists := applied[entry.Version]; exists {
-			continue
-		}
-
-		if _, err := tx.ExecContext(ctx, entry.SQL); err != nil {
-			return fmt.Errorf("apply migration %s: %w", entry.Name, err)
-		}
-
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, name) VALUES ($1, $2)`, entry.Version, entry.Name); err != nil {
-			return fmt.Errorf("record migration %s: %w", entry.Name, err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit migrations: %w", err)
-	}
-
-	return nil
 }
 
-type migrationEntry struct {
-	Version string
+func currentVersion(m *migrate.Migrate) (version uint, dirty bool, hasVersion bool, err error) {
+	v, d, err := m.Version()
+	if err == nil {
+		return v, d, true, nil
+	}
+	if errors.Is(err, migrate.ErrNilVersion) {
+		return 0, false, false, nil
+	}
+	return 0, false, false, fmt.Errorf("read current migration version: %w", err)
+}
+
+type availableMigration struct {
+	Version uint
 	Name    string
-	SQL     string
 }
 
-type execContexter interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
-type queryContexter interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}
-
-func ensureSchemaMigrationsTable(ctx context.Context, db execContexter) error {
-	if _, err := db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)
-	`); err != nil {
-		return fmt.Errorf("ensure schema_migrations table: %w", err)
-	}
-	return nil
-}
-
-func loadAppliedVersionSet(ctx context.Context, db queryContexter) (map[string]struct{}, error) {
-	rows, err := db.QueryContext(ctx, `SELECT version FROM schema_migrations`)
-	if err != nil {
-		return nil, fmt.Errorf("load applied migrations: %w", err)
-	}
-	defer rows.Close()
-
-	applied := make(map[string]struct{})
-	for rows.Next() {
-		var version string
-		if err := rows.Scan(&version); err != nil {
-			return nil, fmt.Errorf("scan applied migration: %w", err)
-		}
-		applied[version] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate applied migrations: %w", err)
-	}
-	return applied, nil
-}
-
-func loadMigrationEntries() ([]migrationEntry, error) {
+func listAvailableMigrations() ([]availableMigration, error) {
 	entries, err := fs.ReadDir(migrationFiles, ".")
 	if err != nil {
 		return nil, fmt.Errorf("read migration files: %w", err)
 	}
 
-	upEntries := make([]fs.DirEntry, 0, len(entries))
+	out := make([]availableMigration, 0)
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".up.sql") {
+		if entry.IsDir() {
 			continue
 		}
-		upEntries = append(upEntries, entry)
-	}
-	sort.Slice(upEntries, func(i, j int) bool {
-		return upEntries[i].Name() < upEntries[j].Name()
-	})
-
-	out := make([]migrationEntry, 0, len(upEntries))
-	for _, entry := range upEntries {
 		name := entry.Name()
+		if !strings.HasSuffix(name, ".up.sql") {
+			continue
+		}
+
 		version, err := parseVersion(name)
 		if err != nil {
 			return nil, err
 		}
-
-		sqlBytes, err := fs.ReadFile(migrationFiles, name)
-		if err != nil {
-			return nil, fmt.Errorf("read migration %s: %w", name, err)
-		}
-		sqlText := strings.TrimSpace(string(sqlBytes))
-		if sqlText == "" {
-			return nil, fmt.Errorf("migration %s is empty", name)
-		}
-
-		out = append(out, migrationEntry{Version: version, Name: name, SQL: sqlText})
+		out = append(out, availableMigration{Version: version, Name: name})
 	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Version < out[j].Version
+	})
 
 	return out, nil
 }
 
-func parseVersion(filename string) (string, error) {
+func parseVersion(filename string) (uint, error) {
 	parts := strings.SplitN(filename, "_", 2)
 	if len(parts) < 2 || strings.TrimSpace(parts[0]) == "" {
-		return "", fmt.Errorf("invalid migration name %q: expected <version>_<name>.up.sql", filename)
+		return 0, fmt.Errorf("invalid migration name %q: expected <version>_<name>.up.sql", filename)
 	}
-	return parts[0], nil
+
+	v, err := strconv.ParseUint(parts[0], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid migration version in %q: %w", filename, err)
+	}
+	if v == 0 {
+		return 0, fmt.Errorf("invalid migration version in %q: version must be > 0", filename)
+	}
+	return uint(v), nil
+}
+
+func prepareLegacyTableCompatibility(ctx context.Context, db *sql.DB, table string) error {
+	if !isSafeIdentifier(table) {
+		return fmt.Errorf("invalid migrations table name %q", table)
+	}
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = $1
+	`, table)
+	if err != nil {
+		return fmt.Errorf("inspect migrations table compatibility: %w", err)
+	}
+	defer rows.Close()
+
+	columns := make(map[string]struct{})
+	for rows.Next() {
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			return fmt.Errorf("scan migrations table column: %w", err)
+		}
+		columns[col] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate migrations table columns: %w", err)
+	}
+
+	if len(columns) == 0 {
+		return nil
+	}
+
+	if hasColumns(columns, "version", "dirty") {
+		return nil
+	}
+
+	if hasColumns(columns, "version", "name", "applied_at") {
+		legacyName := table + "_legacy_custom"
+		if !isSafeIdentifier(legacyName) {
+			return fmt.Errorf("invalid legacy migrations table name %q", legacyName)
+		}
+
+		if exists, err := tableExists(ctx, db, legacyName); err != nil {
+			return err
+		} else if exists {
+			return fmt.Errorf("legacy migrations table %q already exists; manual cleanup required", legacyName)
+		}
+
+		if _, err := db.ExecContext(ctx, fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, quoteIdent(table), quoteIdent(legacyName))); err != nil {
+			return fmt.Errorf("rename legacy custom migrations table: %w", err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("unsupported migrations table shape for %q; manual migration table cleanup required", table)
+}
+
+func tableExists(ctx context.Context, db *sql.DB, table string) (bool, error) {
+	var exists bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (
+		SELECT 1 FROM information_schema.tables
+		WHERE table_schema = 'public' AND table_name = $1
+	)`, table).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check table %q existence: %w", table, err)
+	}
+	return exists, nil
+}
+
+func hasColumns(columns map[string]struct{}, required ...string) bool {
+	for _, req := range required {
+		if _, ok := columns[req]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func isSafeIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (i > 0 && r >= '0' && r <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func quoteIdent(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 }

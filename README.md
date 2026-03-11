@@ -14,11 +14,12 @@ Production-oriented API foundation for:
 
 ## Migration Model
 
+- Uses **golang-migrate** as migration engine.
 - Versioned SQL migrations live in `migrations/*.up.sql`.
 - Migrations are applied by `cmd/migrate` for CI/CD-safe rollout.
 - Server boot migrations are optional and disabled by default.
-- Applied versions are tracked in `schema_migrations`.
-- Migration execution uses an advisory lock to prevent concurrent runners from racing.
+- Migration state is tracked in `schema_migrations` (golang-migrate table).
+- Legacy custom `schema_migrations(version,name,applied_at)` is auto-renamed once to `schema_migrations_legacy_custom`.
 
 ## Run
 
@@ -62,7 +63,7 @@ Check migration status:
 go run ./cmd/migrate status
 ```
 
-Verify migration state (fails if pending or unknown applied versions exist):
+Verify migration state (fails if dirty, unknown-current, or pending migrations exist):
 
 ```bash
 go run ./cmd/migrate verify

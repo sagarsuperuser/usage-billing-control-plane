@@ -34,13 +34,16 @@ func main() {
 	}
 	defer db.Close()
 
+	migrationTimeout := time.Duration(getIntEnv("DB_MIGRATION_TIMEOUT_SEC", 60)) * time.Second
+	runner := migrations.NewRunner(db, migrations.WithTimeout(migrationTimeout))
+
 	switch cmd {
 	case commandUp:
-		runUp(db)
+		runUp(runner)
 	case commandStatus:
-		runStatus(db)
+		runStatus(runner)
 	case commandVerify:
-		runVerify(db)
+		runVerify(runner)
 	default:
 		log.Fatalf("unsupported command: %s", cmd)
 	}
@@ -93,51 +96,51 @@ func openDBFromEnv() (*sql.DB, error) {
 	return db, nil
 }
 
-func runUp(db *sql.DB) {
-	before, err := migrations.GetStatus(context.Background(), db)
+func runUp(runner *migrations.Runner) {
+	before, err := runner.Status(context.Background())
 	if err != nil {
 		log.Fatalf("failed to load migration status before run: %v", err)
 	}
-
-	migrationTimeout := time.Duration(getIntEnv("DB_MIGRATION_TIMEOUT_SEC", 60)) * time.Second
-	runner := migrations.NewRunner(db, migrations.WithTimeout(migrationTimeout))
 
 	started := time.Now().UTC()
 	if err := runner.Run(context.Background()); err != nil {
 		log.Fatalf("migration run failed: %v", err)
 	}
 
-	after, err := migrations.GetStatus(context.Background(), db)
+	after, err := runner.Status(context.Background())
 	if err != nil {
 		log.Fatalf("failed to load migration status after run: %v", err)
 	}
 
-	appliedThisRun := len(after.Applied) - len(before.Applied)
+	appliedThisRun := before.PendingCount - after.PendingCount
 	if appliedThisRun < 0 {
 		appliedThisRun = 0
 	}
+
 	durationMs := time.Since(started).Milliseconds()
-	log.Printf("level=info component=migrate event=completed applied_this_run=%d total_applied=%d pending=%d duration_ms=%d", appliedThisRun, len(after.Applied), len(after.Pending), durationMs)
+	log.Printf(
+		"level=info component=migrate event=completed applied_this_run=%d %s duration_ms=%d",
+		appliedThisRun,
+		after.SummaryString(),
+		durationMs,
+	)
 }
 
-func runStatus(db *sql.DB) {
-	status, err := migrations.GetStatus(context.Background(), db)
+func runStatus(runner *migrations.Runner) {
+	status, err := runner.Status(context.Background())
 	if err != nil {
 		log.Fatalf("failed to load migration status: %v", err)
 	}
 
-	fmt.Printf("available=%d applied=%d pending=%d unknown_applied=%d\n", len(status.Available), len(status.Applied), len(status.Pending), len(status.UnknownApplied))
+	fmt.Println(status.SummaryString())
 
 	for _, pending := range status.Pending {
-		fmt.Printf("PENDING version=%s name=%s\n", pending.Version, pending.Name)
-	}
-	for _, unknown := range status.UnknownApplied {
-		fmt.Printf("UNKNOWN_APPLIED version=%s name=%s applied_at=%s\n", unknown.Version, unknown.Name, unknown.AppliedAt.Format(time.RFC3339))
+		fmt.Printf("PENDING version=%d name=%s\n", pending.Version, pending.Name)
 	}
 }
 
-func runVerify(db *sql.DB) {
-	if err := migrations.Verify(context.Background(), db); err != nil {
+func runVerify(runner *migrations.Runner) {
+	if err := runner.Verify(context.Background()); err != nil {
 		log.Fatalf("verification failed: %v", err)
 	}
 	log.Printf("level=info component=migrate event=verified")
@@ -149,8 +152,8 @@ func usageText() string {
 
 Commands:
   up       Apply pending migrations (default)
-  status   Print migration status (available/applied/pending)
-  verify   Exit non-zero if pending or unknown applied migrations exist
+  status   Print migration status (available/applied/pending/current)
+  verify   Exit non-zero if dirty, unknown-current, or pending migrations exist
   help     Show this help
 `
 }

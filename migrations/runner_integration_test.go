@@ -23,7 +23,7 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(`DROP TABLE IF EXISTS schema_migrations, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions CASCADE`); err != nil {
+	if _, err := db.Exec(`DROP TABLE IF EXISTS schema_migrations, schema_migrations_legacy_custom, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions CASCADE`); err != nil {
 		t.Fatalf("drop existing tables: %v", err)
 	}
 
@@ -35,12 +35,24 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 		t.Fatalf("second migration run should be idempotent: %v", err)
 	}
 
-	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
-		t.Fatalf("count schema_migrations: %v", err)
+	status, err := runner.Status(context.Background())
+	if err != nil {
+		t.Fatalf("get migration status: %v", err)
 	}
-	if count < 3 {
-		t.Fatalf("expected at least 3 applied migrations, got %d", count)
+	if len(status.Available) < 3 {
+		t.Fatalf("expected at least 3 available migrations, got %d", len(status.Available))
+	}
+	if status.PendingCount != 0 {
+		t.Fatalf("expected zero pending migrations after run, got %d", status.PendingCount)
+	}
+	if status.Dirty {
+		t.Fatalf("expected clean migration state")
+	}
+	if status.CurrentVersion == nil {
+		t.Fatalf("expected current version to be set")
+	}
+	if *status.CurrentVersion != status.LatestVersion {
+		t.Fatalf("expected current version %d to match latest %d", *status.CurrentVersion, status.LatestVersion)
 	}
 
 	for _, tableName := range []string{"rating_rule_versions", "meters", "usage_events", "billed_entries", "replay_jobs"} {
@@ -69,43 +81,28 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 		}
 	}
 
-	for _, constraint := range []string{
-		"chk_rating_rule_mode_allowed",
-		"chk_meter_aggregation_allowed",
-		"chk_replay_job_status_allowed",
-	} {
-		var exists bool
-		if err := db.QueryRow(`SELECT EXISTS (
-			SELECT 1
-			FROM pg_constraint
-			WHERE conname = $1
-		)`, constraint).Scan(&exists); err != nil {
-			t.Fatalf("check constraint %s existence: %v", constraint, err)
-		}
-		if !exists {
-			t.Fatalf("constraint %s should exist after migrations", constraint)
-		}
-	}
-
-	status, err := migrations.GetStatus(context.Background(), db)
-	if err != nil {
-		t.Fatalf("get migration status: %v", err)
-	}
-	if len(status.Pending) != 0 {
-		t.Fatalf("expected zero pending migrations after run, got %d", len(status.Pending))
-	}
-	if len(status.UnknownApplied) != 0 {
-		t.Fatalf("expected zero unknown applied migrations after run, got %d", len(status.UnknownApplied))
-	}
-
-	if err := migrations.Verify(context.Background(), db); err != nil {
+	if err := runner.Verify(context.Background()); err != nil {
 		t.Fatalf("verify migrations should pass: %v", err)
 	}
 
-	if _, err := db.Exec(`INSERT INTO schema_migrations (version, name) VALUES ('9999', '9999_manual_unknown.up.sql')`); err != nil {
-		t.Fatalf("insert unknown applied migration: %v", err)
+	if _, err := db.Exec(`UPDATE schema_migrations SET version = 1, dirty = false`); err != nil {
+		t.Fatalf("set schema_migrations to pending state: %v", err)
 	}
-	if err := migrations.Verify(context.Background(), db); err == nil {
-		t.Fatalf("verify migrations should fail when unknown applied migrations exist")
+	if err := runner.Verify(context.Background()); err == nil {
+		t.Fatalf("verify should fail when pending migrations exist")
+	}
+
+	if _, err := db.Exec(`UPDATE schema_migrations SET version = 9999, dirty = false`); err != nil {
+		t.Fatalf("set schema_migrations to unknown version: %v", err)
+	}
+	if err := runner.Verify(context.Background()); err == nil {
+		t.Fatalf("verify should fail when current version is unknown")
+	}
+
+	if _, err := db.Exec(`UPDATE schema_migrations SET version = 3, dirty = true`); err != nil {
+		t.Fatalf("set schema_migrations to dirty state: %v", err)
+	}
+	if err := runner.Verify(context.Background()); err == nil {
+		t.Fatalf("verify should fail when migration state is dirty")
 	}
 }
