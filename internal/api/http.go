@@ -23,10 +23,19 @@ type Server struct {
 	usageService   *service.UsageService
 	replayService  *replay.Service
 	recService     *reconcile.Service
+	metricsFn      func() map[string]any
 	mux            *http.ServeMux
 }
 
-func NewServer(repo store.Repository) *Server {
+type ServerOption func(*Server)
+
+func WithMetricsProvider(provider func() map[string]any) ServerOption {
+	return func(s *Server) {
+		s.metricsFn = provider
+	}
+}
+
+func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s := &Server{
 		ratingService:  service.NewRatingService(repo),
 		meterService:   service.NewMeterService(repo),
@@ -35,6 +44,9 @@ func NewServer(repo store.Repository) *Server {
 		replayService:  replay.NewService(repo),
 		recService:     reconcile.NewService(repo),
 		mux:            http.NewServeMux(),
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 	s.registerRoutes()
 	return s
@@ -62,6 +74,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/replay-jobs/", s.handleReplayJobByID)
 
 	s.mux.HandleFunc("/v1/reconciliation-report", s.handleReconciliationReport)
+	s.mux.HandleFunc("/internal/metrics", s.handleInternalMetrics)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -309,6 +322,23 @@ func (s *Server) handleReconciliationReport(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) handleInternalMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	if s.metricsFn == nil {
+		writeError(w, http.StatusNotFound, "metrics not configured")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"generated_at": time.Now().UTC(),
+		"metrics":      s.metricsFn(),
+	})
 }
 
 func parseFilter(r *http.Request) (reconcile.Filter, error) {

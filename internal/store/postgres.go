@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -10,81 +11,56 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"lago-usage-billing-alpha/internal/domain"
+	"lago-usage-billing-alpha/migrations"
+)
+
+const (
+	defaultQueryTimeout     = 5 * time.Second
+	defaultMigrationTimeout = 60 * time.Second
 )
 
 type PostgresStore struct {
-	db *sql.DB
+	db               *sql.DB
+	queryTimeout     time.Duration
+	migrationTimeout time.Duration
 }
 
-func NewPostgresStore(db *sql.DB) *PostgresStore {
-	return &PostgresStore{db: db}
+type PostgresOption func(*PostgresStore)
+
+func WithQueryTimeout(timeout time.Duration) PostgresOption {
+	return func(s *PostgresStore) {
+		if timeout > 0 {
+			s.queryTimeout = timeout
+		}
+	}
+}
+
+func WithMigrationTimeout(timeout time.Duration) PostgresOption {
+	return func(s *PostgresStore) {
+		if timeout > 0 {
+			s.migrationTimeout = timeout
+		}
+	}
+}
+
+func NewPostgresStore(db *sql.DB, opts ...PostgresOption) *PostgresStore {
+	s := &PostgresStore{
+		db:               db,
+		queryTimeout:     defaultQueryTimeout,
+		migrationTimeout: defaultMigrationTimeout,
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *PostgresStore) Migrate() error {
-	statements := []string{
-		`CREATE TABLE IF NOT EXISTS rating_rule_versions (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			version INTEGER NOT NULL,
-			mode TEXT NOT NULL,
-			currency TEXT NOT NULL,
-			flat_amount_cents BIGINT NOT NULL DEFAULT 0,
-			graduated_tiers JSONB NOT NULL DEFAULT '[]'::jsonb,
-			package_size BIGINT NOT NULL DEFAULT 0,
-			package_amount_cents BIGINT NOT NULL DEFAULT 0,
-			overage_unit_amount_cents BIGINT NOT NULL DEFAULT 0,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
-		`CREATE TABLE IF NOT EXISTS meters (
-			id TEXT PRIMARY KEY,
-			meter_key TEXT NOT NULL UNIQUE,
-			name TEXT NOT NULL,
-			unit TEXT NOT NULL,
-			aggregation TEXT NOT NULL,
-			rating_rule_version_id TEXT NOT NULL REFERENCES rating_rule_versions(id),
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
-		`CREATE TABLE IF NOT EXISTS usage_events (
-			id TEXT PRIMARY KEY,
-			customer_id TEXT NOT NULL,
-			meter_id TEXT NOT NULL REFERENCES meters(id),
-			quantity BIGINT NOT NULL,
-			occurred_at TIMESTAMPTZ NOT NULL
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_usage_events_lookup ON usage_events (customer_id, meter_id, occurred_at)`,
-		`CREATE TABLE IF NOT EXISTS billed_entries (
-			id TEXT PRIMARY KEY,
-			customer_id TEXT NOT NULL,
-			meter_id TEXT NOT NULL REFERENCES meters(id),
-			amount_cents BIGINT NOT NULL,
-			occurred_at TIMESTAMPTZ NOT NULL
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_billed_entries_lookup ON billed_entries (customer_id, meter_id, occurred_at)`,
-		`CREATE TABLE IF NOT EXISTS replay_jobs (
-			id TEXT PRIMARY KEY,
-			customer_id TEXT,
-			meter_id TEXT,
-			from_ts TIMESTAMPTZ,
-			to_ts TIMESTAMPTZ,
-			idempotency_key TEXT NOT NULL UNIQUE,
-			status TEXT NOT NULL,
-			processed_records BIGINT NOT NULL DEFAULT 0,
-			error TEXT NOT NULL DEFAULT '',
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			started_at TIMESTAMPTZ,
-			completed_at TIMESTAMPTZ
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_replay_jobs_status_created ON replay_jobs (status, created_at)`,
-	}
-
-	for _, stmt := range statements {
-		if _, err := s.db.Exec(stmt); err != nil {
-			return fmt.Errorf("migration failed: %w", err)
-		}
-	}
-	return nil
+	runner := migrations.NewRunner(s.db, migrations.WithTimeout(s.migrationTimeout))
+	return runner.Run(context.Background())
 }
 
 func (s *PostgresStore) CreateRatingRuleVersion(input domain.RatingRuleVersion) (domain.RatingRuleVersion, error) {
@@ -103,7 +79,11 @@ func (s *PostgresStore) CreateRatingRuleVersion(input domain.RatingRuleVersion) 
 		return domain.RatingRuleVersion{}, err
 	}
 
-	_, err = s.db.Exec(
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	_, err = s.db.ExecContext(
+		ctx,
 		`INSERT INTO rating_rule_versions (
 			id, name, version, mode, currency, flat_amount_cents, graduated_tiers,
 			package_size, package_amount_cents, overage_unit_amount_cents, created_at
@@ -128,7 +108,10 @@ func (s *PostgresStore) CreateRatingRuleVersion(input domain.RatingRuleVersion) 
 }
 
 func (s *PostgresStore) ListRatingRuleVersions() ([]domain.RatingRuleVersion, error) {
-	rows, err := s.db.Query(`SELECT id, name, version, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions ORDER BY created_at ASC, id ASC`)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, version, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions ORDER BY created_at ASC, id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +132,10 @@ func (s *PostgresStore) ListRatingRuleVersions() ([]domain.RatingRuleVersion, er
 }
 
 func (s *PostgresStore) GetRatingRuleVersion(id string) (domain.RatingRuleVersion, error) {
-	row := s.db.QueryRow(`SELECT id, name, version, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions WHERE id = $1`, id)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	row := s.db.QueryRowContext(ctx, `SELECT id, name, version, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions WHERE id = $1`, id)
 	rule, err := scanRatingRule(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -170,7 +156,11 @@ func (s *PostgresStore) CreateMeter(input domain.Meter) (domain.Meter, error) {
 	}
 	input.UpdatedAt = now
 
-	_, err := s.db.Exec(
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	_, err := s.db.ExecContext(
+		ctx,
 		`INSERT INTO meters (id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		input.ID,
 		input.Key,
@@ -192,7 +182,10 @@ func (s *PostgresStore) CreateMeter(input domain.Meter) (domain.Meter, error) {
 }
 
 func (s *PostgresStore) ListMeters() ([]domain.Meter, error) {
-	rows, err := s.db.Query(`SELECT id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters ORDER BY created_at ASC, id ASC`)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	rows, err := s.db.QueryContext(ctx, `SELECT id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters ORDER BY created_at ASC, id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +206,10 @@ func (s *PostgresStore) ListMeters() ([]domain.Meter, error) {
 }
 
 func (s *PostgresStore) GetMeter(id string) (domain.Meter, error) {
-	row := s.db.QueryRow(`SELECT id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters WHERE id = $1`, id)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	row := s.db.QueryRowContext(ctx, `SELECT id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters WHERE id = $1`, id)
 	meter, err := scanMeter(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -227,7 +223,11 @@ func (s *PostgresStore) GetMeter(id string) (domain.Meter, error) {
 func (s *PostgresStore) UpdateMeter(input domain.Meter) (domain.Meter, error) {
 	input.UpdatedAt = time.Now().UTC()
 
-	row := s.db.QueryRow(
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	row := s.db.QueryRowContext(
+		ctx,
 		`UPDATE meters SET meter_key = $1, name = $2, unit = $3, aggregation = $4, rating_rule_version_id = $5, updated_at = $6 WHERE id = $7 RETURNING id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at`,
 		input.Key,
 		input.Name,
@@ -260,7 +260,10 @@ func (s *PostgresStore) CreateUsageEvent(input domain.UsageEvent) (domain.UsageE
 		input.Timestamp = time.Now().UTC()
 	}
 
-	_, err := s.db.Exec(`INSERT INTO usage_events (id, customer_id, meter_id, quantity, occurred_at) VALUES ($1,$2,$3,$4,$5)`, input.ID, input.CustomerID, input.MeterID, input.Quantity, input.Timestamp)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	_, err := s.db.ExecContext(ctx, `INSERT INTO usage_events (id, customer_id, meter_id, quantity, occurred_at) VALUES ($1,$2,$3,$4,$5)`, input.ID, input.CustomerID, input.MeterID, input.Quantity, input.Timestamp)
 	if err != nil {
 		return domain.UsageEvent{}, err
 	}
@@ -268,10 +271,13 @@ func (s *PostgresStore) CreateUsageEvent(input domain.UsageEvent) (domain.UsageE
 }
 
 func (s *PostgresStore) ListUsageEvents(filter Filter) ([]domain.UsageEvent, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
 	query, args := buildFilteredQuery(`SELECT id, customer_id, meter_id, quantity, occurred_at FROM usage_events`, filter, "occurred_at")
 	query += ` ORDER BY occurred_at ASC`
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +305,10 @@ func (s *PostgresStore) CreateBilledEntry(input domain.BilledEntry) (domain.Bill
 		input.Timestamp = time.Now().UTC()
 	}
 
-	_, err := s.db.Exec(`INSERT INTO billed_entries (id, customer_id, meter_id, amount_cents, occurred_at) VALUES ($1,$2,$3,$4,$5)`, input.ID, input.CustomerID, input.MeterID, input.AmountCents, input.Timestamp)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	_, err := s.db.ExecContext(ctx, `INSERT INTO billed_entries (id, customer_id, meter_id, amount_cents, occurred_at) VALUES ($1,$2,$3,$4,$5)`, input.ID, input.CustomerID, input.MeterID, input.AmountCents, input.Timestamp)
 	if err != nil {
 		return domain.BilledEntry{}, err
 	}
@@ -307,10 +316,13 @@ func (s *PostgresStore) CreateBilledEntry(input domain.BilledEntry) (domain.Bill
 }
 
 func (s *PostgresStore) ListBilledEntries(filter Filter) ([]domain.BilledEntry, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
 	query, args := buildFilteredQuery(`SELECT id, customer_id, meter_id, amount_cents, occurred_at FROM billed_entries`, filter, "occurred_at")
 	query += ` ORDER BY occurred_at ASC`
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +350,11 @@ func (s *PostgresStore) CreateReplayJob(input domain.ReplayJob) (domain.ReplayJo
 		input.CreatedAt = time.Now().UTC()
 	}
 
-	_, err := s.db.Exec(
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	_, err := s.db.ExecContext(
+		ctx,
 		`INSERT INTO replay_jobs (id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 		input.ID,
 		nullableString(input.CustomerID),
@@ -364,7 +380,10 @@ func (s *PostgresStore) CreateReplayJob(input domain.ReplayJob) (domain.ReplayJo
 }
 
 func (s *PostgresStore) GetReplayJob(id string) (domain.ReplayJob, error) {
-	row := s.db.QueryRow(`SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE id = $1`, id)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE id = $1`, id)
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -376,7 +395,10 @@ func (s *PostgresStore) GetReplayJob(id string) (domain.ReplayJob, error) {
 }
 
 func (s *PostgresStore) GetReplayJobByIdempotencyKey(key string) (domain.ReplayJob, error) {
-	row := s.db.QueryRow(`SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE idempotency_key = $1`, key)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE idempotency_key = $1`, key)
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -388,7 +410,10 @@ func (s *PostgresStore) GetReplayJobByIdempotencyKey(key string) (domain.ReplayJ
 }
 
 func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
-	tx, err := s.db.Begin()
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.ReplayJob{}, err
 	}
@@ -396,7 +421,7 @@ func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
 		_ = tx.Rollback()
 	}()
 
-	row := tx.QueryRow(`SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE status = $1 ORDER BY created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`, string(domain.ReplayQueued))
+	row := tx.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE status = $1 ORDER BY created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`, string(domain.ReplayQueued))
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -406,7 +431,7 @@ func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
 	}
 
 	now := time.Now().UTC()
-	_, err = tx.Exec(`UPDATE replay_jobs SET status = $1, started_at = $2 WHERE id = $3`, string(domain.ReplayRunning), now, job.ID)
+	_, err = tx.ExecContext(ctx, `UPDATE replay_jobs SET status = $1, started_at = $2 WHERE id = $3`, string(domain.ReplayRunning), now, job.ID)
 	if err != nil {
 		return domain.ReplayJob{}, err
 	}
@@ -421,7 +446,11 @@ func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
 }
 
 func (s *PostgresStore) CompleteReplayJob(id string, processedRecords int64, completedAt time.Time) (domain.ReplayJob, error) {
-	row := s.db.QueryRow(
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	row := s.db.QueryRowContext(
+		ctx,
 		`UPDATE replay_jobs SET status = $1, processed_records = $2, error = '', completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at`,
 		string(domain.ReplayDone),
 		processedRecords,
@@ -439,7 +468,11 @@ func (s *PostgresStore) CompleteReplayJob(id string, processedRecords int64, com
 }
 
 func (s *PostgresStore) FailReplayJob(id string, errMessage string, completedAt time.Time) (domain.ReplayJob, error) {
-	row := s.db.QueryRow(
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	row := s.db.QueryRowContext(
+		ctx,
 		`UPDATE replay_jobs SET status = $1, error = $2, completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at`,
 		string(domain.ReplayFailed),
 		errMessage,
@@ -454,6 +487,10 @@ func (s *PostgresStore) FailReplayJob(id string, errMessage string, completedAt 
 		return domain.ReplayJob{}, err
 	}
 	return job, nil
+}
+
+func (s *PostgresStore) withTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), s.queryTimeout)
 }
 
 type rowScanner interface {
@@ -598,13 +635,20 @@ func nullableString(v string) any {
 
 func newID(prefix string) string {
 	buf := make([]byte, 8)
-	_, _ = rand.Read(buf)
+	if _, err := rand.Read(buf); err != nil {
+		fallback := fmt.Sprintf("%d", time.Now().UnixNano())
+		return fmt.Sprintf("%s_%s", prefix, fallback)
+	}
 	return fmt.Sprintf("%s_%s", prefix, hex.EncodeToString(buf))
 }
 
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
 	}
 	text := strings.ToLower(err.Error())
 	return strings.Contains(text, "duplicate key value") || strings.Contains(text, "unique constraint")

@@ -42,7 +42,11 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	worker := replay.NewWorker(repo, 10*time.Millisecond)
 	go worker.Run(ctx)
 
-	ts := httptest.NewServer(api.NewServer(repo).Handler())
+	ts := httptest.NewServer(api.NewServer(repo, api.WithMetricsProvider(func() map[string]any {
+		return map[string]any{
+			"replay_worker": worker.Stats(),
+		}
+	})).Handler())
 	defer ts.Close()
 
 	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
@@ -109,6 +113,11 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	recon := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1", http.StatusOK)
 	if int(recon["mismatch_row_count"].(float64)) != 1 {
 		t.Fatalf("expected mismatch row count 1, got %v", recon["mismatch_row_count"])
+	}
+
+	metrics := getJSON(t, ts.URL+"/internal/metrics", http.StatusOK)
+	if _, ok := metrics["metrics"]; !ok {
+		t.Fatalf("expected metrics payload")
 	}
 }
 

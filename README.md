@@ -12,12 +12,29 @@ Production-oriented API foundation for:
 - Go 1.25+
 - Postgres 14+
 
+## Migration Model
+
+- Versioned SQL migrations live in `migrations/*.up.sql`.
+- Migrations are applied at service startup via a migration runner.
+- Applied versions are tracked in `schema_migrations`.
+- Migration execution uses an advisory lock to prevent concurrent runners from racing.
+
 ## Run
 
 Set database connection:
 
 ```bash
 export DATABASE_URL='postgres://postgres:postgres@localhost:5432/lago_alpha?sslmode=disable'
+```
+
+Optional runtime tuning:
+
+```bash
+export DB_QUERY_TIMEOUT_MS=5000
+export DB_MIGRATION_TIMEOUT_SEC=60
+export REPLAY_WORKER_POLL_MS=500
+export REPLAY_WORKER_ERR_BACKOFF_MIN_MS=250
+export REPLAY_WORKER_ERR_BACKOFF_MAX_MS=5000
 ```
 
 Start server:
@@ -44,6 +61,13 @@ Server starts on `:8080` by default.
 - `GET /v1/replay-jobs/{id}`
 - `GET /v1/reconciliation-report`
 - `GET /v1/reconciliation-report?format=csv`
+- `GET /internal/metrics`
+
+## Local Postgres
+
+```bash
+docker compose -f docker-compose.postgres.yml up -d
+```
 
 ## Quick Demo
 
@@ -105,6 +129,12 @@ curl -s 'http://localhost:8080/v1/reconciliation-report?customer_id=cust_1'
 curl -s 'http://localhost:8080/v1/reconciliation-report?customer_id=cust_1&format=csv'
 ```
 
+Metrics:
+
+```bash
+curl -s 'http://localhost:8080/internal/metrics'
+```
+
 ## Tests
 
 Unit tests:
@@ -118,4 +148,5 @@ Integration tests (real Postgres):
 ```bash
 export TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/lago_alpha_test?sslmode=disable'
 go test ./internal/api -run TestEndToEndPreviewReplayReconciliation -v
+go test ./migrations -run TestRunnerAppliesMigrationsIdempotently -v
 ```
