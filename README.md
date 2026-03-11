@@ -202,3 +202,12 @@ Or run end-to-end integration workflow:
 ```bash
 make test-integration
 ```
+
+## CI
+
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on `push` and `pull_request` with:
+
+- `test`: full `make test` suite
+- `migration-verify`: fresh Postgres service + `make migrate` + `make migrate-verify` + migration integration test
+
+Set branch protection to require at least `migration-verify` before merging.
