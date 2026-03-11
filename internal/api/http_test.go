@@ -2,18 +2,47 @@ package api_test
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"lago-usage-billing-alpha/internal/api"
+	"lago-usage-billing-alpha/internal/replay"
+	"lago-usage-billing-alpha/internal/store"
 )
 
 func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
-	ts := httptest.NewServer(api.NewServer().Handler())
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	worker := replay.NewWorker(repo, 10*time.Millisecond)
+	go worker.Run(ctx)
+
+	ts := httptest.NewServer(api.NewServer(repo).Handler())
 	defer ts.Close()
 
 	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
@@ -66,17 +95,28 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	job := replayResp["job"].(map[string]any)
 	jobID := job["id"].(string)
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 50; i++ {
 		statusResp := getJSON(t, ts.URL+"/v1/replay-jobs/"+jobID, http.StatusOK)
 		if statusResp["status"] == "done" {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
+		if i == 49 {
+			t.Fatalf("replay job did not finish")
+		}
 	}
 
 	recon := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1", http.StatusOK)
 	if int(recon["mismatch_row_count"].(float64)) != 1 {
 		t.Fatalf("expected mismatch row count 1, got %v", recon["mismatch_row_count"])
+	}
+}
+
+func resetTables(t *testing.T, db *sql.DB) {
+	t.Helper()
+	_, err := db.Exec(`TRUNCATE TABLE replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
+	if err != nil {
+		t.Fatalf("truncate tables: %v", err)
 	}
 }
 

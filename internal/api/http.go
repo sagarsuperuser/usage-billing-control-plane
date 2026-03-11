@@ -17,7 +17,6 @@ import (
 )
 
 type Server struct {
-	store          *store.MemoryStore
 	ratingService  *service.RatingService
 	meterService   *service.MeterService
 	invoiceService *service.InvoiceService
@@ -27,16 +26,14 @@ type Server struct {
 	mux            *http.ServeMux
 }
 
-func NewServer() *Server {
-	st := store.NewMemoryStore()
+func NewServer(repo store.Repository) *Server {
 	s := &Server{
-		store:          st,
-		ratingService:  service.NewRatingService(st),
-		meterService:   service.NewMeterService(st),
-		invoiceService: service.NewInvoiceService(st),
-		usageService:   service.NewUsageService(st),
-		replayService:  replay.NewService(st),
-		recService:     reconcile.NewService(st),
+		ratingService:  service.NewRatingService(repo),
+		meterService:   service.NewMeterService(repo),
+		invoiceService: service.NewInvoiceService(repo),
+		usageService:   service.NewUsageService(repo),
+		replayService:  replay.NewService(repo),
+		recService:     reconcile.NewService(repo),
 		mux:            http.NewServeMux(),
 	}
 	s.registerRoutes()
@@ -86,7 +83,12 @@ func (s *Server) handleRatingRules(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusCreated, rule)
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, s.ratingService.ListRuleVersions())
+		rules, err := s.ratingService.ListRuleVersions()
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, rules)
 	default:
 		writeMethodNotAllowed(w)
 	}
@@ -125,7 +127,12 @@ func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusCreated, meter)
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, s.meterService.ListMeters())
+		meters, err := s.meterService.ListMeters()
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, meters)
 	default:
 		writeMethodNotAllowed(w)
 	}
@@ -371,6 +378,10 @@ func writeDomainError(w http.ResponseWriter, err error) {
 	}
 	if strings.Contains(strings.ToLower(err.Error()), "not found") {
 		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if errors.Is(err, store.ErrDuplicateKey) {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 	if strings.Contains(strings.ToLower(err.Error()), "validation") || strings.Contains(strings.ToLower(err.Error()), "required") || strings.Contains(strings.ToLower(err.Error()), "invalid") {

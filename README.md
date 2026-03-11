@@ -1,13 +1,26 @@
 # lago-usage-billing-alpha
 
-API-first alpha for:
+Production-oriented API foundation for:
 - Deterministic rating rules (versioned)
 - Meter registry
 - Invoice preview simulator
-- Replay/reprocess tooling (idempotent)
+- Replay/reprocess tooling (idempotent + DB queue)
 - Reconciliation reports (JSON/CSV)
 
+## Requirements
+
+- Go 1.25+
+- Postgres 14+
+
 ## Run
+
+Set database connection:
+
+```bash
+export DATABASE_URL='postgres://postgres:postgres@localhost:5432/lago_alpha?sslmode=disable'
+```
+
+Start server:
 
 ```bash
 go run ./cmd/server
@@ -51,7 +64,7 @@ curl -s http://localhost:8080/v1/rating-rules \
   }'
 ```
 
-Create meter:
+Create meter (replace `<rule_id>`):
 
 ```bash
 curl -s http://localhost:8080/v1/meters \
@@ -61,11 +74,11 @@ curl -s http://localhost:8080/v1/meters \
     "name":"API Calls",
     "unit":"call",
     "aggregation":"sum",
-    "rating_rule_version_id":"rrv_000001"
+    "rating_rule_version_id":"<rule_id>"
   }'
 ```
 
-Preview invoice:
+Preview invoice (replace `<meter_id>`):
 
 ```bash
 curl -s http://localhost:8080/v1/invoices/preview \
@@ -73,7 +86,7 @@ curl -s http://localhost:8080/v1/invoices/preview \
   -d '{
     "customer_id":"cust_1",
     "currency":"USD",
-    "items":[{"meter_id":"mtr_000001","quantity":120}]
+    "items":[{"meter_id":"<meter_id>","quantity":120}]
   }'
 ```
 
@@ -94,6 +107,15 @@ curl -s 'http://localhost:8080/v1/reconciliation-report?customer_id=cust_1&forma
 
 ## Tests
 
+Unit tests:
+
 ```bash
-go test ./...
+go test ./internal/domain
+```
+
+Integration tests (real Postgres):
+
+```bash
+export TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/lago_alpha_test?sslmode=disable'
+go test ./internal/api -run TestEndToEndPreviewReplayReconciliation -v
 ```

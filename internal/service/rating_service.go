@@ -12,10 +12,10 @@ import (
 var ErrValidation = errors.New("validation error")
 
 type RatingService struct {
-	store *store.MemoryStore
+	store store.Repository
 }
 
-func NewRatingService(s *store.MemoryStore) *RatingService {
+func NewRatingService(s store.Repository) *RatingService {
 	return &RatingService{store: s}
 }
 
@@ -26,7 +26,7 @@ func (s *RatingService) CreateRuleVersion(input domain.RatingRuleVersion) (domai
 	return s.store.CreateRatingRuleVersion(input)
 }
 
-func (s *RatingService) ListRuleVersions() []domain.RatingRuleVersion {
+func (s *RatingService) ListRuleVersions() ([]domain.RatingRuleVersion, error) {
 	return s.store.ListRatingRuleVersions()
 }
 

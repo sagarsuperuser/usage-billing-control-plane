@@ -10,7 +10,7 @@ import (
 )
 
 type Service struct {
-	store *store.MemoryStore
+	store store.Repository
 }
 
 type CreateReplayJobRequest struct {
@@ -21,7 +21,7 @@ type CreateReplayJobRequest struct {
 	IdempotencyKey string     `json:"idempotency_key"`
 }
 
-func NewService(s *store.MemoryStore) *Service {
+func NewService(s store.Repository) *Service {
 	return &Service{store: s}
 }
 
@@ -62,32 +62,7 @@ func (s *Service) CreateJob(req CreateReplayJobRequest) (domain.ReplayJob, bool,
 		return domain.ReplayJob{}, false, err
 	}
 
-	go s.process(created.ID)
 	return created, false, nil
-}
-
-func (s *Service) process(jobID string) {
-	now := time.Now().UTC()
-	_, _ = s.store.UpdateReplayJob(jobID, func(job domain.ReplayJob) domain.ReplayJob {
-		job.Status = domain.ReplayRunning
-		job.StartedAt = &now
-		return job
-	})
-
-	job, err := s.store.GetReplayJob(jobID)
-	if err != nil {
-		return
-	}
-
-	events := s.store.ListUsageEvents(job.From, job.To, job.CustomerID, job.MeterID)
-
-	completed := time.Now().UTC()
-	_, _ = s.store.UpdateReplayJob(jobID, func(job domain.ReplayJob) domain.ReplayJob {
-		job.Status = domain.ReplayDone
-		job.ProcessedRecords = int64(len(events))
-		job.CompletedAt = &completed
-		return job
-	})
 }
 
 func (s *Service) GetJob(id string) (domain.ReplayJob, error) {

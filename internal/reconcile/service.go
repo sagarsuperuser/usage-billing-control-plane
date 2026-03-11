@@ -12,7 +12,7 @@ import (
 )
 
 type Service struct {
-	store *store.MemoryStore
+	store store.Repository
 }
 
 type Filter struct {
@@ -21,13 +21,28 @@ type Filter struct {
 	To         *time.Time
 }
 
-func NewService(s *store.MemoryStore) *Service {
+func NewService(s store.Repository) *Service {
 	return &Service{store: s}
 }
 
 func (s *Service) GenerateReport(filter Filter) (domain.ReconciliationReport, error) {
-	events := s.store.ListUsageEvents(filter.From, filter.To, filter.CustomerID, "")
-	billed := s.store.ListBilledEntries(filter.From, filter.To, filter.CustomerID, "")
+	events, err := s.store.ListUsageEvents(store.Filter{
+		From:       filter.From,
+		To:         filter.To,
+		CustomerID: filter.CustomerID,
+	})
+	if err != nil {
+		return domain.ReconciliationReport{}, err
+	}
+
+	billed, err := s.store.ListBilledEntries(store.Filter{
+		From:       filter.From,
+		To:         filter.To,
+		CustomerID: filter.CustomerID,
+	})
+	if err != nil {
+		return domain.ReconciliationReport{}, err
+	}
 
 	type aggregate struct {
 		customerID    string

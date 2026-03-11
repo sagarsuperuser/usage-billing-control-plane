@@ -9,10 +9,10 @@ import (
 )
 
 type MeterService struct {
-	store *store.MemoryStore
+	store store.Repository
 }
 
-func NewMeterService(s *store.MemoryStore) *MeterService {
+func NewMeterService(s store.Repository) *MeterService {
 	return &MeterService{store: s}
 }
 
@@ -33,35 +33,47 @@ func (s *MeterService) CreateMeter(input domain.Meter) (domain.Meter, error) {
 	return meter, nil
 }
 
-func (s *MeterService) ListMeters() []domain.Meter {
+func (s *MeterService) ListMeters() ([]domain.Meter, error) {
 	return s.store.ListMeters()
 }
 
 func (s *MeterService) UpdateMeter(id string, patch domain.Meter) (domain.Meter, error) {
-	return s.store.UpdateMeter(id, func(m domain.Meter) (domain.Meter, error) {
-		if strings.TrimSpace(patch.Key) != "" {
-			m.Key = patch.Key
+	existing, err := s.store.GetMeter(id)
+	if err != nil {
+		return domain.Meter{}, err
+	}
+
+	if strings.TrimSpace(patch.Key) != "" {
+		existing.Key = patch.Key
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		existing.Name = patch.Name
+	}
+	if strings.TrimSpace(patch.Unit) != "" {
+		existing.Unit = patch.Unit
+	}
+	if strings.TrimSpace(patch.Aggregation) != "" {
+		existing.Aggregation = patch.Aggregation
+	}
+	if strings.TrimSpace(patch.RatingRuleVersionID) != "" {
+		if _, err := s.store.GetRatingRuleVersion(patch.RatingRuleVersionID); err != nil {
+			return domain.Meter{}, fmt.Errorf("%w: rating_rule_version_id not found", ErrValidation)
 		}
-		if strings.TrimSpace(patch.Name) != "" {
-			m.Name = patch.Name
+		existing.RatingRuleVersionID = patch.RatingRuleVersionID
+	}
+
+	if err := s.validateMeterInput(existing, true); err != nil {
+		return domain.Meter{}, err
+	}
+
+	meter, err := s.store.UpdateMeter(existing)
+	if err != nil {
+		if err == store.ErrDuplicateKey {
+			return domain.Meter{}, fmt.Errorf("%w: meter key already exists", ErrValidation)
 		}
-		if strings.TrimSpace(patch.Unit) != "" {
-			m.Unit = patch.Unit
-		}
-		if strings.TrimSpace(patch.Aggregation) != "" {
-			m.Aggregation = patch.Aggregation
-		}
-		if strings.TrimSpace(patch.RatingRuleVersionID) != "" {
-			if _, err := s.store.GetRatingRuleVersion(patch.RatingRuleVersionID); err != nil {
-				return domain.Meter{}, fmt.Errorf("%w: rating_rule_version_id not found", ErrValidation)
-			}
-			m.RatingRuleVersionID = patch.RatingRuleVersionID
-		}
-		if err := s.validateMeterInput(m, true); err != nil {
-			return domain.Meter{}, err
-		}
-		return m, nil
-	})
+		return domain.Meter{}, err
+	}
+	return meter, nil
 }
 
 func (s *MeterService) GetMeter(id string) (domain.Meter, error) {

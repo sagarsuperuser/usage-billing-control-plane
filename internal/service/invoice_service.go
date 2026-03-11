@@ -10,10 +10,10 @@ import (
 )
 
 type InvoiceService struct {
-	store *store.MemoryStore
+	store store.Repository
 }
 
-func NewInvoiceService(s *store.MemoryStore) *InvoiceService {
+func NewInvoiceService(s store.Repository) *InvoiceService {
 	return &InvoiceService{store: s}
 }
 
