@@ -48,8 +48,13 @@ func main() {
 		store.WithQueryTimeout(queryTimeout),
 		store.WithMigrationTimeout(migrationTimeout),
 	)
-	if err := repo.Migrate(); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
+	if getBoolEnv("RUN_MIGRATIONS_ON_BOOT", false) {
+		if err := repo.Migrate(); err != nil {
+			log.Fatalf("failed to run migrations: %v", err)
+		}
+		log.Printf("level=info component=server event=boot_migrations_applied")
+	} else {
+		log.Printf("level=info component=server event=boot_migrations_skipped")
 	}
 
 	port := os.Getenv("PORT")
@@ -122,4 +127,20 @@ func getIntEnv(key string, defaultVal int) int {
 		return defaultVal
 	}
 	return parsed
+}
+
+func getBoolEnv(key string, defaultVal bool) bool {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return defaultVal
+	}
+
+	switch raw {
+	case "1", "true", "TRUE", "yes", "YES", "on", "ON":
+		return true
+	case "0", "false", "FALSE", "no", "NO", "off", "OFF":
+		return false
+	default:
+		return defaultVal
+	}
 }

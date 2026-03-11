@@ -355,7 +355,10 @@ func (s *PostgresStore) CreateReplayJob(input domain.ReplayJob) (domain.ReplayJo
 
 	_, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO replay_jobs (id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		`INSERT INTO replay_jobs (
+			id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status,
+			attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		input.ID,
 		nullableString(input.CustomerID),
 		nullableString(input.MeterID),
@@ -363,6 +366,8 @@ func (s *PostgresStore) CreateReplayJob(input domain.ReplayJob) (domain.ReplayJo
 		input.To,
 		input.IdempotencyKey,
 		string(input.Status),
+		input.AttemptCount,
+		input.LastAttemptAt,
 		input.ProcessedRecords,
 		input.Error,
 		input.CreatedAt,
@@ -383,7 +388,7 @@ func (s *PostgresStore) GetReplayJob(id string) (domain.ReplayJob, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE id = $1`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE id = $1`, id)
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -398,7 +403,7 @@ func (s *PostgresStore) GetReplayJobByIdempotencyKey(key string) (domain.ReplayJ
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE idempotency_key = $1`, key)
+	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE idempotency_key = $1`, key)
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -421,7 +426,7 @@ func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
 		_ = tx.Rollback()
 	}()
 
-	row := tx.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE status = $1 ORDER BY created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`, string(domain.ReplayQueued))
+	row := tx.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE status = $1 ORDER BY created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`, string(domain.ReplayQueued))
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -431,13 +436,15 @@ func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
 	}
 
 	now := time.Now().UTC()
-	_, err = tx.ExecContext(ctx, `UPDATE replay_jobs SET status = $1, started_at = $2 WHERE id = $3`, string(domain.ReplayRunning), now, job.ID)
+	_, err = tx.ExecContext(ctx, `UPDATE replay_jobs SET status = $1, started_at = $2, last_attempt_at = $2, attempt_count = attempt_count + 1 WHERE id = $3`, string(domain.ReplayRunning), now, job.ID)
 	if err != nil {
 		return domain.ReplayJob{}, err
 	}
 
 	job.Status = domain.ReplayRunning
 	job.StartedAt = &now
+	job.LastAttemptAt = &now
+	job.AttemptCount++
 
 	if err := tx.Commit(); err != nil {
 		return domain.ReplayJob{}, err
@@ -451,7 +458,7 @@ func (s *PostgresStore) CompleteReplayJob(id string, processedRecords int64, com
 
 	row := s.db.QueryRowContext(
 		ctx,
-		`UPDATE replay_jobs SET status = $1, processed_records = $2, error = '', completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at`,
+		`UPDATE replay_jobs SET status = $1, processed_records = $2, error = '', completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
 		string(domain.ReplayDone),
 		processedRecords,
 		completedAt,
@@ -473,7 +480,7 @@ func (s *PostgresStore) FailReplayJob(id string, errMessage string, completedAt 
 
 	row := s.db.QueryRowContext(
 		ctx,
-		`UPDATE replay_jobs SET status = $1, error = $2, completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, processed_records, error, created_at, started_at, completed_at`,
+		`UPDATE replay_jobs SET status = $1, error = $2, completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
 		string(domain.ReplayFailed),
 		errMessage,
 		completedAt,
@@ -551,6 +558,7 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 	var from sql.NullTime
 	var to sql.NullTime
 	var status string
+	var lastAttemptAt sql.NullTime
 	var startedAt sql.NullTime
 	var completedAt sql.NullTime
 
@@ -562,6 +570,8 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 		&to,
 		&out.IdempotencyKey,
 		&status,
+		&out.AttemptCount,
+		&lastAttemptAt,
 		&out.ProcessedRecords,
 		&out.Error,
 		&out.CreatedAt,
@@ -588,6 +598,10 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 	if startedAt.Valid {
 		t := startedAt.Time.UTC()
 		out.StartedAt = &t
+	}
+	if lastAttemptAt.Valid {
+		t := lastAttemptAt.Time.UTC()
+		out.LastAttemptAt = &t
 	}
 	if completedAt.Valid {
 		t := completedAt.Time.UTC()

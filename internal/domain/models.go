@@ -101,6 +101,8 @@ type ReplayJob struct {
 	To               *time.Time      `json:"to,omitempty"`
 	IdempotencyKey   string          `json:"idempotency_key"`
 	Status           ReplayJobStatus `json:"status"`
+	AttemptCount     int             `json:"attempt_count"`
+	LastAttemptAt    *time.Time      `json:"last_attempt_at,omitempty"`
 	ProcessedRecords int64           `json:"processed_records"`
 	Error            string          `json:"error,omitempty"`
 	CreatedAt        time.Time       `json:"created_at"`

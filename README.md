@@ -15,7 +15,8 @@ Production-oriented API foundation for:
 ## Migration Model
 
 - Versioned SQL migrations live in `migrations/*.up.sql`.
-- Migrations are applied at service startup via a migration runner.
+- Migrations are applied by `cmd/migrate` for CI/CD-safe rollout.
+- Server boot migrations are optional and disabled by default.
 - Applied versions are tracked in `schema_migrations`.
 - Migration execution uses an advisory lock to prevent concurrent runners from racing.
 
@@ -32,9 +33,22 @@ Optional runtime tuning:
 ```bash
 export DB_QUERY_TIMEOUT_MS=5000
 export DB_MIGRATION_TIMEOUT_SEC=60
+export RUN_MIGRATIONS_ON_BOOT=false
 export REPLAY_WORKER_POLL_MS=500
 export REPLAY_WORKER_ERR_BACKOFF_MIN_MS=250
 export REPLAY_WORKER_ERR_BACKOFF_MAX_MS=5000
+```
+
+Run migrations:
+
+```bash
+go run ./cmd/migrate
+```
+
+If you need boot-time migrations in non-CI environments:
+
+```bash
+export RUN_MIGRATIONS_ON_BOOT=true
 ```
 
 Start server:

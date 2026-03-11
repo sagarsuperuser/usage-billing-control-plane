@@ -39,8 +39,8 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count schema_migrations: %v", err)
 	}
-	if count < 1 {
-		t.Fatalf("expected at least 1 applied migration, got %d", count)
+	if count < 3 {
+		t.Fatalf("expected at least 3 applied migrations, got %d", count)
 	}
 
 	for _, tableName := range []string{"rating_rule_versions", "meters", "usage_events", "billed_entries", "replay_jobs"} {
@@ -50,6 +50,40 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 		}
 		if !exists {
 			t.Fatalf("table %s should exist after migrations", tableName)
+		}
+	}
+
+	for _, column := range []string{"attempt_count", "last_attempt_at"} {
+		var exists bool
+		if err := db.QueryRow(`SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND table_name = 'replay_jobs'
+			  AND column_name = $1
+		)`, column).Scan(&exists); err != nil {
+			t.Fatalf("check replay_jobs.%s existence: %v", column, err)
+		}
+		if !exists {
+			t.Fatalf("column replay_jobs.%s should exist after migrations", column)
+		}
+	}
+
+	for _, constraint := range []string{
+		"chk_rating_rule_mode_allowed",
+		"chk_meter_aggregation_allowed",
+		"chk_replay_job_status_allowed",
+	} {
+		var exists bool
+		if err := db.QueryRow(`SELECT EXISTS (
+			SELECT 1
+			FROM pg_constraint
+			WHERE conname = $1
+		)`, constraint).Scan(&exists); err != nil {
+			t.Fatalf("check constraint %s existence: %v", constraint, err)
+		}
+		if !exists {
+			t.Fatalf("constraint %s should exist after migrations", constraint)
 		}
 	}
 }
