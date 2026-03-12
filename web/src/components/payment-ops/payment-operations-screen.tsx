@@ -13,9 +13,11 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchInvoiceEvents, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
 import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/lib/format";
+import { useUISession } from "@/hooks/use-ui-session";
 import { type InvoiceStatusFilters } from "@/lib/types";
 import { useSessionStore } from "@/store/use-session-store";
 
@@ -64,14 +66,8 @@ function invoiceBadgeClass(status?: string): string {
 
 export function PaymentOperationsScreen() {
   const queryClient = useQueryClient();
-  const {
-    apiKey,
-    apiBaseURL,
-    selectedInvoiceID,
-    setAPIKey,
-    setAPIBaseURL,
-    setSelectedInvoiceID,
-  } = useSessionStore();
+  const { selectedInvoiceID, setSelectedInvoiceID } = useSessionStore();
+  const { apiBaseURL, csrfToken, isAuthenticated } = useUISession();
 
   const [organizationID, setOrganizationID] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
@@ -106,32 +102,29 @@ export function PaymentOperationsScreen() {
   );
 
   const statusesQuery = useQuery({
-    queryKey: ["invoice-statuses", apiBaseURL, apiKey, filters],
+    queryKey: ["invoice-statuses", apiBaseURL, filters],
     queryFn: () =>
       fetchInvoiceStatuses({
-        apiKey,
         runtimeBaseURL: apiBaseURL,
         filters,
       }),
-    enabled: apiKey.length > 0,
+    enabled: isAuthenticated,
   });
   const statusSummaryQuery = useQuery({
-    queryKey: ["invoice-status-summary", apiBaseURL, apiKey, organizationID, summaryStaleAfterSec],
+    queryKey: ["invoice-status-summary", apiBaseURL, organizationID, summaryStaleAfterSec],
     queryFn: () =>
       fetchInvoiceStatusSummary({
-        apiKey,
         runtimeBaseURL: apiBaseURL,
         organizationID: organizationID || undefined,
         staleAfterSec: summaryStaleAfterSec,
       }),
-    enabled: apiKey.length > 0,
+    enabled: isAuthenticated,
   });
 
   const eventsQuery = useQuery({
     queryKey: [
       "invoice-events",
       apiBaseURL,
-      apiKey,
       selectedInvoiceID,
       selectedOrganizationID,
       eventWebhookType,
@@ -142,7 +135,6 @@ export function PaymentOperationsScreen() {
     ],
     queryFn: () =>
       fetchInvoiceEvents({
-        apiKey,
         runtimeBaseURL: apiBaseURL,
         invoiceID: selectedInvoiceID,
         organizationID: selectedOrganizationID || undefined,
@@ -152,21 +144,21 @@ export function PaymentOperationsScreen() {
         limit: eventLimit,
         offset: eventOffset,
       }),
-    enabled: apiKey.length > 0 && selectedInvoiceID.length > 0 && timelineOpen,
+    enabled: isAuthenticated && selectedInvoiceID.length > 0 && timelineOpen,
   });
 
   const retryMutation = useMutation({
     mutationFn: (invoiceID: string) =>
       retryInvoicePayment({
-        apiKey,
         runtimeBaseURL: apiBaseURL,
         invoiceID,
+        csrfToken,
       }),
     onSuccess: async (_, invoiceID) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["invoice-statuses"] }),
         queryClient.invalidateQueries({ queryKey: ["invoice-status-summary"] }),
-        queryClient.invalidateQueries({ queryKey: ["invoice-events", apiBaseURL, apiKey, invoiceID] }),
+        queryClient.invalidateQueries({ queryKey: ["invoice-events", apiBaseURL, invoiceID] }),
       ]);
     },
   });
@@ -223,14 +215,7 @@ export function PaymentOperationsScreen() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <InputField label="API Key" placeholder="reader/writer/admin key" value={apiKey} onChange={setAPIKey} sensitive />
-            <InputField
-              label="API Base URL"
-              placeholder="Optional, default same-origin"
-              value={apiBaseURL}
-              onChange={setAPIBaseURL}
-            />
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
             <InputField
               label="Organization ID"
               placeholder="optional org filter"
@@ -325,7 +310,7 @@ export function PaymentOperationsScreen() {
               <button
                 type="button"
                 onClick={() => statusesQuery.refetch()}
-                disabled={statusesQuery.isFetching || !apiKey}
+                disabled={statusesQuery.isFetching || !isAuthenticated}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {statusesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -362,11 +347,7 @@ export function PaymentOperationsScreen() {
           </div>
         </section>
 
-        {!apiKey ? (
-          <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-            Provide an API key to start loading invoice payment operations data.
-          </section>
-        ) : null}
+        {!isAuthenticated ? <SessionLoginCard /> : null}
 
         {statusesQuery.error ? (
           <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
@@ -454,7 +435,7 @@ export function PaymentOperationsScreen() {
                               event.stopPropagation();
                               retryMutation.mutate(item.invoice_id);
                             }}
-                            disabled={!apiKey || retrying}
+                            disabled={!isAuthenticated || !csrfToken || retrying}
                             className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {retrying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
@@ -595,7 +576,7 @@ export function PaymentOperationsScreen() {
               <button
                 type="button"
                 onClick={() => eventsQuery.refetch()}
-                disabled={eventsQuery.isFetching || !apiKey}
+                disabled={eventsQuery.isFetching || !isAuthenticated}
                 className="inline-flex h-9 items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eventsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}

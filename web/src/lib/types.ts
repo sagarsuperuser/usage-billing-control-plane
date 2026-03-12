@@ -18,6 +18,15 @@ export interface InvoicePaymentStatusView {
   updated_at: string;
 }
 
+export interface UISession {
+  authenticated: boolean;
+  role: "reader" | "writer" | "admin";
+  tenant_id: string;
+  api_key_id: string;
+  csrf_token: string;
+  expires_at?: string;
+}
+
 export interface LagoWebhookEvent {
   id: string;
   tenant_id: string;

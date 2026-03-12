@@ -5,6 +5,7 @@ import {
   InvoiceStatusFilters,
   LagoWebhookEvent,
   ListResponse,
+  UISession,
 } from "@/lib/types";
 
 function trimTrailingSlash(value: string): string {
@@ -30,27 +31,36 @@ function toQuery(params: Record<string, string | number | boolean | undefined>) 
 async function apiRequest<T>(
   path: string,
   options: {
-    method?: "GET" | "POST";
-    apiKey: string;
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     runtimeBaseURL?: string;
     body?: unknown;
+    csrfToken?: string;
+    allowUnauthorized?: boolean;
   }
-): Promise<T> {
+): Promise<T | null> {
   const baseURL = resolveBaseURL(options.runtimeBaseURL);
   const endpoint = baseURL ? `${baseURL}${path}` : path;
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (options.csrfToken) {
+    headers["X-CSRF-Token"] = options.csrfToken;
+  }
+
   const response = await fetch(endpoint, {
     method: options.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": options.apiKey,
-    },
+    headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     cache: "no-store",
+    credentials: "include",
   });
 
   const isJSON = response.headers.get("content-type")?.includes("application/json");
   const payload = isJSON ? await response.json() : null;
+  if (response.status === 401 && options.allowUnauthorized) {
+    return null;
+  }
 
   if (!response.ok) {
     const message =
@@ -62,8 +72,44 @@ async function apiRequest<T>(
   return payload as T;
 }
 
-export async function fetchInvoiceStatuses(input: {
+export async function loginUISession(input: {
   apiKey: string;
+  runtimeBaseURL?: string;
+}): Promise<UISession> {
+  const payload = await apiRequest<UISession>("/v1/ui/sessions/login", {
+    method: "POST",
+    runtimeBaseURL: input.runtimeBaseURL,
+    body: { api_key: input.apiKey },
+  });
+  if (!payload) {
+    throw new Error("login failed");
+  }
+  return payload;
+}
+
+export async function fetchUISession(input: {
+  runtimeBaseURL?: string;
+}): Promise<UISession | null> {
+  return apiRequest<UISession>("/v1/ui/sessions/me", {
+    method: "GET",
+    runtimeBaseURL: input.runtimeBaseURL,
+    allowUnauthorized: true,
+  });
+}
+
+export async function logoutUISession(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+}): Promise<void> {
+  await apiRequest<{ logged_out: boolean }>("/v1/ui/sessions/logout", {
+    method: "POST",
+    runtimeBaseURL: input.runtimeBaseURL,
+    csrfToken: input.csrfToken,
+    body: {},
+  });
+}
+
+export async function fetchInvoiceStatuses(input: {
   runtimeBaseURL?: string;
   filters: InvoiceStatusFilters;
 }): Promise<ListResponse<InvoicePaymentStatusView>> {
@@ -78,18 +124,20 @@ export async function fetchInvoiceStatuses(input: {
     offset: input.filters.offset,
   });
 
-  return apiRequest<ListResponse<InvoicePaymentStatusView>>(
+  const payload = await apiRequest<ListResponse<InvoicePaymentStatusView>>(
     `/v1/invoice-payment-statuses${query}`,
     {
-      apiKey: input.apiKey,
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
     }
   );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }
 
 export async function fetchInvoiceStatusSummary(input: {
-  apiKey: string;
   runtimeBaseURL?: string;
   organizationID?: string;
   staleAfterSec?: number;
@@ -98,18 +146,20 @@ export async function fetchInvoiceStatusSummary(input: {
     organization_id: input.organizationID,
     stale_after_sec: input.staleAfterSec,
   });
-  return apiRequest<InvoicePaymentStatusSummary>(
+  const payload = await apiRequest<InvoicePaymentStatusSummary>(
     `/v1/invoice-payment-statuses/summary${query}`,
     {
-      apiKey: input.apiKey,
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
     }
   );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }
 
 export async function fetchInvoiceEvents(input: {
-  apiKey: string;
   runtimeBaseURL?: string;
   invoiceID: string;
   organizationID?: string;
@@ -128,34 +178,40 @@ export async function fetchInvoiceEvents(input: {
     offset: input.offset,
   });
 
-  return apiRequest<ListResponse<LagoWebhookEvent>>(
+  const payload = await apiRequest<ListResponse<LagoWebhookEvent>>(
     `/v1/invoice-payment-statuses/${encodeURIComponent(input.invoiceID)}/events${query}`,
     {
-      apiKey: input.apiKey,
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
     }
   );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }
 
 export async function retryInvoicePayment(input: {
-  apiKey: string;
   runtimeBaseURL?: string;
   invoiceID: string;
+  csrfToken: string;
 }): Promise<Record<string, unknown>> {
-  return apiRequest<Record<string, unknown>>(
+  const payload = await apiRequest<Record<string, unknown>>(
     `/v1/invoices/${encodeURIComponent(input.invoiceID)}/retry-payment`,
     {
-      apiKey: input.apiKey,
       runtimeBaseURL: input.runtimeBaseURL,
       method: "POST",
+      csrfToken: input.csrfToken,
       body: {},
     }
   );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }
 
 export async function fetchInvoiceExplainability(input: {
-  apiKey: string;
   runtimeBaseURL?: string;
   invoiceID: string;
   feeTypes?: string[];
@@ -173,12 +229,15 @@ export async function fetchInvoiceExplainability(input: {
   }
   const query = toQuery(params);
 
-  return apiRequest<InvoiceExplainability>(
+  const payload = await apiRequest<InvoiceExplainability>(
     `/v1/invoices/${encodeURIComponent(input.invoiceID)}/explainability${query}`,
     {
-      apiKey: input.apiKey,
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
     }
   );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }

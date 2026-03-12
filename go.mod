@@ -3,6 +3,8 @@ module lago-usage-billing-alpha
 go 1.25.1
 
 require (
+	github.com/alexedwards/scs/postgresstore v0.0.0-20251002162104-209de6e426de
+	github.com/alexedwards/scs/v2 v2.9.0
 	github.com/aws/aws-sdk-go-v2 v1.41.3
 	github.com/aws/aws-sdk-go-v2/config v1.32.11
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.11
@@ -12,6 +14,7 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.41.0
+	google.golang.org/protobuf v1.36.7
 )
 
 require (
@@ -55,6 +58,5 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c // indirect
 	google.golang.org/grpc v1.74.2 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

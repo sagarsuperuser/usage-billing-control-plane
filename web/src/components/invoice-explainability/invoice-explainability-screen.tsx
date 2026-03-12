@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
+import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { useUISession } from "@/hooks/use-ui-session";
 import { fetchInvoiceExplainability } from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
-import { useSessionStore } from "@/store/use-session-store";
 
 const sortOptions = [
   "created_at_asc",
@@ -19,7 +20,7 @@ const sortOptions = [
 type ExplainabilitySort = (typeof sortOptions)[number];
 
 export function InvoiceExplainabilityScreen() {
-  const { apiKey, apiBaseURL, setAPIKey, setAPIBaseURL } = useSessionStore();
+  const { apiBaseURL, isAuthenticated } = useUISession();
   const [invoiceID, setInvoiceID] = useState("");
   const [feeTypesInput, setFeeTypesInput] = useState("");
   const [lineItemSort, setLineItemSort] = useState<ExplainabilitySort>("created_at_asc");
@@ -52,7 +53,6 @@ export function InvoiceExplainabilityScreen() {
     queryKey: [
       "invoice-explainability",
       apiBaseURL,
-      apiKey,
       submittedInvoiceID,
       normalizedFeeTypes.join(","),
       lineItemSort,
@@ -61,7 +61,6 @@ export function InvoiceExplainabilityScreen() {
     ],
     queryFn: () =>
       fetchInvoiceExplainability({
-        apiKey,
         runtimeBaseURL: apiBaseURL,
         invoiceID: submittedInvoiceID,
         feeTypes: normalizedFeeTypes.length > 0 ? normalizedFeeTypes : undefined,
@@ -69,7 +68,7 @@ export function InvoiceExplainabilityScreen() {
         page: parsedPage,
         limit: parsedLimit,
       }),
-    enabled: apiKey.length > 0 && submittedInvoiceID.length > 0,
+    enabled: isAuthenticated && submittedInvoiceID.length > 0,
   });
 
   const lineItems = explainabilityQuery.data?.line_items ?? [];
@@ -110,20 +109,7 @@ export function InvoiceExplainabilityScreen() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <InputField
-              label="API Key"
-              value={apiKey}
-              onChange={setAPIKey}
-              placeholder="reader/writer/admin key"
-              sensitive
-            />
-            <InputField
-              label="API Base URL"
-              value={apiBaseURL}
-              onChange={setAPIBaseURL}
-              placeholder="Optional, default same-origin"
-            />
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <InputField
               label="Invoice ID"
               value={invoiceID}
@@ -170,7 +156,7 @@ export function InvoiceExplainabilityScreen() {
             <button
               type="button"
               onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
-              disabled={!apiKey || !invoiceID.trim()}
+              disabled={!isAuthenticated || !invoiceID.trim()}
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Search className="h-4 w-4" />
@@ -179,7 +165,7 @@ export function InvoiceExplainabilityScreen() {
             <button
               type="button"
               onClick={() => explainabilityQuery.refetch()}
-              disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !apiKey}
+              disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !isAuthenticated}
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 text-sm text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {explainabilityQuery.isFetching ? (
@@ -192,11 +178,7 @@ export function InvoiceExplainabilityScreen() {
           </div>
         </section>
 
-        {!apiKey ? (
-          <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-            Provide an API key to load explainability data.
-          </section>
-        ) : null}
+        {!isAuthenticated ? <SessionLoginCard /> : null}
 
         {explainabilityQuery.error ? (
           <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">

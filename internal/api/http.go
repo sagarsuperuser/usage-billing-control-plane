@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alexedwards/scs/v2"
 
 	"lago-usage-billing-alpha/internal/domain"
 	"lago-usage-billing-alpha/internal/reconcile"
@@ -33,11 +36,20 @@ type Server struct {
 	replayService  *replay.Service
 	recService     *reconcile.Service
 	authorizer     APIKeyAuthorizer
+	sessionManager *scs.SessionManager
 	metricsFn      func() map[string]any
 	readinessFn    func() error
 	requestMetrics *requestMetricsCollector
 	mux            *http.ServeMux
 }
+
+const (
+	sessionRoleKey     = "principal_role"
+	sessionTenantIDKey = "principal_tenant_id"
+	sessionAPIKeyIDKey = "principal_api_key_id"
+	sessionCSRFKey     = "csrf_token"
+	csrfHeaderName     = "X-CSRF-Token"
+)
 
 type requestMetricsCollector struct {
 	mu     sync.Mutex
@@ -110,6 +122,12 @@ func WithAPIKeyAuthorizer(authorizer APIKeyAuthorizer) ServerOption {
 	}
 }
 
+func WithSessionManager(sessionManager *scs.SessionManager) ServerOption {
+	return func(s *Server) {
+		s.sessionManager = sessionManager
+	}
+}
+
 func WithAuditExportService(auditExportSvc *service.AuditExportService) ServerOption {
 	return func(s *Server) {
 		s.auditExportSvc = auditExportSvc
@@ -163,7 +181,7 @@ func (s *Server) instrumentMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
-	if s.authorizer == nil {
+	if s.authorizer == nil && s.sessionManager == nil {
 		return next
 	}
 
@@ -174,13 +192,9 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		principal, err := s.authorizer.Authorize(r)
+		principal, usingSession, err := s.authorizePrincipal(r)
 		if err != nil {
-			if errors.Is(err, errUnauthorized) {
-				writeError(w, http.StatusUnauthorized, "unauthorized")
-				return
-			}
-			writeError(w, http.StatusInternalServerError, "authorization failed")
+			writeAuthError(w, err)
 			return
 		}
 		if roleRank(principal.Role) == 0 {
@@ -191,9 +205,75 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "forbidden")
 			return
 		}
+		if usingSession && isUnsafeMethod(r.Method) {
+			expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
+			providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
+			if expectedCSRF == "" || providedCSRF == "" || subtleConstantTimeMatch(expectedCSRF, providedCSRF) == false {
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
+		}
 
 		next.ServeHTTP(w, r.WithContext(withPrincipal(r.Context(), principal)))
 	})
+}
+
+func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
+	rawAPIKey := strings.TrimSpace(r.Header.Get(apiKeyHeader))
+	if rawAPIKey != "" {
+		if s.authorizer == nil {
+			return Principal{}, false, errUnauthorized
+		}
+		principal, err := s.authorizer.Authorize(r)
+		return principal, false, err
+	}
+	if s.sessionManager == nil {
+		return Principal{}, false, errUnauthorized
+	}
+
+	roleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionRoleKey))
+	tenantID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionTenantIDKey))
+	apiKeyID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionAPIKeyIDKey))
+	if roleRaw == "" || tenantID == "" {
+		return Principal{}, true, errUnauthorized
+	}
+	role, err := ParseRole(roleRaw)
+	if err != nil {
+		return Principal{}, true, errUnauthorized
+	}
+	return Principal{
+		Role:     role,
+		TenantID: normalizeTenantID(tenantID),
+		APIKeyID: apiKeyID,
+	}, true, nil
+}
+
+func isUnsafeMethod(method string) bool {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func subtleConstantTimeMatch(expected, provided string) bool {
+	if len(expected) == 0 || len(expected) != len(provided) {
+		return false
+	}
+	var diff byte
+	for i := 0; i < len(expected); i++ {
+		diff |= expected[i] ^ provided[i]
+	}
+	return diff == 0
+}
+
+func writeAuthError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errUnauthorized) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "authorization failed")
 }
 
 func requiredRoleForRequest(r *http.Request) (Role, bool) {
@@ -210,6 +290,15 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	}
 	if path == "/internal/lago/webhooks" {
 		return "", false
+	}
+	if path == "/v1/ui/sessions/login" {
+		return "", false
+	}
+	if path == "/v1/ui/sessions/me" {
+		return RoleReader, true
+	}
+	if path == "/v1/ui/sessions/logout" {
+		return RoleReader, true
 	}
 
 	switch {
@@ -292,6 +381,12 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/ready"
 	case path == "/internal/lago/webhooks":
 		return "/internal/lago/webhooks"
+	case path == "/v1/ui/sessions/login":
+		return "/v1/ui/sessions/login"
+	case path == "/v1/ui/sessions/me":
+		return "/v1/ui/sessions/me"
+	case path == "/v1/ui/sessions/logout":
+		return "/v1/ui/sessions/logout"
 	case path == "/v1/rating-rules":
 		return "/v1/rating-rules"
 	case strings.HasPrefix(path, "/v1/rating-rules/"):
@@ -381,6 +476,9 @@ func isTenantMatch(resourceTenantID, requestTenantID string) bool {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/health", s.handleHealth)
 	s.mux.HandleFunc("/internal/lago/webhooks", s.handleLagoWebhooks)
+	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
+	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
+	s.mux.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
 
 	s.mux.HandleFunc("/v1/rating-rules", s.handleRatingRules)
 	s.mux.HandleFunc("/v1/rating-rules/", s.handleRatingRuleByID)
@@ -411,6 +509,122 @@ func (s *Server) registerRoutes() {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type uiSessionLoginRequest struct {
+	APIKey string `json:"api_key"`
+}
+
+func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.sessionManager == nil || s.authorizer == nil {
+		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
+		return
+	}
+
+	var req uiSessionLoginRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.APIKey = strings.TrimSpace(req.APIKey)
+	if req.APIKey == "" {
+		writeError(w, http.StatusBadRequest, "api_key is required")
+		return
+	}
+
+	authReq := r.Clone(r.Context())
+	authReq.Header = r.Header.Clone()
+	authReq.Header.Set(apiKeyHeader, req.APIKey)
+
+	principal, err := s.authorizer.Authorize(authReq)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+
+	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to renew session")
+		return
+	}
+
+	csrfToken, err := randomHexToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize session")
+		return
+	}
+
+	s.sessionManager.Put(r.Context(), sessionRoleKey, string(principal.Role))
+	s.sessionManager.Put(r.Context(), sessionTenantIDKey, normalizeTenantID(principal.TenantID))
+	s.sessionManager.Put(r.Context(), sessionAPIKeyIDKey, strings.TrimSpace(principal.APIKeyID))
+	s.sessionManager.Put(r.Context(), sessionCSRFKey, csrfToken)
+
+	expiresAt := time.Now().UTC().Add(s.sessionManager.Lifetime)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"authenticated": true,
+		"role":          principal.Role,
+		"tenant_id":     normalizeTenantID(principal.TenantID),
+		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
+		"csrf_token":    csrfToken,
+		"expires_at":    expiresAt,
+	})
+}
+
+func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.sessionManager == nil {
+		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
+		return
+	}
+
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.Role == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	csrfToken := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
+	if csrfToken == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authenticated": true,
+		"role":          principal.Role,
+		"tenant_id":     normalizeTenantID(principal.TenantID),
+		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
+		"csrf_token":    csrfToken,
+	})
+}
+
+func (s *Server) handleUISessionLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.sessionManager == nil {
+		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
+		return
+	}
+	s.sessionManager.Destroy(r.Context())
+	writeJSON(w, http.StatusOK, map[string]any{"logged_out": true})
+}
+
+func randomHexToken(numBytes int) (string, error) {
+	if numBytes <= 0 {
+		numBytes = 16
+	}
+	buf := make([]byte, numBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }
 
 func (s *Server) handleLagoWebhooks(w http.ResponseWriter, r *http.Request) {

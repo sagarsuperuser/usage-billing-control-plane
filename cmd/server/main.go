@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alexedwards/scs/postgresstore"
+	"github.com/alexedwards/scs/v2"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	temporalclient "go.temporal.io/sdk/client"
 	temporalsdkworker "go.temporal.io/sdk/worker"
@@ -169,8 +171,31 @@ func main() {
 		return
 	}
 
+	uiSessionManager := scs.New()
+	uiSessionManager.Store = postgresstore.New(db)
+	uiSessionManager.Lifetime = time.Duration(getIntEnv("UI_SESSION_LIFETIME_SEC", 43200)) * time.Second
+	uiSessionManager.Cookie.Name = strings.TrimSpace(os.Getenv("UI_SESSION_COOKIE_NAME"))
+	if uiSessionManager.Cookie.Name == "" {
+		uiSessionManager.Cookie.Name = "lago_alpha_ui_session"
+	}
+	uiSessionManager.Cookie.HttpOnly = true
+	uiSessionManager.Cookie.Secure = getBoolEnv("UI_SESSION_COOKIE_SECURE", false)
+	uiSessionManager.Cookie.Path = "/"
+	uiSessionManager.Cookie.SameSite = http.SameSiteLaxMode
+	if sameSiteRaw := strings.ToLower(strings.TrimSpace(os.Getenv("UI_SESSION_COOKIE_SAMESITE"))); sameSiteRaw != "" {
+		switch sameSiteRaw {
+		case "strict":
+			uiSessionManager.Cookie.SameSite = http.SameSiteStrictMode
+		case "none":
+			uiSessionManager.Cookie.SameSite = http.SameSiteNoneMode
+		default:
+			uiSessionManager.Cookie.SameSite = http.SameSiteLaxMode
+		}
+	}
+
 	serverOpts := []api.ServerOption{
 		api.WithMetricsProvider(buildMetricsProvider(replayTemporalDispatcher, db)),
+		api.WithSessionManager(uiSessionManager),
 		api.WithReadinessCheck(func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -348,9 +373,12 @@ func main() {
 		log.Printf("level=info component=server event=audit_exports_disabled")
 	}
 
+	handler := api.NewServer(repo, serverOpts...).Handler()
+	handler = uiSessionManager.LoadAndSave(handler)
+
 	httpServer := &http.Server{
 		Addr:              ":" + port,
-		Handler:           api.NewServer(repo, serverOpts...).Handler(),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
