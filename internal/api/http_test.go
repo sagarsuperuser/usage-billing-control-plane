@@ -5,18 +5,26 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	temporalclient "go.temporal.io/sdk/client"
+	temporalsdkworker "go.temporal.io/sdk/worker"
 
 	"lago-usage-billing-alpha/internal/api"
+	"lago-usage-billing-alpha/internal/domain"
 	"lago-usage-billing-alpha/internal/replay"
+	"lago-usage-billing-alpha/internal/service"
 	"lago-usage-billing-alpha/internal/store"
+	"lago-usage-billing-alpha/internal/temporalutil"
 )
 
 func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
@@ -37,25 +45,41 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	}
 	resetTables(t, db)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	worker := replay.NewWorker(repo, 10*time.Millisecond)
-	go worker.Run(ctx)
+	mustCreateAPIKey(t, repo, "test-reader-key", api.RoleReader, "default")
+	mustCreateAPIKey(t, repo, "test-writer-key", api.RoleWriter, "default")
+	mustCreateAPIKey(t, repo, "test-admin-key", api.RoleAdmin, "default")
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithMetricsProvider(func() map[string]any {
-		return map[string]any{
-			"replay_worker": worker.Stats(),
-		}
-	})).Handler())
+	replayMetricsProvider, replayRuntimeCleanup := startTemporalReplayRuntime(t, repo)
+	defer replayRuntimeCleanup()
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoClient, lagoCleanup := newTestLagoClient(t)
+	defer lagoCleanup()
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithMetricsProvider(replayMetricsProvider), api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
 	defer ts.Close()
 
-	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
-		"name":            "API Calls v1",
+	getJSON(t, ts.URL+"/v1/rating-rules", "", http.StatusUnauthorized)
+	_ = postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"name":            "Forbidden write",
 		"version":         1,
 		"mode":            "graduated",
 		"currency":        "USD",
+		"graduated_tiers": []map[string]any{{"up_to": 10, "unit_amount_cents": 2}, {"up_to": 0, "unit_amount_cents": 1}},
+	}, "test-reader-key", http.StatusForbidden)
+
+	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":        "api_calls",
+		"name":            "API Calls v1",
+		"version":         1,
+		"lifecycle_state": "active",
+		"mode":            "graduated",
+		"currency":        "USD",
 		"graduated_tiers": []map[string]any{{"up_to": 100, "unit_amount_cents": 2}, {"up_to": 0, "unit_amount_cents": 1}},
-	}, http.StatusCreated)
+	}, "test-writer-key", http.StatusCreated)
 
 	ruleID := rule["id"].(string)
 	meter := postJSON(t, ts.URL+"/v1/meters", map[string]any{
@@ -64,72 +88,1626 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 		"unit":                   "call",
 		"aggregation":            "sum",
 		"rating_rule_version_id": ruleID,
-	}, http.StatusCreated)
+	}, "test-writer-key", http.StatusCreated)
 	meterID := meter["id"].(string)
 
-	preview := postJSON(t, ts.URL+"/v1/invoices/preview", map[string]any{
-		"customer_id": "cust_1",
-		"currency":    "USD",
-		"items": []map[string]any{{
-			"meter_id": meterID,
-			"quantity": 120,
-		}},
-	}, http.StatusOK)
-
-	if int(preview["total_cents"].(float64)) != 220 {
-		t.Fatalf("expected preview total 220, got %v", preview["total_cents"])
+	usageCreated := postJSON(t, ts.URL+"/v1/usage-events", map[string]any{
+		"customer_id":     "cust_1",
+		"meter_id":        meterID,
+		"quantity":        120,
+		"idempotency_key": "evt-idem-1",
+	}, "test-writer-key", http.StatusCreated)
+	usageCreatedID, _ := usageCreated["id"].(string)
+	if strings.TrimSpace(usageCreatedID) == "" {
+		t.Fatalf("expected created usage event id")
+	}
+	usageIdempotent := postJSON(t, ts.URL+"/v1/usage-events", map[string]any{
+		"customer_id":     "cust_1",
+		"meter_id":        meterID,
+		"quantity":        120,
+		"idempotency_key": "evt-idem-1",
+	}, "test-writer-key", http.StatusOK)
+	if gotID, _ := usageIdempotent["id"].(string); gotID != usageCreatedID {
+		t.Fatalf("expected idempotent usage event to return existing id %q, got %q", usageCreatedID, gotID)
+	}
+	usageIdempotencyConflict := postJSON(t, ts.URL+"/v1/usage-events", map[string]any{
+		"customer_id":     "cust_1",
+		"meter_id":        meterID,
+		"quantity":        121,
+		"idempotency_key": "evt-idem-1",
+	}, "test-writer-key", http.StatusConflict)
+	if got, _ := usageIdempotencyConflict["error"].(string); !strings.Contains(strings.ToLower(got), "different payload") {
+		t.Fatalf("expected usage idempotency conflict error, got %q", got)
 	}
 
 	_ = postJSON(t, ts.URL+"/v1/usage-events", map[string]any{
-		"customer_id": "cust_1",
+		"customer_id": "cust_2",
 		"meter_id":    meterID,
-		"quantity":    120,
-	}, http.StatusCreated)
+		"quantity":    5,
+	}, "test-writer-key", http.StatusCreated)
 
-	_ = postJSON(t, ts.URL+"/v1/billed-entries", map[string]any{
-		"customer_id":  "cust_1",
-		"meter_id":     meterID,
-		"amount_cents": 200,
-	}, http.StatusCreated)
+	usagePageOne := getJSON(
+		t,
+		ts.URL+"/v1/usage-events?meter_id="+url.QueryEscape(meterID)+"&limit=1",
+		"test-reader-key",
+		http.StatusOK,
+	)
+	usageItemsPageOne := listItemsFromResponse(t, usagePageOne)
+	if len(usageItemsPageOne) != 1 {
+		t.Fatalf("expected first usage events page size 1, got %d", len(usageItemsPageOne))
+	}
+	usageNextCursor, _ := usagePageOne["next_cursor"].(string)
+	if strings.TrimSpace(usageNextCursor) == "" {
+		t.Fatalf("expected usage events next_cursor on first page")
+	}
+	usagePageTwo := getJSON(
+		t,
+		ts.URL+"/v1/usage-events?meter_id="+url.QueryEscape(meterID)+"&limit=1&cursor="+url.QueryEscape(usageNextCursor),
+		"test-reader-key",
+		http.StatusOK,
+	)
+	usageItemsPageTwo := listItemsFromResponse(t, usagePageTwo)
+	if len(usageItemsPageTwo) != 1 {
+		t.Fatalf("expected second usage events page size 1, got %d", len(usageItemsPageTwo))
+	}
+	usageFull := getJSON(
+		t,
+		ts.URL+"/v1/usage-events?meter_id="+url.QueryEscape(meterID)+"&limit=10",
+		"test-reader-key",
+		http.StatusOK,
+	)
+	usageFullItems := listItemsFromResponse(t, usageFull)
+	if len(usageFullItems) != 2 {
+		t.Fatalf("expected usage list to contain 2 unique events after idempotent retry, got %d", len(usageFullItems))
+	}
+	usageCursorOffsetErr := getJSON(
+		t,
+		ts.URL+"/v1/usage-events?meter_id="+url.QueryEscape(meterID)+"&limit=1&offset=1&cursor="+url.QueryEscape(usageNextCursor),
+		"test-reader-key",
+		http.StatusBadRequest,
+	)
+	if got, _ := usageCursorOffsetErr["error"].(string); !strings.Contains(got, "offset cannot be used with cursor") {
+		t.Fatalf("expected usage offset/cursor validation error, got %q", got)
+	}
+	usageBadCursor := getJSON(t, ts.URL+"/v1/usage-events?cursor=invalid", "test-reader-key", http.StatusBadRequest)
+	if got, _ := usageBadCursor["error"].(string); !strings.Contains(got, "invalid cursor") {
+		t.Fatalf("expected usage invalid cursor error, got %q", got)
+	}
+	usageDesc := getJSON(
+		t,
+		ts.URL+"/v1/usage-events?meter_id="+url.QueryEscape(meterID)+"&limit=1&order=desc",
+		"test-reader-key",
+		http.StatusOK,
+	)
+	usageDescItems := listItemsFromResponse(t, usageDesc)
+	if len(usageDescItems) != 1 {
+		t.Fatalf("expected usage desc page size 1, got %d", len(usageDescItems))
+	}
+	usageDescRow, ok := usageDescItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected usage desc row object")
+	}
+	if customerID, _ := usageDescRow["customer_id"].(string); customerID != "cust_2" {
+		t.Fatalf("expected usage desc first row customer_id=cust_2, got %q", customerID)
+	}
+	usageBadOrder := getJSON(t, ts.URL+"/v1/usage-events?order=invalid", "test-reader-key", http.StatusBadRequest)
+	if got, _ := usageBadOrder["error"].(string); !strings.Contains(got, "order must be asc or desc") {
+		t.Fatalf("expected usage invalid order error, got %q", got)
+	}
+
+	billedCreated := postJSON(t, ts.URL+"/v1/billed-entries", map[string]any{
+		"customer_id":     "cust_1",
+		"meter_id":        meterID,
+		"amount_cents":    200,
+		"idempotency_key": "bil-idem-1",
+	}, "test-writer-key", http.StatusCreated)
+	billedCreatedID, _ := billedCreated["id"].(string)
+	if strings.TrimSpace(billedCreatedID) == "" {
+		t.Fatalf("expected created billed entry id")
+	}
+	billedIdempotent := postJSON(t, ts.URL+"/v1/billed-entries", map[string]any{
+		"customer_id":     "cust_1",
+		"meter_id":        meterID,
+		"amount_cents":    200,
+		"idempotency_key": "bil-idem-1",
+	}, "test-writer-key", http.StatusOK)
+	if gotID, _ := billedIdempotent["id"].(string); gotID != billedCreatedID {
+		t.Fatalf("expected idempotent billed entry to return existing id %q, got %q", billedCreatedID, gotID)
+	}
+	billedIdempotencyConflict := postJSON(t, ts.URL+"/v1/billed-entries", map[string]any{
+		"customer_id":     "cust_1",
+		"meter_id":        meterID,
+		"amount_cents":    201,
+		"idempotency_key": "bil-idem-1",
+	}, "test-writer-key", http.StatusConflict)
+	if got, _ := billedIdempotencyConflict["error"].(string); !strings.Contains(strings.ToLower(got), "different payload") {
+		t.Fatalf("expected billed idempotency conflict error, got %q", got)
+	}
 
 	replayResp := postJSON(t, ts.URL+"/v1/replay-jobs", map[string]any{
 		"idempotency_key": "idem_1",
 		"customer_id":     "cust_1",
-	}, http.StatusCreated)
+	}, "test-writer-key", http.StatusCreated)
 	job := replayResp["job"].(map[string]any)
 	jobID := job["id"].(string)
+	createdLinks, ok := job["artifact_links"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected replay create response to include artifact_links")
+	}
+	if strings.TrimSpace(createdLinks["report_json"].(string)) == "" {
+		t.Fatalf("expected report_json artifact link in replay create response")
+	}
+	if _, ok := job["workflow_telemetry"].(map[string]any); !ok {
+		t.Fatalf("expected replay create response to include workflow_telemetry")
+	}
+	replayRespIdempotent := postJSON(t, ts.URL+"/v1/replay-jobs", map[string]any{
+		"idempotency_key": "idem_1",
+		"customer_id":     "cust_1",
+	}, "test-writer-key", http.StatusOK)
+	if idem, _ := replayRespIdempotent["idempotent_replay"].(bool); !idem {
+		t.Fatalf("expected idempotent_replay=true on replay retry")
+	}
+	replayJobIdempotent, ok := replayRespIdempotent["job"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected replay idempotent response job object")
+	}
+	if gotID, _ := replayJobIdempotent["id"].(string); gotID != jobID {
+		t.Fatalf("expected idempotent replay retry to return existing job id %q, got %q", jobID, gotID)
+	}
+	replayConflict := postJSON(t, ts.URL+"/v1/replay-jobs", map[string]any{
+		"idempotency_key": "idem_1",
+		"customer_id":     "cust_conflict",
+	}, "test-writer-key", http.StatusConflict)
+	if got, _ := replayConflict["error"].(string); !strings.Contains(strings.ToLower(got), "different payload") {
+		t.Fatalf("expected replay idempotency conflict error, got %q", got)
+	}
 
-	for i := 0; i < 50; i++ {
-		statusResp := getJSON(t, ts.URL+"/v1/replay-jobs/"+jobID, http.StatusOK)
-		if statusResp["status"] == "done" {
+	var replayStatusResp map[string]any
+	for i := 0; i < 200; i++ {
+		replayStatusResp = getJSON(t, ts.URL+"/v1/replay-jobs/"+jobID, "test-reader-key", http.StatusOK)
+		if replayStatusResp["status"] == "done" {
 			break
 		}
-		time.Sleep(20 * time.Millisecond)
-		if i == 49 {
+		time.Sleep(25 * time.Millisecond)
+		if i == 199 {
 			t.Fatalf("replay job did not finish")
 		}
 	}
-
-	recon := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1", http.StatusOK)
-	if int(recon["mismatch_row_count"].(float64)) != 1 {
-		t.Fatalf("expected mismatch row count 1, got %v", recon["mismatch_row_count"])
+	statusTelemetry, ok := replayStatusResp["workflow_telemetry"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected replay status response to include workflow_telemetry")
+	}
+	if got, _ := statusTelemetry["current_step"].(string); got != "completed" {
+		t.Fatalf("expected replay workflow_telemetry.current_step=completed, got %q", got)
+	}
+	if got, _ := statusTelemetry["progress_percent"].(float64); int(got) != 100 {
+		t.Fatalf("expected replay workflow_telemetry.progress_percent=100, got %v", statusTelemetry["progress_percent"])
 	}
 
-	metrics := getJSON(t, ts.URL+"/internal/metrics", http.StatusOK)
+	statusLinks, ok := replayStatusResp["artifact_links"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected replay status response to include artifact_links")
+	}
+	reportJSONURL, _ := statusLinks["report_json"].(string)
+	reportCSVURL, _ := statusLinks["report_csv"].(string)
+	digestURL, _ := statusLinks["dataset_digest"].(string)
+	if strings.TrimSpace(reportJSONURL) == "" || strings.TrimSpace(reportCSVURL) == "" || strings.TrimSpace(digestURL) == "" {
+		t.Fatalf("expected non-empty replay artifact links")
+	}
+	reportJSONBody, reportJSONHeaders := getRaw(t, reportJSONURL, "test-reader-key", http.StatusOK)
+	if !strings.Contains(strings.ToLower(reportJSONHeaders.Get("Content-Type")), "application/json") {
+		t.Fatalf("expected report.json content type json, got %q", reportJSONHeaders.Get("Content-Type"))
+	}
+	if !strings.Contains(reportJSONBody, "\"job_id\"") {
+		t.Fatalf("expected report.json payload to include job_id")
+	}
+	reportCSVBody, reportCSVHeaders := getRaw(t, reportCSVURL, "test-reader-key", http.StatusOK)
+	if !strings.Contains(strings.ToLower(reportCSVHeaders.Get("Content-Type")), "text/csv") {
+		t.Fatalf("expected report.csv content type text/csv, got %q", reportCSVHeaders.Get("Content-Type"))
+	}
+	if !strings.Contains(reportCSVBody, "job_id,status,customer_id,meter_id") {
+		t.Fatalf("expected report.csv header")
+	}
+	digestBody, digestHeaders := getRaw(t, digestURL, "test-reader-key", http.StatusOK)
+	if !strings.Contains(strings.ToLower(digestHeaders.Get("Content-Type")), "text/plain") {
+		t.Fatalf("expected dataset_digest content type text/plain, got %q", digestHeaders.Get("Content-Type"))
+	}
+	if len(strings.TrimSpace(digestBody)) != 64 {
+		t.Fatalf("expected dataset digest length 64, got %d", len(strings.TrimSpace(digestBody)))
+	}
+
+	replayResp2 := postJSON(t, ts.URL+"/v1/replay-jobs", map[string]any{
+		"idempotency_key": "idem_2",
+		"customer_id":     "cust_ghost",
+	}, "test-writer-key", http.StatusCreated)
+	job2 := replayResp2["job"].(map[string]any)
+	jobID2 := job2["id"].(string)
+	if jobID2 == "" {
+		t.Fatalf("expected second replay job id")
+	}
+
+	replayPageOne := getJSON(t, ts.URL+"/v1/replay-jobs?limit=1", "test-reader-key", http.StatusOK)
+	replayPageOneItems := listItemsFromResponse(t, replayPageOne)
+	if len(replayPageOneItems) != 1 {
+		t.Fatalf("expected replay jobs first page size 1, got %d", len(replayPageOneItems))
+	}
+	replayPageOneRow, ok := replayPageOneItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected replay jobs first page row object")
+	}
+	if _, ok := replayPageOneRow["workflow_telemetry"].(map[string]any); !ok {
+		t.Fatalf("expected replay jobs list row to include workflow_telemetry")
+	}
+	if _, ok := replayPageOneRow["artifact_links"].(map[string]any); !ok {
+		t.Fatalf("expected replay jobs list row to include artifact_links")
+	}
+	replayNextCursor, _ := replayPageOne["next_cursor"].(string)
+	if strings.TrimSpace(replayNextCursor) == "" {
+		t.Fatalf("expected replay jobs next_cursor on first page")
+	}
+	replayPageTwo := getJSON(t, ts.URL+"/v1/replay-jobs?limit=1&cursor="+url.QueryEscape(replayNextCursor), "test-reader-key", http.StatusOK)
+	replayPageTwoItems := listItemsFromResponse(t, replayPageTwo)
+	if len(replayPageTwoItems) != 1 {
+		t.Fatalf("expected replay jobs second page size 1, got %d", len(replayPageTwoItems))
+	}
+	replayStatusFiltered := getJSON(t, ts.URL+"/v1/replay-jobs?status=done&limit=10", "test-reader-key", http.StatusOK)
+	replayDoneItems := listItemsFromResponse(t, replayStatusFiltered)
+	if len(replayDoneItems) == 0 {
+		t.Fatalf("expected at least one done replay job")
+	}
+	replayCursorOffsetErr := getJSON(t, ts.URL+"/v1/replay-jobs?limit=1&offset=1&cursor="+url.QueryEscape(replayNextCursor), "test-reader-key", http.StatusBadRequest)
+	if got, _ := replayCursorOffsetErr["error"].(string); !strings.Contains(got, "offset cannot be used with cursor") {
+		t.Fatalf("expected replay offset/cursor validation error, got %q", got)
+	}
+	replayBadCursor := getJSON(t, ts.URL+"/v1/replay-jobs?cursor=invalid", "test-reader-key", http.StatusBadRequest)
+	if got, _ := replayBadCursor["error"].(string); !strings.Contains(got, "invalid cursor") {
+		t.Fatalf("expected replay invalid cursor error, got %q", got)
+	}
+	replayBadStatus := getJSON(t, ts.URL+"/v1/replay-jobs?status=unknown", "test-reader-key", http.StatusBadRequest)
+	if got, _ := replayBadStatus["error"].(string); !strings.Contains(got, "invalid status") {
+		t.Fatalf("expected replay invalid status error, got %q", got)
+	}
+	replayDiag := getJSON(t, ts.URL+"/v1/replay-jobs/"+jobID+"/events", "test-reader-key", http.StatusOK)
+	if int(replayDiag["usage_events_count"].(float64)) != 1 {
+		t.Fatalf("expected replay diagnostics usage_events_count=1, got %v", replayDiag["usage_events_count"])
+	}
+	if int(replayDiag["usage_quantity"].(float64)) != 120 {
+		t.Fatalf("expected replay diagnostics usage_quantity=120, got %v", replayDiag["usage_quantity"])
+	}
+	if int(replayDiag["billed_entries_count"].(float64)) != 2 {
+		t.Fatalf("expected replay diagnostics billed_entries_count=2, got %v", replayDiag["billed_entries_count"])
+	}
+	if int(replayDiag["billed_amount_cents"].(float64)) != 220 {
+		t.Fatalf("expected replay diagnostics billed_amount_cents=220, got %v", replayDiag["billed_amount_cents"])
+	}
+	replayRetryDone := postJSON(t, ts.URL+"/v1/replay-jobs/"+jobID+"/retry", map[string]any{}, "test-writer-key", http.StatusBadRequest)
+	if got, _ := replayRetryDone["error"].(string); !strings.Contains(strings.ToLower(got), "status=failed") {
+		t.Fatalf("expected replay retry invalid-state error, got %q", got)
+	}
+	replayRetryForbidden := postJSON(t, ts.URL+"/v1/replay-jobs/"+jobID+"/retry", map[string]any{}, "test-reader-key", http.StatusForbidden)
+	if got, _ := replayRetryForbidden["error"].(string); !strings.Contains(strings.ToLower(got), "forbidden") {
+		t.Fatalf("expected replay retry forbidden error, got %q", got)
+	}
+
+	recon := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1", "test-reader-key", http.StatusOK)
+	if int(recon["mismatch_row_count"].(float64)) != 0 {
+		t.Fatalf("expected mismatch row count 0 after replay adjustments, got %v", recon["mismatch_row_count"])
+	}
+	if int(recon["total_delta_cents"].(float64)) != 0 {
+		t.Fatalf("expected total_delta_cents 0 after replay adjustments, got %v", recon["total_delta_cents"])
+	}
+	reconAPIOnly := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&billed_source=api", "test-reader-key", http.StatusOK)
+	if int(reconAPIOnly["mismatch_row_count"].(float64)) != 1 {
+		t.Fatalf("expected mismatch row count 1 for billed_source=api, got %v", reconAPIOnly["mismatch_row_count"])
+	}
+	if int(reconAPIOnly["total_billed_cents"].(float64)) != 200 {
+		t.Fatalf("expected total_billed_cents 200 for billed_source=api, got %v", reconAPIOnly["total_billed_cents"])
+	}
+	reconReplayOnly := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&billed_source=replay_adjustment&billed_replay_job_id="+url.QueryEscape(jobID), "test-reader-key", http.StatusOK)
+	if int(reconReplayOnly["mismatch_row_count"].(float64)) != 1 {
+		t.Fatalf("expected mismatch row count 1 for replay adjustment-only view, got %v", reconReplayOnly["mismatch_row_count"])
+	}
+	if int(reconReplayOnly["total_billed_cents"].(float64)) != 20 {
+		t.Fatalf("expected total_billed_cents 20 for replay adjustment-only view, got %v", reconReplayOnly["total_billed_cents"])
+	}
+	reconMismatchOnly := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&billed_source=api&mismatch_only=true", "test-reader-key", http.StatusOK)
+	if int(reconMismatchOnly["mismatch_row_count"].(float64)) != 1 {
+		t.Fatalf("expected mismatch_only report mismatch_row_count=1, got %v", reconMismatchOnly["mismatch_row_count"])
+	}
+	reconAbsDeltaTooHigh := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&billed_source=api&abs_delta_gte=30", "test-reader-key", http.StatusOK)
+	if int(reconAbsDeltaTooHigh["mismatch_row_count"].(float64)) != 0 {
+		t.Fatalf("expected abs_delta_gte=30 report mismatch_row_count=0, got %v", reconAbsDeltaTooHigh["mismatch_row_count"])
+	}
+	reconAbsDeltaMatch := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&billed_source=api&abs_delta_gte=20", "test-reader-key", http.StatusOK)
+	if int(reconAbsDeltaMatch["mismatch_row_count"].(float64)) != 1 {
+		t.Fatalf("expected abs_delta_gte=20 report mismatch_row_count=1, got %v", reconAbsDeltaMatch["mismatch_row_count"])
+	}
+	reconBadMismatchOnly := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&mismatch_only=abc", "test-reader-key", http.StatusBadRequest)
+	if got, _ := reconBadMismatchOnly["error"].(string); !strings.Contains(strings.ToLower(got), "mismatch_only") {
+		t.Fatalf("expected mismatch_only validation error, got %q", got)
+	}
+	reconBadAbsDelta := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&abs_delta_gte=-1", "test-reader-key", http.StatusBadRequest)
+	if got, _ := reconBadAbsDelta["error"].(string); !strings.Contains(strings.ToLower(got), "abs_delta_gte") {
+		t.Fatalf("expected abs_delta_gte validation error, got %q", got)
+	}
+	invalidFilter := getJSON(t, ts.URL+"/v1/reconciliation-report?customer_id=cust_1&billed_source=invalid", "test-reader-key", http.StatusBadRequest)
+	if got, _ := invalidFilter["error"].(string); !strings.Contains(got, "invalid billed_source") {
+		t.Fatalf("expected invalid billed_source error, got %q", got)
+	}
+
+	billedEntries, err := repo.ListBilledEntries(store.Filter{
+		TenantID:   "default",
+		CustomerID: "cust_1",
+		MeterID:    meterID,
+	})
+	if err != nil {
+		t.Fatalf("list billed entries: %v", err)
+	}
+	if len(billedEntries) != 2 {
+		t.Fatalf("expected 2 billed entries (api + replay adjustment), got %d", len(billedEntries))
+	}
+
+	var foundAPI bool
+	var foundReplayAdjustment bool
+	for _, entry := range billedEntries {
+		switch entry.Source {
+		case domain.BilledEntrySourceAPI:
+			foundAPI = true
+			if entry.ReplayJobID != "" {
+				t.Fatalf("expected api billed entry replay_job_id to be empty, got %q", entry.ReplayJobID)
+			}
+		case domain.BilledEntrySourceReplayAdjustment:
+			foundReplayAdjustment = true
+			if entry.ReplayJobID != jobID {
+				t.Fatalf("expected replay adjustment replay_job_id=%s, got %q", jobID, entry.ReplayJobID)
+			}
+		default:
+			t.Fatalf("unexpected billed entry source: %q", entry.Source)
+		}
+	}
+	if !foundAPI || !foundReplayAdjustment {
+		t.Fatalf("expected both api and replay adjustment billed entry sources, got api=%t replay_adjustment=%t", foundAPI, foundReplayAdjustment)
+	}
+
+	billedList := getJSON(
+		t,
+		ts.URL+"/v1/billed-entries?customer_id=cust_1&meter_id="+url.QueryEscape(meterID)+"&billed_source=replay_adjustment&billed_replay_job_id="+url.QueryEscape(jobID)+"&limit=10",
+		"test-reader-key",
+		http.StatusOK,
+	)
+	listItems := listItemsFromResponse(t, billedList)
+	if len(listItems) != 1 {
+		t.Fatalf("expected one replay_adjustment billed entry from GET /v1/billed-entries, got %d", len(listItems))
+	}
+	row, ok := listItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected billed entry row object")
+	}
+	if source, _ := row["source"].(string); source != "replay_adjustment" {
+		t.Fatalf("expected billed entry source replay_adjustment, got %q", source)
+	}
+	if replayJobID, _ := row["replay_job_id"].(string); replayJobID != jobID {
+		t.Fatalf("expected billed entry replay_job_id=%s, got %q", jobID, replayJobID)
+	}
+	billedInvalid := getJSON(t, ts.URL+"/v1/billed-entries?billed_source=invalid", "test-reader-key", http.StatusBadRequest)
+	if got, _ := billedInvalid["error"].(string); !strings.Contains(got, "billed_source") {
+		t.Fatalf("expected billed_source validation error, got %q", got)
+	}
+
+	billedPageOne := getJSON(
+		t,
+		ts.URL+"/v1/billed-entries?customer_id=cust_1&meter_id="+url.QueryEscape(meterID)+"&limit=1",
+		"test-reader-key",
+		http.StatusOK,
+	)
+	billedPageOneItems := listItemsFromResponse(t, billedPageOne)
+	if len(billedPageOneItems) != 1 {
+		t.Fatalf("expected first billed entries page size 1, got %d", len(billedPageOneItems))
+	}
+	billedNextCursor, _ := billedPageOne["next_cursor"].(string)
+	if strings.TrimSpace(billedNextCursor) == "" {
+		t.Fatalf("expected next_cursor for billed entries first page")
+	}
+
+	billedPageTwo := getJSON(
+		t,
+		ts.URL+"/v1/billed-entries?customer_id=cust_1&meter_id="+url.QueryEscape(meterID)+"&limit=1&cursor="+url.QueryEscape(billedNextCursor),
+		"test-reader-key",
+		http.StatusOK,
+	)
+	billedPageTwoItems := listItemsFromResponse(t, billedPageTwo)
+	if len(billedPageTwoItems) != 1 {
+		t.Fatalf("expected second billed entries page size 1, got %d", len(billedPageTwoItems))
+	}
+	if next, _ := billedPageTwo["next_cursor"].(string); strings.TrimSpace(next) != "" {
+		t.Fatalf("expected no next_cursor on final billed entries page, got %q", next)
+	}
+
+	billedCursorOffsetErr := getJSON(
+		t,
+		ts.URL+"/v1/billed-entries?customer_id=cust_1&meter_id="+url.QueryEscape(meterID)+"&limit=1&offset=1&cursor="+url.QueryEscape(billedNextCursor),
+		"test-reader-key",
+		http.StatusBadRequest,
+	)
+	if got, _ := billedCursorOffsetErr["error"].(string); !strings.Contains(got, "offset cannot be used with cursor") {
+		t.Fatalf("expected offset/cursor validation error, got %q", got)
+	}
+
+	billedBadCursor := getJSON(t, ts.URL+"/v1/billed-entries?cursor=invalid", "test-reader-key", http.StatusBadRequest)
+	if got, _ := billedBadCursor["error"].(string); !strings.Contains(got, "invalid cursor") {
+		t.Fatalf("expected invalid cursor error, got %q", got)
+	}
+	billedDesc := getJSON(
+		t,
+		ts.URL+"/v1/billed-entries?customer_id=cust_1&meter_id="+url.QueryEscape(meterID)+"&limit=1&order=desc",
+		"test-reader-key",
+		http.StatusOK,
+	)
+	billedDescItems := listItemsFromResponse(t, billedDesc)
+	if len(billedDescItems) != 1 {
+		t.Fatalf("expected billed desc page size 1, got %d", len(billedDescItems))
+	}
+	billedDescRow, ok := billedDescItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected billed desc row object")
+	}
+	if source, _ := billedDescRow["source"].(string); source != "replay_adjustment" {
+		t.Fatalf("expected billed desc first row source replay_adjustment, got %q", source)
+	}
+	billedBadOrder := getJSON(t, ts.URL+"/v1/billed-entries?order=invalid", "test-reader-key", http.StatusBadRequest)
+	if got, _ := billedBadOrder["error"].(string); !strings.Contains(got, "order must be asc or desc") {
+		t.Fatalf("expected billed invalid order error, got %q", got)
+	}
+
+	getJSON(t, ts.URL+"/internal/metrics", "test-writer-key", http.StatusForbidden)
+	metrics := getJSON(t, ts.URL+"/internal/metrics", "test-admin-key", http.StatusOK)
 	if _, ok := metrics["metrics"]; !ok {
 		t.Fatalf("expected metrics payload")
+	}
+	metricsMap, ok := metrics["metrics"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected metrics object")
+	}
+	if _, ok := metricsMap["http_requests_total"]; !ok {
+		t.Fatalf("expected http_requests_total in metrics payload")
+	}
+	getJSON(t, ts.URL+"/internal/ready", "test-writer-key", http.StatusForbidden)
+	ready := getJSON(t, ts.URL+"/internal/ready", "test-admin-key", http.StatusOK)
+	if ready["status"] != "ready" {
+		t.Fatalf("expected internal ready status to be ready, got %v", ready["status"])
+	}
+
+	writerPrefix := api.KeyPrefixFromHash(api.HashAPIKey("test-writer-key"))
+	writerKey, err := repo.GetAPIKeyByPrefix(writerPrefix)
+	if err != nil {
+		t.Fatalf("get writer api key: %v", err)
+	}
+	if writerKey.LastUsedAt == nil {
+		t.Fatalf("expected writer api key last_used_at to be updated")
 	}
 }
 
 func resetTables(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec(`TRUNCATE TABLE replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
+	_, err := db.Exec(`TRUNCATE TABLE lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate tables: %v", err)
 	}
 }
 
-func postJSON(t *testing.T, url string, body any, expectedStatus int) map[string]any {
+func TestLagoWebhookVisibilityFlow(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "tenant_a")
+	mustCreateAPIKey(t, repo, "tenant-b-reader", api.RoleReader, "tenant_b")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoWebhookSvc := service.NewLagoWebhookService(
+		repo,
+		service.NoopLagoWebhookVerifier{},
+		service.NewStaticLagoOrganizationTenantMapper("default", map[string]string{
+			"org_test_1": "tenant_a",
+			"org_test_2": "tenant_a",
+		}),
+	)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithLagoWebhookService(lagoWebhookSvc),
+	).Handler())
+	defer ts.Close()
+
+	webhookPayload := map[string]any{
+		"webhook_type":    "invoice.payment_failure",
+		"object_type":     "payment_provider_invoice_payment_error",
+		"organization_id": "org_test_1",
+		"payment_provider_invoice_payment_error": map[string]any{
+			"lago_invoice_id":      "inv_123",
+			"external_customer_id": "cust_ext_1",
+			"provider_error":       "card_declined",
+		},
+	}
+
+	first := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", webhookPayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_123",
+	}, "", http.StatusAccepted)
+	if idem, _ := first["idempotent"].(bool); idem {
+		t.Fatalf("expected first webhook delivery to be non-idempotent")
+	}
+
+	second := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", webhookPayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_123",
+	}, "", http.StatusOK)
+	if idem, _ := second["idempotent"].(bool); !idem {
+		t.Fatalf("expected duplicate webhook delivery to be idempotent")
+	}
+
+	status := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123", "tenant-a-reader", http.StatusOK)
+	if got, _ := status["payment_status"].(string); got != "failed" {
+		t.Fatalf("expected invoice payment_status failed, got %q", got)
+	}
+	if got, _ := status["customer_external_id"].(string); got != "cust_ext_1" {
+		t.Fatalf("expected customer_external_id cust_ext_1, got %q", got)
+	}
+
+	listResp := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?payment_status=failed", "tenant-a-reader", http.StatusOK)
+	listItems := listItemsFromResponse(t, listResp)
+	if len(listItems) != 1 {
+		t.Fatalf("expected one payment status row, got %d", len(listItems))
+	}
+
+	eventsResp := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/events", "tenant-a-reader", http.StatusOK)
+	eventItems := listItemsFromResponse(t, eventsResp)
+	if len(eventItems) != 1 {
+		t.Fatalf("expected one webhook event after idempotent duplicate, got %d", len(eventItems))
+	}
+
+	_ = getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123", "tenant-b-reader", http.StatusNotFound)
+}
+
+func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "tenant_a")
+	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "tenant_a")
+	mustCreateAPIKey(t, repo, "tenant-b-reader", api.RoleReader, "tenant_b")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	retryCalls := 0
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/invoices/inv_123/retry_payment" {
+			retryCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"invoice":{"lago_id":"inv_123","payment_status":"pending"}}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer lagoMock.Close()
+
+	lagoClient, err := service.NewLagoClient(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago client: %v", err)
+	}
+
+	lagoWebhookSvc := service.NewLagoWebhookService(
+		repo,
+		service.NoopLagoWebhookVerifier{},
+		service.NewStaticLagoOrganizationTenantMapper("default", map[string]string{
+			"org_test_1": "tenant_a",
+			"org_test_2": "tenant_a",
+		}),
+	)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithLagoClient(lagoClient),
+		api.WithLagoWebhookService(lagoWebhookSvc),
+	).Handler())
+	defer ts.Close()
+
+	baseTS := time.Now().UTC()
+	invoiceCreatedTS := baseTS.Add(-1 * time.Hour).Format(time.RFC3339)
+	overdueUpdatedTS := baseTS.Add(10 * time.Second).Format(time.RFC3339)
+	successUpdatedTS := baseTS.Add(20 * time.Second).Format(time.RFC3339)
+	staleUpdatedTS := baseTS.Add(5 * time.Second).Format(time.RFC3339)
+
+	failurePayload := map[string]any{
+		"webhook_type":    "invoice.payment_failure",
+		"object_type":     "payment_provider_invoice_payment_error",
+		"organization_id": "org_test_1",
+		"payment_provider_invoice_payment_error": map[string]any{
+			"lago_invoice_id":      "inv_123",
+			"external_customer_id": "cust_ext_1",
+			"provider_error":       "card_declined",
+		},
+	}
+	firstFailure := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", failurePayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_fail_1",
+	}, "", http.StatusAccepted)
+	if idem, _ := firstFailure["idempotent"].(bool); idem {
+		t.Fatalf("expected first failure delivery to be non-idempotent")
+	}
+	duplicateFailure := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", failurePayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_fail_1",
+	}, "", http.StatusOK)
+	if idem, _ := duplicateFailure["idempotent"].(bool); !idem {
+		t.Fatalf("expected duplicate failure delivery to be idempotent")
+	}
+
+	overduePayload := map[string]any{
+		"webhook_type":    "invoice.payment_overdue",
+		"object_type":     "invoice",
+		"organization_id": "org_test_1",
+		"invoice": map[string]any{
+			"lago_id":                 "inv_123",
+			"status":                  "finalized",
+			"payment_status":          "failed",
+			"payment_overdue":         true,
+			"number":                  "INV-123",
+			"currency":                "USD",
+			"total_amount_cents":      1200,
+			"total_due_amount_cents":  1200,
+			"total_paid_amount_cents": 0,
+			"updated_at":              overdueUpdatedTS,
+			"created_at":              invoiceCreatedTS,
+			"customer": map[string]any{
+				"external_id": "cust_ext_1",
+			},
+		},
+	}
+	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", overduePayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_overdue_1",
+	}, "", http.StatusAccepted)
+
+	retryResp := postJSON(
+		t,
+		ts.URL+"/v1/invoices/inv_123/retry-payment",
+		map[string]any{},
+		"tenant-a-writer",
+		http.StatusOK,
+	)
+	retryInvoice, ok := retryResp["invoice"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected retry response to include invoice object")
+	}
+	if got, _ := retryInvoice["payment_status"].(string); got != "pending" {
+		t.Fatalf("expected retry payment_status pending, got %q", got)
+	}
+	if retryCalls != 1 {
+		t.Fatalf("expected exactly one retry call to lago, got %d", retryCalls)
+	}
+
+	successPayload := map[string]any{
+		"webhook_type":    "invoice.payment_status_updated",
+		"object_type":     "invoice",
+		"organization_id": "org_test_1",
+		"invoice": map[string]any{
+			"lago_id":                 "inv_123",
+			"status":                  "finalized",
+			"payment_status":          "succeeded",
+			"payment_overdue":         false,
+			"number":                  "INV-123",
+			"currency":                "USD",
+			"total_amount_cents":      1200,
+			"total_due_amount_cents":  0,
+			"total_paid_amount_cents": 1200,
+			"updated_at":              successUpdatedTS,
+			"created_at":              invoiceCreatedTS,
+			"customer": map[string]any{
+				"external_id": "cust_ext_1",
+			},
+		},
+	}
+	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", successPayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_success_1",
+	}, "", http.StatusAccepted)
+
+	staleFailedPayload := map[string]any{
+		"webhook_type":    "invoice.payment_status_updated",
+		"object_type":     "invoice",
+		"organization_id": "org_test_1",
+		"invoice": map[string]any{
+			"lago_id":                 "inv_123",
+			"status":                  "finalized",
+			"payment_status":          "failed",
+			"payment_overdue":         true,
+			"number":                  "INV-123",
+			"currency":                "USD",
+			"total_amount_cents":      1200,
+			"total_due_amount_cents":  1200,
+			"total_paid_amount_cents": 0,
+			"updated_at":              staleUpdatedTS,
+			"created_at":              invoiceCreatedTS,
+			"customer": map[string]any{
+				"external_id": "cust_ext_1",
+			},
+		},
+	}
+	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", staleFailedPayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_stale_1",
+	}, "", http.StatusAccepted)
+
+	otherOrgPayload := map[string]any{
+		"webhook_type":    "invoice.payment_status_updated",
+		"object_type":     "invoice",
+		"organization_id": "org_test_2",
+		"invoice": map[string]any{
+			"lago_id":                 "inv_999",
+			"status":                  "finalized",
+			"payment_status":          "failed",
+			"payment_overdue":         true,
+			"number":                  "INV-999",
+			"currency":                "USD",
+			"total_amount_cents":      900,
+			"total_due_amount_cents":  900,
+			"total_paid_amount_cents": 0,
+			"updated_at":              baseTS.Add(30 * time.Second).Format(time.RFC3339),
+			"created_at":              invoiceCreatedTS,
+			"customer": map[string]any{
+				"external_id": "cust_ext_2",
+			},
+		},
+	}
+	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", otherOrgPayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_org2_1",
+	}, "", http.StatusAccepted)
+
+	status := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123", "tenant-a-reader", http.StatusOK)
+	if got, _ := status["payment_status"].(string); got != "succeeded" {
+		t.Fatalf("expected final payment_status succeeded, got %q", got)
+	}
+	if got, _ := status["last_webhook_key"].(string); got != "whk_success_1" {
+		t.Fatalf("expected last_webhook_key whk_success_1, got %q", got)
+	}
+	overdueValue, ok := status["payment_overdue"].(bool)
+	if !ok || overdueValue {
+		t.Fatalf("expected final payment_overdue=false, got %v", status["payment_overdue"])
+	}
+
+	succeededList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?payment_status=succeeded", "tenant-a-reader", http.StatusOK)
+	succeededItems := listItemsFromResponse(t, succeededList)
+	if len(succeededItems) != 1 {
+		t.Fatalf("expected one succeeded payment row, got %d", len(succeededItems))
+	}
+	orgFiltered := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?organization_id=org_test_2", "tenant-a-reader", http.StatusOK)
+	orgFilteredItems := listItemsFromResponse(t, orgFiltered)
+	if len(orgFilteredItems) != 1 {
+		t.Fatalf("expected one row for organization filter org_test_2, got %d", len(orgFilteredItems))
+	}
+	orgFilteredRow, ok := orgFilteredItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected organization filtered row to be object")
+	}
+	if got, _ := orgFilteredRow["invoice_id"].(string); got != "inv_999" {
+		t.Fatalf("expected org_test_2 row invoice_id inv_999, got %q", got)
+	}
+	ascendingList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?sort_by=last_event_at&order=asc&limit=1", "tenant-a-reader", http.StatusOK)
+	ascendingItems := listItemsFromResponse(t, ascendingList)
+	if len(ascendingItems) != 1 {
+		t.Fatalf("expected one row in ascending list, got %d", len(ascendingItems))
+	}
+	ascendingRow, ok := ascendingItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ascending row to be object")
+	}
+	if got, _ := ascendingRow["invoice_id"].(string); got != "inv_123" {
+		t.Fatalf("expected ascending first row invoice_id inv_123, got %q", got)
+	}
+	descendingList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?sort_by=last_event_at&order=desc&limit=1", "tenant-a-reader", http.StatusOK)
+	descendingItems := listItemsFromResponse(t, descendingList)
+	if len(descendingItems) != 1 {
+		t.Fatalf("expected one row in descending list, got %d", len(descendingItems))
+	}
+	descendingRow, ok := descendingItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected descending row to be object")
+	}
+	if got, _ := descendingRow["invoice_id"].(string); got != "inv_999" {
+		t.Fatalf("expected descending first row invoice_id inv_999, got %q", got)
+	}
+	badStatusOrder := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?order=invalid", "tenant-a-reader", http.StatusBadRequest)
+	if got, _ := badStatusOrder["error"].(string); !strings.Contains(got, "order must be asc or desc") {
+		t.Fatalf("expected status invalid order validation error, got %q", got)
+	}
+	badStatusSort := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?sort_by=bad_sort", "tenant-a-reader", http.StatusBadRequest)
+	if got, _ := badStatusSort["error"].(string); !strings.Contains(got, "sort_by must be one of") {
+		t.Fatalf("expected status invalid sort validation error, got %q", got)
+	}
+	overdueList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?payment_overdue=true", "tenant-a-reader", http.StatusOK)
+	overdueItems := listItemsFromResponse(t, overdueList)
+	if len(overdueItems) != 1 {
+		t.Fatalf("expected one currently overdue payment row (inv_999), got %d", len(overdueItems))
+	}
+
+	eventsResp := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/events", "tenant-a-reader", http.StatusOK)
+	eventItems := listItemsFromResponse(t, eventsResp)
+	if len(eventItems) != 4 {
+		t.Fatalf("expected 4 unique webhook events in timeline, got %d", len(eventItems))
+	}
+	eventsSortedAsc := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/events?sort_by=occurred_at&order=asc&limit=10", "tenant-a-reader", http.StatusOK)
+	eventsSortedAscItems := listItemsFromResponse(t, eventsSortedAsc)
+	if len(eventsSortedAscItems) != 4 {
+		t.Fatalf("expected 4 events in occurred_at asc list, got %d", len(eventsSortedAscItems))
+	}
+	firstEventRow, ok := eventsSortedAscItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first events row to be object")
+	}
+	if got, _ := firstEventRow["webhook_type"].(string); got != "invoice.payment_failure" {
+		t.Fatalf("expected first asc event webhook_type invoice.payment_failure, got %q", got)
+	}
+	filteredEvents := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/events?webhook_type=invoice.payment_overdue", "tenant-a-reader", http.StatusOK)
+	filteredEventItems := listItemsFromResponse(t, filteredEvents)
+	if len(filteredEventItems) != 1 {
+		t.Fatalf("expected one filtered overdue event, got %d", len(filteredEventItems))
+	}
+	badEventSort := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/events?sort_by=bad_sort", "tenant-a-reader", http.StatusBadRequest)
+	if got, _ := badEventSort["error"].(string); !strings.Contains(got, "sort_by must be one of") {
+		t.Fatalf("expected event invalid sort validation error, got %q", got)
+	}
+
+	_ = getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123", "tenant-b-reader", http.StatusNotFound)
+}
+
+func TestTenantIsolationAcrossAPIKeys(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "tenant_a")
+	mustCreateAPIKey(t, repo, "tenant-b-writer", api.RoleWriter, "tenant_b")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoClient, lagoCleanup := newTestLagoClient(t)
+	defer lagoCleanup()
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	defer ts.Close()
+
+	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":        "tenant_a_rule",
+		"name":            "Tenant A Rule",
+		"version":         1,
+		"lifecycle_state": "active",
+		"mode":            "graduated",
+		"currency":        "USD",
+		"graduated_tiers": []map[string]any{{"up_to": 10, "unit_amount_cents": 2}, {"up_to": 0, "unit_amount_cents": 1}},
+	}, "tenant-a-writer", http.StatusCreated)
+	ruleID := rule["id"].(string)
+
+	meter := postJSON(t, ts.URL+"/v1/meters", map[string]any{
+		"key":                    "tenant_a_meter",
+		"name":                   "Tenant A Meter",
+		"unit":                   "call",
+		"aggregation":            "sum",
+		"rating_rule_version_id": ruleID,
+	}, "tenant-a-writer", http.StatusCreated)
+	meterID := meter["id"].(string)
+
+	_ = getJSON(t, ts.URL+"/v1/meters/"+meterID, "tenant-a-writer", http.StatusOK)
+	_ = getJSON(t, ts.URL+"/v1/meters/"+meterID, "tenant-b-writer", http.StatusNotFound)
+
+	usageErr := postJSON(t, ts.URL+"/v1/usage-events", map[string]any{
+		"customer_id": "cust_tenant_b",
+		"meter_id":    meterID,
+		"quantity":    1,
+	}, "tenant-b-writer", http.StatusNotFound)
+	if usageErr["error"] == nil {
+		t.Fatalf("expected tenant isolation validation error")
+	}
+}
+
+func TestRatingRuleGovernanceLifecycle(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "governance-writer", api.RoleWriter, "default")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoClient, lagoCleanup := newTestLagoClient(t)
+	defer lagoCleanup()
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	defer ts.Close()
+
+	v1 := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":        "api_calls",
+		"name":            "API Calls v1",
+		"version":         1,
+		"lifecycle_state": "active",
+		"mode":            "graduated",
+		"currency":        "USD",
+		"graduated_tiers": []map[string]any{{"up_to": 100, "unit_amount_cents": 2}, {"up_to": 0, "unit_amount_cents": 1}},
+	}, "governance-writer", http.StatusCreated)
+	v1ID, _ := v1["id"].(string)
+	if strings.TrimSpace(v1ID) == "" {
+		t.Fatalf("expected rating rule v1 id")
+	}
+	if got, _ := v1["rule_key"].(string); got != "api_calls" {
+		t.Fatalf("expected v1 rule_key=api_calls, got %q", got)
+	}
+	if got, _ := v1["lifecycle_state"].(string); got != "active" {
+		t.Fatalf("expected v1 lifecycle_state=active, got %q", got)
+	}
+
+	v2 := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":        "api_calls",
+		"name":            "API Calls v2",
+		"version":         2,
+		"lifecycle_state": "active",
+		"mode":            "graduated",
+		"currency":        "USD",
+		"graduated_tiers": []map[string]any{{"up_to": 100, "unit_amount_cents": 3}, {"up_to": 0, "unit_amount_cents": 2}},
+	}, "governance-writer", http.StatusCreated)
+	if got, _ := v2["lifecycle_state"].(string); got != "active" {
+		t.Fatalf("expected v2 lifecycle_state=active, got %q", got)
+	}
+
+	v1Reload := getJSON(t, ts.URL+"/v1/rating-rules/"+v1ID, "governance-writer", http.StatusOK)
+	if got, _ := v1Reload["lifecycle_state"].(string); got != "archived" {
+		t.Fatalf("expected v1 lifecycle_state=archived after v2 activation, got %q", got)
+	}
+
+	dupVersion := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":        "api_calls",
+		"name":            "API Calls v2 duplicate",
+		"version":         2,
+		"lifecycle_state": "draft",
+		"mode":            "graduated",
+		"currency":        "USD",
+		"graduated_tiers": []map[string]any{{"up_to": 10, "unit_amount_cents": 1}, {"up_to": 0, "unit_amount_cents": 1}},
+	}, "governance-writer", http.StatusConflict)
+	if got, _ := dupVersion["error"].(string); !strings.Contains(strings.ToLower(got), "duplicate") {
+		t.Fatalf("expected duplicate version conflict, got %q", got)
+	}
+
+	lowerVersion := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":        "api_calls",
+		"name":            "API Calls old",
+		"version":         1,
+		"lifecycle_state": "draft",
+		"mode":            "graduated",
+		"currency":        "USD",
+		"graduated_tiers": []map[string]any{{"up_to": 10, "unit_amount_cents": 1}, {"up_to": 0, "unit_amount_cents": 1}},
+	}, "governance-writer", http.StatusConflict)
+	if got, _ := lowerVersion["error"].(string); !strings.Contains(strings.ToLower(got), "duplicate") {
+		t.Fatalf("expected lower version conflict, got %q", got)
+	}
+
+	v3Draft := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":        "api_calls",
+		"name":            "API Calls v3 Draft",
+		"version":         3,
+		"lifecycle_state": "draft",
+		"mode":            "graduated",
+		"currency":        "USD",
+		"graduated_tiers": []map[string]any{{"up_to": 100, "unit_amount_cents": 4}, {"up_to": 0, "unit_amount_cents": 2}},
+	}, "governance-writer", http.StatusCreated)
+	if got, _ := v3Draft["lifecycle_state"].(string); got != "draft" {
+		t.Fatalf("expected v3 lifecycle_state=draft, got %q", got)
+	}
+
+	latestAny := getJSONArray(t, ts.URL+"/v1/rating-rules?rule_key=api_calls&latest_only=true", "governance-writer", http.StatusOK)
+	if len(latestAny) != 1 {
+		t.Fatalf("expected one latest api_calls rule, got %d", len(latestAny))
+	}
+	latestAnyRow, ok := latestAny[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected latest api_calls row object")
+	}
+	if got := int(latestAnyRow["version"].(float64)); got != 3 {
+		t.Fatalf("expected latest api_calls version=3, got %d", got)
+	}
+	if got, _ := latestAnyRow["lifecycle_state"].(string); got != "draft" {
+		t.Fatalf("expected latest api_calls lifecycle_state=draft, got %q", got)
+	}
+
+	activeOnly := getJSONArray(t, ts.URL+"/v1/rating-rules?rule_key=api_calls&lifecycle_state=active", "governance-writer", http.StatusOK)
+	if len(activeOnly) != 1 {
+		t.Fatalf("expected one active api_calls rule, got %d", len(activeOnly))
+	}
+	activeOnlyRow, ok := activeOnly[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected active api_calls row object")
+	}
+	if got := int(activeOnlyRow["version"].(float64)); got != 2 {
+		t.Fatalf("expected active api_calls version=2, got %d", got)
+	}
+
+	activeLatestOnly := getJSONArray(t, ts.URL+"/v1/rating-rules?rule_key=api_calls&lifecycle_state=active&latest_only=true", "governance-writer", http.StatusOK)
+	if len(activeLatestOnly) != 1 {
+		t.Fatalf("expected one active latest api_calls rule, got %d", len(activeLatestOnly))
+	}
+	activeLatestRow, ok := activeLatestOnly[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected active latest api_calls row object")
+	}
+	if got := int(activeLatestRow["version"].(float64)); got != 2 {
+		t.Fatalf("expected active latest api_calls version=2, got %d", got)
+	}
+
+	badLifecycle := getJSON(t, ts.URL+"/v1/rating-rules?lifecycle_state=invalid", "governance-writer", http.StatusBadRequest)
+	if got, _ := badLifecycle["error"].(string); !strings.Contains(strings.ToLower(got), "lifecycle_state") {
+		t.Fatalf("expected invalid lifecycle_state error, got %q", got)
+	}
+	badLatestOnly := getJSON(t, ts.URL+"/v1/rating-rules?latest_only=maybe", "governance-writer", http.StatusBadRequest)
+	if got, _ := badLatestOnly["error"].(string); !strings.Contains(strings.ToLower(got), "latest_only") {
+		t.Fatalf("expected invalid latest_only error, got %q", got)
+	}
+
+	allRules := getJSONArray(t, ts.URL+"/v1/rating-rules", "governance-writer", http.StatusOK)
+	activeCount := 0
+	activeVersion := 0
+	for _, item := range allRules {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		ruleKey, _ := row["rule_key"].(string)
+		state, _ := row["lifecycle_state"].(string)
+		if ruleKey == "api_calls" && state == "active" {
+			activeCount++
+			activeVersion = int(row["version"].(float64))
+		}
+	}
+	if activeCount != 1 {
+		t.Fatalf("expected exactly one active api_calls rule version, got %d", activeCount)
+	}
+	if activeVersion != 2 {
+		t.Fatalf("expected active api_calls version=2, got %d", activeVersion)
+	}
+}
+
+func TestAPIKeyLifecycleEndpoints(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-admin", api.RoleAdmin, "tenant_a")
+	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "tenant_a")
+	mustCreateAPIKey(t, repo, "tenant-b-admin", api.RoleAdmin, "tenant_b")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoClient, lagoCleanup := newTestLagoClient(t)
+	defer lagoCleanup()
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	defer ts.Close()
+
+	_ = postJSON(t, ts.URL+"/v1/api-keys", map[string]any{
+		"name": "forbidden-create",
+		"role": "reader",
+	}, "tenant-a-writer", http.StatusForbidden)
+
+	created := postJSON(t, ts.URL+"/v1/api-keys", map[string]any{
+		"name": "tenant-a-runtime-writer",
+		"role": "writer",
+	}, "tenant-a-admin", http.StatusCreated)
+	extraWriterA := postJSON(t, ts.URL+"/v1/api-keys", map[string]any{
+		"name": "tenant-a-runtime-writer-2",
+		"role": "writer",
+	}, "tenant-a-admin", http.StatusCreated)
+	extraWriterB := postJSON(t, ts.URL+"/v1/api-keys", map[string]any{
+		"name": "tenant-a-runtime-writer-3",
+		"role": "writer",
+	}, "tenant-a-admin", http.StatusCreated)
+
+	createdSecret, _ := created["secret"].(string)
+	if createdSecret == "" {
+		t.Fatalf("expected create api key response to include one-time secret")
+	}
+	createdAPIKey, ok := created["api_key"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected create api key response to include api_key object")
+	}
+	createdID, _ := createdAPIKey["id"].(string)
+	if createdID == "" {
+		t.Fatalf("expected created api key id")
+	}
+	if createdAPIKey["tenant_id"] != "tenant_a" {
+		t.Fatalf("expected created key tenant tenant_a, got %v", createdAPIKey["tenant_id"])
+	}
+
+	tenantAList := getJSON(t, ts.URL+"/v1/api-keys", "tenant-a-admin", http.StatusOK)
+	tenantAKeys := listItemsFromResponse(t, tenantAList)
+	if !containsID(tenantAKeys, createdID) {
+		t.Fatalf("expected tenant-a list to include created key id=%s", createdID)
+	}
+
+	pagedWriters := getJSON(t, ts.URL+"/v1/api-keys?role=writer&limit=2", "tenant-a-admin", http.StatusOK)
+	pageOneItems := listItemsFromResponse(t, pagedWriters)
+	if len(pageOneItems) != 2 {
+		t.Fatalf("expected first writer page to contain 2 keys, got %d", len(pageOneItems))
+	}
+	nextCursor, _ := pagedWriters["next_cursor"].(string)
+	if strings.TrimSpace(nextCursor) == "" {
+		t.Fatalf("expected next_cursor on first writer page")
+	}
+	nextPage := getJSON(t, ts.URL+"/v1/api-keys?role=writer&limit=2&cursor="+url.QueryEscape(nextCursor), "tenant-a-admin", http.StatusOK)
+	pageTwoItems := listItemsFromResponse(t, nextPage)
+	if len(pageTwoItems) == 0 {
+		t.Fatalf("expected second writer page to contain at least one key")
+	}
+	extraWriterAID := nestedID(t, extraWriterA, "api_key")
+	extraWriterBID := nestedID(t, extraWriterB, "api_key")
+	if !(containsID(pageOneItems, extraWriterAID) || containsID(pageOneItems, extraWriterBID) || containsID(pageTwoItems, extraWriterAID) || containsID(pageTwoItems, extraWriterBID)) {
+		t.Fatalf("expected paginated writer listing to include newly created writer keys")
+	}
+
+	tenantBList := getJSON(t, ts.URL+"/v1/api-keys", "tenant-b-admin", http.StatusOK)
+	tenantBKeys := listItemsFromResponse(t, tenantBList)
+	if containsID(tenantBKeys, createdID) {
+		t.Fatalf("tenant-b should not see tenant-a key id=%s", createdID)
+	}
+
+	_ = getJSONArray(t, ts.URL+"/v1/meters", createdSecret, http.StatusOK)
+
+	revoked := postJSON(t, ts.URL+"/v1/api-keys/"+createdID+"/revoke", map[string]any{}, "tenant-a-admin", http.StatusOK)
+	if revoked["revoked_at"] == nil {
+		t.Fatalf("expected revoked_at to be set after revoke")
+	}
+	revokedList := getJSON(t, ts.URL+"/v1/api-keys?state=revoked&limit=10", "tenant-a-admin", http.StatusOK)
+	revokedItems := listItemsFromResponse(t, revokedList)
+	if !containsID(revokedItems, createdID) {
+		t.Fatalf("expected revoked key list to include id=%s", createdID)
+	}
+
+	_ = getJSON(t, ts.URL+"/v1/reconciliation-report", createdSecret, http.StatusUnauthorized)
+
+	adminPrefix := api.KeyPrefixFromHash(api.HashAPIKey("tenant-a-admin"))
+	adminKey, err := repo.GetAPIKeyByPrefix(adminPrefix)
+	if err != nil {
+		t.Fatalf("get admin key by prefix: %v", err)
+	}
+
+	rotated := postJSON(t, ts.URL+"/v1/api-keys/"+adminKey.ID+"/rotate", map[string]any{}, "tenant-a-admin", http.StatusOK)
+	newAdminSecret, _ := rotated["secret"].(string)
+	if newAdminSecret == "" {
+		t.Fatalf("expected rotate api key response to include one-time secret")
+	}
+	rotatedAPIKey, ok := rotated["api_key"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected rotate api key response to include api_key object")
+	}
+	if rotatedAPIKey["role"] != "admin" {
+		t.Fatalf("expected rotated api key role admin, got %v", rotatedAPIKey["role"])
+	}
+
+	_ = getJSON(t, ts.URL+"/v1/reconciliation-report", "tenant-a-admin", http.StatusUnauthorized)
+	_ = getJSON(t, ts.URL+"/v1/api-keys", newAdminSecret, http.StatusOK)
+
+	auditResp := getJSON(t, ts.URL+"/v1/api-keys/audit?limit=100", newAdminSecret, http.StatusOK)
+	auditItems := listItemsFromResponse(t, auditResp)
+	if !containsActionForKey(auditItems, createdID, "created") {
+		t.Fatalf("expected audit stream to include created action for key id=%s", createdID)
+	}
+	if !containsActionForKey(auditItems, createdID, "revoked") {
+		t.Fatalf("expected audit stream to include revoked action for key id=%s", createdID)
+	}
+	if !containsActionForKey(auditItems, adminKey.ID, "rotated") {
+		t.Fatalf("expected audit stream to include rotated action for key id=%s", adminKey.ID)
+	}
+
+	auditPage := getJSON(t, ts.URL+"/v1/api-keys/audit?limit=1", newAdminSecret, http.StatusOK)
+	auditCursor, _ := auditPage["next_cursor"].(string)
+	if strings.TrimSpace(auditCursor) == "" {
+		t.Fatalf("expected next_cursor for paginated audit list")
+	}
+	_ = getJSON(t, ts.URL+"/v1/api-keys/audit?limit=1&cursor="+url.QueryEscape(auditCursor), newAdminSecret, http.StatusOK)
+
+	csvBody, csvHeaders := getRaw(t, ts.URL+"/v1/api-keys/audit?format=csv&action=created", newAdminSecret, http.StatusOK)
+	if !strings.Contains(strings.ToLower(csvHeaders.Get("Content-Type")), "text/csv") {
+		t.Fatalf("expected csv content type, got %q", csvHeaders.Get("Content-Type"))
+	}
+	if !strings.Contains(csvBody, "id,tenant_id,api_key_id,actor_api_key_id,action,metadata,created_at") {
+		t.Fatalf("expected csv header in audit export")
+	}
+	if !strings.Contains(csvBody, createdID) {
+		t.Fatalf("expected csv export to include created api key id=%s", createdID)
+	}
+
+	tenantBAuditResp := getJSON(t, ts.URL+"/v1/api-keys/audit?limit=100", "tenant-b-admin", http.StatusOK)
+	tenantBAuditItems := listItemsFromResponse(t, tenantBAuditResp)
+	if containsActionForKey(tenantBAuditItems, createdID, "created") {
+		t.Fatalf("tenant-b should not see tenant-a audit events")
+	}
+}
+
+func TestAuditExportToS3(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+	s3Endpoint := strings.TrimSpace(os.Getenv("TEST_S3_ENDPOINT"))
+	s3Bucket := strings.TrimSpace(os.Getenv("TEST_S3_BUCKET"))
+	s3AccessKey := strings.TrimSpace(os.Getenv("TEST_S3_ACCESS_KEY_ID"))
+	s3Secret := strings.TrimSpace(os.Getenv("TEST_S3_SECRET_ACCESS_KEY"))
+	if s3Endpoint == "" || s3Bucket == "" || s3AccessKey == "" || s3Secret == "" {
+		t.Skip("TEST_S3_ENDPOINT, TEST_S3_BUCKET, TEST_S3_ACCESS_KEY_ID, TEST_S3_SECRET_ACCESS_KEY are required for S3 export integration test")
+	}
+	s3Region := strings.TrimSpace(os.Getenv("TEST_S3_REGION"))
+	if s3Region == "" {
+		s3Region = "us-east-1"
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-export-admin", api.RoleAdmin, "tenant_export")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoClient, lagoCleanup := newTestLagoClient(t)
+	defer lagoCleanup()
+
+	objectStore, err := service.NewS3ObjectStore(context.Background(), service.S3Config{
+		Region:          s3Region,
+		Bucket:          s3Bucket,
+		Endpoint:        s3Endpoint,
+		AccessKeyID:     s3AccessKey,
+		SecretAccessKey: s3Secret,
+		ForcePathStyle:  true,
+	})
+	if err != nil {
+		t.Fatalf("new s3 object store: %v", err)
+	}
+	if err := objectStore.EnsureBucket(context.Background()); err != nil {
+		t.Fatalf("ensure bucket: %v", err)
+	}
+
+	auditExportSvc := service.NewAuditExportService(repo, objectStore, time.Hour)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	worker := service.NewAuditExportWorker(auditExportSvc, 20*time.Millisecond)
+	go worker.Run(ctx)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithAuditExportService(auditExportSvc),
+		api.WithLagoClient(lagoClient),
+	).Handler())
+	defer ts.Close()
+
+	created := postJSON(t, ts.URL+"/v1/api-keys", map[string]any{
+		"name": "tenant-export-reader",
+		"role": "reader",
+	}, "tenant-export-admin", http.StatusCreated)
+	createdID := nestedID(t, created, "api_key")
+
+	createExportResp := postJSON(t, ts.URL+"/v1/api-keys/audit/exports", map[string]any{
+		"idempotency_key": "exp_1",
+		"action":          "created",
+	}, "tenant-export-admin", http.StatusCreated)
+	jobMap, ok := createExportResp["job"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected export response to include job object")
+	}
+	jobID, _ := jobMap["id"].(string)
+	if jobID == "" {
+		t.Fatalf("expected export job id")
+	}
+
+	idemResp := postJSON(t, ts.URL+"/v1/api-keys/audit/exports", map[string]any{
+		"idempotency_key": "exp_1",
+		"action":          "created",
+	}, "tenant-export-admin", http.StatusOK)
+	if idem, _ := idemResp["idempotent_request"].(bool); !idem {
+		t.Fatalf("expected idempotent_request=true on duplicate idempotency key")
+	}
+	createExportResp2 := postJSON(t, ts.URL+"/v1/api-keys/audit/exports", map[string]any{
+		"idempotency_key": "exp_2",
+		"action":          "created",
+	}, "tenant-export-admin", http.StatusCreated)
+	jobMap2, ok := createExportResp2["job"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected second export response to include job object")
+	}
+	jobID2, _ := jobMap2["id"].(string)
+	if jobID2 == "" {
+		t.Fatalf("expected second export job id")
+	}
+
+	exportListPageOne := getJSON(t, ts.URL+"/v1/api-keys/audit/exports?limit=1", "tenant-export-admin", http.StatusOK)
+	exportListPageOneItems := listItemsFromResponse(t, exportListPageOne)
+	if len(exportListPageOneItems) != 1 {
+		t.Fatalf("expected first export jobs page size 1, got %d", len(exportListPageOneItems))
+	}
+	exportNextCursor, _ := exportListPageOne["next_cursor"].(string)
+	if strings.TrimSpace(exportNextCursor) == "" {
+		t.Fatalf("expected export jobs next_cursor on first page")
+	}
+	exportListPageTwo := getJSON(t, ts.URL+"/v1/api-keys/audit/exports?limit=1&cursor="+url.QueryEscape(exportNextCursor), "tenant-export-admin", http.StatusOK)
+	exportListPageTwoItems := listItemsFromResponse(t, exportListPageTwo)
+	if len(exportListPageTwoItems) != 1 {
+		t.Fatalf("expected second export jobs page size 1, got %d", len(exportListPageTwoItems))
+	}
+	exportCursorOffsetErr := getJSON(
+		t,
+		ts.URL+"/v1/api-keys/audit/exports?limit=1&offset=1&cursor="+url.QueryEscape(exportNextCursor),
+		"tenant-export-admin",
+		http.StatusBadRequest,
+	)
+	if got, _ := exportCursorOffsetErr["error"].(string); !strings.Contains(got, "offset cannot be used with cursor") {
+		t.Fatalf("expected export offset/cursor validation error, got %q", got)
+	}
+	exportBadCursor := getJSON(t, ts.URL+"/v1/api-keys/audit/exports?cursor=invalid", "tenant-export-admin", http.StatusBadRequest)
+	if got, _ := exportBadCursor["error"].(string); !strings.Contains(got, "invalid cursor") {
+		t.Fatalf("expected export invalid cursor error, got %q", got)
+	}
+	exportBadStatus := getJSON(t, ts.URL+"/v1/api-keys/audit/exports?status=unknown", "tenant-export-admin", http.StatusBadRequest)
+	if got, _ := exportBadStatus["error"].(string); !strings.Contains(got, "invalid status") {
+		t.Fatalf("expected export invalid status error, got %q", got)
+	}
+
+	var downloadURL string
+	for i := 0; i < 100; i++ {
+		statusResp := getJSON(t, ts.URL+"/v1/api-keys/audit/exports/"+jobID, "tenant-export-admin", http.StatusOK)
+		job, ok := statusResp["job"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected job object in status response")
+		}
+		status, _ := job["status"].(string)
+		if status == "done" {
+			downloadURL, _ = statusResp["download_url"].(string)
+			break
+		}
+		if status == "failed" {
+			t.Fatalf("export job failed: %v", job["error"])
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if strings.TrimSpace(downloadURL) == "" {
+		t.Fatalf("expected export download_url when job is done")
+	}
+	for i := 0; i < 100; i++ {
+		statusResp := getJSON(t, ts.URL+"/v1/api-keys/audit/exports/"+jobID2, "tenant-export-admin", http.StatusOK)
+		job, ok := statusResp["job"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected job object in second status response")
+		}
+		status, _ := job["status"].(string)
+		if status == "done" {
+			break
+		}
+		if status == "failed" {
+			t.Fatalf("second export job failed: %v", job["error"])
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	exportDoneOnly := getJSON(t, ts.URL+"/v1/api-keys/audit/exports?status=done&limit=10", "tenant-export-admin", http.StatusOK)
+	exportDoneItems := listItemsFromResponse(t, exportDoneOnly)
+	if len(exportDoneItems) == 0 {
+		t.Fatalf("expected at least one done export job in filtered list")
+	}
+
+	csvBody, csvHeaders := getRaw(t, downloadURL, "", http.StatusOK)
+	if !strings.Contains(strings.ToLower(csvHeaders.Get("Content-Type")), "text/csv") {
+		t.Fatalf("expected csv content type, got %q", csvHeaders.Get("Content-Type"))
+	}
+	if !strings.Contains(csvBody, "id,tenant_id,api_key_id,actor_api_key_id,action,metadata,created_at") {
+		t.Fatalf("expected csv header in downloaded export")
+	}
+	if !strings.Contains(csvBody, createdID) {
+		t.Fatalf("expected downloaded export CSV to include created api key id=%s", createdID)
+	}
+}
+
+func newTestLagoClient(t *testing.T) (*service.LagoClient, func()) {
+	t.Helper()
+
+	baseURL := strings.TrimSpace(os.Getenv("TEST_LAGO_API_URL"))
+	apiKey := strings.TrimSpace(os.Getenv("TEST_LAGO_API_KEY"))
+	if baseURL == "" || apiKey == "" {
+		t.Skip("TEST_LAGO_API_URL and TEST_LAGO_API_KEY are required for Lago-backed API tests")
+	}
+
+	client, err := service.NewLagoClient(service.LagoClientConfig{
+		BaseURL: baseURL,
+		APIKey:  apiKey,
+		Timeout: 10 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago client: %v", err)
+	}
+
+	return client, func() {}
+}
+
+func startTemporalReplayRuntime(t *testing.T, repo *store.PostgresStore) (func() map[string]any, func()) {
+	t.Helper()
+
+	temporalAddress := strings.TrimSpace(os.Getenv("TEST_TEMPORAL_ADDRESS"))
+	if temporalAddress == "" {
+		temporalAddress = "127.0.0.1:17233"
+	}
+	temporalNamespace := strings.TrimSpace(os.Getenv("TEST_TEMPORAL_NAMESPACE"))
+	if temporalNamespace == "" {
+		temporalNamespace = "default"
+	}
+	taskQueue := fmt.Sprintf(
+		"alpha-replay-it-%d",
+		time.Now().UTC().UnixNano(),
+	)
+
+	temporalClient, err := temporalclient.Dial(temporalclient.Options{
+		HostPort:  temporalAddress,
+		Namespace: temporalNamespace,
+	})
+	if err != nil {
+		t.Fatalf("dial temporal (%s): %v", temporalAddress, err)
+	}
+	ensureCtx, ensureCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer ensureCancel()
+	if err := temporalutil.EnsureNamespaceReady(ensureCtx, temporalClient, temporalNamespace, 24*time.Hour); err != nil {
+		temporalClient.Close()
+		t.Fatalf("ensure temporal namespace %q: %v", temporalNamespace, err)
+	}
+
+	temporalWorker := temporalsdkworker.New(temporalClient, taskQueue, temporalsdkworker.Options{})
+	replay.RegisterTemporalReplayWorker(temporalWorker, repo)
+	if err := temporalWorker.Start(); err != nil {
+		temporalClient.Close()
+		t.Fatalf("start temporal worker: %v", err)
+	}
+
+	dispatcherCtx, dispatcherCancel := context.WithCancel(context.Background())
+	dispatcher := replay.NewTemporalDispatcher(repo, temporalClient, taskQueue, 10*time.Millisecond, 100)
+	go dispatcher.Run(dispatcherCtx)
+
+	metricsProvider := func() map[string]any {
+		return map[string]any{
+			"replay_execution_mode":      "temporal",
+			"replay_temporal_dispatcher": dispatcher.Stats(),
+		}
+	}
+	cleanup := func() {
+		dispatcherCancel()
+		temporalWorker.Stop()
+		temporalClient.Close()
+	}
+	return metricsProvider, cleanup
+}
+
+func mustCreateAPIKey(t *testing.T, repo *store.PostgresStore, rawKey string, role api.Role, tenantID string) {
+	t.Helper()
+
+	hashed := api.HashAPIKey(rawKey)
+	prefix := api.KeyPrefixFromHash(hashed)
+	_, err := repo.CreateAPIKey(domain.APIKey{
+		KeyPrefix: prefix,
+		KeyHash:   hashed,
+		Name:      "test-" + string(role),
+		Role:      string(role),
+		TenantID:  tenantID,
+	})
+	if err != nil {
+		t.Fatalf("create api key %q: %v", rawKey, err)
+	}
+}
+
+func postJSON(t *testing.T, url string, body any, apiKey string, expectedStatus int) map[string]any {
 	t.Helper()
 
 	payload, err := json.Marshal(body)
@@ -137,7 +1715,16 @@ func postJSON(t *testing.T, url string, body any, expectedStatus int) map[string
 		t.Fatalf("marshal request: %v", err)
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewReader(payload))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("post request failed: %v", err)
 	}
@@ -155,9 +1742,54 @@ func postJSON(t *testing.T, url string, body any, expectedStatus int) map[string
 	return out
 }
 
-func getJSON(t *testing.T, url string, expectedStatus int) map[string]any {
+func postJSONWithHeaders(t *testing.T, url string, body any, headers map[string]string, apiKey string, expectedStatus int) map[string]any {
 	t.Helper()
-	resp, err := http.Get(url)
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unexpected status %d, expected %d, body=%s", resp.StatusCode, expectedStatus, string(b))
+	}
+
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return out
+}
+
+func getJSON(t *testing.T, url string, apiKey string, expectedStatus int) map[string]any {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get request failed: %v", err)
 	}
@@ -173,4 +1805,109 @@ func getJSON(t *testing.T, url string, expectedStatus int) map[string]any {
 		t.Fatalf("decode response: %v", err)
 	}
 	return out
+}
+
+func getJSONArray(t *testing.T, url string, apiKey string, expectedStatus int) []any {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("get request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unexpected status %d, expected %d, body=%s", resp.StatusCode, expectedStatus, string(b))
+	}
+
+	var out []any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return out
+}
+
+func containsID(items []any, id string) bool {
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if got, _ := m["id"].(string); got == id {
+			return true
+		}
+	}
+	return false
+}
+
+func listItemsFromResponse(t *testing.T, resp map[string]any) []any {
+	t.Helper()
+	items, ok := resp["items"].([]any)
+	if !ok {
+		t.Fatalf("expected response items field to be an array, got %T", resp["items"])
+	}
+	return items
+}
+
+func containsActionForKey(items []any, apiKeyID, action string) bool {
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		gotKeyID, _ := m["api_key_id"].(string)
+		gotAction, _ := m["action"].(string)
+		if gotKeyID == apiKeyID && gotAction == action {
+			return true
+		}
+	}
+	return false
+}
+
+func nestedID(t *testing.T, payload map[string]any, field string) string {
+	t.Helper()
+	obj, ok := payload[field].(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload field %q to be object", field)
+	}
+	id, _ := obj["id"].(string)
+	if id == "" {
+		t.Fatalf("expected payload field %q to contain id", field)
+	}
+	return id
+}
+
+func getRaw(t *testing.T, url string, apiKey string, expectedStatus int) (string, http.Header) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("get request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body failed: %v", err)
+	}
+
+	if resp.StatusCode != expectedStatus {
+		t.Fatalf("unexpected status %d, expected %d, body=%s", resp.StatusCode, expectedStatus, string(bodyBytes))
+	}
+
+	return string(bodyBytes), resp.Header
 }
