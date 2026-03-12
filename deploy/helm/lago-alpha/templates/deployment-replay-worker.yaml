@@ -1,0 +1,51 @@
+{{- if .Values.replayWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lago-alpha.fullname" . }}-replay-worker
+  labels:
+    {{- include "lago-alpha.labels" . | nindent 4 }}
+    app.kubernetes.io/component: replay-worker
+spec:
+  replicas: {{ .Values.replayWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "lago-alpha.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: replay-worker
+  template:
+    metadata:
+      labels:
+        {{- include "lago-alpha.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: replay-worker
+        {{- with .Values.replayWorker.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.replayWorker.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "lago-alpha.serviceAccountName.replayWorker" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: replay-worker
+          image: "{{ .Values.replayWorker.image.repository }}:{{ .Values.replayWorker.image.tag }}"
+          imagePullPolicy: {{ .Values.replayWorker.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "lago-alpha.fullname" . }}-env
+            - secretRef:
+                name: {{ .Values.secretEnv.secretRefName }}
+          env:
+            - name: RUN_API_SERVER
+              value: "false"
+            - name: RUN_REPLAY_WORKER
+              value: "true"
+            - name: RUN_REPLAY_DISPATCHER
+              value: "false"
+          resources:
+            {{- toYaml .Values.replayWorker.resources | nindent 12 }}
+{{- end }}

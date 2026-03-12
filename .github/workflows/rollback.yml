@@ -1,0 +1,103 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+      revision:
+        description: "Helm revision to rollback to"
+        required: true
+        type: string
+
+env:
+  RELEASE_NAME: lago-alpha
+  NAMESPACE: lago-alpha
+
+jobs:
+  rollback-staging:
+    if: inputs.environment == 'staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Set kube context
+        run: |
+          aws eks update-kubeconfig \
+            --name "${{ vars.EKS_CLUSTER_NAME_STAGING }}" \
+            --region "${{ vars.AWS_REGION }}"
+
+      - name: Rollback staging release
+        env:
+          ENVIRONMENT: staging
+          RELEASE_NAME: ${{ env.RELEASE_NAME }}
+          NAMESPACE: ${{ env.NAMESPACE }}
+          REVISION: ${{ inputs.revision }}
+        run: ./scripts/rollback_helm.sh
+
+  rollback-prod:
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Set kube context
+        run: |
+          aws eks update-kubeconfig \
+            --name "${{ vars.EKS_CLUSTER_NAME_PROD }}" \
+            --region "${{ vars.AWS_REGION }}"
+
+      - name: Rollback prod release
+        env:
+          ENVIRONMENT: prod
+          RELEASE_NAME: ${{ env.RELEASE_NAME }}
+          NAMESPACE: ${{ env.NAMESPACE }}
+          REVISION: ${{ inputs.revision }}
+        run: ./scripts/rollback_helm.sh

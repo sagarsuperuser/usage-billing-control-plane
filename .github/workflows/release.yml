@@ -1,0 +1,221 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - prod
+      image_tag:
+        description: "Optional existing image tag to deploy (if empty, uses current commit SHA)"
+        required: false
+        type: string
+      rebuild_images:
+        description: "Rebuild and push images even when image_tag is provided"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  RELEASE_NAME: lago-alpha
+  NAMESPACE: lago-alpha
+
+jobs:
+  resolve-release:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+      should_build: ${{ steps.resolve.outputs.should_build }}
+    steps:
+      - name: Resolve image tag and build mode
+        id: resolve
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ -n "${{ inputs.image_tag }}" ]]; then
+              echo "image_tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            fi
+            if [[ -z "${{ inputs.image_tag }}" || "${{ inputs.rebuild_images }}" == "true" ]]; then
+              echo "should_build=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-images:
+    needs: [resolve-release]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required build vars
+        shell: bash
+        run: |
+          [[ -n "${{ vars.AWS_REGION }}" ]] || (echo "Missing repo variable AWS_REGION" && exit 1)
+          [[ -n "${{ vars.ECR_API_REPOSITORY }}" ]] || (echo "Missing repo variable ECR_API_REPOSITORY" && exit 1)
+          [[ -n "${{ vars.ECR_WEB_REPOSITORY }}" ]] || (echo "Missing repo variable ECR_WEB_REPOSITORY" && exit 1)
+
+      - name: Configure AWS credentials
+        if: needs.resolve-release.outputs.should_build == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_BUILD_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        if: needs.resolve-release.outputs.should_build == 'true'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Setup Docker Buildx
+        if: needs.resolve-release.outputs.should_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        if: needs.resolve-release.outputs.should_build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ vars.ECR_API_REPOSITORY }}:${{ needs.resolve-release.outputs.image_tag }}
+            ${{ vars.ECR_API_REPOSITORY }}:latest
+
+      - name: Build and push web image
+        if: needs.resolve-release.outputs.should_build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          push: true
+          tags: |
+            ${{ vars.ECR_WEB_REPOSITORY }}:${{ needs.resolve-release.outputs.image_tag }}
+            ${{ vars.ECR_WEB_REPOSITORY }}:latest
+
+      - name: Build skipped notice
+        if: needs.resolve-release.outputs.should_build != 'true'
+        run: |
+          echo "Skipping image build. Reusing existing tag: ${{ needs.resolve-release.outputs.image_tag }}"
+
+  deploy-staging:
+    needs: [resolve-release, build-images]
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate staging deploy vars
+        shell: bash
+        run: |
+          [[ -n "${{ vars.AWS_REGION }}" ]] || (echo "Missing repo variable AWS_REGION" && exit 1)
+          [[ -n "${{ vars.EKS_CLUSTER_NAME_STAGING }}" ]] || (echo "Missing repo variable EKS_CLUSTER_NAME_STAGING" && exit 1)
+          [[ -n "${{ vars.ECR_API_REPOSITORY }}" ]] || (echo "Missing repo variable ECR_API_REPOSITORY" && exit 1)
+          [[ -n "${{ vars.ECR_WEB_REPOSITORY }}" ]] || (echo "Missing repo variable ECR_WEB_REPOSITORY" && exit 1)
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Set kube context
+        run: |
+          aws eks update-kubeconfig \
+            --name "${{ vars.EKS_CLUSTER_NAME_STAGING }}" \
+            --region "${{ vars.AWS_REGION }}"
+
+      - name: Deploy staging release
+        env:
+          ENVIRONMENT: staging
+          RELEASE_NAME: ${{ env.RELEASE_NAME }}
+          NAMESPACE: ${{ env.NAMESPACE }}
+          IMAGE_TAG: ${{ needs.resolve-release.outputs.image_tag }}
+          API_IMAGE_REPOSITORY: ${{ vars.ECR_API_REPOSITORY }}
+          WEB_IMAGE_REPOSITORY: ${{ vars.ECR_WEB_REPOSITORY }}
+        run: ./scripts/deploy_helm.sh
+
+  deploy-prod:
+    needs: [resolve-release, build-images]
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate prod deploy vars
+        shell: bash
+        run: |
+          [[ -n "${{ vars.AWS_REGION }}" ]] || (echo "Missing repo variable AWS_REGION" && exit 1)
+          [[ -n "${{ vars.EKS_CLUSTER_NAME_PROD }}" ]] || (echo "Missing repo variable EKS_CLUSTER_NAME_PROD" && exit 1)
+          [[ -n "${{ vars.ECR_API_REPOSITORY }}" ]] || (echo "Missing repo variable ECR_API_REPOSITORY" && exit 1)
+          [[ -n "${{ vars.ECR_WEB_REPOSITORY }}" ]] || (echo "Missing repo variable ECR_WEB_REPOSITORY" && exit 1)
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Set kube context
+        run: |
+          aws eks update-kubeconfig \
+            --name "${{ vars.EKS_CLUSTER_NAME_PROD }}" \
+            --region "${{ vars.AWS_REGION }}"
+
+      - name: Deploy prod release
+        env:
+          ENVIRONMENT: prod
+          RELEASE_NAME: ${{ env.RELEASE_NAME }}
+          NAMESPACE: ${{ env.NAMESPACE }}
+          IMAGE_TAG: ${{ needs.resolve-release.outputs.image_tag }}
+          API_IMAGE_REPOSITORY: ${{ vars.ECR_API_REPOSITORY }}
+          WEB_IMAGE_REPOSITORY: ${{ vars.ECR_WEB_REPOSITORY }}
+        run: ./scripts/deploy_helm.sh

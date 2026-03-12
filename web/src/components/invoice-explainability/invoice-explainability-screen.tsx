@@ -1,0 +1,351 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { LoaderCircle, RefreshCw, Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { fetchInvoiceExplainability } from "@/lib/api";
+import { formatExactTimestamp, formatMoney } from "@/lib/format";
+import { useSessionStore } from "@/store/use-session-store";
+
+const sortOptions = [
+  "created_at_asc",
+  "created_at_desc",
+  "amount_cents_asc",
+  "amount_cents_desc",
+] as const;
+
+type ExplainabilitySort = (typeof sortOptions)[number];
+
+export function InvoiceExplainabilityScreen() {
+  const { apiKey, apiBaseURL, setAPIKey, setAPIBaseURL } = useSessionStore();
+  const [invoiceID, setInvoiceID] = useState("");
+  const [feeTypesInput, setFeeTypesInput] = useState("");
+  const [lineItemSort, setLineItemSort] = useState<ExplainabilitySort>("created_at_asc");
+  const [page, setPage] = useState("1");
+  const [limit, setLimit] = useState("50");
+  const [submittedInvoiceID, setSubmittedInvoiceID] = useState("");
+
+  const normalizedFeeTypes = useMemo(
+    () =>
+      feeTypesInput
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    [feeTypesInput]
+  );
+
+  const parsedPage = useMemo(() => {
+    const value = Number(page);
+    if (!Number.isFinite(value) || value < 0) return 1;
+    return Math.floor(value);
+  }, [page]);
+
+  const parsedLimit = useMemo(() => {
+    const value = Number(limit);
+    if (!Number.isFinite(value) || value < 0) return 50;
+    return Math.floor(value);
+  }, [limit]);
+
+  const explainabilityQuery = useQuery({
+    queryKey: [
+      "invoice-explainability",
+      apiBaseURL,
+      apiKey,
+      submittedInvoiceID,
+      normalizedFeeTypes.join(","),
+      lineItemSort,
+      parsedPage,
+      parsedLimit,
+    ],
+    queryFn: () =>
+      fetchInvoiceExplainability({
+        apiKey,
+        runtimeBaseURL: apiBaseURL,
+        invoiceID: submittedInvoiceID,
+        feeTypes: normalizedFeeTypes.length > 0 ? normalizedFeeTypes : undefined,
+        lineItemSort,
+        page: parsedPage,
+        limit: parsedLimit,
+      }),
+    enabled: apiKey.length > 0 && submittedInvoiceID.length > 0,
+  });
+
+  const lineItems = explainabilityQuery.data?.line_items ?? [];
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#172554_0%,_#0f172a_40%,_#070b13_78%)] text-slate-100">
+      <div className="pointer-events-none absolute inset-0 opacity-55">
+        <div className="absolute -left-24 top-12 h-80 w-80 rounded-full bg-cyan-500/15 blur-3xl" />
+        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
+      </div>
+
+      <main className="relative mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+        <ControlPlaneNav />
+
+        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Invoice Explainability</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">
+                Line Item Computation Trace
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-300 md:text-base">
+                Explain how each invoice line was computed from Lago fees with deterministic digest output.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+              <MetricCard label="Line items" value={explainabilityQuery.data?.line_items_count ?? 0} />
+              <MetricCard
+                label="Displayed"
+                value={lineItems.length}
+                tone={lineItems.length > 0 ? "normal" : "muted"}
+              />
+              <MetricCard
+                label="Status"
+                value={explainabilityQuery.data?.invoice_status || "idle"}
+                tone={explainabilityQuery.data?.invoice_status ? "normal" : "muted"}
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <InputField
+              label="API Key"
+              value={apiKey}
+              onChange={setAPIKey}
+              placeholder="reader/writer/admin key"
+              sensitive
+            />
+            <InputField
+              label="API Base URL"
+              value={apiBaseURL}
+              onChange={setAPIBaseURL}
+              placeholder="Optional, default same-origin"
+            />
+            <InputField
+              label="Invoice ID"
+              value={invoiceID}
+              onChange={setInvoiceID}
+              placeholder="inv_123"
+            />
+            <InputField
+              label="Fee Types"
+              value={feeTypesInput}
+              onChange={setFeeTypesInput}
+              placeholder="charge,subscription"
+            />
+            <div className="grid gap-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Sort</label>
+              <select
+                className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                value={lineItemSort}
+                onChange={(event) => setLineItemSort(event.target.value as ExplainabilitySort)}
+              >
+                {sortOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <InputField
+              label="Page"
+              value={page}
+              onChange={setPage}
+              placeholder="1"
+              className="w-[120px]"
+            />
+            <InputField
+              label="Limit"
+              value={limit}
+              onChange={setLimit}
+              placeholder="50"
+              className="w-[120px]"
+            />
+            <button
+              type="button"
+              onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
+              disabled={!apiKey || !invoiceID.trim()}
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Search className="h-4 w-4" />
+              Load Explainability
+            </button>
+            <button
+              type="button"
+              onClick={() => explainabilityQuery.refetch()}
+              disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !apiKey}
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 text-sm text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {explainabilityQuery.isFetching ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh
+            </button>
+          </div>
+        </section>
+
+        {!apiKey ? (
+          <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+            Provide an API key to load explainability data.
+          </section>
+        ) : null}
+
+        {explainabilityQuery.error ? (
+          <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+            {(explainabilityQuery.error as Error).message}
+          </section>
+        ) : null}
+
+        <section className="rounded-2xl border border-white/10 bg-slate-900/75 p-4 backdrop-blur">
+          <div className="grid gap-2 md:grid-cols-2">
+            <MetaRow label="Invoice" value={explainabilityQuery.data?.invoice_number || submittedInvoiceID || "-"} />
+            <MetaRow label="Invoice ID" value={explainabilityQuery.data?.invoice_id || "-"} />
+            <MetaRow
+              label="Total Amount"
+              value={
+                explainabilityQuery.data
+                  ? formatMoney(explainabilityQuery.data.total_amount_cents, explainabilityQuery.data.currency || "USD")
+                  : "-"
+              }
+            />
+            <MetaRow label="Generated At" value={explainabilityQuery.data ? formatExactTimestamp(explainabilityQuery.data.generated_at) : "-"} />
+            <MetaRow label="Digest Version" value={explainabilityQuery.data?.explainability_version || "-"} />
+            <MetaRow
+              label="Digest"
+              value={explainabilityQuery.data?.explainability_digest || "-"}
+              mono
+            />
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-slate-900/75 p-3 backdrop-blur">
+          <div className="overflow-auto">
+            <table className="w-full min-w-[1180px] border-separate border-spacing-y-2 text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-slate-400">
+                  <th className="px-3 py-1">Item</th>
+                  <th className="px-3 py-1">Computation</th>
+                  <th className="px-3 py-1">Rule Ref</th>
+                  <th className="px-3 py-1">Units/Events</th>
+                  <th className="px-3 py-1">Amount</th>
+                  <th className="px-3 py-1">Period</th>
+                  <th className="px-3 py-1">Properties</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.map((line) => (
+                  <tr key={line.fee_id} className="bg-slate-950/75">
+                    <td className="rounded-l-xl px-3 py-3 align-top">
+                      <p className="font-medium text-cyan-100">{line.item_name}</p>
+                      <p className="text-xs text-slate-400">{line.item_code || "-"}</p>
+                      <p className="text-xs text-slate-500">{line.fee_id}</p>
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <p>{line.computation_mode}</p>
+                      <p className="text-xs text-slate-400">{line.fee_type || "-"}</p>
+                    </td>
+                    <td className="px-3 py-3 align-top text-xs text-slate-300">{line.rule_reference}</td>
+                    <td className="px-3 py-3 align-top">
+                      <p>Units: {line.units ?? "-"}</p>
+                      <p className="text-xs text-slate-400">Events: {line.events_count ?? "-"}</p>
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <p>{formatMoney(line.amount_cents, explainabilityQuery.data?.currency || "USD")}</p>
+                      <p className="text-xs text-slate-400">
+                        Tax {formatMoney(line.taxes_amount_cents, explainabilityQuery.data?.currency || "USD")}
+                      </p>
+                      <p className="text-xs text-emerald-200">
+                        Total {formatMoney(line.total_amount_cents, explainabilityQuery.data?.currency || "USD")}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3 align-top text-xs text-slate-300">
+                      <p>{line.from_datetime ? formatExactTimestamp(line.from_datetime) : "-"}</p>
+                      <p>{line.to_datetime ? formatExactTimestamp(line.to_datetime) : "-"}</p>
+                    </td>
+                    <td className="rounded-r-xl px-3 py-3 align-top text-xs text-slate-300">
+                      <pre className="max-w-[360px] overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900/90 p-2 text-[11px] leading-4">
+                        {JSON.stringify(line.properties ?? {}, null, 2)}
+                      </pre>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {lineItems.length === 0 && !explainabilityQuery.isFetching ? (
+            <div className="px-4 py-8 text-center text-sm text-slate-300">
+              No line items yet. Load an invoice to inspect explainability.
+            </div>
+          ) : null}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone = "normal",
+}: {
+  label: string;
+  value: string | number;
+  tone?: "normal" | "muted";
+}) {
+  return (
+    <div
+      className={`rounded-xl border px-3 py-2 ${
+        tone === "normal" ? "border-cyan-400/20 bg-cyan-400/10" : "border-slate-600/40 bg-slate-700/20"
+      }`}
+    >
+      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-300">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className={`mt-1 text-sm text-slate-100 ${mono ? "break-all font-mono" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  sensitive,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  sensitive?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`grid gap-2 ${className || ""}`}>
+      <label className="text-xs font-medium uppercase tracking-wider text-slate-300">{label}</label>
+      <input
+        type={sensitive ? "password" : "text"}
+        className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}

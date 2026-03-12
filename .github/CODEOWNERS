@@ -1,0 +1,24 @@
+# Replace placeholder teams below with your real GitHub org/team handles
+# before enabling "Require review from Code Owners" in branch protection.
+#
+# Example:
+#   @acme/billing-platform
+#   @acme/sre
+
+# Default owner for all files
+* @your-org/billing-platform
+
+# Core billing correctness + replay internals
+/internal/replay/ @your-org/billing-core
+/internal/store/ @your-org/billing-core
+/internal/reconcile/ @your-org/billing-core
+/migrations/ @your-org/billing-core
+
+# Security/authn/authz surfaces
+/internal/api/auth.go @your-org/security
+/internal/api/ @your-org/security
+
+# CI/CD and release gates
+/.github/workflows/ @your-org/platform-infra
+/scripts/test_integration.sh @your-org/platform-infra
+/docker-compose.postgres.yml @your-org/platform-infra

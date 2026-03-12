@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"lago-usage-billing-alpha/internal/domain"
@@ -16,9 +17,14 @@ type Service struct {
 }
 
 type Filter struct {
-	CustomerID string
-	From       *time.Time
-	To         *time.Time
+	TenantID          string
+	CustomerID        string
+	From              *time.Time
+	To                *time.Time
+	BilledSource      domain.BilledEntrySource
+	BilledReplayJobID string
+	MismatchOnly      bool
+	AbsDeltaGTE       int64
 }
 
 func NewService(s store.Repository) *Service {
@@ -26,7 +32,9 @@ func NewService(s store.Repository) *Service {
 }
 
 func (s *Service) GenerateReport(filter Filter) (domain.ReconciliationReport, error) {
+	filter.TenantID = normalizeTenantID(filter.TenantID)
 	events, err := s.store.ListUsageEvents(store.Filter{
+		TenantID:   filter.TenantID,
 		From:       filter.From,
 		To:         filter.To,
 		CustomerID: filter.CustomerID,
@@ -36,9 +44,12 @@ func (s *Service) GenerateReport(filter Filter) (domain.ReconciliationReport, er
 	}
 
 	billed, err := s.store.ListBilledEntries(store.Filter{
-		From:       filter.From,
-		To:         filter.To,
-		CustomerID: filter.CustomerID,
+		TenantID:          filter.TenantID,
+		From:              filter.From,
+		To:                filter.To,
+		CustomerID:        filter.CustomerID,
+		BilledSource:      filter.BilledSource,
+		BilledReplayJobID: filter.BilledReplayJobID,
 	})
 	if err != nil {
 		return domain.ReconciliationReport{}, err
@@ -78,12 +89,18 @@ func (s *Service) GenerateReport(filter Filter) (domain.ReconciliationReport, er
 	report.Rows = make([]domain.ReconciliationRow, 0, len(rowsMap))
 
 	for _, agg := range rowsMap {
-		meter, err := s.store.GetMeter(agg.meterID)
+		meter, err := s.store.GetMeter(filter.TenantID, agg.meterID)
 		if err != nil {
 			return domain.ReconciliationReport{}, fmt.Errorf("meter %s not found", agg.meterID)
 		}
-		rule, err := s.store.GetRatingRuleVersion(meter.RatingRuleVersionID)
+		if normalizeTenantID(meter.TenantID) != filter.TenantID {
+			return domain.ReconciliationReport{}, fmt.Errorf("meter %s not found", agg.meterID)
+		}
+		rule, err := s.store.GetRatingRuleVersion(filter.TenantID, meter.RatingRuleVersionID)
 		if err != nil {
+			return domain.ReconciliationReport{}, fmt.Errorf("rating rule for meter %s not found", agg.meterID)
+		}
+		if normalizeTenantID(rule.TenantID) != filter.TenantID {
 			return domain.ReconciliationReport{}, fmt.Errorf("rating rule for meter %s not found", agg.meterID)
 		}
 		computed, err := domain.ComputeAmountCents(rule, agg.eventQuantity)
@@ -92,6 +109,18 @@ func (s *Service) GenerateReport(filter Filter) (domain.ReconciliationReport, er
 		}
 		agg.computedCents = computed
 		delta := computed - agg.billedCents
+		absDelta := delta
+		if absDelta < 0 {
+			absDelta = -absDelta
+		}
+
+		if filter.MismatchOnly && delta == 0 {
+			continue
+		}
+		if filter.AbsDeltaGTE > 0 && absDelta < filter.AbsDeltaGTE {
+			continue
+		}
+
 		row := domain.ReconciliationRow{
 			CustomerID:          agg.customerID,
 			MeterID:             agg.meterID,
@@ -150,4 +179,12 @@ func (s *Service) GenerateCSV(report domain.ReconciliationReport) (string, error
 	}
 
 	return buf.String(), nil
+}
+
+func normalizeTenantID(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "default"
+	}
+	return v
 }

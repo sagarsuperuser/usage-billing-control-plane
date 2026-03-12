@@ -1,0 +1,76 @@
+api:
+  replicas: 4
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-prod/api"
+    tag: "latest"
+  autoscaling:
+    enabled: true
+    minReplicas: 4
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 65
+    targetMemoryUtilizationPercentage: 70
+
+replayWorker:
+  enabled: true
+  replicas: 6
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-prod/api"
+    tag: "latest"
+
+replayDispatcher:
+  enabled: true
+  replicas: 3
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-prod/api"
+    tag: "latest"
+
+web:
+  enabled: true
+  replicas: 4
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-prod/web"
+    tag: "latest"
+
+serviceAccounts:
+  api:
+    create: true
+    name: "lago-alpha-api"
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/lago-alpha-prod-api-irsa"
+  replayWorker:
+    create: true
+    name: "lago-alpha-replay-worker"
+    annotations: {}
+  replayDispatcher:
+    create: true
+    name: "lago-alpha-replay-dispatcher"
+    annotations: {}
+  web:
+    create: true
+    name: "lago-alpha-web"
+    annotations: {}
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  apiHost: "api.billing.example.com"
+  webHost: "billing.example.com"
+  tls:
+    - secretName: lago-alpha-prod-tls
+      hosts:
+        - api.billing.example.com
+        - billing.example.com
+
+secretEnv:
+  secretRefName: "lago-alpha-runtime-prod"
+
+externalSecrets:
+  enabled: true
+  refreshInterval: "1m"
+  runtimeSecretName: "lago-alpha/prod/runtime"
+  secretStoreRef:
+    kind: "ClusterSecretStore"
+    name: "aws-secretsmanager"
+  createClusterSecretStore: false

@@ -1,0 +1,77 @@
+name: Infra Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+      action:
+        description: "Run plan only or plan+apply"
+        required: true
+        type: choice
+        default: plan
+        options:
+          - plan
+          - apply
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.environment == 'prod' && secrets.AWS_TERRAFORM_ROLE_ARN_PROD || secrets.AWS_TERRAFORM_ROLE_ARN_STAGING }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Materialize staging terraform files
+        if: inputs.environment == 'staging'
+        env:
+          TFVARS_B64: ${{ secrets.TFVARS_STAGING_B64 }}
+          BACKEND_B64: ${{ secrets.TF_BACKEND_STAGING_B64 }}
+        run: |
+          [[ -n "$TFVARS_B64" ]] || (echo "Missing secret TFVARS_STAGING_B64" && exit 1)
+          [[ -n "$BACKEND_B64" ]] || (echo "Missing secret TF_BACKEND_STAGING_B64" && exit 1)
+          mkdir -p infra/terraform/aws/environments infra/terraform/aws/backends
+          printf '%s' "$TFVARS_B64" | base64 --decode > infra/terraform/aws/environments/staging.tfvars
+          printf '%s' "$BACKEND_B64" | base64 --decode > infra/terraform/aws/backends/staging.hcl
+
+      - name: Materialize prod terraform files
+        if: inputs.environment == 'prod'
+        env:
+          TFVARS_B64: ${{ secrets.TFVARS_PROD_B64 }}
+          BACKEND_B64: ${{ secrets.TF_BACKEND_PROD_B64 }}
+        run: |
+          [[ -n "$TFVARS_B64" ]] || (echo "Missing secret TFVARS_PROD_B64" && exit 1)
+          [[ -n "$BACKEND_B64" ]] || (echo "Missing secret TF_BACKEND_PROD_B64" && exit 1)
+          mkdir -p infra/terraform/aws/environments infra/terraform/aws/backends
+          printf '%s' "$TFVARS_B64" | base64 --decode > infra/terraform/aws/environments/prod.tfvars
+          printf '%s' "$BACKEND_B64" | base64 --decode > infra/terraform/aws/backends/prod.hcl
+
+      - name: Terraform plan
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: ./scripts/terraform_plan.sh
+
+      - name: Terraform apply
+        if: inputs.action == 'apply'
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: ./scripts/terraform_apply.sh

@@ -1,0 +1,38 @@
+project_name = "lago-alpha"
+environment  = "staging"
+aws_region   = "us-east-1"
+
+# Optional. Set to a 12-digit account id to avoid aws_caller_identity lookup in some CI plan flows.
+aws_account_id = ""
+
+azs = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+vpc_cidr        = "10.40.0.0/16"
+private_subnets = ["10.40.0.0/20", "10.40.16.0/20", "10.40.32.0/20"]
+public_subnets  = ["10.40.128.0/20", "10.40.144.0/20", "10.40.160.0/20"]
+
+eks_node_instance_types = ["m6i.large"]
+eks_node_desired_size   = 2
+eks_node_min_size       = 2
+eks_node_max_size       = 6
+
+db_name                  = "lago_alpha"
+db_username              = "lago_alpha_admin"
+db_password              = "replace-with-staging-secret"
+db_instance_class        = "db.r6g.large"
+db_allocated_storage     = 100
+db_max_allocated_storage = 500
+db_multi_az              = true
+
+audit_exports_bucket_force_destroy = false
+
+external_secrets_namespace       = "external-secrets"
+external_secrets_service_account = "external-secrets"
+runtime_secret_name              = "lago-alpha/staging/runtime"
+create_runtime_secret            = true
+runtime_secret_recovery_window_in_days = 14
+
+tags = {
+  Owner       = "billing-platform"
+  Environment = "staging"
+}

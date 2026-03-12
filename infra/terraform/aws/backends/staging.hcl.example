@@ -1,0 +1,5 @@
+bucket         = "replace-with-tf-state-bucket"
+key            = "lago-alpha/staging/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "replace-with-tf-lock-table"
+encrypt        = true

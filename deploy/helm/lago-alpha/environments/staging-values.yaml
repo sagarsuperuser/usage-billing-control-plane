@@ -1,0 +1,70 @@
+api:
+  replicas: 2
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+replayWorker:
+  enabled: true
+  replicas: 2
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+replayDispatcher:
+  enabled: true
+  replicas: 2
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+web:
+  enabled: true
+  replicas: 2
+  image:
+    repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/web"
+    tag: "latest"
+
+serviceAccounts:
+  api:
+    create: true
+    name: "lago-alpha-api"
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/lago-alpha-staging-api-irsa"
+  replayWorker:
+    create: true
+    name: "lago-alpha-replay-worker"
+    annotations: {}
+  replayDispatcher:
+    create: true
+    name: "lago-alpha-replay-dispatcher"
+    annotations: {}
+  web:
+    create: true
+    name: "lago-alpha-web"
+    annotations: {}
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  apiHost: "api-staging.billing.example.com"
+  webHost: "staging.billing.example.com"
+  tls:
+    - secretName: lago-alpha-staging-tls
+      hosts:
+        - api-staging.billing.example.com
+        - staging.billing.example.com
+
+secretEnv:
+  secretRefName: "lago-alpha-runtime-staging"
+
+externalSecrets:
+  enabled: true
+  refreshInterval: "1m"
+  runtimeSecretName: "lago-alpha/staging/runtime"
+  secretStoreRef:
+    kind: "ClusterSecretStore"
+    name: "aws-secretsmanager"
+  createClusterSecretStore: false

@@ -1,0 +1,60 @@
+name: Infra Validate
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - "deploy/**"
+      - ".github/workflows/infra.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/**"
+      - "deploy/**"
+      - ".github/workflows/infra.yml"
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive infra/terraform/aws
+
+      - name: Terraform init (backend=false)
+        run: terraform -chdir=infra/terraform/aws init -backend=false
+
+      - name: Terraform validate
+        run: terraform -chdir=infra/terraform/aws validate
+
+  helm-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Helm lint
+        run: helm lint deploy/helm/lago-alpha
+
+      - name: Helm template staging
+        run: |
+          helm template lago-alpha deploy/helm/lago-alpha \
+            -f deploy/helm/lago-alpha/environments/staging-values.yaml >/tmp/helm-staging.yaml
+
+      - name: Helm template prod
+        run: |
+          helm template lago-alpha deploy/helm/lago-alpha \
+            -f deploy/helm/lago-alpha/environments/prod-values.yaml >/tmp/helm-prod.yaml

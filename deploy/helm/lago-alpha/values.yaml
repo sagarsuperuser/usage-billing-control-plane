@@ -1,0 +1,155 @@
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccounts:
+  api:
+    create: true
+    name: ""
+    annotations: {}
+  replayWorker:
+    create: true
+    name: ""
+    annotations: {}
+  replayDispatcher:
+    create: true
+    name: ""
+    annotations: {}
+  web:
+    create: true
+    name: ""
+    annotations: {}
+
+imagePullSecrets: []
+
+api:
+  replicas: 2
+  image:
+    repository: "" # required in env values
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  podAnnotations: {}
+  podLabels: {}
+
+replayWorker:
+  enabled: true
+  replicas: 2
+  image:
+    repository: "" # required in env values
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  podAnnotations: {}
+  podLabels: {}
+
+replayDispatcher:
+  enabled: true
+  replicas: 2
+  image:
+    repository: "" # required in env values
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  podAnnotations: {}
+  podLabels: {}
+
+web:
+  enabled: true
+  replicas: 2
+  apiBaseURL: "" # optional explicit NEXT_PUBLIC_API_BASE_URL override
+  image:
+    repository: "" # required in env values
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  apiHost: ""
+  webHost: ""
+  tls: []
+
+env:
+  API_AUTH_ENABLED: "true"
+  AUDIT_EXPORTS_ENABLED: "true"
+  DB_MAX_OPEN_CONNS: "50"
+  DB_MAX_IDLE_CONNS: "10"
+  DB_CONN_MAX_LIFETIME_MIN: "30"
+  DB_QUERY_TIMEOUT_MS: "5000"
+  DB_MIGRATION_TIMEOUT_SEC: "120"
+  LAGO_HTTP_TIMEOUT_MS: "10000"
+  LAGO_WEBHOOK_PUBLIC_KEY_TTL_SEC: "300"
+  TEMPORAL_NAMESPACE: "default"
+  REPLAY_TEMPORAL_TASK_QUEUE: "alpha-replay-jobs"
+  REPLAY_TEMPORAL_DISPATCH_POLL_MS: "750"
+  REPLAY_TEMPORAL_DISPATCH_BATCH: "25"
+  RUN_PAYMENT_RECONCILE_WORKER: "false"
+  RUN_PAYMENT_RECONCILE_SCHEDULER: "false"
+  PAYMENT_RECONCILE_TEMPORAL_TASK_QUEUE: "alpha-payment-reconcile"
+  PAYMENT_RECONCILE_CRON_SCHEDULE: "@every 2m"
+  PAYMENT_RECONCILE_STALE_AFTER_SEC: "300"
+  PAYMENT_RECONCILE_BATCH: "100"
+  AUDIT_EXPORT_WORKER_POLL_MS: "500"
+  AUDIT_EXPORT_DOWNLOAD_TTL_SEC: "86400"
+  AUDIT_EXPORT_S3_REGION: "us-east-1"
+  AUDIT_EXPORT_S3_FORCE_PATH_STYLE: "false"
+  PORT: "8080"
+
+secretEnv:
+  # secretRefName must contain these keys after ExternalSecret sync:
+  # DATABASE_URL, LAGO_API_URL, LAGO_API_KEY, TEMPORAL_ADDRESS, AUDIT_EXPORT_S3_BUCKET
+  # optional keys: AUDIT_EXPORT_S3_ENDPOINT, LAGO_ORG_TENANT_MAP
+  secretRefName: "lago-alpha-runtime"
+
+externalSecrets:
+  enabled: true
+  refreshInterval: "1m"
+  runtimeSecretName: "replace-me" # set to real AWS Secrets Manager secret name per environment
+  secretStoreRef:
+    kind: "ClusterSecretStore"
+    name: "aws-secretsmanager"
+  createClusterSecretStore: false
+  clusterSecretStore:
+    name: "aws-secretsmanager"
+    awsRegion: "us-east-1"
+    roleArn: ""
+    serviceAccountName: "external-secrets"
+    serviceAccountNamespace: "external-secrets"

@@ -1,2 +1,10 @@
 /bin/
 .DS_Store
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/terraform/aws/environments/*.tfvars
+infra/terraform/aws/backends/*.hcl
+!infra/terraform/aws/environments/*.tfvars.example
+!infra/terraform/aws/backends/*.hcl.example

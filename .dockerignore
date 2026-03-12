@@ -1,0 +1,9 @@
+.git
+.github
+web/.next
+web/node_modules
+web/.turbo
+web/coverage
+**/.DS_Store
+**/*.log
+tmp

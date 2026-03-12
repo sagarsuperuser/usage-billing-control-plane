@@ -2,12 +2,31 @@ SHELL := /bin/bash
 
 GO ?= go
 COMPOSE_FILE ?= docker-compose.postgres.yml
-DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/lago_alpha?sslmode=disable
-TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/lago_alpha_test?sslmode=disable
+DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha?sslmode=disable
+TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
+TEST_TEMPORAL_ADDRESS ?= 127.0.0.1:17233
+TEST_TEMPORAL_NAMESPACE ?= default
+LAGO_REPO_PATH ?= ../lago
+LAGO_COMPOSE_FILE ?= docker-compose.yml
+TEST_LAGO_API_URL ?=
+TEST_LAGO_API_KEY ?= lago_alpha_test_api_key
+BOOTSTRAP_LAGO_FOR_TESTS ?= 1
+CLEANUP_LAGO_ON_EXIT ?= 0
+VERIFY_LAGO_BACKEND_FOR_TESTS ?= 0
+LAGO_VERIFY_COMPOSE_FILE ?= docker-compose.dev.yml
+TF_DIR ?= infra/terraform/aws
+HELM_CHART ?= deploy/helm/lago-alpha
+ENVIRONMENT ?= staging
+RELEASE_NAME ?= lago-alpha
+NAMESPACE ?= lago-alpha
+IMAGE_TAG ?= $(shell git rev-parse HEAD)
+API_IMAGE_REPOSITORY ?=
+WEB_IMAGE_REPOSITORY ?=
+REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run test-integration ci
+.PHONY: help fmt tidy test test-unit verify-governance db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration web-install web-dev web-lint web-build tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -23,6 +42,9 @@ test: ## Run all tests
 
 test-unit: ## Run fast unit tests
 	@$(GO) test ./internal/domain
+
+verify-governance: ## Verify governance metadata (CODEOWNERS)
+	@./scripts/verify_codeowners.sh
 
 db-up: ## Start local Postgres via docker compose
 	@docker compose -f $(COMPOSE_FILE) up -d
@@ -53,7 +75,64 @@ migrate-verify: ## Verify no pending or unknown applied migrations remain
 run: ## Start API server
 	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/server
 
-test-integration: ## Run integration tests with real Postgres
-	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' ./scripts/test_integration.sh
+lago-up: ## Start Lago services and provision deterministic API key for tests
+	@LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' bash ./scripts/bootstrap_lago.sh
+
+lago-down: ## Stop Lago compose stack
+	@cd '$(LAGO_REPO_PATH)' && docker compose -f '$(LAGO_COMPOSE_FILE)' down
+
+lago-ps: ## Show Lago compose service status
+	@cd '$(LAGO_REPO_PATH)' && docker compose -f '$(LAGO_COMPOSE_FILE)' ps
+
+lago-verify: ## Run Lago replay/correctness verification suites
+	@cd '$(LAGO_REPO_PATH)' && ./scripts/verify_e2e.sh
+
+test-integration: ## Run integration tests with real Postgres + real Lago
+	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' TEST_TEMPORAL_ADDRESS='$(TEST_TEMPORAL_ADDRESS)' TEST_TEMPORAL_NAMESPACE='$(TEST_TEMPORAL_NAMESPACE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' BOOTSTRAP_LAGO_FOR_TESTS='$(BOOTSTRAP_LAGO_FOR_TESTS)' LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' CLEANUP_LAGO_ON_EXIT='$(CLEANUP_LAGO_ON_EXIT)' VERIFY_LAGO_BACKEND_FOR_TESTS='$(VERIFY_LAGO_BACKEND_FOR_TESTS)' LAGO_VERIFY_COMPOSE_FILE='$(LAGO_VERIFY_COMPOSE_FILE)' bash ./scripts/test_integration.sh
+
+tf-fmt: ## Format Terraform code
+	@terraform fmt -recursive $(TF_DIR)
+
+tf-validate: ## Validate Terraform config (without backend)
+	@terraform -chdir=$(TF_DIR) init -backend=false
+	@terraform -chdir=$(TF_DIR) validate
+
+tf-plan: ## Run Terraform plan (requires configured backend/vars)
+	@ENVIRONMENT='$(ENVIRONMENT)' TF_DIR='$(TF_DIR)' ./scripts/terraform_plan.sh
+
+tf-plan-staging: ## Run Terraform plan for staging using env/backends files
+	@ENVIRONMENT='staging' TF_DIR='$(TF_DIR)' ./scripts/terraform_plan.sh
+
+tf-plan-prod: ## Run Terraform plan for prod using env/backends files
+	@ENVIRONMENT='prod' TF_DIR='$(TF_DIR)' ./scripts/terraform_plan.sh
+
+tf-apply-staging: ## Apply previously created staging plan
+	@ENVIRONMENT='staging' TF_DIR='$(TF_DIR)' ./scripts/terraform_apply.sh
+
+tf-apply-prod: ## Apply previously created prod plan
+	@ENVIRONMENT='prod' TF_DIR='$(TF_DIR)' ./scripts/terraform_apply.sh
+
+helm-lint: ## Lint Helm chart
+	@helm lint $(HELM_CHART)
+
+helm-template-staging: ## Render Helm staging manifests
+	@helm template lago-alpha $(HELM_CHART) -f $(HELM_CHART)/environments/staging-values.yaml >/tmp/lago-alpha-staging.yaml
+	@echo "rendered /tmp/lago-alpha-staging.yaml"
+
+helm-template-prod: ## Render Helm prod manifests
+	@helm template lago-alpha $(HELM_CHART) -f $(HELM_CHART)/environments/prod-values.yaml >/tmp/lago-alpha-prod.yaml
+	@echo "rendered /tmp/lago-alpha-prod.yaml"
+
+deploy-staging: ## Deploy Helm release to staging (requires kubectl context + image vars)
+	@ENVIRONMENT=staging RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' IMAGE_TAG='$(IMAGE_TAG)' API_IMAGE_REPOSITORY='$(API_IMAGE_REPOSITORY)' WEB_IMAGE_REPOSITORY='$(WEB_IMAGE_REPOSITORY)' ./scripts/deploy_helm.sh
+
+deploy-prod: ## Deploy Helm release to prod (requires kubectl context + image vars)
+	@ENVIRONMENT=prod RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' IMAGE_TAG='$(IMAGE_TAG)' API_IMAGE_REPOSITORY='$(API_IMAGE_REPOSITORY)' WEB_IMAGE_REPOSITORY='$(WEB_IMAGE_REPOSITORY)' ./scripts/deploy_helm.sh
+
+rollback-staging: ## Helm rollback in staging (requires REVISION and kubectl context)
+	@ENVIRONMENT=staging RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' REVISION='$(REVISION)' ./scripts/rollback_helm.sh
+
+rollback-prod: ## Helm rollback in prod (requires REVISION and kubectl context)
+	@ENVIRONMENT=prod RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' REVISION='$(REVISION)' ./scripts/rollback_helm.sh
 
 ci: fmt test ## CI convenience target (format + full tests)

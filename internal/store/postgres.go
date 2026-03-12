@@ -20,6 +20,7 @@ import (
 const (
 	defaultQueryTimeout     = 5 * time.Second
 	defaultMigrationTimeout = 60 * time.Second
+	defaultTenantID         = "default"
 )
 
 type PostgresStore struct {
@@ -27,6 +28,13 @@ type PostgresStore struct {
 	queryTimeout     time.Duration
 	migrationTimeout time.Duration
 }
+
+type txSessionMode int
+
+const (
+	txSessionTenant txSessionMode = iota
+	txSessionBypass
+)
 
 type PostgresOption func(*PostgresStore)
 
@@ -63,6 +71,38 @@ func (s *PostgresStore) Migrate() error {
 	return runner.Run(context.Background())
 }
 
+func (s *PostgresStore) beginTxWithSession(ctx context.Context, mode txSessionMode, tenantID string) (*sql.Tx, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	switch mode {
+	case txSessionTenant:
+		if _, err := tx.ExecContext(ctx, `SELECT set_config('app.bypass_rls', 'off', true)`); err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `SELECT set_config('app.tenant_id', $1, true)`, normalizeTenantID(tenantID)); err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+	case txSessionBypass:
+		if _, err := tx.ExecContext(ctx, `SELECT set_config('app.bypass_rls', 'on', true)`); err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+	}
+
+	return tx, nil
+}
+
+func rollbackSilently(tx *sql.Tx) {
+	if tx != nil {
+		_ = tx.Rollback()
+	}
+}
+
 func (s *PostgresStore) CreateRatingRuleVersion(input domain.RatingRuleVersion) (domain.RatingRuleVersion, error) {
 	if input.ID == "" {
 		input.ID = newID("rrv")
@@ -73,6 +113,9 @@ func (s *PostgresStore) CreateRatingRuleVersion(input domain.RatingRuleVersion) 
 	if input.GraduatedTiers == nil {
 		input.GraduatedTiers = []domain.RatingTier{}
 	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.RuleKey = strings.ToLower(strings.TrimSpace(input.RuleKey))
+	input.LifecycleState = normalizeRatingRuleLifecycleState(input.LifecycleState)
 
 	tiers, err := json.Marshal(input.GraduatedTiers)
 	if err != nil {
@@ -82,15 +125,52 @@ func (s *PostgresStore) CreateRatingRuleVersion(input domain.RatingRuleVersion) 
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	_, err = s.db.ExecContext(
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.RatingRuleVersion{}, err
+	}
+	defer rollbackSilently(tx)
+
+	var maxVersion int
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(MAX(version), 0) FROM rating_rule_versions WHERE tenant_id = $1 AND rule_key = $2`,
+		input.TenantID,
+		input.RuleKey,
+	).Scan(&maxVersion); err != nil {
+		return domain.RatingRuleVersion{}, err
+	}
+	if maxVersion > 0 && input.Version <= maxVersion {
+		return domain.RatingRuleVersion{}, ErrDuplicateKey
+	}
+
+	if input.LifecycleState == domain.RatingRuleLifecycleActive {
+		if _, err := tx.ExecContext(
+			ctx,
+			`UPDATE rating_rule_versions
+			SET lifecycle_state = $1
+			WHERE tenant_id = $2 AND rule_key = $3 AND lifecycle_state = $4`,
+			string(domain.RatingRuleLifecycleArchived),
+			input.TenantID,
+			input.RuleKey,
+			string(domain.RatingRuleLifecycleActive),
+		); err != nil {
+			return domain.RatingRuleVersion{}, err
+		}
+	}
+
+	_, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO rating_rule_versions (
-			id, name, version, mode, currency, flat_amount_cents, graduated_tiers,
+			id, tenant_id, rule_key, name, version, lifecycle_state, mode, currency, flat_amount_cents, graduated_tiers,
 			package_size, package_amount_cents, overage_unit_amount_cents, created_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11)`,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14)`,
 		input.ID,
+		input.TenantID,
+		input.RuleKey,
 		input.Name,
 		input.Version,
+		string(input.LifecycleState),
 		string(input.Mode),
 		input.Currency,
 		input.FlatAmountCents,
@@ -101,17 +181,53 @@ func (s *PostgresStore) CreateRatingRuleVersion(input domain.RatingRuleVersion) 
 		input.CreatedAt,
 	)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.RatingRuleVersion{}, ErrDuplicateKey
+		}
+		return domain.RatingRuleVersion{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return domain.RatingRuleVersion{}, err
 	}
 
 	return input, nil
 }
 
-func (s *PostgresStore) ListRatingRuleVersions() ([]domain.RatingRuleVersion, error) {
+func (s *PostgresStore) ListRatingRuleVersions(filter RatingRuleListFilter) ([]domain.RatingRuleVersion, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	ruleKey := strings.ToLower(strings.TrimSpace(filter.RuleKey))
+	lifecycleState := strings.ToLower(strings.TrimSpace(filter.LifecycleState))
+
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, version, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions ORDER BY created_at ASC, id ASC`)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"tenant_id = $1"}
+	args := []any{tenantID}
+	nextArg := 2
+	if ruleKey != "" {
+		clauses = append(clauses, fmt.Sprintf("rule_key = $%d", nextArg))
+		args = append(args, ruleKey)
+		nextArg++
+	}
+	if lifecycleState != "" {
+		clauses = append(clauses, fmt.Sprintf("lifecycle_state = $%d", nextArg))
+		args = append(args, lifecycleState)
+		nextArg++
+	}
+	where := strings.Join(clauses, " AND ")
+
+	query := `SELECT id, tenant_id, rule_key, name, version, lifecycle_state, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions WHERE ` + where + ` ORDER BY rule_key ASC, version ASC, created_at ASC, id ASC`
+	if filter.LatestOnly {
+		query = `SELECT DISTINCT ON (rule_key) id, tenant_id, rule_key, name, version, lifecycle_state, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions WHERE ` + where + ` ORDER BY rule_key ASC, version DESC, created_at DESC, id DESC`
+	}
+
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,19 +244,31 @@ func (s *PostgresStore) ListRatingRuleVersions() ([]domain.RatingRuleVersion, er
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
-func (s *PostgresStore) GetRatingRuleVersion(id string) (domain.RatingRuleVersion, error) {
+func (s *PostgresStore) GetRatingRuleVersion(tenantID, id string) (domain.RatingRuleVersion, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, `SELECT id, name, version, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions WHERE id = $1`, id)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.RatingRuleVersion{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, rule_key, name, version, lifecycle_state, mode, currency, flat_amount_cents, graduated_tiers, package_size, package_amount_cents, overage_unit_amount_cents, created_at FROM rating_rule_versions WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
 	rule, err := scanRatingRule(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.RatingRuleVersion{}, ErrNotFound
 		}
+		return domain.RatingRuleVersion{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return domain.RatingRuleVersion{}, err
 	}
 	return rule, nil
@@ -154,15 +282,23 @@ func (s *PostgresStore) CreateMeter(input domain.Meter) (domain.Meter, error) {
 	if input.CreatedAt.IsZero() {
 		input.CreatedAt = now
 	}
+	input.TenantID = normalizeTenantID(input.TenantID)
 	input.UpdatedAt = now
 
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	_, err := s.db.ExecContext(
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.Meter{}, err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(
 		ctx,
-		`INSERT INTO meters (id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		`INSERT INTO meters (id, tenant_id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
 		input.ID,
+		input.TenantID,
 		input.Key,
 		input.Name,
 		input.Unit,
@@ -177,15 +313,24 @@ func (s *PostgresStore) CreateMeter(input domain.Meter) (domain.Meter, error) {
 		}
 		return domain.Meter{}, err
 	}
+	if err := tx.Commit(); err != nil {
+		return domain.Meter{}, err
+	}
 
 	return input, nil
 }
 
-func (s *PostgresStore) ListMeters() ([]domain.Meter, error) {
+func (s *PostgresStore) ListMeters(tenantID string) ([]domain.Meter, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	rows, err := s.db.QueryContext(ctx, `SELECT id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters ORDER BY created_at ASC, id ASC`)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters WHERE tenant_id = $1 ORDER BY created_at ASC, id ASC`, normalizeTenantID(tenantID))
 	if err != nil {
 		return nil, err
 	}
@@ -202,19 +347,31 @@ func (s *PostgresStore) ListMeters() ([]domain.Meter, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
-func (s *PostgresStore) GetMeter(id string) (domain.Meter, error) {
+func (s *PostgresStore) GetMeter(tenantID, id string) (domain.Meter, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, `SELECT id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters WHERE id = $1`, id)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.Meter{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at FROM meters WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
 	meter, err := scanMeter(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Meter{}, ErrNotFound
 		}
+		return domain.Meter{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return domain.Meter{}, err
 	}
 	return meter, nil
@@ -226,15 +383,22 @@ func (s *PostgresStore) UpdateMeter(input domain.Meter) (domain.Meter, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.Meter{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
 		ctx,
-		`UPDATE meters SET meter_key = $1, name = $2, unit = $3, aggregation = $4, rating_rule_version_id = $5, updated_at = $6 WHERE id = $7 RETURNING id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at`,
+		`UPDATE meters SET meter_key = $1, name = $2, unit = $3, aggregation = $4, rating_rule_version_id = $5, updated_at = $6 WHERE tenant_id = $7 AND id = $8 RETURNING id, tenant_id, meter_key, name, unit, aggregation, rating_rule_version_id, created_at, updated_at`,
 		input.Key,
 		input.Name,
 		input.Unit,
 		input.Aggregation,
 		input.RatingRuleVersionID,
 		input.UpdatedAt,
+		normalizeTenantID(input.TenantID),
 		input.ID,
 	)
 
@@ -248,6 +412,9 @@ func (s *PostgresStore) UpdateMeter(input domain.Meter) (domain.Meter, error) {
 		}
 		return domain.Meter{}, err
 	}
+	if err := tx.Commit(); err != nil {
+		return domain.Meter{}, err
+	}
 
 	return meter, nil
 }
@@ -259,25 +426,120 @@ func (s *PostgresStore) CreateUsageEvent(input domain.UsageEvent) (domain.UsageE
 	if input.Timestamp.IsZero() {
 		input.Timestamp = time.Now().UTC()
 	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
 
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	_, err := s.db.ExecContext(ctx, `INSERT INTO usage_events (id, customer_id, meter_id, quantity, occurred_at) VALUES ($1,$2,$3,$4,$5)`, input.ID, input.CustomerID, input.MeterID, input.Quantity, input.Timestamp)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
 	if err != nil {
 		return domain.UsageEvent{}, err
 	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(
+		ctx,
+		`INSERT INTO usage_events (id, tenant_id, customer_id, meter_id, quantity, idempotency_key, occurred_at) VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7)`,
+		input.ID,
+		input.TenantID,
+		input.CustomerID,
+		input.MeterID,
+		input.Quantity,
+		input.IdempotencyKey,
+		input.Timestamp,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.UsageEvent{}, ErrAlreadyExists
+		}
+		return domain.UsageEvent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.UsageEvent{}, err
+	}
 	return input, nil
+}
+
+func (s *PostgresStore) GetUsageEventByIdempotencyKey(tenantID, idempotencyKey string) (domain.UsageEvent, error) {
+	tenantID = normalizeTenantID(tenantID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if idempotencyKey == "" {
+		return domain.UsageEvent{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.UsageEvent{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, tenant_id, customer_id, meter_id, quantity, idempotency_key, occurred_at
+		FROM usage_events
+		WHERE tenant_id = $1 AND idempotency_key = $2
+		ORDER BY occurred_at DESC, id DESC
+		LIMIT 1`,
+		tenantID,
+		idempotencyKey,
+	)
+	var event domain.UsageEvent
+	var eventIdempotencyKey sql.NullString
+	if err := row.Scan(
+		&event.ID,
+		&event.TenantID,
+		&event.CustomerID,
+		&event.MeterID,
+		&event.Quantity,
+		&eventIdempotencyKey,
+		&event.Timestamp,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.UsageEvent{}, ErrNotFound
+		}
+		return domain.UsageEvent{}, err
+	}
+	event.TenantID = normalizeTenantID(event.TenantID)
+	if eventIdempotencyKey.Valid {
+		event.IdempotencyKey = strings.TrimSpace(eventIdempotencyKey.String)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.UsageEvent{}, err
+	}
+	return event, nil
 }
 
 func (s *PostgresStore) ListUsageEvents(filter Filter) ([]domain.UsageEvent, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	query, args := buildFilteredQuery(`SELECT id, customer_id, meter_id, quantity, occurred_at FROM usage_events`, filter, "occurred_at")
-	query += ` ORDER BY occurred_at ASC`
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, filter.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	query, args := buildUsageEventsFilteredQuery(`SELECT id, tenant_id, customer_id, meter_id, quantity, idempotency_key, occurred_at FROM usage_events`, filter, "occurred_at")
+	if filter.SortDesc {
+		query += ` ORDER BY occurred_at DESC, id DESC`
+	} else {
+		query += ` ORDER BY occurred_at ASC, id ASC`
+	}
+	if filter.Limit > 0 {
+		args = append(args, filter.Limit)
+		query += fmt.Sprintf(" LIMIT $%d", len(args))
+	}
+	if filter.Offset > 0 {
+		args = append(args, filter.Offset)
+		query += fmt.Sprintf(" OFFSET $%d", len(args))
+	}
+
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -286,12 +548,20 @@ func (s *PostgresStore) ListUsageEvents(filter Filter) ([]domain.UsageEvent, err
 	out := make([]domain.UsageEvent, 0)
 	for rows.Next() {
 		var event domain.UsageEvent
-		if scanErr := rows.Scan(&event.ID, &event.CustomerID, &event.MeterID, &event.Quantity, &event.Timestamp); scanErr != nil {
+		var idempotencyKey sql.NullString
+		if scanErr := rows.Scan(&event.ID, &event.TenantID, &event.CustomerID, &event.MeterID, &event.Quantity, &idempotencyKey, &event.Timestamp); scanErr != nil {
 			return nil, scanErr
+		}
+		event.TenantID = normalizeTenantID(event.TenantID)
+		if idempotencyKey.Valid {
+			event.IdempotencyKey = strings.TrimSpace(idempotencyKey.String)
 		}
 		out = append(out, event)
 	}
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -304,25 +574,132 @@ func (s *PostgresStore) CreateBilledEntry(input domain.BilledEntry) (domain.Bill
 	if input.Timestamp.IsZero() {
 		input.Timestamp = time.Now().UTC()
 	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.Source = normalizeBilledEntrySource(input.Source)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	input.ReplayJobID = strings.TrimSpace(input.ReplayJobID)
 
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	_, err := s.db.ExecContext(ctx, `INSERT INTO billed_entries (id, customer_id, meter_id, amount_cents, occurred_at) VALUES ($1,$2,$3,$4,$5)`, input.ID, input.CustomerID, input.MeterID, input.AmountCents, input.Timestamp)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
 	if err != nil {
 		return domain.BilledEntry{}, err
 	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(
+		ctx,
+		`INSERT INTO billed_entries (id, tenant_id, customer_id, meter_id, amount_cents, idempotency_key, source, replay_job_id, occurred_at) VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9)`,
+		input.ID,
+		input.TenantID,
+		input.CustomerID,
+		input.MeterID,
+		input.AmountCents,
+		input.IdempotencyKey,
+		string(input.Source),
+		nullableString(input.ReplayJobID),
+		input.Timestamp,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.BilledEntry{}, ErrAlreadyExists
+		}
+		return domain.BilledEntry{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.BilledEntry{}, err
+	}
 	return input, nil
+}
+
+func (s *PostgresStore) GetBilledEntryByIdempotencyKey(tenantID, idempotencyKey string) (domain.BilledEntry, error) {
+	tenantID = normalizeTenantID(tenantID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if idempotencyKey == "" {
+		return domain.BilledEntry{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.BilledEntry{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, tenant_id, customer_id, meter_id, amount_cents, idempotency_key, source, replay_job_id, occurred_at
+		FROM billed_entries
+		WHERE tenant_id = $1 AND idempotency_key = $2
+		ORDER BY occurred_at DESC, id DESC
+		LIMIT 1`,
+		tenantID,
+		idempotencyKey,
+	)
+	var entry domain.BilledEntry
+	var source string
+	var entryIdempotencyKey sql.NullString
+	var replayJobID sql.NullString
+	if err := row.Scan(
+		&entry.ID,
+		&entry.TenantID,
+		&entry.CustomerID,
+		&entry.MeterID,
+		&entry.AmountCents,
+		&entryIdempotencyKey,
+		&source,
+		&replayJobID,
+		&entry.Timestamp,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.BilledEntry{}, ErrNotFound
+		}
+		return domain.BilledEntry{}, err
+	}
+	entry.TenantID = normalizeTenantID(entry.TenantID)
+	entry.Source = normalizeBilledEntrySource(domain.BilledEntrySource(source))
+	if entryIdempotencyKey.Valid {
+		entry.IdempotencyKey = strings.TrimSpace(entryIdempotencyKey.String)
+	}
+	if replayJobID.Valid {
+		entry.ReplayJobID = strings.TrimSpace(replayJobID.String)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.BilledEntry{}, err
+	}
+	return entry, nil
 }
 
 func (s *PostgresStore) ListBilledEntries(filter Filter) ([]domain.BilledEntry, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	query, args := buildFilteredQuery(`SELECT id, customer_id, meter_id, amount_cents, occurred_at FROM billed_entries`, filter, "occurred_at")
-	query += ` ORDER BY occurred_at ASC`
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, filter.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	query, args := buildBilledEntriesFilteredQuery(`SELECT id, tenant_id, customer_id, meter_id, amount_cents, idempotency_key, source, replay_job_id, occurred_at FROM billed_entries`, filter, "occurred_at")
+	if filter.SortDesc {
+		query += ` ORDER BY occurred_at DESC, id DESC`
+	} else {
+		query += ` ORDER BY occurred_at ASC, id ASC`
+	}
+	if filter.Limit > 0 {
+		args = append(args, filter.Limit)
+		query += fmt.Sprintf(" LIMIT $%d", len(args))
+	}
+	if filter.Offset > 0 {
+		args = append(args, filter.Offset)
+		query += fmt.Sprintf(" OFFSET $%d", len(args))
+	}
+
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -331,12 +708,26 @@ func (s *PostgresStore) ListBilledEntries(filter Filter) ([]domain.BilledEntry, 
 	out := make([]domain.BilledEntry, 0)
 	for rows.Next() {
 		var entry domain.BilledEntry
-		if scanErr := rows.Scan(&entry.ID, &entry.CustomerID, &entry.MeterID, &entry.AmountCents, &entry.Timestamp); scanErr != nil {
+		var idempotencyKey sql.NullString
+		var source string
+		var replayJobID sql.NullString
+		if scanErr := rows.Scan(&entry.ID, &entry.TenantID, &entry.CustomerID, &entry.MeterID, &entry.AmountCents, &idempotencyKey, &source, &replayJobID, &entry.Timestamp); scanErr != nil {
 			return nil, scanErr
+		}
+		entry.TenantID = normalizeTenantID(entry.TenantID)
+		entry.Source = normalizeBilledEntrySource(domain.BilledEntrySource(source))
+		if idempotencyKey.Valid {
+			entry.IdempotencyKey = strings.TrimSpace(idempotencyKey.String)
+		}
+		if replayJobID.Valid {
+			entry.ReplayJobID = strings.TrimSpace(replayJobID.String)
 		}
 		out = append(out, entry)
 	}
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -349,17 +740,25 @@ func (s *PostgresStore) CreateReplayJob(input domain.ReplayJob) (domain.ReplayJo
 	if input.CreatedAt.IsZero() {
 		input.CreatedAt = time.Now().UTC()
 	}
+	input.TenantID = normalizeTenantID(input.TenantID)
 
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	_, err := s.db.ExecContext(
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.ReplayJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO replay_jobs (
-			id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status,
+			id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status,
 			attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		input.ID,
+		input.TenantID,
 		nullableString(input.CustomerID),
 		nullableString(input.MeterID),
 		input.From,
@@ -380,53 +779,234 @@ func (s *PostgresStore) CreateReplayJob(input domain.ReplayJob) (domain.ReplayJo
 		}
 		return domain.ReplayJob{}, err
 	}
+	if err := tx.Commit(); err != nil {
+		return domain.ReplayJob{}, err
+	}
 
 	return input, nil
 }
 
-func (s *PostgresStore) GetReplayJob(id string) (domain.ReplayJob, error) {
+func (s *PostgresStore) GetReplayJob(tenantID, id string) (domain.ReplayJob, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE id = $1`, id)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.ReplayJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ReplayJob{}, ErrNotFound
 		}
+		return domain.ReplayJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return domain.ReplayJob{}, err
 	}
 	return job, nil
 }
 
-func (s *PostgresStore) GetReplayJobByIdempotencyKey(key string) (domain.ReplayJob, error) {
+func (s *PostgresStore) GetReplayJobByIdempotencyKey(tenantID, key string) (domain.ReplayJob, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE idempotency_key = $1`, key)
+	tenantID = normalizeTenantID(tenantID)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.ReplayJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE tenant_id = $1 AND idempotency_key = $2`, tenantID, key)
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ReplayJob{}, ErrNotFound
 		}
+		return domain.ReplayJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return domain.ReplayJob{}, err
 	}
 	return job, nil
 }
 
-func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
+func (s *PostgresStore) ListReplayJobs(filter ReplayJobListFilter) (ReplayJobListResult, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	cursorID := strings.TrimSpace(filter.CursorID)
+	cursorCreated := filter.CursorCreated
+
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return ReplayJobListResult{}, err
+	}
+	defer rollbackSilently(tx)
+
+	baseClauses := []string{"tenant_id = $1"}
+	baseArgs := []any{tenantID}
+	nextArg := 2
+
+	if customerID := strings.TrimSpace(filter.CustomerID); customerID != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("customer_id = $%d", nextArg))
+		baseArgs = append(baseArgs, customerID)
+		nextArg++
+	}
+	if meterID := strings.TrimSpace(filter.MeterID); meterID != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("meter_id = $%d", nextArg))
+		baseArgs = append(baseArgs, meterID)
+		nextArg++
+	}
+	if status := strings.ToLower(strings.TrimSpace(filter.Status)); status != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("status = $%d", nextArg))
+		baseArgs = append(baseArgs, status)
+		nextArg++
+	}
+
+	baseWhere := strings.Join(baseClauses, " AND ")
+
+	var total int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM replay_jobs WHERE `+baseWhere, baseArgs...).Scan(&total); err != nil {
+		return ReplayJobListResult{}, err
+	}
+
+	listClauses := append([]string{}, baseClauses...)
+	listArgs := append([]any{}, baseArgs...)
+	listArgPos := len(listArgs) + 1
+	useCursor := cursorCreated != nil && cursorID != ""
+	if useCursor {
+		listClauses = append(listClauses, fmt.Sprintf("(created_at < $%d OR (created_at = $%d AND id < $%d))", listArgPos, listArgPos, listArgPos+1))
+		listArgs = append(listArgs, *cursorCreated, cursorID)
+		listArgPos += 2
+	}
+	listWhere := strings.Join(listClauses, " AND ")
+	limitWithPeek := limit + 1
+
+	var (
+		query     string
+		queryArgs []any
+	)
+	if useCursor {
+		query = fmt.Sprintf(`SELECT id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at
+			FROM replay_jobs
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d`, listWhere, listArgPos)
+		queryArgs = append(listArgs, limitWithPeek)
+	} else {
+		query = fmt.Sprintf(`SELECT id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at
+			FROM replay_jobs
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d OFFSET $%d`, listWhere, listArgPos, listArgPos+1)
+		queryArgs = append(listArgs, limitWithPeek, offset)
+	}
+
+	rows, err := tx.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return ReplayJobListResult{}, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.ReplayJob, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanReplayJob(rows)
+		if scanErr != nil {
+			return ReplayJobListResult{}, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return ReplayJobListResult{}, err
+	}
+
+	var (
+		nextCursorCreated *time.Time
+		nextCursorID      string
+	)
+	hasMore := len(items) > limit
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	if len(items) == limit && hasMore {
+		last := items[len(items)-1]
+		t := last.CreatedAt.UTC()
+		nextCursorCreated = &t
+		nextCursorID = last.ID
+	}
+
+	if err := tx.Commit(); err != nil {
+		return ReplayJobListResult{}, err
+	}
+	return ReplayJobListResult{
+		Items:             items,
+		Total:             total,
+		Limit:             limit,
+		Offset:            offset,
+		NextCursorID:      nextCursorID,
+		NextCursorCreated: nextCursorCreated,
+	}, nil
+}
+
+func (s *PostgresStore) RetryReplayJob(tenantID, id string) (domain.ReplayJob, error) {
+	tenantID = normalizeTenantID(tenantID)
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.ReplayJob{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
 	if err != nil {
 		return domain.ReplayJob{}, err
 	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
+	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `SELECT id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at FROM replay_jobs WHERE status = $1 ORDER BY created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`, string(domain.ReplayQueued))
+	currentRow := tx.QueryRowContext(
+		ctx,
+		`SELECT id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at
+		FROM replay_jobs
+		WHERE tenant_id = $1 AND id = $2`,
+		tenantID,
+		id,
+	)
+	current, err := scanReplayJob(currentRow)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.ReplayJob{}, ErrNotFound
+		}
+		return domain.ReplayJob{}, err
+	}
+	if current.Status != domain.ReplayFailed {
+		return domain.ReplayJob{}, fmt.Errorf("validation error: replay job can be retried only when status=failed")
+	}
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE replay_jobs
+		SET status = $1, error = '', started_at = NULL, completed_at = NULL, processed_records = 0
+		WHERE tenant_id = $2 AND id = $3
+		RETURNING id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
+		string(domain.ReplayQueued),
+		tenantID,
+		id,
+	)
 	job, err := scanReplayJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -434,17 +1014,56 @@ func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
 		}
 		return domain.ReplayJob{}, err
 	}
+	if err := tx.Commit(); err != nil {
+		return domain.ReplayJob{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgresStore) StartReplayJob(tenantID, id string) (domain.ReplayJob, error) {
+	tenantID = normalizeTenantID(tenantID)
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.ReplayJob{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.ReplayJob{}, err
+	}
+	defer rollbackSilently(tx)
 
 	now := time.Now().UTC()
-	_, err = tx.ExecContext(ctx, `UPDATE replay_jobs SET status = $1, started_at = $2, last_attempt_at = $2, attempt_count = attempt_count + 1 WHERE id = $3`, string(domain.ReplayRunning), now, job.ID)
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE replay_jobs
+		SET status = $1, started_at = $2, last_attempt_at = $2, attempt_count = attempt_count + 1, processed_records = 0, error = '', completed_at = NULL
+		WHERE tenant_id = $3 AND id = $4 AND status = $5
+		RETURNING id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
+		string(domain.ReplayRunning),
+		now,
+		tenantID,
+		id,
+		string(domain.ReplayQueued),
+	)
+	job, err := scanReplayJob(row)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			var currentStatus string
+			statusErr := tx.QueryRowContext(ctx, `SELECT status FROM replay_jobs WHERE tenant_id = $1 AND id = $2`, tenantID, id).Scan(&currentStatus)
+			if errors.Is(statusErr, sql.ErrNoRows) {
+				return domain.ReplayJob{}, ErrNotFound
+			}
+			if statusErr != nil {
+				return domain.ReplayJob{}, statusErr
+			}
+			return domain.ReplayJob{}, fmt.Errorf("%w: replay job can be started only when status=queued", ErrInvalidState)
+		}
 		return domain.ReplayJob{}, err
 	}
-
-	job.Status = domain.ReplayRunning
-	job.StartedAt = &now
-	job.LastAttemptAt = &now
-	job.AttemptCount++
 
 	if err := tx.Commit(); err != nil {
 		return domain.ReplayJob{}, err
@@ -452,13 +1071,68 @@ func (s *PostgresStore) DequeueReplayJob() (domain.ReplayJob, error) {
 	return job, nil
 }
 
+func (s *PostgresStore) ListQueuedReplayJobs(limit int) ([]domain.ReplayJob, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at
+		FROM replay_jobs
+		WHERE status = $1
+		ORDER BY created_at ASC, id ASC
+		LIMIT $2`,
+		string(domain.ReplayQueued),
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.ReplayJob, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanReplayJob(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (s *PostgresStore) CompleteReplayJob(id string, processedRecords int64, completedAt time.Time) (domain.ReplayJob, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.ReplayJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
 		ctx,
-		`UPDATE replay_jobs SET status = $1, processed_records = $2, error = '', completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
+		`UPDATE replay_jobs SET status = $1, processed_records = $2, error = '', completed_at = $3 WHERE id = $4 RETURNING id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
 		string(domain.ReplayDone),
 		processedRecords,
 		completedAt,
@@ -471,6 +1145,9 @@ func (s *PostgresStore) CompleteReplayJob(id string, processedRecords int64, com
 		}
 		return domain.ReplayJob{}, err
 	}
+	if err := tx.Commit(); err != nil {
+		return domain.ReplayJob{}, err
+	}
 	return job, nil
 }
 
@@ -478,9 +1155,15 @@ func (s *PostgresStore) FailReplayJob(id string, errMessage string, completedAt 
 	ctx, cancel := s.withTimeout()
 	defer cancel()
 
-	row := s.db.QueryRowContext(
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.ReplayJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
 		ctx,
-		`UPDATE replay_jobs SET status = $1, error = $2, completed_at = $3 WHERE id = $4 RETURNING id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
+		`UPDATE replay_jobs SET status = $1, error = $2, completed_at = $3 WHERE id = $4 RETURNING id, tenant_id, customer_id, meter_id, from_ts, to_ts, idempotency_key, status, attempt_count, last_attempt_at, processed_records, error, created_at, started_at, completed_at`,
 		string(domain.ReplayFailed),
 		errMessage,
 		completedAt,
@@ -493,7 +1176,1448 @@ func (s *PostgresStore) FailReplayJob(id string, errMessage string, completedAt 
 		}
 		return domain.ReplayJob{}, err
 	}
+	if err := tx.Commit(); err != nil {
+		return domain.ReplayJob{}, err
+	}
 	return job, nil
+}
+
+func (s *PostgresStore) IngestLagoWebhookEvent(input domain.LagoWebhookEvent) (domain.LagoWebhookEvent, bool, error) {
+	if input.ID == "" {
+		input.ID = newID("lwh")
+	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.OrganizationID = strings.TrimSpace(input.OrganizationID)
+	input.WebhookKey = strings.TrimSpace(input.WebhookKey)
+	input.WebhookType = strings.TrimSpace(input.WebhookType)
+	input.ObjectType = strings.TrimSpace(input.ObjectType)
+	input.InvoiceID = strings.TrimSpace(input.InvoiceID)
+	input.PaymentRequestID = strings.TrimSpace(input.PaymentRequestID)
+	input.DunningCampaignCode = strings.TrimSpace(input.DunningCampaignCode)
+	input.CustomerExternalID = strings.TrimSpace(input.CustomerExternalID)
+	input.InvoiceNumber = strings.TrimSpace(input.InvoiceNumber)
+	input.Currency = strings.TrimSpace(input.Currency)
+	input.InvoiceStatus = strings.TrimSpace(input.InvoiceStatus)
+	input.PaymentStatus = strings.TrimSpace(input.PaymentStatus)
+	input.LastPaymentError = strings.TrimSpace(input.LastPaymentError)
+	if input.Payload == nil {
+		input.Payload = map[string]any{}
+	}
+	if input.ReceivedAt.IsZero() {
+		input.ReceivedAt = time.Now().UTC()
+	}
+	if input.OccurredAt.IsZero() {
+		input.OccurredAt = input.ReceivedAt
+	}
+	if input.WebhookKey == "" {
+		input.WebhookKey = input.ID
+	}
+	if input.OrganizationID == "" || input.WebhookType == "" || input.ObjectType == "" {
+		return domain.LagoWebhookEvent{}, false, fmt.Errorf("validation failed: organization_id, webhook_type, and object_type are required")
+	}
+
+	payloadJSON, err := json.Marshal(input.Payload)
+	if err != nil {
+		return domain.LagoWebhookEvent{}, false, err
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.LagoWebhookEvent{}, false, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO lago_webhook_events (
+			id, tenant_id, organization_id, webhook_key, webhook_type, object_type, invoice_id, payment_request_id,
+			dunning_campaign_code, customer_external_id, invoice_number, currency, invoice_status, payment_status,
+			payment_overdue, total_amount_cents, total_due_amount_cents, total_paid_amount_cents, last_payment_error,
+			payload, received_at, occurred_at
+		) VALUES (
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,$22
+		)
+		ON CONFLICT (webhook_key) DO NOTHING
+		RETURNING id, tenant_id, organization_id, webhook_key, webhook_type, object_type, invoice_id, payment_request_id,
+			dunning_campaign_code, customer_external_id, invoice_number, currency, invoice_status, payment_status,
+			payment_overdue, total_amount_cents, total_due_amount_cents, total_paid_amount_cents, last_payment_error,
+			payload, received_at, occurred_at`,
+		input.ID,
+		input.TenantID,
+		input.OrganizationID,
+		input.WebhookKey,
+		input.WebhookType,
+		input.ObjectType,
+		nullableString(input.InvoiceID),
+		nullableString(input.PaymentRequestID),
+		nullableString(input.DunningCampaignCode),
+		nullableString(input.CustomerExternalID),
+		nullableString(input.InvoiceNumber),
+		nullableString(input.Currency),
+		nullableString(input.InvoiceStatus),
+		nullableString(input.PaymentStatus),
+		nullableBoolPtr(input.PaymentOverdue),
+		nullableInt64Ptr(input.TotalAmountCents),
+		nullableInt64Ptr(input.TotalDueAmountCents),
+		nullableInt64Ptr(input.TotalPaidAmountCents),
+		nullableString(input.LastPaymentError),
+		string(payloadJSON),
+		input.ReceivedAt,
+		input.OccurredAt,
+	)
+
+	created, scanErr := scanLagoWebhookEvent(row)
+	if scanErr != nil {
+		if !errors.Is(scanErr, sql.ErrNoRows) {
+			return domain.LagoWebhookEvent{}, false, scanErr
+		}
+		existingRow := tx.QueryRowContext(
+			ctx,
+			`SELECT id, tenant_id, organization_id, webhook_key, webhook_type, object_type, invoice_id, payment_request_id,
+				dunning_campaign_code, customer_external_id, invoice_number, currency, invoice_status, payment_status,
+				payment_overdue, total_amount_cents, total_due_amount_cents, total_paid_amount_cents, last_payment_error,
+				payload, received_at, occurred_at
+			FROM lago_webhook_events
+			WHERE webhook_key = $1`,
+			input.WebhookKey,
+		)
+		existing, err := scanLagoWebhookEvent(existingRow)
+		if err != nil {
+			return domain.LagoWebhookEvent{}, false, err
+		}
+		if err := tx.Commit(); err != nil {
+			return domain.LagoWebhookEvent{}, false, err
+		}
+		return existing, false, nil
+	}
+
+	if created.InvoiceID != "" {
+		if err := s.upsertInvoicePaymentStatusViewTx(ctx, tx, created); err != nil {
+			return domain.LagoWebhookEvent{}, false, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.LagoWebhookEvent{}, false, err
+	}
+	return created, true, nil
+}
+
+func (s *PostgresStore) upsertInvoicePaymentStatusViewTx(ctx context.Context, tx *sql.Tx, event domain.LagoWebhookEvent) error {
+	_, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO invoice_payment_status_views (
+			tenant_id, organization_id, invoice_id, customer_external_id, invoice_number, currency,
+			invoice_status, payment_status, payment_overdue, total_amount_cents, total_due_amount_cents,
+			total_paid_amount_cents, last_payment_error, last_event_type, last_event_at, last_webhook_key, updated_at
+		) VALUES (
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
+		)
+		ON CONFLICT (tenant_id, invoice_id) DO UPDATE SET
+			organization_id = EXCLUDED.organization_id,
+			customer_external_id = COALESCE(NULLIF(EXCLUDED.customer_external_id, ''), invoice_payment_status_views.customer_external_id),
+			invoice_number = COALESCE(NULLIF(EXCLUDED.invoice_number, ''), invoice_payment_status_views.invoice_number),
+			currency = COALESCE(NULLIF(EXCLUDED.currency, ''), invoice_payment_status_views.currency),
+			invoice_status = COALESCE(NULLIF(EXCLUDED.invoice_status, ''), invoice_payment_status_views.invoice_status),
+			payment_status = COALESCE(NULLIF(EXCLUDED.payment_status, ''), invoice_payment_status_views.payment_status),
+			payment_overdue = COALESCE(EXCLUDED.payment_overdue, invoice_payment_status_views.payment_overdue),
+			total_amount_cents = COALESCE(EXCLUDED.total_amount_cents, invoice_payment_status_views.total_amount_cents),
+			total_due_amount_cents = COALESCE(EXCLUDED.total_due_amount_cents, invoice_payment_status_views.total_due_amount_cents),
+			total_paid_amount_cents = COALESCE(EXCLUDED.total_paid_amount_cents, invoice_payment_status_views.total_paid_amount_cents),
+			last_payment_error = CASE
+				WHEN EXCLUDED.last_payment_error = '' THEN invoice_payment_status_views.last_payment_error
+				ELSE EXCLUDED.last_payment_error
+			END,
+			last_event_type = EXCLUDED.last_event_type,
+			last_event_at = EXCLUDED.last_event_at,
+			last_webhook_key = EXCLUDED.last_webhook_key,
+			updated_at = EXCLUDED.updated_at
+		WHERE EXCLUDED.last_event_at >= invoice_payment_status_views.last_event_at`,
+		event.TenantID,
+		event.OrganizationID,
+		event.InvoiceID,
+		nullableString(event.CustomerExternalID),
+		nullableString(event.InvoiceNumber),
+		nullableString(event.Currency),
+		nullableString(event.InvoiceStatus),
+		nullableString(event.PaymentStatus),
+		nullableBoolPtr(event.PaymentOverdue),
+		nullableInt64Ptr(event.TotalAmountCents),
+		nullableInt64Ptr(event.TotalDueAmountCents),
+		nullableInt64Ptr(event.TotalPaidAmountCents),
+		nullableString(event.LastPaymentError),
+		event.WebhookType,
+		event.OccurredAt,
+		event.WebhookKey,
+		time.Now().UTC(),
+	)
+	return err
+}
+
+func (s *PostgresStore) ListInvoicePaymentStatusViews(filter InvoicePaymentStatusListFilter) ([]domain.InvoicePaymentStatusView, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"tenant_id = $1"}
+	args := []any{tenantID}
+	argPos := 2
+
+	if organizationID := strings.TrimSpace(filter.OrganizationID); organizationID != "" {
+		clauses = append(clauses, fmt.Sprintf("organization_id = $%d", argPos))
+		args = append(args, organizationID)
+		argPos++
+	}
+	if paymentStatus := strings.TrimSpace(filter.PaymentStatus); paymentStatus != "" {
+		clauses = append(clauses, fmt.Sprintf("payment_status = $%d", argPos))
+		args = append(args, paymentStatus)
+		argPos++
+	}
+	if invoiceStatus := strings.TrimSpace(filter.InvoiceStatus); invoiceStatus != "" {
+		clauses = append(clauses, fmt.Sprintf("invoice_status = $%d", argPos))
+		args = append(args, invoiceStatus)
+		argPos++
+	}
+	if filter.PaymentOverdue != nil {
+		clauses = append(clauses, fmt.Sprintf("payment_overdue = $%d", argPos))
+		args = append(args, *filter.PaymentOverdue)
+		argPos++
+	}
+
+	sortColumn := "last_event_at"
+	switch strings.ToLower(strings.TrimSpace(filter.SortBy)) {
+	case "updated_at":
+		sortColumn = "updated_at"
+	case "total_due_amount_cents":
+		sortColumn = "COALESCE(total_due_amount_cents, 0)"
+	case "total_amount_cents":
+		sortColumn = "COALESCE(total_amount_cents, 0)"
+	case "", "last_event_at":
+		sortColumn = "last_event_at"
+	default:
+		sortColumn = "last_event_at"
+	}
+	sortDirection := "ASC"
+	if filter.SortDesc {
+		sortDirection = "DESC"
+	}
+	tieDirection := "ASC"
+	if filter.SortDesc {
+		tieDirection = "DESC"
+	}
+
+	query := `SELECT tenant_id, organization_id, invoice_id, customer_external_id, invoice_number, currency,
+		invoice_status, payment_status, payment_overdue, total_amount_cents, total_due_amount_cents,
+		total_paid_amount_cents, last_payment_error, last_event_type, last_event_at, last_webhook_key, updated_at
+		FROM invoice_payment_status_views
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY ` + sortColumn + ` ` + sortDirection + `, invoice_id ` + tieDirection + `
+		LIMIT $` + fmt.Sprintf("%d", argPos) + ` OFFSET $` + fmt.Sprintf("%d", argPos+1)
+	args = append(args, limit, offset)
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.InvoicePaymentStatusView, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanInvoicePaymentStatusView(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetInvoicePaymentStatusView(tenantID, invoiceID string) (domain.InvoicePaymentStatusView, error) {
+	tenantID = normalizeTenantID(tenantID)
+	invoiceID = strings.TrimSpace(invoiceID)
+	if invoiceID == "" {
+		return domain.InvoicePaymentStatusView{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.InvoicePaymentStatusView{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT tenant_id, organization_id, invoice_id, customer_external_id, invoice_number, currency,
+			invoice_status, payment_status, payment_overdue, total_amount_cents, total_due_amount_cents,
+			total_paid_amount_cents, last_payment_error, last_event_type, last_event_at, last_webhook_key, updated_at
+		FROM invoice_payment_status_views
+		WHERE tenant_id = $1 AND invoice_id = $2`,
+		tenantID,
+		invoiceID,
+	)
+	item, err := scanInvoicePaymentStatusView(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.InvoicePaymentStatusView{}, ErrNotFound
+		}
+		return domain.InvoicePaymentStatusView{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.InvoicePaymentStatusView{}, err
+	}
+	return item, nil
+}
+
+func (s *PostgresStore) ListLagoWebhookEvents(filter LagoWebhookEventListFilter) ([]domain.LagoWebhookEvent, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"tenant_id = $1"}
+	args := []any{tenantID}
+	argPos := 2
+	if organizationID := strings.TrimSpace(filter.OrganizationID); organizationID != "" {
+		clauses = append(clauses, fmt.Sprintf("organization_id = $%d", argPos))
+		args = append(args, organizationID)
+		argPos++
+	}
+	if invoiceID := strings.TrimSpace(filter.InvoiceID); invoiceID != "" {
+		clauses = append(clauses, fmt.Sprintf("invoice_id = $%d", argPos))
+		args = append(args, invoiceID)
+		argPos++
+	}
+	if webhookType := strings.TrimSpace(filter.WebhookType); webhookType != "" {
+		clauses = append(clauses, fmt.Sprintf("webhook_type = $%d", argPos))
+		args = append(args, webhookType)
+		argPos++
+	}
+
+	sortColumn := "received_at"
+	switch strings.ToLower(strings.TrimSpace(filter.SortBy)) {
+	case "occurred_at":
+		sortColumn = "occurred_at"
+	case "", "received_at":
+		sortColumn = "received_at"
+	default:
+		sortColumn = "received_at"
+	}
+	sortDirection := "ASC"
+	if filter.SortDesc {
+		sortDirection = "DESC"
+	}
+	tieDirection := "ASC"
+	if filter.SortDesc {
+		tieDirection = "DESC"
+	}
+
+	query := `SELECT id, tenant_id, organization_id, webhook_key, webhook_type, object_type, invoice_id, payment_request_id,
+		dunning_campaign_code, customer_external_id, invoice_number, currency, invoice_status, payment_status,
+		payment_overdue, total_amount_cents, total_due_amount_cents, total_paid_amount_cents, last_payment_error,
+		payload, received_at, occurred_at
+		FROM lago_webhook_events
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY ` + sortColumn + ` ` + sortDirection + `, id ` + tieDirection + `
+		LIMIT $` + fmt.Sprintf("%d", argPos) + ` OFFSET $` + fmt.Sprintf("%d", argPos+1)
+	args = append(args, limit, offset)
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.LagoWebhookEvent, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanLagoWebhookEvent(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (s *PostgresStore) ListInvoicePaymentSyncCandidates(filter InvoicePaymentSyncCandidateFilter) ([]InvoicePaymentSyncCandidate, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	staleBefore := filter.StaleBefore
+	if staleBefore.IsZero() {
+		staleBefore = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT tenant_id, organization_id, invoice_id, payment_status, payment_overdue, last_event_at, updated_at
+		 FROM invoice_payment_status_views
+		 WHERE updated_at <= $1
+		   AND (payment_overdue IS TRUE OR payment_status IN ('failed', 'pending'))
+		 ORDER BY updated_at ASC, invoice_id ASC
+		 LIMIT $2`,
+		staleBefore,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]InvoicePaymentSyncCandidate, 0, limit)
+	for rows.Next() {
+		var (
+			item           InvoicePaymentSyncCandidate
+			paymentStatus  sql.NullString
+			paymentOverdue sql.NullBool
+		)
+		if err := rows.Scan(
+			&item.TenantID,
+			&item.OrganizationID,
+			&item.InvoiceID,
+			&paymentStatus,
+			&paymentOverdue,
+			&item.LastEventAt,
+			&item.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.TenantID = normalizeTenantID(item.TenantID)
+		item.OrganizationID = strings.TrimSpace(item.OrganizationID)
+		item.InvoiceID = strings.TrimSpace(item.InvoiceID)
+		if paymentStatus.Valid {
+			item.PaymentStatus = strings.TrimSpace(paymentStatus.String)
+		}
+		if paymentOverdue.Valid {
+			v := paymentOverdue.Bool
+			item.PaymentOverdue = &v
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (s *PostgresStore) CreateAPIKey(input domain.APIKey) (domain.APIKey, error) {
+	input.KeyPrefix = strings.TrimSpace(input.KeyPrefix)
+	input.KeyHash = strings.ToLower(strings.TrimSpace(input.KeyHash))
+	input.Name = strings.TrimSpace(input.Name)
+	input.Role = strings.ToLower(strings.TrimSpace(input.Role))
+	input.TenantID = normalizeTenantID(input.TenantID)
+
+	if input.KeyPrefix == "" || input.KeyHash == "" || input.Role == "" {
+		return domain.APIKey{}, fmt.Errorf("validation failed: key prefix, key hash, and role are required")
+	}
+	if input.Name == "" {
+		input.Name = input.KeyPrefix
+	}
+
+	if input.ID == "" {
+		input.ID = newID("key")
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.APIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO api_keys (
+			id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		RETURNING id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at`,
+		input.ID,
+		input.KeyPrefix,
+		input.KeyHash,
+		input.Name,
+		input.Role,
+		input.TenantID,
+		input.CreatedAt,
+		input.ExpiresAt,
+		input.RevokedAt,
+		input.LastUsedAt,
+	)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.APIKey{}, ErrAlreadyExists
+		}
+		return domain.APIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKey{}, err
+	}
+	return key, nil
+}
+
+func (s *PostgresStore) GetAPIKeyByID(tenantID, id string) (domain.APIKey, error) {
+	tenantID = normalizeTenantID(tenantID)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.APIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		FROM api_keys
+		WHERE tenant_id = $1 AND id = $2`,
+		tenantID,
+		id,
+	)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKey{}, ErrNotFound
+		}
+		return domain.APIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKey{}, err
+	}
+	return key, nil
+}
+
+func (s *PostgresStore) ListAPIKeys(filter APIKeyListFilter) (APIKeyListResult, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	cursorID := strings.TrimSpace(filter.CursorID)
+	cursorCreated := filter.CursorCreated
+	refTime := filter.ReferenceTime
+	if refTime.IsZero() {
+		refTime = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return APIKeyListResult{}, err
+	}
+	defer rollbackSilently(tx)
+
+	baseClauses := []string{"tenant_id = $1"}
+	baseArgs := []any{tenantID}
+	nextArg := 2
+
+	if role := strings.TrimSpace(filter.Role); role != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("role = $%d", nextArg))
+		baseArgs = append(baseArgs, role)
+		nextArg++
+	}
+	if nameContains := strings.TrimSpace(filter.NameContains); nameContains != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("name ILIKE $%d", nextArg))
+		baseArgs = append(baseArgs, "%"+nameContains+"%")
+		nextArg++
+	}
+	switch strings.ToLower(strings.TrimSpace(filter.State)) {
+	case "active":
+		baseClauses = append(baseClauses, fmt.Sprintf("revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $%d)", nextArg))
+		baseArgs = append(baseArgs, refTime)
+		nextArg++
+	case "revoked":
+		baseClauses = append(baseClauses, "revoked_at IS NOT NULL")
+	case "expired":
+		baseClauses = append(baseClauses, fmt.Sprintf("revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= $%d", nextArg))
+		baseArgs = append(baseArgs, refTime)
+		nextArg++
+	}
+	baseWhere := strings.Join(baseClauses, " AND ")
+
+	countQuery := `SELECT COUNT(*) FROM api_keys WHERE ` + baseWhere
+	var total int
+	if err := tx.QueryRowContext(ctx, countQuery, baseArgs...).Scan(&total); err != nil {
+		return APIKeyListResult{}, err
+	}
+
+	listClauses := append([]string{}, baseClauses...)
+	listArgs := append([]any{}, baseArgs...)
+	listArgPos := len(listArgs) + 1
+	useCursor := cursorCreated != nil && cursorID != ""
+	if useCursor {
+		listClauses = append(listClauses, fmt.Sprintf("(created_at < $%d OR (created_at = $%d AND id < $%d))", listArgPos, listArgPos, listArgPos+1))
+		listArgs = append(listArgs, *cursorCreated, cursorID)
+		listArgPos += 2
+	}
+	listWhere := strings.Join(listClauses, " AND ")
+	limitWithPeek := limit + 1
+
+	var (
+		listQuery string
+		queryArgs []any
+	)
+	if useCursor {
+		listQuery = fmt.Sprintf(`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+			FROM api_keys
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d`, listWhere, listArgPos)
+		queryArgs = append(listArgs, limitWithPeek)
+	} else {
+		listQuery = fmt.Sprintf(`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+			FROM api_keys
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d OFFSET $%d`, listWhere, listArgPos, listArgPos+1)
+		queryArgs = append(listArgs, limitWithPeek, offset)
+	}
+
+	rows, err := tx.QueryContext(ctx, listQuery, queryArgs...)
+	if err != nil {
+		return APIKeyListResult{}, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.APIKey, 0)
+	for rows.Next() {
+		key, scanErr := scanAPIKey(rows)
+		if scanErr != nil {
+			return APIKeyListResult{}, scanErr
+		}
+		out = append(out, key)
+	}
+	if err := rows.Err(); err != nil {
+		return APIKeyListResult{}, err
+	}
+
+	var (
+		nextCursorCreated *time.Time
+		nextCursorID      string
+	)
+	hasMore := len(out) > limit
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	if len(out) == limit && hasMore {
+		last := out[len(out)-1]
+		t := last.CreatedAt.UTC()
+		nextCursorCreated = &t
+		nextCursorID = last.ID
+	}
+
+	if err := tx.Commit(); err != nil {
+		return APIKeyListResult{}, err
+	}
+	return APIKeyListResult{
+		Items:             out,
+		Total:             total,
+		Limit:             limit,
+		Offset:            offset,
+		NextCursorID:      nextCursorID,
+		NextCursorCreated: nextCursorCreated,
+	}, nil
+}
+
+func (s *PostgresStore) RevokeAPIKey(tenantID, id string, revokedAt time.Time) (domain.APIKey, error) {
+	tenantID = normalizeTenantID(tenantID)
+	if revokedAt.IsZero() {
+		revokedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.APIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE api_keys
+		SET revoked_at = COALESCE(revoked_at, $1)
+		WHERE tenant_id = $2 AND id = $3
+		RETURNING id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at`,
+		revokedAt,
+		tenantID,
+		id,
+	)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKey{}, ErrNotFound
+		}
+		return domain.APIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKey{}, err
+	}
+	return key, nil
+}
+
+func (s *PostgresStore) CreateAPIKeyAuditEvent(input domain.APIKeyAuditEvent) (domain.APIKeyAuditEvent, error) {
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.APIKeyID = strings.TrimSpace(input.APIKeyID)
+	input.ActorAPIKeyID = strings.TrimSpace(input.ActorAPIKeyID)
+	input.Action = strings.ToLower(strings.TrimSpace(input.Action))
+	if input.ID == "" {
+		input.ID = newID("ake")
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = time.Now().UTC()
+	}
+	if input.APIKeyID == "" || input.Action == "" {
+		return domain.APIKeyAuditEvent{}, fmt.Errorf("validation failed: api_key_id and action are required")
+	}
+	if input.Metadata == nil {
+		input.Metadata = map[string]any{}
+	}
+
+	metadataRaw, err := json.Marshal(input.Metadata)
+	if err != nil {
+		return domain.APIKeyAuditEvent{}, err
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.APIKeyAuditEvent{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO api_key_audit_events (id, tenant_id, api_key_id, actor_api_key_id, action, metadata, created_at)
+		VALUES ($1,$2,$3,NULLIF($4,''),$5,$6::jsonb,$7)
+		RETURNING id, tenant_id, api_key_id, actor_api_key_id, action, metadata, created_at`,
+		input.ID,
+		input.TenantID,
+		input.APIKeyID,
+		input.ActorAPIKeyID,
+		input.Action,
+		metadataRaw,
+		input.CreatedAt,
+	)
+	event, err := scanAPIKeyAuditEvent(row)
+	if err != nil {
+		return domain.APIKeyAuditEvent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKeyAuditEvent{}, err
+	}
+	return event, nil
+}
+
+func (s *PostgresStore) ListAPIKeyAuditEvents(filter APIKeyAuditFilter) (APIKeyAuditResult, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	cursorID := strings.TrimSpace(filter.CursorID)
+	cursorCreated := filter.CursorCreated
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return APIKeyAuditResult{}, err
+	}
+	defer rollbackSilently(tx)
+
+	baseClauses := []string{"tenant_id = $1"}
+	baseArgs := []any{tenantID}
+	nextArg := 2
+
+	if apiKeyID := strings.TrimSpace(filter.APIKeyID); apiKeyID != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("api_key_id = $%d", nextArg))
+		baseArgs = append(baseArgs, apiKeyID)
+		nextArg++
+	}
+	if actorAPIKeyID := strings.TrimSpace(filter.ActorAPIKeyID); actorAPIKeyID != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("actor_api_key_id = $%d", nextArg))
+		baseArgs = append(baseArgs, actorAPIKeyID)
+		nextArg++
+	}
+	if action := strings.ToLower(strings.TrimSpace(filter.Action)); action != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("action = $%d", nextArg))
+		baseArgs = append(baseArgs, action)
+		nextArg++
+	}
+
+	baseWhere := strings.Join(baseClauses, " AND ")
+
+	var total int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_key_audit_events WHERE `+baseWhere, baseArgs...).Scan(&total); err != nil {
+		return APIKeyAuditResult{}, err
+	}
+
+	listClauses := append([]string{}, baseClauses...)
+	listArgs := append([]any{}, baseArgs...)
+	listArgPos := len(listArgs) + 1
+	useCursor := cursorCreated != nil && cursorID != ""
+	if useCursor {
+		listClauses = append(listClauses, fmt.Sprintf("(created_at < $%d OR (created_at = $%d AND id < $%d))", listArgPos, listArgPos, listArgPos+1))
+		listArgs = append(listArgs, *cursorCreated, cursorID)
+		listArgPos += 2
+	}
+	listWhere := strings.Join(listClauses, " AND ")
+	limitWithPeek := limit + 1
+
+	var (
+		query     string
+		queryArgs []any
+	)
+	if useCursor {
+		query = fmt.Sprintf(`SELECT id, tenant_id, api_key_id, actor_api_key_id, action, metadata, created_at
+			FROM api_key_audit_events
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d`, listWhere, listArgPos)
+		queryArgs = append(listArgs, limitWithPeek)
+	} else {
+		query = fmt.Sprintf(`SELECT id, tenant_id, api_key_id, actor_api_key_id, action, metadata, created_at
+			FROM api_key_audit_events
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d OFFSET $%d`, listWhere, listArgPos, listArgPos+1)
+		queryArgs = append(listArgs, limitWithPeek, offset)
+	}
+
+	rows, err := tx.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return APIKeyAuditResult{}, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.APIKeyAuditEvent, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanAPIKeyAuditEvent(rows)
+		if scanErr != nil {
+			return APIKeyAuditResult{}, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return APIKeyAuditResult{}, err
+	}
+
+	var (
+		nextCursorCreated *time.Time
+		nextCursorID      string
+	)
+	hasMore := len(items) > limit
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	if len(items) == limit && hasMore {
+		last := items[len(items)-1]
+		t := last.CreatedAt.UTC()
+		nextCursorCreated = &t
+		nextCursorID = last.ID
+	}
+
+	if err := tx.Commit(); err != nil {
+		return APIKeyAuditResult{}, err
+	}
+
+	return APIKeyAuditResult{
+		Items:             items,
+		Total:             total,
+		Limit:             limit,
+		Offset:            offset,
+		NextCursorID:      nextCursorID,
+		NextCursorCreated: nextCursorCreated,
+	}, nil
+}
+
+func (s *PostgresStore) CreateAPIKeyAuditExportJob(input domain.APIKeyAuditExportJob) (domain.APIKeyAuditExportJob, error) {
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.RequestedByAPIKeyID = strings.TrimSpace(input.RequestedByAPIKeyID)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	if input.ID == "" {
+		input.ID = newID("akx")
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = time.Now().UTC()
+	}
+	if strings.TrimSpace(string(input.Status)) == "" {
+		input.Status = domain.APIKeyAuditExportQueued
+	}
+	if input.IdempotencyKey == "" || input.RequestedByAPIKeyID == "" {
+		return domain.APIKeyAuditExportJob{}, fmt.Errorf("validation failed: idempotency_key and requested_by_api_key_id are required")
+	}
+
+	filtersRaw, err := json.Marshal(input.Filters)
+	if err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO api_key_audit_export_jobs (
+			id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at
+		) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14)
+		RETURNING id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at`,
+		input.ID,
+		input.TenantID,
+		input.RequestedByAPIKeyID,
+		input.IdempotencyKey,
+		string(input.Status),
+		filtersRaw,
+		input.ObjectKey,
+		input.RowCount,
+		input.Error,
+		input.AttemptCount,
+		input.CreatedAt,
+		input.StartedAt,
+		input.CompletedAt,
+		input.ExpiresAt,
+	)
+	job, err := scanAPIKeyAuditExportJob(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.APIKeyAuditExportJob{}, ErrAlreadyExists
+		}
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgresStore) GetAPIKeyAuditExportJob(tenantID, id string) (domain.APIKeyAuditExportJob, error) {
+	tenantID = normalizeTenantID(tenantID)
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.APIKeyAuditExportJob{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at
+		FROM api_key_audit_export_jobs
+		WHERE tenant_id = $1 AND id = $2`,
+		tenantID,
+		id,
+	)
+	job, err := scanAPIKeyAuditExportJob(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKeyAuditExportJob{}, ErrNotFound
+		}
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgresStore) GetAPIKeyAuditExportJobByIdempotencyKey(tenantID, idempotencyKey string) (domain.APIKeyAuditExportJob, error) {
+	tenantID = normalizeTenantID(tenantID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if idempotencyKey == "" {
+		return domain.APIKeyAuditExportJob{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at
+		FROM api_key_audit_export_jobs
+		WHERE tenant_id = $1 AND idempotency_key = $2`,
+		tenantID,
+		idempotencyKey,
+	)
+	job, err := scanAPIKeyAuditExportJob(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKeyAuditExportJob{}, ErrNotFound
+		}
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgresStore) ListAPIKeyAuditExportJobs(filter APIKeyAuditExportFilter) (APIKeyAuditExportResult, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	cursorID := strings.TrimSpace(filter.CursorID)
+	cursorCreated := filter.CursorCreated
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return APIKeyAuditExportResult{}, err
+	}
+	defer rollbackSilently(tx)
+
+	baseClauses := []string{"tenant_id = $1"}
+	baseArgs := []any{tenantID}
+	nextArg := 2
+
+	if status := strings.ToLower(strings.TrimSpace(filter.Status)); status != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("status = $%d", nextArg))
+		baseArgs = append(baseArgs, status)
+		nextArg++
+	}
+	if requestedBy := strings.TrimSpace(filter.RequestedByAPIKeyID); requestedBy != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("requested_by_api_key_id = $%d", nextArg))
+		baseArgs = append(baseArgs, requestedBy)
+		nextArg++
+	}
+
+	baseWhere := strings.Join(baseClauses, " AND ")
+
+	var total int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_key_audit_export_jobs WHERE `+baseWhere, baseArgs...).Scan(&total); err != nil {
+		return APIKeyAuditExportResult{}, err
+	}
+
+	listClauses := append([]string{}, baseClauses...)
+	listArgs := append([]any{}, baseArgs...)
+	listArgPos := len(listArgs) + 1
+	useCursor := cursorCreated != nil && cursorID != ""
+	if useCursor {
+		listClauses = append(listClauses, fmt.Sprintf("(created_at < $%d OR (created_at = $%d AND id < $%d))", listArgPos, listArgPos, listArgPos+1))
+		listArgs = append(listArgs, *cursorCreated, cursorID)
+		listArgPos += 2
+	}
+	listWhere := strings.Join(listClauses, " AND ")
+	limitWithPeek := limit + 1
+
+	var (
+		query     string
+		queryArgs []any
+	)
+	if useCursor {
+		query = fmt.Sprintf(`SELECT id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at
+			FROM api_key_audit_export_jobs
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d`, listWhere, listArgPos)
+		queryArgs = append(listArgs, limitWithPeek)
+	} else {
+		query = fmt.Sprintf(`SELECT id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at
+			FROM api_key_audit_export_jobs
+			WHERE %s
+			ORDER BY created_at DESC, id DESC
+			LIMIT $%d OFFSET $%d`, listWhere, listArgPos, listArgPos+1)
+		queryArgs = append(listArgs, limitWithPeek, offset)
+	}
+
+	rows, err := tx.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return APIKeyAuditExportResult{}, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.APIKeyAuditExportJob, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanAPIKeyAuditExportJob(rows)
+		if scanErr != nil {
+			return APIKeyAuditExportResult{}, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return APIKeyAuditExportResult{}, err
+	}
+
+	var (
+		nextCursorCreated *time.Time
+		nextCursorID      string
+	)
+	hasMore := len(items) > limit
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	if len(items) == limit && hasMore {
+		last := items[len(items)-1]
+		t := last.CreatedAt.UTC()
+		nextCursorCreated = &t
+		nextCursorID = last.ID
+	}
+
+	if err := tx.Commit(); err != nil {
+		return APIKeyAuditExportResult{}, err
+	}
+	return APIKeyAuditExportResult{
+		Items:             items,
+		Total:             total,
+		Limit:             limit,
+		Offset:            offset,
+		NextCursorID:      nextCursorID,
+		NextCursorCreated: nextCursorCreated,
+	}, nil
+}
+
+func (s *PostgresStore) DequeueAPIKeyAuditExportJob() (domain.APIKeyAuditExportJob, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at
+		FROM api_key_audit_export_jobs
+		WHERE status = $1
+		ORDER BY created_at ASC
+		FOR UPDATE SKIP LOCKED
+		LIMIT 1`,
+		string(domain.APIKeyAuditExportQueued),
+	)
+	job, err := scanAPIKeyAuditExportJob(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKeyAuditExportJob{}, ErrNotFound
+		}
+		return domain.APIKeyAuditExportJob{}, err
+	}
+
+	now := time.Now().UTC()
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE api_key_audit_export_jobs
+		SET status = $1, started_at = $2, attempt_count = attempt_count + 1
+		WHERE id = $3`,
+		string(domain.APIKeyAuditExportRunning),
+		now,
+		job.ID,
+	); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+
+	job.Status = domain.APIKeyAuditExportRunning
+	job.StartedAt = &now
+	job.AttemptCount++
+
+	if err := tx.Commit(); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgresStore) CompleteAPIKeyAuditExportJob(id, objectKey string, rowCount int64, completedAt, expiresAt time.Time) (domain.APIKeyAuditExportJob, error) {
+	id = strings.TrimSpace(id)
+	objectKey = strings.TrimSpace(objectKey)
+	if id == "" {
+		return domain.APIKeyAuditExportJob{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE api_key_audit_export_jobs
+		SET status = $1, object_key = $2, row_count = $3, error = '', completed_at = $4, expires_at = $5
+		WHERE id = $6
+		RETURNING id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at`,
+		string(domain.APIKeyAuditExportDone),
+		objectKey,
+		rowCount,
+		completedAt,
+		expiresAt,
+		id,
+	)
+	job, err := scanAPIKeyAuditExportJob(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKeyAuditExportJob{}, ErrNotFound
+		}
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgresStore) FailAPIKeyAuditExportJob(id, errMessage string, completedAt time.Time) (domain.APIKeyAuditExportJob, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.APIKeyAuditExportJob{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE api_key_audit_export_jobs
+		SET status = $1, error = $2, completed_at = $3
+		WHERE id = $4
+		RETURNING id, tenant_id, requested_by_api_key_id, idempotency_key, status, filters, object_key, row_count, error, attempt_count, created_at, started_at, completed_at, expires_at`,
+		string(domain.APIKeyAuditExportFailed),
+		strings.TrimSpace(errMessage),
+		completedAt,
+		id,
+	)
+	job, err := scanAPIKeyAuditExportJob(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKeyAuditExportJob{}, ErrNotFound
+		}
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgresStore) GetAPIKeyByPrefix(prefix string) (domain.APIKey, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return domain.APIKey{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.APIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		FROM api_keys
+		WHERE key_prefix = $1`,
+		prefix,
+	)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKey{}, ErrNotFound
+		}
+		return domain.APIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKey{}, err
+	}
+	return key, nil
+}
+
+func (s *PostgresStore) GetActiveAPIKeyByPrefix(prefix string, at time.Time) (domain.APIKey, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return domain.APIKey{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.APIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		FROM api_keys
+		WHERE key_prefix = $1
+		  AND revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > $2)`,
+		prefix,
+		at,
+	)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.APIKey{}, ErrNotFound
+		}
+		return domain.APIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.APIKey{}, err
+	}
+	return key, nil
+}
+
+func (s *PostgresStore) TouchAPIKeyLastUsed(id string, usedAt time.Time) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	if usedAt.IsZero() {
+		usedAt = time.Now().UTC()
+	}
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return err
+	}
+	defer rollbackSilently(tx)
+
+	res, err := tx.ExecContext(ctx, `UPDATE api_keys SET last_used_at = $1 WHERE id = $2`, usedAt, id)
+	if err != nil {
+		return err
+	}
+	updated, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *PostgresStore) withTimeout() (context.Context, context.CancelFunc) {
@@ -506,12 +2630,17 @@ type rowScanner interface {
 
 func scanRatingRule(s rowScanner) (domain.RatingRuleVersion, error) {
 	var out domain.RatingRuleVersion
+	var ruleKey string
+	var lifecycleState string
 	var mode string
 	var tiersRaw []byte
 	if err := s.Scan(
 		&out.ID,
+		&out.TenantID,
+		&ruleKey,
 		&out.Name,
 		&out.Version,
+		&lifecycleState,
 		&mode,
 		&out.Currency,
 		&out.FlatAmountCents,
@@ -523,6 +2652,9 @@ func scanRatingRule(s rowScanner) (domain.RatingRuleVersion, error) {
 	); err != nil {
 		return domain.RatingRuleVersion{}, err
 	}
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.RuleKey = strings.TrimSpace(ruleKey)
+	out.LifecycleState = normalizeRatingRuleLifecycleState(domain.RatingRuleLifecycleState(lifecycleState))
 	out.Mode = domain.PricingMode(mode)
 	if len(tiersRaw) == 0 {
 		out.GraduatedTiers = []domain.RatingTier{}
@@ -538,6 +2670,7 @@ func scanMeter(s rowScanner) (domain.Meter, error) {
 	var out domain.Meter
 	if err := s.Scan(
 		&out.ID,
+		&out.TenantID,
 		&out.Key,
 		&out.Name,
 		&out.Unit,
@@ -548,11 +2681,13 @@ func scanMeter(s rowScanner) (domain.Meter, error) {
 	); err != nil {
 		return domain.Meter{}, err
 	}
+	out.TenantID = normalizeTenantID(out.TenantID)
 	return out, nil
 }
 
 func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 	var out domain.ReplayJob
+	var tenantID string
 	var customerID sql.NullString
 	var meterID sql.NullString
 	var from sql.NullTime
@@ -564,6 +2699,7 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 
 	if err := s.Scan(
 		&out.ID,
+		&tenantID,
 		&customerID,
 		&meterID,
 		&from,
@@ -581,6 +2717,7 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 		return domain.ReplayJob{}, err
 	}
 
+	out.TenantID = normalizeTenantID(tenantID)
 	if customerID.Valid {
 		out.CustomerID = customerID.String
 	}
@@ -611,6 +2748,303 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 	return out, nil
 }
 
+func scanAPIKey(s rowScanner) (domain.APIKey, error) {
+	var out domain.APIKey
+	var tenantID sql.NullString
+	var expiresAt sql.NullTime
+	var revokedAt sql.NullTime
+	var lastUsedAt sql.NullTime
+
+	if err := s.Scan(
+		&out.ID,
+		&out.KeyPrefix,
+		&out.KeyHash,
+		&out.Name,
+		&out.Role,
+		&tenantID,
+		&out.CreatedAt,
+		&expiresAt,
+		&revokedAt,
+		&lastUsedAt,
+	); err != nil {
+		return domain.APIKey{}, err
+	}
+
+	if tenantID.Valid {
+		out.TenantID = normalizeTenantID(tenantID.String)
+	} else {
+		out.TenantID = defaultTenantID
+	}
+	if expiresAt.Valid {
+		t := expiresAt.Time.UTC()
+		out.ExpiresAt = &t
+	}
+	if revokedAt.Valid {
+		t := revokedAt.Time.UTC()
+		out.RevokedAt = &t
+	}
+	if lastUsedAt.Valid {
+		t := lastUsedAt.Time.UTC()
+		out.LastUsedAt = &t
+	}
+	return out, nil
+}
+
+func scanAPIKeyAuditEvent(s rowScanner) (domain.APIKeyAuditEvent, error) {
+	var out domain.APIKeyAuditEvent
+	var actorAPIKeyID sql.NullString
+	var metadataRaw []byte
+
+	if err := s.Scan(
+		&out.ID,
+		&out.TenantID,
+		&out.APIKeyID,
+		&actorAPIKeyID,
+		&out.Action,
+		&metadataRaw,
+		&out.CreatedAt,
+	); err != nil {
+		return domain.APIKeyAuditEvent{}, err
+	}
+
+	out.TenantID = normalizeTenantID(out.TenantID)
+	if actorAPIKeyID.Valid {
+		out.ActorAPIKeyID = actorAPIKeyID.String
+	}
+	if len(metadataRaw) == 0 {
+		out.Metadata = map[string]any{}
+		return out, nil
+	}
+	if err := json.Unmarshal(metadataRaw, &out.Metadata); err != nil {
+		return domain.APIKeyAuditEvent{}, err
+	}
+	if out.Metadata == nil {
+		out.Metadata = map[string]any{}
+	}
+	return out, nil
+}
+
+func scanAPIKeyAuditExportJob(s rowScanner) (domain.APIKeyAuditExportJob, error) {
+	var out domain.APIKeyAuditExportJob
+	var filtersRaw []byte
+	var startedAt sql.NullTime
+	var completedAt sql.NullTime
+	var expiresAt sql.NullTime
+
+	if err := s.Scan(
+		&out.ID,
+		&out.TenantID,
+		&out.RequestedByAPIKeyID,
+		&out.IdempotencyKey,
+		&out.Status,
+		&filtersRaw,
+		&out.ObjectKey,
+		&out.RowCount,
+		&out.Error,
+		&out.AttemptCount,
+		&out.CreatedAt,
+		&startedAt,
+		&completedAt,
+		&expiresAt,
+	); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+
+	out.TenantID = normalizeTenantID(out.TenantID)
+	if len(filtersRaw) == 0 {
+		out.Filters = domain.APIKeyAuditExportFilters{}
+	} else if err := json.Unmarshal(filtersRaw, &out.Filters); err != nil {
+		return domain.APIKeyAuditExportJob{}, err
+	}
+
+	if startedAt.Valid {
+		t := startedAt.Time.UTC()
+		out.StartedAt = &t
+	}
+	if completedAt.Valid {
+		t := completedAt.Time.UTC()
+		out.CompletedAt = &t
+	}
+	if expiresAt.Valid {
+		t := expiresAt.Time.UTC()
+		out.ExpiresAt = &t
+	}
+	return out, nil
+}
+
+func scanInvoicePaymentStatusView(s rowScanner) (domain.InvoicePaymentStatusView, error) {
+	var out domain.InvoicePaymentStatusView
+	var customerExternalID sql.NullString
+	var invoiceNumber sql.NullString
+	var currency sql.NullString
+	var invoiceStatus sql.NullString
+	var paymentStatus sql.NullString
+	var paymentOverdue sql.NullBool
+	var totalAmount sql.NullInt64
+	var totalDueAmount sql.NullInt64
+	var totalPaidAmount sql.NullInt64
+	var lastPaymentError sql.NullString
+
+	if err := s.Scan(
+		&out.TenantID,
+		&out.OrganizationID,
+		&out.InvoiceID,
+		&customerExternalID,
+		&invoiceNumber,
+		&currency,
+		&invoiceStatus,
+		&paymentStatus,
+		&paymentOverdue,
+		&totalAmount,
+		&totalDueAmount,
+		&totalPaidAmount,
+		&lastPaymentError,
+		&out.LastEventType,
+		&out.LastEventAt,
+		&out.LastWebhookKey,
+		&out.UpdatedAt,
+	); err != nil {
+		return domain.InvoicePaymentStatusView{}, err
+	}
+	out.TenantID = normalizeTenantID(out.TenantID)
+	if customerExternalID.Valid {
+		out.CustomerExternalID = strings.TrimSpace(customerExternalID.String)
+	}
+	if invoiceNumber.Valid {
+		out.InvoiceNumber = strings.TrimSpace(invoiceNumber.String)
+	}
+	if currency.Valid {
+		out.Currency = strings.TrimSpace(currency.String)
+	}
+	if invoiceStatus.Valid {
+		out.InvoiceStatus = strings.TrimSpace(invoiceStatus.String)
+	}
+	if paymentStatus.Valid {
+		out.PaymentStatus = strings.TrimSpace(paymentStatus.String)
+	}
+	if paymentOverdue.Valid {
+		v := paymentOverdue.Bool
+		out.PaymentOverdue = &v
+	}
+	if totalAmount.Valid {
+		v := totalAmount.Int64
+		out.TotalAmountCents = &v
+	}
+	if totalDueAmount.Valid {
+		v := totalDueAmount.Int64
+		out.TotalDueAmountCents = &v
+	}
+	if totalPaidAmount.Valid {
+		v := totalPaidAmount.Int64
+		out.TotalPaidAmountCents = &v
+	}
+	if lastPaymentError.Valid {
+		out.LastPaymentError = strings.TrimSpace(lastPaymentError.String)
+	}
+	return out, nil
+}
+
+func scanLagoWebhookEvent(s rowScanner) (domain.LagoWebhookEvent, error) {
+	var out domain.LagoWebhookEvent
+	var invoiceID sql.NullString
+	var paymentRequestID sql.NullString
+	var dunningCampaignCode sql.NullString
+	var customerExternalID sql.NullString
+	var invoiceNumber sql.NullString
+	var currency sql.NullString
+	var invoiceStatus sql.NullString
+	var paymentStatus sql.NullString
+	var paymentOverdue sql.NullBool
+	var totalAmount sql.NullInt64
+	var totalDueAmount sql.NullInt64
+	var totalPaidAmount sql.NullInt64
+	var lastPaymentError sql.NullString
+	var payloadRaw []byte
+
+	if err := s.Scan(
+		&out.ID,
+		&out.TenantID,
+		&out.OrganizationID,
+		&out.WebhookKey,
+		&out.WebhookType,
+		&out.ObjectType,
+		&invoiceID,
+		&paymentRequestID,
+		&dunningCampaignCode,
+		&customerExternalID,
+		&invoiceNumber,
+		&currency,
+		&invoiceStatus,
+		&paymentStatus,
+		&paymentOverdue,
+		&totalAmount,
+		&totalDueAmount,
+		&totalPaidAmount,
+		&lastPaymentError,
+		&payloadRaw,
+		&out.ReceivedAt,
+		&out.OccurredAt,
+	); err != nil {
+		return domain.LagoWebhookEvent{}, err
+	}
+
+	out.TenantID = normalizeTenantID(out.TenantID)
+	if invoiceID.Valid {
+		out.InvoiceID = strings.TrimSpace(invoiceID.String)
+	}
+	if paymentRequestID.Valid {
+		out.PaymentRequestID = strings.TrimSpace(paymentRequestID.String)
+	}
+	if dunningCampaignCode.Valid {
+		out.DunningCampaignCode = strings.TrimSpace(dunningCampaignCode.String)
+	}
+	if customerExternalID.Valid {
+		out.CustomerExternalID = strings.TrimSpace(customerExternalID.String)
+	}
+	if invoiceNumber.Valid {
+		out.InvoiceNumber = strings.TrimSpace(invoiceNumber.String)
+	}
+	if currency.Valid {
+		out.Currency = strings.TrimSpace(currency.String)
+	}
+	if invoiceStatus.Valid {
+		out.InvoiceStatus = strings.TrimSpace(invoiceStatus.String)
+	}
+	if paymentStatus.Valid {
+		out.PaymentStatus = strings.TrimSpace(paymentStatus.String)
+	}
+	if paymentOverdue.Valid {
+		v := paymentOverdue.Bool
+		out.PaymentOverdue = &v
+	}
+	if totalAmount.Valid {
+		v := totalAmount.Int64
+		out.TotalAmountCents = &v
+	}
+	if totalDueAmount.Valid {
+		v := totalDueAmount.Int64
+		out.TotalDueAmountCents = &v
+	}
+	if totalPaidAmount.Valid {
+		v := totalPaidAmount.Int64
+		out.TotalPaidAmountCents = &v
+	}
+	if lastPaymentError.Valid {
+		out.LastPaymentError = strings.TrimSpace(lastPaymentError.String)
+	}
+	if len(payloadRaw) == 0 {
+		out.Payload = map[string]any{}
+		return out, nil
+	}
+	if err := json.Unmarshal(payloadRaw, &out.Payload); err != nil {
+		return domain.LagoWebhookEvent{}, err
+	}
+	if out.Payload == nil {
+		out.Payload = map[string]any{}
+	}
+	return out, nil
+}
+
 func buildFilteredQuery(base string, filter Filter, timeColumn string) (string, []any) {
 	clauses := make([]string, 0, 4)
 	args := make([]any, 0, 4)
@@ -625,6 +3059,99 @@ func buildFilteredQuery(base string, filter Filter, timeColumn string) (string, 
 	}
 	if filter.MeterID != "" {
 		add("meter_id = $%d", filter.MeterID)
+	}
+	if strings.TrimSpace(filter.TenantID) != "" {
+		add("tenant_id = $%d", normalizeTenantID(filter.TenantID))
+	}
+	if filter.From != nil {
+		add(timeColumn+" >= $%d", *filter.From)
+	}
+	if filter.To != nil {
+		add(timeColumn+" <= $%d", *filter.To)
+	}
+
+	if len(clauses) > 0 {
+		base += " WHERE " + strings.Join(clauses, " AND ")
+	}
+
+	return base, args
+}
+
+func buildUsageEventsFilteredQuery(base string, filter Filter, timeColumn string) (string, []any) {
+	clauses := make([]string, 0, 7)
+	args := make([]any, 0, 7)
+
+	add := func(format string, val any) {
+		args = append(args, val)
+		clauses = append(clauses, fmt.Sprintf(format, len(args)))
+	}
+
+	if filter.CustomerID != "" {
+		add("customer_id = $%d", filter.CustomerID)
+	}
+	if filter.MeterID != "" {
+		add("meter_id = $%d", filter.MeterID)
+	}
+	if strings.TrimSpace(filter.TenantID) != "" {
+		add("tenant_id = $%d", normalizeTenantID(filter.TenantID))
+	}
+	if filter.CursorOccurredAt != nil && strings.TrimSpace(filter.CursorID) != "" {
+		args = append(args, filter.CursorOccurredAt.UTC(), strings.TrimSpace(filter.CursorID))
+		posOccurredAt := len(args) - 1
+		posID := len(args)
+		if filter.SortDesc {
+			clauses = append(clauses, fmt.Sprintf("(%s < $%d OR (%s = $%d AND id < $%d))", timeColumn, posOccurredAt, timeColumn, posOccurredAt, posID))
+		} else {
+			clauses = append(clauses, fmt.Sprintf("(%s > $%d OR (%s = $%d AND id > $%d))", timeColumn, posOccurredAt, timeColumn, posOccurredAt, posID))
+		}
+	}
+	if filter.From != nil {
+		add(timeColumn+" >= $%d", *filter.From)
+	}
+	if filter.To != nil {
+		add(timeColumn+" <= $%d", *filter.To)
+	}
+
+	if len(clauses) > 0 {
+		base += " WHERE " + strings.Join(clauses, " AND ")
+	}
+
+	return base, args
+}
+
+func buildBilledEntriesFilteredQuery(base string, filter Filter, timeColumn string) (string, []any) {
+	clauses := make([]string, 0, 8)
+	args := make([]any, 0, 8)
+
+	add := func(format string, val any) {
+		args = append(args, val)
+		clauses = append(clauses, fmt.Sprintf(format, len(args)))
+	}
+
+	if filter.CustomerID != "" {
+		add("customer_id = $%d", filter.CustomerID)
+	}
+	if filter.MeterID != "" {
+		add("meter_id = $%d", filter.MeterID)
+	}
+	if strings.TrimSpace(filter.TenantID) != "" {
+		add("tenant_id = $%d", normalizeTenantID(filter.TenantID))
+	}
+	if strings.TrimSpace(string(filter.BilledSource)) != "" {
+		add("source = $%d", strings.TrimSpace(string(filter.BilledSource)))
+	}
+	if strings.TrimSpace(filter.BilledReplayJobID) != "" {
+		add("replay_job_id = $%d", strings.TrimSpace(filter.BilledReplayJobID))
+	}
+	if filter.CursorOccurredAt != nil && strings.TrimSpace(filter.CursorID) != "" {
+		args = append(args, filter.CursorOccurredAt.UTC(), strings.TrimSpace(filter.CursorID))
+		posOccurredAt := len(args) - 1
+		posID := len(args)
+		if filter.SortDesc {
+			clauses = append(clauses, fmt.Sprintf("(%s < $%d OR (%s = $%d AND id < $%d))", timeColumn, posOccurredAt, timeColumn, posOccurredAt, posID))
+		} else {
+			clauses = append(clauses, fmt.Sprintf("(%s > $%d OR (%s = $%d AND id > $%d))", timeColumn, posOccurredAt, timeColumn, posOccurredAt, posID))
+		}
 	}
 	if filter.From != nil {
 		add(timeColumn+" >= $%d", *filter.From)
@@ -645,6 +3172,48 @@ func nullableString(v string) any {
 		return nil
 	}
 	return v
+}
+
+func nullableBoolPtr(v *bool) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+
+func nullableInt64Ptr(v *int64) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+
+func normalizeTenantID(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return defaultTenantID
+	}
+	return v
+}
+
+func normalizeBilledEntrySource(v domain.BilledEntrySource) domain.BilledEntrySource {
+	normalized := domain.BilledEntrySource(strings.TrimSpace(string(v)))
+	if normalized == "" {
+		return domain.BilledEntrySourceAPI
+	}
+	return normalized
+}
+
+func normalizeRatingRuleLifecycleState(v domain.RatingRuleLifecycleState) domain.RatingRuleLifecycleState {
+	state := domain.RatingRuleLifecycleState(strings.ToLower(strings.TrimSpace(string(v))))
+	switch state {
+	case domain.RatingRuleLifecycleDraft, domain.RatingRuleLifecycleArchived:
+		return state
+	case domain.RatingRuleLifecycleActive:
+		return domain.RatingRuleLifecycleActive
+	default:
+		return domain.RatingRuleLifecycleActive
+	}
 }
 
 func newID(prefix string) string {

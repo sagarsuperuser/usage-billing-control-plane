@@ -23,7 +23,7 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(`DROP TABLE IF EXISTS schema_migrations, schema_migrations_legacy_custom, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions CASCADE`); err != nil {
+	if _, err := db.Exec(`DROP TABLE IF EXISTS schema_migrations, schema_migrations_legacy_custom, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions CASCADE`); err != nil {
 		t.Fatalf("drop existing tables: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 		t.Fatalf("expected current version %d to match latest %d", *status.CurrentVersion, status.LatestVersion)
 	}
 
-	for _, tableName := range []string{"rating_rule_versions", "meters", "usage_events", "billed_entries", "replay_jobs"} {
+	for _, tableName := range []string{"rating_rule_versions", "meters", "usage_events", "billed_entries", "replay_jobs", "api_keys", "api_key_audit_events", "api_key_audit_export_jobs", "invoice_payment_status_views", "lago_webhook_events"} {
 		var exists bool
 		if err := db.QueryRow(`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`, tableName).Scan(&exists); err != nil {
 			t.Fatalf("check table %s existence: %v", tableName, err)
@@ -81,6 +81,22 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 		}
 	}
 
+	for _, column := range []string{"source", "replay_job_id"} {
+		var exists bool
+		if err := db.QueryRow(`SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND table_name = 'billed_entries'
+			  AND column_name = $1
+		)`, column).Scan(&exists); err != nil {
+			t.Fatalf("check billed_entries.%s existence: %v", column, err)
+		}
+		if !exists {
+			t.Fatalf("column billed_entries.%s should exist after migrations", column)
+		}
+	}
+
 	if err := runner.Verify(context.Background()); err != nil {
 		t.Fatalf("verify migrations should pass: %v", err)
 	}
@@ -99,7 +115,7 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 		t.Fatalf("verify should fail when current version is unknown")
 	}
 
-	if _, err := db.Exec(`UPDATE schema_migrations SET version = 3, dirty = true`); err != nil {
+	if _, err := db.Exec(`UPDATE schema_migrations SET version = $1, dirty = true`, status.LatestVersion); err != nil {
 		t.Fatalf("set schema_migrations to dirty state: %v", err)
 	}
 	if err := runner.Verify(context.Background()); err == nil {

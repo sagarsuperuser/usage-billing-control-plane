@@ -17,11 +17,16 @@ func NewMeterService(s store.Repository) *MeterService {
 }
 
 func (s *MeterService) CreateMeter(input domain.Meter) (domain.Meter, error) {
+	input.TenantID = normalizeTenantID(input.TenantID)
 	if err := s.validateMeterInput(input, false); err != nil {
 		return domain.Meter{}, err
 	}
-	if _, err := s.store.GetRatingRuleVersion(input.RatingRuleVersionID); err != nil {
+	rule, err := s.store.GetRatingRuleVersion(input.TenantID, input.RatingRuleVersionID)
+	if err != nil {
 		return domain.Meter{}, fmt.Errorf("%w: rating_rule_version_id not found", ErrValidation)
+	}
+	if normalizeTenantID(rule.TenantID) != input.TenantID {
+		return domain.Meter{}, fmt.Errorf("%w: rating rule tenant mismatch", ErrValidation)
 	}
 	meter, err := s.store.CreateMeter(input)
 	if err != nil {
@@ -33,14 +38,19 @@ func (s *MeterService) CreateMeter(input domain.Meter) (domain.Meter, error) {
 	return meter, nil
 }
 
-func (s *MeterService) ListMeters() ([]domain.Meter, error) {
-	return s.store.ListMeters()
+func (s *MeterService) ListMeters(tenantID string) ([]domain.Meter, error) {
+	return s.store.ListMeters(normalizeTenantID(tenantID))
 }
 
-func (s *MeterService) UpdateMeter(id string, patch domain.Meter) (domain.Meter, error) {
-	existing, err := s.store.GetMeter(id)
+func (s *MeterService) UpdateMeter(tenantID, id string, patch domain.Meter) (domain.Meter, error) {
+	tenantID = normalizeTenantID(tenantID)
+	existing, err := s.store.GetMeter(tenantID, id)
 	if err != nil {
 		return domain.Meter{}, err
+	}
+	existing.TenantID = normalizeTenantID(existing.TenantID)
+	if strings.TrimSpace(patch.TenantID) != "" && normalizeTenantID(patch.TenantID) != existing.TenantID {
+		return domain.Meter{}, fmt.Errorf("%w: tenant mismatch", ErrValidation)
 	}
 
 	if strings.TrimSpace(patch.Key) != "" {
@@ -56,8 +66,12 @@ func (s *MeterService) UpdateMeter(id string, patch domain.Meter) (domain.Meter,
 		existing.Aggregation = patch.Aggregation
 	}
 	if strings.TrimSpace(patch.RatingRuleVersionID) != "" {
-		if _, err := s.store.GetRatingRuleVersion(patch.RatingRuleVersionID); err != nil {
+		rule, err := s.store.GetRatingRuleVersion(existing.TenantID, patch.RatingRuleVersionID)
+		if err != nil {
 			return domain.Meter{}, fmt.Errorf("%w: rating_rule_version_id not found", ErrValidation)
+		}
+		if normalizeTenantID(rule.TenantID) != existing.TenantID {
+			return domain.Meter{}, fmt.Errorf("%w: rating rule tenant mismatch", ErrValidation)
 		}
 		existing.RatingRuleVersionID = patch.RatingRuleVersionID
 	}
@@ -76,8 +90,8 @@ func (s *MeterService) UpdateMeter(id string, patch domain.Meter) (domain.Meter,
 	return meter, nil
 }
 
-func (s *MeterService) GetMeter(id string) (domain.Meter, error) {
-	return s.store.GetMeter(id)
+func (s *MeterService) GetMeter(tenantID, id string) (domain.Meter, error) {
+	return s.store.GetMeter(normalizeTenantID(tenantID), id)
 }
 
 func (s *MeterService) validateMeterInput(input domain.Meter, isUpdate bool) error {
