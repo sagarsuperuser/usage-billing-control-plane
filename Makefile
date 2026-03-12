@@ -14,6 +14,10 @@ BOOTSTRAP_LAGO_FOR_TESTS ?= 1
 CLEANUP_LAGO_ON_EXIT ?= 0
 VERIFY_LAGO_BACKEND_FOR_TESTS ?= 0
 LAGO_VERIFY_COMPOSE_FILE ?= docker-compose.dev.yml
+CHECK_GITHUB ?= 0
+RUN_GO_TESTS ?= 1
+RUN_TERRAFORM_VALIDATE ?= 0
+GITHUB_REPOSITORY ?=
 TF_DIR ?= infra/terraform/aws
 HELM_CHART ?= deploy/helm/lago-alpha
 ENVIRONMENT ?= staging
@@ -26,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit verify-governance db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration web-install web-dev web-lint web-build tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration web-install web-dev web-lint web-build tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -45,6 +49,15 @@ test-unit: ## Run fast unit tests
 
 verify-governance: ## Verify governance metadata (CODEOWNERS)
 	@./scripts/verify_codeowners.sh
+
+preflight-release: ## Run release preflight checks (ENVIRONMENT=staging|prod, optional CHECK_GITHUB=1)
+	@ENVIRONMENT='$(ENVIRONMENT)' CHECK_GITHUB='$(CHECK_GITHUB)' RUN_GO_TESTS='$(RUN_GO_TESTS)' RUN_TERRAFORM_VALIDATE='$(RUN_TERRAFORM_VALIDATE)' GITHUB_REPOSITORY='$(GITHUB_REPOSITORY)' ./scripts/preflight_staging.sh
+
+preflight-staging: ## Run release preflight checks for staging
+	@ENVIRONMENT='staging' CHECK_GITHUB='$(CHECK_GITHUB)' RUN_GO_TESTS='$(RUN_GO_TESTS)' RUN_TERRAFORM_VALIDATE='$(RUN_TERRAFORM_VALIDATE)' GITHUB_REPOSITORY='$(GITHUB_REPOSITORY)' ./scripts/preflight_staging.sh
+
+preflight-prod: ## Run release preflight checks for prod
+	@ENVIRONMENT='prod' CHECK_GITHUB='$(CHECK_GITHUB)' RUN_GO_TESTS='$(RUN_GO_TESTS)' RUN_TERRAFORM_VALIDATE='$(RUN_TERRAFORM_VALIDATE)' GITHUB_REPOSITORY='$(GITHUB_REPOSITORY)' ./scripts/preflight_staging.sh
 
 db-up: ## Start local Postgres via docker compose
 	@docker compose -f $(COMPOSE_FILE) up -d

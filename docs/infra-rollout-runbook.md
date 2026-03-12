@@ -1,5 +1,21 @@
 # Infra Rollout Runbook
 
+## 0. Run Staging/Prod Preflight
+
+Before any Terraform/Helm apply:
+
+```bash
+make preflight-staging
+# or for prod:
+make preflight-prod
+```
+
+Optional stricter check (includes GitHub variable/secret validation):
+
+```bash
+CHECK_GITHUB=1 GITHUB_REPOSITORY=<owner>/<repo> RUN_TERRAFORM_VALIDATE=1 make preflight-staging
+```
+
 ## 1. Provision Infrastructure
 
 ```bash
