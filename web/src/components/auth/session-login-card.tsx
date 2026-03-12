@@ -32,6 +32,7 @@ export function SessionLoginCard() {
           <label className="text-xs font-medium uppercase tracking-wider text-amber-200">API Key</label>
           <input
             type="password"
+            data-testid="session-login-api-key"
             value={apiKey}
             onChange={(event) => setAPIKey(event.target.value)}
             placeholder="reader/writer/admin key"
@@ -42,6 +43,7 @@ export function SessionLoginCard() {
           <label className="text-xs font-medium uppercase tracking-wider text-amber-200">API Base URL</label>
           <input
             type="text"
+            data-testid="session-login-api-base-url"
             value={apiBaseURL}
             onChange={(event) => setAPIBaseURL(event.target.value)}
             placeholder="Optional, default same-origin"
@@ -51,6 +53,7 @@ export function SessionLoginCard() {
         <div className="flex items-end">
           <button
             type="submit"
+            data-testid="session-login-submit"
             disabled={!apiKey.trim() || loggingIn}
             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 text-sm text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
           >

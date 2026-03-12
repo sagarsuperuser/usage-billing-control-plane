@@ -47,6 +47,10 @@ export RUN_REPLAY_DISPATCHER=true
 export API_AUTH_ENABLED=true
 # optional bootstrap on startup; creates missing keys in Postgres
 export API_KEYS='reader_key:reader,writer_key:writer,admin_key:admin'
+export UI_SESSION_LIFETIME_SEC=43200
+export UI_SESSION_COOKIE_NAME=lago_alpha_ui_session
+export UI_SESSION_COOKIE_SECURE=false
+export UI_SESSION_COOKIE_SAMESITE=lax
 export TEMPORAL_ADDRESS=localhost:7233
 export TEMPORAL_NAMESPACE=default
 export REPLAY_TEMPORAL_TASK_QUEUE=alpha-replay-jobs
@@ -130,7 +134,11 @@ go run ./cmd/server
 ```
 
 Server starts on `:8080` by default.
-With auth enabled (default), every `/v1/*` endpoint requires `X-API-Key` and `/internal/metrics` requires an admin key.
+With auth enabled (default):
+- machine/API clients can authenticate with `X-API-Key`
+- browser control-plane UI can authenticate with cookie session endpoints (`/v1/ui/sessions/login|me|logout`)
+- unsafe session-authenticated writes require `X-CSRF-Token`
+- `/internal/metrics` still requires an admin principal
 API keys are validated against Postgres (`api_keys` table) using hashed key storage and revocation/expiration checks.
 Each API key is tenant-scoped (`tenant_id`), and API reads/writes are isolated to that tenant.
 `API_KEYS` bootstrap entries are created for tenant `default`.
@@ -159,6 +167,15 @@ npx -y pnpm@10.30.0 install
 npx -y pnpm@10.30.0 dev
 ```
 
+Run browser E2E tests:
+
+```bash
+cd web
+npx -y pnpm@10.30.0 build
+npx -y pnpm@10.30.0 exec playwright install --with-deps chromium
+npx -y pnpm@10.30.0 e2e
+```
+
 Optional API origin override for local split-host setups:
 
 ```bash
@@ -175,6 +192,9 @@ UI routes:
 - `POST /v1/rating-rules`
 - `GET /v1/rating-rules`
 - `GET /v1/rating-rules/{id}`
+- `POST /v1/ui/sessions/login`
+- `GET /v1/ui/sessions/me`
+- `POST /v1/ui/sessions/logout`
 - `POST /v1/meters`
 - `GET /v1/meters`
 - `GET /v1/meters/{id}`

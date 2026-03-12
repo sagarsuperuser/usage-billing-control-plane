@@ -43,6 +43,7 @@ export function ControlPlaneNav() {
           </span>
           <button
             type="button"
+            data-testid="session-logout"
             disabled={loggingOut || !csrfToken}
             onClick={() => {
               void logout(csrfToken);
