@@ -78,6 +78,7 @@ Functional checks:
 - Create replay job via API; verify corresponding Temporal workflow execution.
 - Payment operations UI loads and can list invoice payment statuses.
 - Invoice explainability endpoint returns deterministic digest and line items.
+- Run `Real Payment E2E` workflow at least once with a Stripe test-mode invoice (`expected_final_status=succeeded`).
 
 ## 6) Release Gate Decision
 
@@ -87,6 +88,7 @@ Promote only if all pass:
 - Staging preflight has zero failures.
 - Infra apply completed without drift surprises.
 - Post-deploy functional checks pass.
+- Real payment collection E2E gate is green for staging.
 - Rollback workflow has been validated for staging at least once.
 
 ## 7) Rollback (If Needed)

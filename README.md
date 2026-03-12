@@ -102,6 +102,7 @@ make tf-apply-prod
 make run
 make test-real-env-smoke
 make test-integration
+make test-real-payment-e2e
 make lago-verify
 ```
 
@@ -587,6 +588,7 @@ Architecture and rollout docs:
 - `docs/production-architecture.md`
 - `docs/infra-rollout-runbook.md`
 - `docs/staging-go-live-checklist.md`
+- `docs/real-payment-e2e-runbook.md`
 
 ## Release Pipeline
 
@@ -600,6 +602,9 @@ Workflows:
   - manual Helm rollback for staging/prod to a chosen revision
 - `.github/workflows/infra-deploy.yml`
   - manual Terraform plan/apply for staging/prod using env-scoped backend + tfvars files
+- `.github/workflows/real-payment-e2e.yml`
+  - manual protected gate for real Stripe test-mode payment collection via alpha + Lago
+  - validates retry-payment -> Lago terminal payment status -> alpha webhook projection convergence
 
 Required repository variables:
 
@@ -659,6 +664,15 @@ Set branch protection to require at least:
 - `migration-verify`
 - `integration-real-env-smoke`
 - `integration-temporal`
+
+Real payment collection gate:
+- run `Real Payment E2E` workflow manually against `staging` (and `prod` for controlled checks) using environment-scoped secrets.
+- required environment secrets:
+  - `ALPHA_API_BASE_URL`
+  - `ALPHA_WRITER_API_KEY`
+  - `ALPHA_READER_API_KEY`
+  - `LAGO_API_URL`
+  - `LAGO_API_KEY`
 
 Code ownership:
 - `/.github/CODEOWNERS` defines high-risk path owners.

@@ -1,0 +1,76 @@
+name: Real Payment E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - prod
+      invoice_id:
+        description: "Lago invoice id to run retry-payment against (must be finalized and collectible)"
+        required: true
+        type: string
+      expected_final_status:
+        description: "Expected terminal payment status for this invoice"
+        required: true
+        default: "succeeded"
+        type: choice
+        options:
+          - succeeded
+          - failed
+      timeout_sec:
+        description: "Polling timeout in seconds"
+        required: false
+        default: "600"
+        type: string
+      poll_interval_sec:
+        description: "Polling interval in seconds"
+        required: false
+        default: "5"
+        type: string
+
+jobs:
+  real-payment-e2e:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          ALPHA_API_BASE_URL: ${{ secrets.ALPHA_API_BASE_URL }}
+          ALPHA_WRITER_API_KEY: ${{ secrets.ALPHA_WRITER_API_KEY }}
+          ALPHA_READER_API_KEY: ${{ secrets.ALPHA_READER_API_KEY }}
+          LAGO_API_URL: ${{ secrets.LAGO_API_URL }}
+          LAGO_API_KEY: ${{ secrets.LAGO_API_KEY }}
+        run: |
+          required=(ALPHA_API_BASE_URL ALPHA_WRITER_API_KEY ALPHA_READER_API_KEY LAGO_API_URL LAGO_API_KEY)
+          for key in "${required[@]}"; do
+            if [[ -z "${!key}" ]]; then
+              echo "Missing required environment secret: ${key}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Run real payment collection E2E
+        env:
+          ALPHA_API_BASE_URL: ${{ secrets.ALPHA_API_BASE_URL }}
+          ALPHA_WRITER_API_KEY: ${{ secrets.ALPHA_WRITER_API_KEY }}
+          ALPHA_READER_API_KEY: ${{ secrets.ALPHA_READER_API_KEY }}
+          LAGO_API_URL: ${{ secrets.LAGO_API_URL }}
+          LAGO_API_KEY: ${{ secrets.LAGO_API_KEY }}
+          INVOICE_ID: ${{ inputs.invoice_id }}
+          EXPECTED_FINAL_STATUS: ${{ inputs.expected_final_status }}
+          TIMEOUT_SEC: ${{ inputs.timeout_sec }}
+          POLL_INTERVAL_SEC: ${{ inputs.poll_interval_sec }}
+        run: |
+          bash ./scripts/test_real_payment_e2e.sh

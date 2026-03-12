@@ -30,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration test-real-env-smoke web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration test-real-env-smoke test-real-payment-e2e web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -105,6 +105,9 @@ test-integration: ## Run integration tests with real Postgres + real Lago
 
 test-real-env-smoke: ## Run fast real-env smoke suite (Postgres + Temporal + Lago)
 	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' TEST_TEMPORAL_ADDRESS='$(TEST_TEMPORAL_ADDRESS)' TEST_TEMPORAL_NAMESPACE='$(TEST_TEMPORAL_NAMESPACE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' BOOTSTRAP_LAGO_FOR_TESTS='$(BOOTSTRAP_LAGO_FOR_TESTS)' LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' CLEANUP_LAGO_ON_EXIT='$(CLEANUP_LAGO_ON_EXIT)' VERIFY_LAGO_BACKEND_FOR_TESTS='$(VERIFY_LAGO_BACKEND_FOR_TESTS)' LAGO_VERIFY_COMPOSE_FILE='$(LAGO_VERIFY_COMPOSE_FILE)' bash ./scripts/test_real_env_smoke.sh
+
+test-real-payment-e2e: ## Run manual real payment collection E2E (requires staging/prod credentials + invoice id)
+	@bash ./scripts/test_real_payment_e2e.sh
 
 web-e2e: ## Run browser E2E tests for control-plane UI
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
