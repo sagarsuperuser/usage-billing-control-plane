@@ -82,6 +82,7 @@ Functional checks:
 ## 6) Release Gate Decision
 
 Promote only if all pass:
+- `integration-real-env-smoke` CI status is green.
 - `integration-temporal` CI status is green.
 - Staging preflight has zero failures.
 - Infra apply completed without drift surprises.

@@ -13,6 +13,8 @@ test_temporal_address="${TEST_TEMPORAL_ADDRESS:-127.0.0.1:17233}"
 test_temporal_namespace="${TEST_TEMPORAL_NAMESPACE:-default}"
 test_lago_api_url="${TEST_LAGO_API_URL:-}"
 test_lago_api_key="${TEST_LAGO_API_KEY:-lago_alpha_test_api_key}"
+integration_test_pattern="${INTEGRATION_TEST_PATTERN:-TestEndToEndPreviewReplayReconciliation|TestLargeReplayDatasetDriftThresholds|TestTenantIsolationAcrossAPIKeys|TestRatingRuleGovernanceLifecycle|TestLagoWebhookVisibilityFlow|TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks|TestAPIKeyLifecycleEndpoints|TestAuditExportToS3}"
+run_migrations_integration_test="${INTEGRATION_RUN_MIGRATIONS_TEST:-1}"
 bootstrap_lago="${BOOTSTRAP_LAGO_FOR_TESTS:-1}"
 lago_repo_path="${LAGO_REPO_PATH:-$repo_root/../lago}"
 lago_compose_file="${LAGO_COMPOSE_FILE:-docker-compose.yml}"
@@ -148,5 +150,8 @@ TEST_TEMPORAL_ADDRESS="$test_temporal_address" \
 TEST_TEMPORAL_NAMESPACE="$test_temporal_namespace" \
 TEST_LAGO_API_URL="$test_lago_api_url" \
 TEST_LAGO_API_KEY="$test_lago_api_key" \
-go test ./internal/api -run 'TestEndToEndPreviewReplayReconciliation|TestLargeReplayDatasetDriftThresholds|TestTenantIsolationAcrossAPIKeys|TestRatingRuleGovernanceLifecycle|TestLagoWebhookVisibilityFlow|TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks|TestAPIKeyLifecycleEndpoints|TestAuditExportToS3' -v
-TEST_DATABASE_URL="$test_database_url" go test ./migrations -run TestRunnerAppliesMigrationsIdempotently -v
+go test ./internal/api -run "${integration_test_pattern}" -v
+
+if [[ "$run_migrations_integration_test" == "1" ]]; then
+  TEST_DATABASE_URL="$test_database_url" go test ./migrations -run TestRunnerAppliesMigrationsIdempotently -v
+fi

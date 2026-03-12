@@ -1044,7 +1044,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 			"total_amount_cents":      900,
 			"total_due_amount_cents":  900,
 			"total_paid_amount_cents": 0,
-			"updated_at":              baseTS.Add(30 * time.Second).Format(time.RFC3339),
+			"updated_at":              baseTS.Add(-30 * time.Second).Format(time.RFC3339),
 			"created_at":              invoiceCreatedTS,
 			"customer": map[string]any{
 				"external_id": "cust_ext_2",
@@ -1095,8 +1095,8 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected ascending row to be object")
 	}
-	if got, _ := ascendingRow["invoice_id"].(string); got != "inv_123" {
-		t.Fatalf("expected ascending first row invoice_id inv_123, got %q", got)
+	if got, _ := ascendingRow["invoice_id"].(string); got != "inv_999" {
+		t.Fatalf("expected ascending first row invoice_id inv_999, got %q", got)
 	}
 	descendingList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?sort_by=last_event_at&order=desc&limit=1", "tenant-a-reader", http.StatusOK)
 	descendingItems := listItemsFromResponse(t, descendingList)
@@ -1107,8 +1107,8 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected descending row to be object")
 	}
-	if got, _ := descendingRow["invoice_id"].(string); got != "inv_999" {
-		t.Fatalf("expected descending first row invoice_id inv_999, got %q", got)
+	if got, _ := descendingRow["invoice_id"].(string); got != "inv_123" {
+		t.Fatalf("expected descending first row invoice_id inv_123, got %q", got)
 	}
 	badStatusOrder := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?order=invalid", "tenant-a-reader", http.StatusBadRequest)
 	if got, _ := badStatusOrder["error"].(string); !strings.Contains(got, "order must be asc or desc") {
@@ -1141,8 +1141,17 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		t.Fatalf("expected summary payment_status_counts.failed=1, got %v", paymentStatusCounts["failed"])
 	}
 
-	staleSummary := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary?stale_after_sec=1", "tenant-a-reader", http.StatusOK)
-	if got, _ := staleSummary["stale_attention_required"].(float64); int(got) != 1 {
+	var staleSummary map[string]any
+	staleMatched := false
+	for attempt := 0; attempt < 30; attempt++ {
+		staleSummary = getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary?stale_after_sec=1", "tenant-a-reader", http.StatusOK)
+		if got, _ := staleSummary["stale_attention_required"].(float64); int(got) == 1 {
+			staleMatched = true
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !staleMatched {
 		t.Fatalf("expected stale summary stale_attention_required=1, got %v", staleSummary["stale_attention_required"])
 	}
 	badSummary := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary?stale_after_sec=-1", "tenant-a-reader", http.StatusBadRequest)

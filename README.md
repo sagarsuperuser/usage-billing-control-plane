@@ -100,6 +100,8 @@ make tf-apply-staging
 make tf-plan-prod
 make tf-apply-prod
 make run
+make test-real-env-smoke
+make test-integration
 make lago-verify
 ```
 
@@ -640,7 +642,9 @@ make rollback-prod REVISION=<helm_revision>
 GitHub Actions workflow (`.github/workflows/ci.yml`) runs on `push` and `pull_request` with:
 
 - `test`: full `make test` suite
+- `web-e2e`: Next.js build + Playwright browser flow
 - `migration-verify`: fresh Postgres service + `make migrate` + `make migrate-verify` + migration integration test
+- `integration-real-env-smoke`: fast real stack gate via `make test-real-env-smoke` (real Postgres + real Temporal + real Lago; no local mocks)
 - `integration-temporal`: real Temporal + real Lago + real Postgres/MinIO end-to-end suite via `make test-integration` (includes large replay dataset drift thresholds)
 
 Nightly correctness workflow (`.github/workflows/correctness-nightly.yml`) runs scheduled and on-demand:
@@ -653,6 +657,7 @@ Infra validation workflow (`.github/workflows/infra.yml`) runs Terraform and Hel
 
 Set branch protection to require at least:
 - `migration-verify`
+- `integration-real-env-smoke`
 - `integration-temporal`
 
 Code ownership:
