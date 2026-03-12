@@ -1,0 +1,50 @@
+name: Correctness Nightly
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  replay-drift-nightly:
+    name: replay-drift-nightly
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      COMPOSE_FILE: docker-compose.postgres.yml
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
+      TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
+      TEST_TEMPORAL_NAMESPACE: default
+      TEST_LAGO_API_KEY: lago_alpha_test_api_key
+      RUN_LARGE_REPLAY_DATASET: 1
+      LARGE_REPLAY_EVENT_COUNT: 20000
+      LARGE_REPLAY_MAX_MISMATCH_ROWS: 0
+      LARGE_REPLAY_MAX_TOTAL_ABS_DELTA_CENTS: 0
+      BOOTSTRAP_LAGO_FOR_TESTS: 1
+      CLEANUP_LAGO_ON_EXIT: 1
+      CLEANUP_ON_EXIT: 1
+
+    steps:
+      - name: Checkout alpha repo
+        uses: actions/checkout@v4
+
+      - name: Checkout Lago backend
+        run: git clone --depth 1 https://github.com/getlago/lago.git "$GITHUB_WORKSPACE/lago"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify Docker compose availability
+        run: docker compose version
+
+      - name: Run nightly integration + replay drift thresholds
+        env:
+          LAGO_REPO_PATH: ${{ github.workspace }}/lago
+          LAGO_COMPOSE_FILE: docker-compose.yml
+        run: make test-integration
