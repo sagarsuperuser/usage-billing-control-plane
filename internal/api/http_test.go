@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 
 	"lago-usage-billing-alpha/internal/api"
 	"lago-usage-billing-alpha/internal/domain"
+	"lago-usage-billing-alpha/internal/reconcile"
 	"lago-usage-billing-alpha/internal/replay"
 	"lago-usage-billing-alpha/internal/service"
 	"lago-usage-billing-alpha/internal/store"
@@ -592,6 +594,149 @@ func resetTables(t *testing.T, db *sql.DB) {
 	_, err := db.Exec(`TRUNCATE TABLE lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate tables: %v", err)
+	}
+}
+
+func TestLargeReplayDatasetDriftThresholds(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("RUN_LARGE_REPLAY_DATASET")) != "1" {
+		t.Skip("RUN_LARGE_REPLAY_DATASET=1 is required for large replay dataset integration test")
+	}
+
+	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	eventsCount := envIntOrDefault(t, "LARGE_REPLAY_EVENT_COUNT", 2000)
+	maxMismatchRows := envIntOrDefault(t, "LARGE_REPLAY_MAX_MISMATCH_ROWS", 0)
+	maxTotalAbsDelta := envInt64OrDefault(t, "LARGE_REPLAY_MAX_TOTAL_ABS_DELTA_CENTS", 0)
+	if eventsCount < 1 {
+		t.Fatalf("LARGE_REPLAY_EVENT_COUNT must be >= 1")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	_, replayRuntimeCleanup := startTemporalReplayRuntime(t, repo)
+	defer replayRuntimeCleanup()
+
+	ratingService := service.NewRatingService(repo)
+	meterService := service.NewMeterService(repo)
+	usageService := service.NewUsageService(repo)
+	replayService := replay.NewService(repo)
+	reconcileService := reconcile.NewService(repo)
+
+	rule, err := ratingService.CreateRuleVersion(domain.RatingRuleVersion{
+		TenantID:       "default",
+		RuleKey:        "nightly_large_replay_dataset",
+		Name:           "Nightly Large Replay Dataset",
+		Version:        1,
+		LifecycleState: domain.RatingRuleLifecycleActive,
+		Mode:           domain.PricingModeGraduated,
+		Currency:       "USD",
+		GraduatedTiers: []domain.RatingTier{
+			{UpTo: 0, UnitAmountCents: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create rule version: %v", err)
+	}
+
+	meter, err := meterService.CreateMeter(domain.Meter{
+		TenantID:            "default",
+		Key:                 "nightly_large_replay_meter",
+		Name:                "Nightly Large Replay Meter",
+		Unit:                "request",
+		Aggregation:         "sum",
+		RatingRuleVersionID: rule.ID,
+	})
+	if err != nil {
+		t.Fatalf("create meter: %v", err)
+	}
+
+	customerID := "nightly_large_cust"
+	baseTime := time.Now().UTC().Add(-2 * time.Minute)
+	for i := 0; i < eventsCount; i++ {
+		_, _, err := usageService.CreateUsageEventWithIdempotency(domain.UsageEvent{
+			TenantID:       "default",
+			CustomerID:     customerID,
+			MeterID:        meter.ID,
+			Quantity:       1,
+			IdempotencyKey: fmt.Sprintf("nightly-large-evt-%d", i),
+			Timestamp:      baseTime.Add(time.Duration(i) * time.Millisecond),
+		})
+		if err != nil {
+			t.Fatalf("create usage event %d/%d: %v", i+1, eventsCount, err)
+		}
+	}
+
+	from := baseTime.Add(-1 * time.Minute)
+	to := baseTime.Add(time.Duration(eventsCount)*time.Millisecond + 5*time.Minute)
+	job, idempotent, err := replayService.CreateJob(replay.CreateReplayJobRequest{
+		TenantID:       "default",
+		CustomerID:     customerID,
+		MeterID:        meter.ID,
+		From:           &from,
+		To:             &to,
+		IdempotencyKey: "nightly-large-replay-job",
+	})
+	if err != nil {
+		t.Fatalf("create replay job: %v", err)
+	}
+	if idempotent {
+		t.Fatalf("expected first large replay job to be non-idempotent")
+	}
+
+	deadline := time.Now().Add(3 * time.Minute)
+	for {
+		statusJob, statusErr := replayService.GetJob("default", job.ID)
+		if statusErr != nil {
+			t.Fatalf("get replay job status: %v", statusErr)
+		}
+		switch statusJob.Status {
+		case domain.ReplayDone:
+			if statusJob.ProcessedRecords <= 0 {
+				t.Fatalf("expected processed_records > 0 for large replay dataset")
+			}
+			goto report
+		case domain.ReplayFailed:
+			t.Fatalf("large replay job failed: %s", statusJob.Error)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("large replay job did not finish before deadline")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+report:
+	reportData, err := reconcileService.GenerateReport(reconcile.Filter{
+		TenantID:   "default",
+		CustomerID: customerID,
+		From:       &from,
+		To:         &to,
+	})
+	if err != nil {
+		t.Fatalf("generate reconciliation report: %v", err)
+	}
+
+	totalAbsDelta := reportData.TotalDeltaCents
+	if totalAbsDelta < 0 {
+		totalAbsDelta = -totalAbsDelta
+	}
+	if reportData.MismatchRowCount > maxMismatchRows {
+		t.Fatalf("mismatch_row_count=%d exceeds threshold=%d", reportData.MismatchRowCount, maxMismatchRows)
+	}
+	if totalAbsDelta > maxTotalAbsDelta {
+		t.Fatalf("total_abs_delta_cents=%d exceeds threshold=%d", totalAbsDelta, maxTotalAbsDelta)
 	}
 }
 
@@ -1910,4 +2055,32 @@ func getRaw(t *testing.T, url string, apiKey string, expectedStatus int) (string
 	}
 
 	return string(bodyBytes), resp.Header
+}
+
+func envIntOrDefault(t *testing.T, key string, defaultValue int) int {
+	t.Helper()
+
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		t.Fatalf("invalid %s=%q: %v", key, raw, err)
+	}
+	return parsed
+}
+
+func envInt64OrDefault(t *testing.T, key string, defaultValue int64) int64 {
+	t.Helper()
+
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		t.Fatalf("invalid %s=%q: %v", key, raw, err)
+	}
+	return parsed
 }
