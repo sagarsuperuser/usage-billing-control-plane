@@ -128,6 +128,22 @@ type InvoicePaymentStatusListFilter struct {
 	Offset         int
 }
 
+type InvoicePaymentStatusSummaryFilter struct {
+	TenantID       string
+	OrganizationID string
+	StaleBefore    *time.Time
+}
+
+type InvoicePaymentStatusSummary struct {
+	TotalInvoices          int64
+	OverdueCount           int64
+	AttentionRequiredCount int64
+	StaleAttentionRequired int64
+	LatestEventAt          *time.Time
+	PaymentStatusCounts    map[string]int64
+	InvoiceStatusCounts    map[string]int64
+}
+
 type LagoWebhookEventListFilter struct {
 	TenantID       string
 	OrganizationID string
@@ -186,6 +202,7 @@ type Repository interface {
 	IngestLagoWebhookEvent(input domain.LagoWebhookEvent) (domain.LagoWebhookEvent, bool, error)
 	ListInvoicePaymentStatusViews(filter InvoicePaymentStatusListFilter) ([]domain.InvoicePaymentStatusView, error)
 	GetInvoicePaymentStatusView(tenantID, invoiceID string) (domain.InvoicePaymentStatusView, error)
+	GetInvoicePaymentStatusSummary(filter InvoicePaymentStatusSummaryFilter) (InvoicePaymentStatusSummary, error)
 	ListLagoWebhookEvents(filter LagoWebhookEventListFilter) ([]domain.LagoWebhookEvent, error)
 	ListInvoicePaymentSyncCandidates(filter InvoicePaymentSyncCandidateFilter) ([]InvoicePaymentSyncCandidate, error)
 

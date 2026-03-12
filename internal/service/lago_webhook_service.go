@@ -24,6 +24,7 @@ import (
 const (
 	defaultLagoWebhookPublicKeyTTL = 5 * time.Minute
 	maxWebhookListLimit            = 500
+	maxSummaryStaleAfterSeconds    = 7 * 24 * 60 * 60
 )
 
 type LagoWebhookVerifier interface {
@@ -324,6 +325,23 @@ type ListInvoicePaymentStatusViewsRequest struct {
 	Offset         int
 }
 
+type GetInvoicePaymentStatusSummaryRequest struct {
+	OrganizationID    string
+	StaleAfterSeconds int
+}
+
+type InvoicePaymentStatusSummary struct {
+	TotalInvoices          int64            `json:"total_invoices"`
+	OverdueCount           int64            `json:"overdue_count"`
+	AttentionRequiredCount int64            `json:"attention_required_count"`
+	StaleAttentionRequired int64            `json:"stale_attention_required"`
+	StaleAfterSeconds      int              `json:"stale_after_seconds,omitempty"`
+	StaleBefore            *time.Time       `json:"stale_before,omitempty"`
+	LatestEventAt          *time.Time       `json:"latest_event_at,omitempty"`
+	PaymentStatusCounts    map[string]int64 `json:"payment_status_counts"`
+	InvoiceStatusCounts    map[string]int64 `json:"invoice_status_counts"`
+}
+
 func (s *LagoWebhookService) ListInvoicePaymentStatusViews(tenantID string, req ListInvoicePaymentStatusViewsRequest) ([]domain.InvoicePaymentStatusView, error) {
 	if s == nil || s.repo == nil {
 		return nil, fmt.Errorf("%w: lago webhook service is not configured", ErrValidation)
@@ -351,6 +369,45 @@ func (s *LagoWebhookService) ListInvoicePaymentStatusViews(tenantID string, req 
 		Limit:          limit,
 		Offset:         offset,
 	})
+}
+
+func (s *LagoWebhookService) GetInvoicePaymentStatusSummary(tenantID string, req GetInvoicePaymentStatusSummaryRequest) (InvoicePaymentStatusSummary, error) {
+	if s == nil || s.repo == nil {
+		return InvoicePaymentStatusSummary{}, fmt.Errorf("%w: lago webhook service is not configured", ErrValidation)
+	}
+	if req.StaleAfterSeconds < 0 {
+		return InvoicePaymentStatusSummary{}, fmt.Errorf("%w: stale_after_sec must be >= 0", ErrValidation)
+	}
+	if req.StaleAfterSeconds > maxSummaryStaleAfterSeconds {
+		return InvoicePaymentStatusSummary{}, fmt.Errorf("%w: stale_after_sec must be <= %d", ErrValidation, maxSummaryStaleAfterSeconds)
+	}
+
+	filter := store.InvoicePaymentStatusSummaryFilter{
+		TenantID:       normalizeTenantID(tenantID),
+		OrganizationID: strings.TrimSpace(req.OrganizationID),
+	}
+	var staleBefore *time.Time
+	if req.StaleAfterSeconds > 0 {
+		v := time.Now().UTC().Add(-time.Duration(req.StaleAfterSeconds) * time.Second)
+		staleBefore = &v
+		filter.StaleBefore = staleBefore
+	}
+
+	summary, err := s.repo.GetInvoicePaymentStatusSummary(filter)
+	if err != nil {
+		return InvoicePaymentStatusSummary{}, err
+	}
+	return InvoicePaymentStatusSummary{
+		TotalInvoices:          summary.TotalInvoices,
+		OverdueCount:           summary.OverdueCount,
+		AttentionRequiredCount: summary.AttentionRequiredCount,
+		StaleAttentionRequired: summary.StaleAttentionRequired,
+		StaleAfterSeconds:      req.StaleAfterSeconds,
+		StaleBefore:            staleBefore,
+		LatestEventAt:          summary.LatestEventAt,
+		PaymentStatusCounts:    summary.PaymentStatusCounts,
+		InvoiceStatusCounts:    summary.InvoiceStatusCounts,
+	}, nil
 }
 
 func (s *LagoWebhookService) GetInvoicePaymentStatusView(tenantID, invoiceID string) (domain.InvoicePaymentStatusView, error) {

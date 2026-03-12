@@ -60,6 +60,18 @@ export interface InvoiceStatusFilters {
   offset?: number;
 }
 
+export interface InvoicePaymentStatusSummary {
+  total_invoices: number;
+  overdue_count: number;
+  attention_required_count: number;
+  stale_attention_required: number;
+  stale_after_seconds?: number;
+  stale_before?: string;
+  latest_event_at?: string;
+  payment_status_counts: Record<string, number>;
+  invoice_status_counts: Record<string, number>;
+}
+
 export interface InvoiceExplainabilityLineItem {
   fee_id: string;
   fee_type: string;

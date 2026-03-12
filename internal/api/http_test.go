@@ -1123,6 +1123,32 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	if len(overdueItems) != 1 {
 		t.Fatalf("expected one currently overdue payment row (inv_999), got %d", len(overdueItems))
 	}
+	summary := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary", "tenant-a-reader", http.StatusOK)
+	if got, _ := summary["total_invoices"].(float64); int(got) != 2 {
+		t.Fatalf("expected summary total_invoices=2, got %v", summary["total_invoices"])
+	}
+	if got, _ := summary["attention_required_count"].(float64); int(got) != 1 {
+		t.Fatalf("expected summary attention_required_count=1, got %v", summary["attention_required_count"])
+	}
+	paymentStatusCounts, ok := summary["payment_status_counts"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected payment_status_counts object")
+	}
+	if got, _ := paymentStatusCounts["succeeded"].(float64); int(got) != 1 {
+		t.Fatalf("expected summary payment_status_counts.succeeded=1, got %v", paymentStatusCounts["succeeded"])
+	}
+	if got, _ := paymentStatusCounts["failed"].(float64); int(got) != 1 {
+		t.Fatalf("expected summary payment_status_counts.failed=1, got %v", paymentStatusCounts["failed"])
+	}
+
+	staleSummary := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary?stale_after_sec=1", "tenant-a-reader", http.StatusOK)
+	if got, _ := staleSummary["stale_attention_required"].(float64); int(got) != 1 {
+		t.Fatalf("expected stale summary stale_attention_required=1, got %v", staleSummary["stale_attention_required"])
+	}
+	badSummary := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary?stale_after_sec=-1", "tenant-a-reader", http.StatusBadRequest)
+	if got, _ := badSummary["error"].(string); !strings.Contains(got, "stale_after_sec must be >= 0") {
+		t.Fatalf("expected stale_after_sec validation error, got %q", got)
+	}
 
 	eventsResp := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/events", "tenant-a-reader", http.StatusOK)
 	eventItems := listItemsFromResponse(t, eventsResp)

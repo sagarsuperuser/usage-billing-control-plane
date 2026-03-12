@@ -1,6 +1,7 @@
 import {
   InvoiceExplainability,
   InvoicePaymentStatusView,
+  InvoicePaymentStatusSummary,
   InvoiceStatusFilters,
   LagoWebhookEvent,
   ListResponse,
@@ -79,6 +80,26 @@ export async function fetchInvoiceStatuses(input: {
 
   return apiRequest<ListResponse<InvoicePaymentStatusView>>(
     `/v1/invoice-payment-statuses${query}`,
+    {
+      apiKey: input.apiKey,
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+}
+
+export async function fetchInvoiceStatusSummary(input: {
+  apiKey: string;
+  runtimeBaseURL?: string;
+  organizationID?: string;
+  staleAfterSec?: number;
+}): Promise<InvoicePaymentStatusSummary> {
+  const query = toQuery({
+    organization_id: input.organizationID,
+    stale_after_sec: input.staleAfterSec,
+  });
+  return apiRequest<InvoicePaymentStatusSummary>(
+    `/v1/invoice-payment-statuses/summary${query}`,
     {
       apiKey: input.apiKey,
       runtimeBaseURL: input.runtimeBaseURL,

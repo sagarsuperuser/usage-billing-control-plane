@@ -89,6 +89,8 @@ make migrate
 make migrate-status
 make migrate-verify
 make verify-governance
+make preflight-staging
+make preflight-prod
 make tf-plan-staging
 make tf-apply-staging
 make tf-plan-prod
@@ -182,6 +184,7 @@ UI routes:
 - `GET /v1/invoices/{invoice_id}/explainability`
 - `POST /internal/lago/webhooks`
 - `GET /v1/invoice-payment-statuses`
+- `GET /v1/invoice-payment-statuses/summary`
 - `GET /v1/invoice-payment-statuses/{invoice_id}`
 - `GET /v1/invoice-payment-statuses/{invoice_id}/events`
 - `POST /v1/usage-events`
@@ -270,6 +273,10 @@ Rating-rule governance (`POST /v1/rating-rules`):
 - `payment_overdue` (`true|false`)
 - `limit` (default `50`, max `500`)
 - `offset` (default `0`)
+
+`GET /v1/invoice-payment-statuses/summary` supports:
+- `organization_id` (optional filter)
+- `stale_after_sec` (optional; if set, computes `stale_attention_required` for overdue/failed/pending invoices with `last_event_at < now-stale_after_sec`)
 
 `GET /v1/invoice-payment-statuses/{invoice_id}/events` supports:
 - `webhook_type` filter
@@ -536,6 +543,7 @@ Terraform quickstart:
 ```bash
 cp infra/terraform/aws/environments/staging.tfvars.example infra/terraform/aws/environments/staging.tfvars
 cp infra/terraform/aws/backends/staging.hcl.example infra/terraform/aws/backends/staging.hcl
+make preflight-staging
 make tf-plan-staging
 make tf-apply-staging
 ```
@@ -556,6 +564,7 @@ Role-based scaling model (same backend image):
 Architecture and rollout docs:
 - `docs/production-architecture.md`
 - `docs/infra-rollout-runbook.md`
+- `docs/staging-go-live-checklist.md`
 
 ## Release Pipeline
 
@@ -589,6 +598,13 @@ Required repository secrets:
 - `TF_BACKEND_STAGING_B64`
 - `TFVARS_PROD_B64`
 - `TF_BACKEND_PROD_B64`
+
+Release preflight (recommended before each staging/prod rollout):
+
+```bash
+make preflight-staging
+CHECK_GITHUB=1 GITHUB_REPOSITORY=<owner>/<repo> RUN_TERRAFORM_VALIDATE=1 make preflight-staging
+```
 
 Local deploy/rollback helpers:
 

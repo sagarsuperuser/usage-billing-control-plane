@@ -241,6 +241,8 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		return RoleReader, true
 	case path == "/v1/invoice-payment-statuses":
 		return RoleReader, true
+	case path == "/v1/invoice-payment-statuses/summary":
+		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/invoice-payment-statuses/"):
 		return RoleReader, true
 	case path == "/v1/replay-jobs":
@@ -331,6 +333,8 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/reconciliation-report"
 	case path == "/v1/invoice-payment-statuses":
 		return "/v1/invoice-payment-statuses"
+	case path == "/v1/invoice-payment-statuses/summary":
+		return "/v1/invoice-payment-statuses/summary"
 	case strings.HasPrefix(path, "/v1/invoice-payment-statuses/"):
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/invoice-payment-statuses/"), "/")
 		if strings.HasSuffix(tail, "/events") {
@@ -515,6 +519,26 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 		return
 	}
 	invoiceID := strings.TrimSpace(parts[0])
+	if len(parts) == 1 && strings.EqualFold(invoiceID, "summary") {
+		staleAfterSec, err := parseQueryInt(r, "stale_after_sec")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		summary, err := s.lagoWebhookSvc.GetInvoicePaymentStatusSummary(
+			requestTenantID(r),
+			service.GetInvoicePaymentStatusSummaryRequest{
+				OrganizationID:    r.URL.Query().Get("organization_id"),
+				StaleAfterSeconds: staleAfterSec,
+			},
+		)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, summary)
+		return
+	}
 
 	if len(parts) == 1 {
 		item, err := s.lagoWebhookSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)

@@ -14,7 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchInvoiceEvents, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
+import { fetchInvoiceEvents, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
 import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/lib/format";
 import { type InvoiceStatusFilters } from "@/lib/types";
 import { useSessionStore } from "@/store/use-session-store";
@@ -89,6 +89,7 @@ export function PaymentOperationsScreen() {
   const [eventOrder, setEventOrder] = useState<(typeof orderOptions)[number]["value"]>("desc");
   const [eventLimit, setEventLimit] = useState(50);
   const [eventOffset, setEventOffset] = useState(0);
+  const summaryStaleAfterSec = 300;
 
   const filters: InvoiceStatusFilters = useMemo(
     () => ({
@@ -111,6 +112,17 @@ export function PaymentOperationsScreen() {
         apiKey,
         runtimeBaseURL: apiBaseURL,
         filters,
+      }),
+    enabled: apiKey.length > 0,
+  });
+  const statusSummaryQuery = useQuery({
+    queryKey: ["invoice-status-summary", apiBaseURL, apiKey, organizationID, summaryStaleAfterSec],
+    queryFn: () =>
+      fetchInvoiceStatusSummary({
+        apiKey,
+        runtimeBaseURL: apiBaseURL,
+        organizationID: organizationID || undefined,
+        staleAfterSec: summaryStaleAfterSec,
       }),
     enabled: apiKey.length > 0,
   });
@@ -153,14 +165,19 @@ export function PaymentOperationsScreen() {
     onSuccess: async (_, invoiceID) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["invoice-statuses"] }),
+        queryClient.invalidateQueries({ queryKey: ["invoice-status-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["invoice-events", apiBaseURL, apiKey, invoiceID] }),
       ]);
     },
   });
 
   const items = statusesQuery.data?.items || [];
-  const failedCount = items.filter((item) => (item.payment_status || "").toLowerCase() === "failed").length;
-  const overdueCount = items.filter((item) => Boolean(item.payment_overdue)).length;
+  const summary = statusSummaryQuery.data;
+  const loadedCount = summary?.total_invoices ?? items.length;
+  const failedCount = summary?.payment_status_counts?.failed ?? items.filter((item) => (item.payment_status || "").toLowerCase() === "failed").length;
+  const overdueCount = summary?.overdue_count ?? items.filter((item) => Boolean(item.payment_overdue)).length;
+  const attentionRequiredCount = summary?.attention_required_count ?? 0;
+  const staleAttentionCount = summary?.stale_attention_required ?? 0;
   const selectedItem = items.find((item) => item.invoice_id === selectedInvoiceID);
 
   const canGoNextStatuses = items.length === statusLimit;
@@ -196,10 +213,12 @@ export function PaymentOperationsScreen() {
                 Inspect failed/pending/overdue invoices, open webhook timeline drawer, and trigger safe payment retries.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <MetricCard label="Loaded invoices" value={items.length} />
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
+              <MetricCard label="Loaded invoices" value={loadedCount} />
               <MetricCard label="Failed" value={failedCount} tone="danger" />
               <MetricCard label="Overdue" value={overdueCount} tone="danger" />
+              <MetricCard label="Attention" value={attentionRequiredCount} tone="danger" />
+              <MetricCard label="Stale >5m" value={staleAttentionCount} />
               <MetricCard label="Timeline" value={timelineOpen ? "Open" : "Idle"} />
             </div>
           </div>

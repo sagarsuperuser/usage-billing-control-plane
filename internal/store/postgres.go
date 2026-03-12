@@ -1495,6 +1495,124 @@ func (s *PostgresStore) GetInvoicePaymentStatusView(tenantID, invoiceID string) 
 	return item, nil
 }
 
+func (s *PostgresStore) GetInvoicePaymentStatusSummary(filter InvoicePaymentStatusSummaryFilter) (InvoicePaymentStatusSummary, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return InvoicePaymentStatusSummary{}, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"tenant_id = $1"}
+	args := []any{tenantID}
+	argPos := 2
+	if organizationID := strings.TrimSpace(filter.OrganizationID); organizationID != "" {
+		clauses = append(clauses, fmt.Sprintf("organization_id = $%d", argPos))
+		args = append(args, organizationID)
+		argPos++
+	}
+	whereClause := strings.Join(clauses, " AND ")
+
+	out := InvoicePaymentStatusSummary{
+		PaymentStatusCounts: make(map[string]int64),
+		InvoiceStatusCounts: make(map[string]int64),
+	}
+
+	var latestEventAt sql.NullTime
+	totalsQuery := `SELECT
+		COUNT(*) AS total_invoices,
+		COALESCE(SUM(CASE WHEN payment_overdue IS TRUE THEN 1 ELSE 0 END), 0) AS overdue_count,
+		COALESCE(SUM(CASE WHEN payment_overdue IS TRUE OR LOWER(COALESCE(payment_status, '')) IN ('failed', 'pending') THEN 1 ELSE 0 END), 0) AS attention_required_count,
+		MAX(last_event_at) AS latest_event_at
+	FROM invoice_payment_status_views
+	WHERE ` + whereClause
+	if err := tx.QueryRowContext(ctx, totalsQuery, args...).Scan(
+		&out.TotalInvoices,
+		&out.OverdueCount,
+		&out.AttentionRequiredCount,
+		&latestEventAt,
+	); err != nil {
+		return InvoicePaymentStatusSummary{}, err
+	}
+	if latestEventAt.Valid {
+		t := latestEventAt.Time.UTC()
+		out.LatestEventAt = &t
+	}
+
+	paymentStatusQuery := `SELECT
+		COALESCE(NULLIF(TRIM(payment_status), ''), 'unknown') AS status_key,
+		COUNT(*)
+	FROM invoice_payment_status_views
+	WHERE ` + whereClause + `
+	GROUP BY 1`
+	rows, err := tx.QueryContext(ctx, paymentStatusQuery, args...)
+	if err != nil {
+		return InvoicePaymentStatusSummary{}, err
+	}
+	for rows.Next() {
+		var key string
+		var count int64
+		if err := rows.Scan(&key, &count); err != nil {
+			rows.Close()
+			return InvoicePaymentStatusSummary{}, err
+		}
+		out.PaymentStatusCounts[strings.ToLower(strings.TrimSpace(key))] = count
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return InvoicePaymentStatusSummary{}, err
+	}
+	rows.Close()
+
+	invoiceStatusQuery := `SELECT
+		COALESCE(NULLIF(TRIM(invoice_status), ''), 'unknown') AS status_key,
+		COUNT(*)
+	FROM invoice_payment_status_views
+	WHERE ` + whereClause + `
+	GROUP BY 1`
+	rows, err = tx.QueryContext(ctx, invoiceStatusQuery, args...)
+	if err != nil {
+		return InvoicePaymentStatusSummary{}, err
+	}
+	for rows.Next() {
+		var key string
+		var count int64
+		if err := rows.Scan(&key, &count); err != nil {
+			rows.Close()
+			return InvoicePaymentStatusSummary{}, err
+		}
+		out.InvoiceStatusCounts[strings.ToLower(strings.TrimSpace(key))] = count
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return InvoicePaymentStatusSummary{}, err
+	}
+	rows.Close()
+
+	if filter.StaleBefore != nil {
+		staleArgs := append([]any{}, args...)
+		staleArgs = append(staleArgs, filter.StaleBefore.UTC())
+		staleQuery := `SELECT
+			COUNT(*)
+		FROM invoice_payment_status_views
+		WHERE ` + whereClause + `
+		  AND last_event_at < $` + fmt.Sprintf("%d", len(staleArgs)) + `
+		  AND (payment_overdue IS TRUE OR LOWER(COALESCE(payment_status, '')) IN ('failed', 'pending'))`
+		if err := tx.QueryRowContext(ctx, staleQuery, staleArgs...).Scan(&out.StaleAttentionRequired); err != nil {
+			return InvoicePaymentStatusSummary{}, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return InvoicePaymentStatusSummary{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) ListLagoWebhookEvents(filter LagoWebhookEventListFilter) ([]domain.LagoWebhookEvent, error) {
 	tenantID := normalizeTenantID(filter.TenantID)
 	limit := filter.Limit
