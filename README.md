@@ -120,6 +120,7 @@ make test-real-env-smoke
 make test-integration
 make prepare-real-payment-fixture
 make test-real-payment-e2e
+make verify-staging-runtime
 make lago-verify
 ```
 

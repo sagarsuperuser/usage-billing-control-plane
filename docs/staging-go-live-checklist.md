@@ -106,6 +106,15 @@ Functional checks:
 - Runtime rate limiting is active (`RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REDIS_URL` configured) and 429 responses include `Retry-After` + `X-RateLimit-*`.
 - Run `Real Payment E2E` workflow at least once with a Stripe test-mode invoice (`expected_final_status=succeeded`).
 
+Automated verification shortcut:
+
+```bash
+ALPHA_API_BASE_URL='https://alpha-api.staging.example.com' \
+ALPHA_READER_API_KEY='replace_me' \
+INVOICE_ID='inv_xxx' \
+make verify-staging-runtime
+```
+
 Payment visibility checks (replace env vars):
 
 ```bash
