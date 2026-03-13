@@ -23,7 +23,7 @@ Use this as a tracked board. Do not promote while any row remains open.
 | P0-2 | Real Payment E2E | run workflow `Real Payment E2E` twice: once with `expected_final_status=succeeded`, once with `expected_final_status=failed` | both runs pass; alpha projection converges to expected terminal status; webhook timeline exists | workflow URLs + invoice ids | [ ] |
 | P0-3 | Payment Failure Visibility | run API checks in section 6 below and validate UI payment operations screen | failed invoice exposes `payment_status=failed`, non-empty `last_payment_error` (when present from Lago), and ordered event history | screenshot + API payload samples | [ ] |
 | P0-4 | Runtime Security/Resilience | verify staging env values and limits from section 7 below | `UI_SESSION_COOKIE_SECURE=true`, `UI_SESSION_REQUIRE_ORIGIN=true`, `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REDIS_URL` configured; 429 contains `Retry-After` + `X-RateLimit-*` | config diff + curl output | [ ] |
-| P0-5 | Backup/Restore Drill | run snapshot + restore drill in section 8 below | snapshot and restore complete; restored DB is reachable; drill notes captured | AWS CLI output + runbook log | [ ] |
+| P0-5 | Backup/Restore Drill | run snapshot + restore drill in section 8 below | snapshot and restore complete; restored instance endpoint/status captured; cleanup decision documented | AWS CLI output + runbook log | [ ] |
 | P0-6 | Deploy/Rollback Safety | run release deploy then rollback then redeploy | release healthy, rollback healthy, redeploy healthy; no migration/data corruption | helm history + smoke logs | [ ] |
 
 ## 2) Local Preflight
@@ -167,39 +167,24 @@ Run at least once before first release window.
 
 ```bash
 export AWS_REGION='us-east-1'
+export ENVIRONMENT='staging'
 export RDS_INSTANCE_ID='<staging_rds_instance_id>'
-export SNAPSHOT_ID="lago-alpha-staging-pre-release-$(date +%Y%m%d%H%M)"
-export RESTORE_INSTANCE_ID="lago-alpha-staging-restore-$(date +%Y%m%d%H%M)"
 export DB_SUBNET_GROUP='<staging_db_subnet_group>'
-export VPC_SG_ID='<staging_db_security_group_id>'
+export VPC_SG_IDS='<sg-aaaa,sg-bbbb>'
+export CONFIRM_BACKUP_RESTORE='YES_I_UNDERSTAND'
 
-aws rds create-db-snapshot \
-  --region "${AWS_REGION}" \
-  --db-instance-identifier "${RDS_INSTANCE_ID}" \
-  --db-snapshot-identifier "${SNAPSHOT_ID}"
+# recommended first run (prints commands only)
+PLAN_ONLY=1 make backup-restore-drill
 
-aws rds wait db-snapshot-available \
-  --region "${AWS_REGION}" \
-  --db-snapshot-identifier "${SNAPSHOT_ID}"
-
-aws rds restore-db-instance-from-db-snapshot \
-  --region "${AWS_REGION}" \
-  --db-instance-identifier "${RESTORE_INSTANCE_ID}" \
-  --db-snapshot-identifier "${SNAPSHOT_ID}" \
-  --db-subnet-group-name "${DB_SUBNET_GROUP}" \
-  --vpc-security-group-ids "${VPC_SG_ID}" \
-  --publicly-accessible
-
-aws rds wait db-instance-available \
-  --region "${AWS_REGION}" \
-  --db-instance-identifier "${RESTORE_INSTANCE_ID}"
+# execute real drill and auto-cleanup restored instance
+DELETE_RESTORE_ON_SUCCESS=1 WAIT_FOR_DELETE=1 make backup-restore-drill
 ```
 
 Pass criteria:
 - snapshot reaches `available`
 - restored instance reaches `available`
-- manual DB connection to restored endpoint succeeds
-- cleanup plan documented (retain or delete restored instance)
+- drill output includes restored endpoint and status
+- cleanup policy is explicit (`DELETE_RESTORE_ON_SUCCESS=1` or manual cleanup ticket)
 
 ## 9) Release Gate Decision
 

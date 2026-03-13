@@ -68,6 +68,7 @@ Populate `runtime_secret_name` output with JSON keys:
 - `LAGO_API_KEY`
 - `TEMPORAL_ADDRESS`
 - `AUDIT_EXPORT_S3_BUCKET`
+- `RATE_LIMIT_REDIS_URL`
 - optional `LAGO_ORG_TENANT_MAP`
 
 Then ensure External Secrets has access:
@@ -111,6 +112,19 @@ helm upgrade --install lago-alpha deploy/helm/lago-alpha \
 - Keep `db_multi_az=true` for production.
 - Keep `audit_exports_bucket_force_destroy=false` for production.
 - Use Terraform remote state locking (S3 + DynamoDB) for all non-local runs.
+
+Backup/restore drill (staging before first release window):
+
+```bash
+AWS_REGION='us-east-1' \
+ENVIRONMENT='staging' \
+RDS_INSTANCE_ID='<staging_rds_instance_id>' \
+DB_SUBNET_GROUP='<staging_db_subnet_group>' \
+VPC_SG_IDS='<sg-aaaa,sg-bbbb>' \
+CONFIRM_BACKUP_RESTORE='YES_I_UNDERSTAND' \
+PLAN_ONLY=1 \
+make backup-restore-drill
+```
 
 ## 8. GitHub Actions Infra Deploy Setup
 

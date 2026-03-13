@@ -30,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime backup-restore-drill web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -114,6 +114,9 @@ test-real-payment-e2e: ## Run manual real payment collection E2E (requires stagi
 
 verify-staging-runtime: ## Verify staging runtime payment visibility + rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh
+
+backup-restore-drill: ## Run RDS backup+restore drill (requires AWS env vars and CONFIRM_BACKUP_RESTORE=YES_I_UNDERSTAND)
+	@bash ./scripts/rds_backup_restore_drill.sh
 
 web-e2e: ## Run browser E2E tests for control-plane UI
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
