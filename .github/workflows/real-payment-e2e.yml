@@ -13,7 +13,26 @@ on:
           - prod
       invoice_id:
         description: "Lago invoice id to run retry-payment against (must be finalized and collectible)"
-        required: true
+        required: false
+        type: string
+      prepare_fixture:
+        description: "Auto-create a one-off finalized invoice fixture when invoice_id is empty"
+        required: false
+        default: false
+        type: boolean
+      fixture_customer_external_id:
+        description: "Customer external_id used when prepare_fixture=true"
+        required: false
+        type: string
+      fixture_add_on_code:
+        description: "Add-on code for fixture invoice creation"
+        required: false
+        default: "alpha-real-payment-fixture"
+        type: string
+      fixture_unit_amount_cents:
+        description: "Fixture line-item unit amount cents"
+        required: false
+        default: "199"
         type: string
       expected_final_status:
         description: "Expected terminal payment status for this invoice"
@@ -61,6 +80,42 @@ jobs:
             fi
           done
 
+      - name: Resolve invoice id
+        id: resolve_invoice
+        shell: bash
+        env:
+          LAGO_API_URL: ${{ secrets.LAGO_API_URL }}
+          LAGO_API_KEY: ${{ secrets.LAGO_API_KEY }}
+          INPUT_INVOICE_ID: ${{ inputs.invoice_id }}
+          PREPARE_FIXTURE: ${{ inputs.prepare_fixture }}
+          FIXTURE_CUSTOMER_EXTERNAL_ID: ${{ inputs.fixture_customer_external_id }}
+          FIXTURE_ADD_ON_CODE: ${{ inputs.fixture_add_on_code }}
+          FIXTURE_UNIT_AMOUNT_CENTS: ${{ inputs.fixture_unit_amount_cents }}
+        run: |
+          set -euo pipefail
+          invoice_id="$(echo "$INPUT_INVOICE_ID" | xargs)"
+          if [[ -n "$invoice_id" ]]; then
+            echo "invoice_id=$invoice_id" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$PREPARE_FIXTURE" != "true" ]]; then
+            echo "invoice_id is required unless prepare_fixture=true" >&2
+            exit 1
+          fi
+          if [[ -z "$(echo "$FIXTURE_CUSTOMER_EXTERNAL_ID" | xargs)" ]]; then
+            echo "fixture_customer_external_id is required when prepare_fixture=true" >&2
+            exit 1
+          fi
+
+          echo "Preparing invoice fixture using customer external id: $FIXTURE_CUSTOMER_EXTERNAL_ID"
+          CUSTOMER_EXTERNAL_ID="$FIXTURE_CUSTOMER_EXTERNAL_ID" \
+          ADD_ON_CODE="$FIXTURE_ADD_ON_CODE" \
+          UNIT_AMOUNT_CENTS="$FIXTURE_UNIT_AMOUNT_CENTS" \
+          FINALIZE_INVOICE=1 \
+          REQUIRE_STRIPE_BILLING_CONFIG=1 \
+          bash ./scripts/prepare_real_payment_invoice_fixture.sh
+
       - name: Run real payment collection E2E
         env:
           ALPHA_API_BASE_URL: ${{ secrets.ALPHA_API_BASE_URL }}
@@ -68,7 +123,7 @@ jobs:
           ALPHA_READER_API_KEY: ${{ secrets.ALPHA_READER_API_KEY }}
           LAGO_API_URL: ${{ secrets.LAGO_API_URL }}
           LAGO_API_KEY: ${{ secrets.LAGO_API_KEY }}
-          INVOICE_ID: ${{ inputs.invoice_id }}
+          INVOICE_ID: ${{ steps.resolve_invoice.outputs.invoice_id }}
           EXPECTED_FINAL_STATUS: ${{ inputs.expected_final_status }}
           TIMEOUT_SEC: ${{ inputs.timeout_sec }}
           POLL_INTERVAL_SEC: ${{ inputs.poll_interval_sec }}

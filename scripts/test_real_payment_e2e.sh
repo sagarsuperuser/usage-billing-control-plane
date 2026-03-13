@@ -57,6 +57,7 @@ EXPECTED_FINAL_STATUS="${EXPECTED_FINAL_STATUS:-succeeded}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-600}"
 POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-5}"
 REQUIRE_WEBHOOK_TYPES="${REQUIRE_WEBHOOK_TYPES:-invoice.payment_status_updated,invoice.payment_failure,invoice.payment_overdue}"
+RETRY_PAYMENT_BODY="${RETRY_PAYMENT_BODY:-{}}"
 
 if [[ "$EXPECTED_FINAL_STATUS" != "succeeded" && "$EXPECTED_FINAL_STATUS" != "failed" ]]; then
   echo "EXPECTED_FINAL_STATUS must be one of: succeeded, failed" >&2
@@ -68,6 +69,10 @@ if ! [[ "$TIMEOUT_SEC" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT_SEC" -le 0 ]]; then
 fi
 if ! [[ "$POLL_INTERVAL_SEC" =~ ^[0-9]+$ ]] || [[ "$POLL_INTERVAL_SEC" -le 0 ]]; then
   echo "POLL_INTERVAL_SEC must be a positive integer" >&2
+  exit 1
+fi
+if ! jq -e . >/dev/null 2>&1 <<<"$RETRY_PAYMENT_BODY"; then
+  echo "RETRY_PAYMENT_BODY must be valid JSON" >&2
   exit 1
 fi
 
@@ -99,7 +104,7 @@ echo "[info] triggering payment retry via alpha control plane"
 http_call \
   "POST" \
   "$ALPHA_API_BASE_URL/v1/invoices/$INVOICE_ID/retry-payment" \
-  "{}" \
+  "$RETRY_PAYMENT_BODY" \
   "X-API-Key: $ALPHA_WRITER_API_KEY"
 if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "202" ]]; then
   echo "[fail] retry-payment failed: status=$HTTP_CODE body=$HTTP_BODY" >&2

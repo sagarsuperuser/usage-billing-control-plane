@@ -102,6 +102,7 @@ make tf-apply-prod
 make run
 make test-real-env-smoke
 make test-integration
+make prepare-real-payment-fixture
 make test-real-payment-e2e
 make lago-verify
 ```
@@ -604,6 +605,7 @@ Workflows:
   - manual Terraform plan/apply for staging/prod using env-scoped backend + tfvars files
 - `.github/workflows/real-payment-e2e.yml`
   - manual protected gate for real Stripe test-mode payment collection via alpha + Lago
+  - can auto-prepare fixture invoice (`prepare_fixture=true`)
   - validates retry-payment -> Lago terminal payment status -> alpha webhook projection convergence
 
 Required repository variables:
