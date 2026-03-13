@@ -15,7 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchInvoiceEvents, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
+import { fetchInvoiceEvents, fetchInvoiceLifecycle, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
 import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
 import { type InvoiceStatusFilters } from "@/lib/types";
@@ -143,6 +143,15 @@ export function PaymentOperationsScreen() {
         order: eventOrder,
         limit: eventLimit,
         offset: eventOffset,
+      }),
+    enabled: isAuthenticated && selectedInvoiceID.length > 0 && timelineOpen,
+  });
+  const lifecycleQuery = useQuery({
+    queryKey: ["invoice-lifecycle", apiBaseURL, selectedInvoiceID],
+    queryFn: () =>
+      fetchInvoiceLifecycle({
+        runtimeBaseURL: apiBaseURL,
+        invoiceID: selectedInvoiceID,
       }),
     enabled: isAuthenticated && selectedInvoiceID.length > 0 && timelineOpen,
   });
@@ -583,6 +592,51 @@ export function PaymentOperationsScreen() {
                 Refresh timeline
               </button>
             </div>
+
+            <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/60 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-200">Lifecycle Summary</h3>
+                <button
+                  type="button"
+                  onClick={() => lifecycleQuery.refetch()}
+                  disabled={lifecycleQuery.isFetching || !isAuthenticated}
+                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 text-xs text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {lifecycleQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Refresh
+                </button>
+              </div>
+
+              {lifecycleQuery.isLoading ? <EmptyState label="Loading lifecycle summary..." icon={<LoaderCircle className="h-4 w-4 animate-spin" />} /> : null}
+              {lifecycleQuery.error ? (
+                <EmptyState label={(lifecycleQuery.error as Error).message} icon={<AlertCircle className="h-4 w-4" />} tone="danger" />
+              ) : null}
+
+              {lifecycleQuery.data ? (
+                <div className="space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <MetricCard label="Failure signals" value={lifecycleQuery.data.failure_event_count} tone="danger" />
+                    <MetricCard label="Pending signals" value={lifecycleQuery.data.pending_event_count} />
+                    <MetricCard label="Overdue signals" value={lifecycleQuery.data.overdue_signal_count} tone="danger" />
+                    <MetricCard label="Events analyzed" value={lifecycleQuery.data.events_analyzed} />
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-200">
+                    <p className="font-semibold uppercase tracking-wider text-slate-300">Recommended Action</p>
+                    <p className="mt-1 text-sm text-white">{lifecycleQuery.data.recommended_action}</p>
+                    <p className="mt-1 text-slate-300">{lifecycleQuery.data.recommended_action_note}</p>
+                    <p className="mt-2 text-[11px] text-slate-400">
+                      Last failure: {lifecycleQuery.data.last_failure_at ? formatExactTimestamp(lifecycleQuery.data.last_failure_at) : "-"} | Last success:{" "}
+                      {lifecycleQuery.data.last_success_at ? formatExactTimestamp(lifecycleQuery.data.last_success_at) : "-"}
+                    </p>
+                    {lifecycleQuery.data.event_window_truncated ? (
+                      <p className="mt-1 text-[11px] text-amber-200">
+                        Event window truncated at {lifecycleQuery.data.event_window_limit} rows. Use timeline filters for deeper history.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </section>
 
             <div className="mt-4 space-y-3">
               {!selectedInvoiceID ? <EmptyState label="Pick an invoice row to inspect its payment timeline." /> : null}

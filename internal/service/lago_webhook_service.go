@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 const (
 	defaultLagoWebhookPublicKeyTTL = 5 * time.Minute
 	maxWebhookListLimit            = 500
+	defaultLifecycleEventLimit     = 200
 	maxSummaryStaleAfterSeconds    = 7 * 24 * 60 * 60
 )
 
@@ -342,6 +344,35 @@ type InvoicePaymentStatusSummary struct {
 	InvoiceStatusCounts    map[string]int64 `json:"invoice_status_counts"`
 }
 
+type InvoicePaymentLifecycle struct {
+	TenantID              string     `json:"tenant_id"`
+	OrganizationID        string     `json:"organization_id"`
+	InvoiceID             string     `json:"invoice_id"`
+	InvoiceStatus         string     `json:"invoice_status,omitempty"`
+	PaymentStatus         string     `json:"payment_status,omitempty"`
+	PaymentOverdue        *bool      `json:"payment_overdue,omitempty"`
+	LastPaymentError      string     `json:"last_payment_error,omitempty"`
+	LastEventType         string     `json:"last_event_type,omitempty"`
+	LastEventAt           *time.Time `json:"last_event_at,omitempty"`
+	UpdatedAt             *time.Time `json:"updated_at,omitempty"`
+	EventsAnalyzed        int        `json:"events_analyzed"`
+	EventWindowLimit      int        `json:"event_window_limit"`
+	EventWindowTruncated  bool       `json:"event_window_truncated"`
+	DistinctWebhookTypes  []string   `json:"distinct_webhook_types,omitempty"`
+	FailureEventCount     int        `json:"failure_event_count"`
+	SuccessEventCount     int        `json:"success_event_count"`
+	PendingEventCount     int        `json:"pending_event_count"`
+	OverdueSignalCount    int        `json:"overdue_signal_count"`
+	LastFailureAt         *time.Time `json:"last_failure_at,omitempty"`
+	LastSuccessAt         *time.Time `json:"last_success_at,omitempty"`
+	LastPendingAt         *time.Time `json:"last_pending_at,omitempty"`
+	LastOverdueAt         *time.Time `json:"last_overdue_at,omitempty"`
+	RequiresAction        bool       `json:"requires_action"`
+	RetryRecommended      bool       `json:"retry_recommended"`
+	RecommendedAction     string     `json:"recommended_action"`
+	RecommendedActionNote string     `json:"recommended_action_note"`
+}
+
 func (s *LagoWebhookService) ListInvoicePaymentStatusViews(tenantID string, req ListInvoicePaymentStatusViewsRequest) ([]domain.InvoicePaymentStatusView, error) {
 	if s == nil || s.repo == nil {
 		return nil, fmt.Errorf("%w: lago webhook service is not configured", ErrValidation)
@@ -417,6 +448,42 @@ func (s *LagoWebhookService) GetInvoicePaymentStatusView(tenantID, invoiceID str
 	return s.repo.GetInvoicePaymentStatusView(normalizeTenantID(tenantID), strings.TrimSpace(invoiceID))
 }
 
+func (s *LagoWebhookService) GetInvoicePaymentLifecycle(tenantID, invoiceID string, eventLimit int) (InvoicePaymentLifecycle, error) {
+	if s == nil || s.repo == nil {
+		return InvoicePaymentLifecycle{}, fmt.Errorf("%w: lago webhook service is not configured", ErrValidation)
+	}
+	invoiceID = strings.TrimSpace(invoiceID)
+	if invoiceID == "" {
+		return InvoicePaymentLifecycle{}, fmt.Errorf("%w: invoice id is required", ErrValidation)
+	}
+	if eventLimit <= 0 {
+		eventLimit = defaultLifecycleEventLimit
+	}
+	if eventLimit > maxWebhookListLimit {
+		return InvoicePaymentLifecycle{}, fmt.Errorf("%w: event_limit must be between 1 and %d", ErrValidation, maxWebhookListLimit)
+	}
+
+	tenantID = normalizeTenantID(tenantID)
+	view, err := s.repo.GetInvoicePaymentStatusView(tenantID, invoiceID)
+	if err != nil {
+		return InvoicePaymentLifecycle{}, err
+	}
+
+	events, err := s.repo.ListLagoWebhookEvents(store.LagoWebhookEventListFilter{
+		TenantID:  tenantID,
+		InvoiceID: invoiceID,
+		SortBy:    "occurred_at",
+		SortDesc:  false,
+		Limit:     eventLimit,
+		Offset:    0,
+	})
+	if err != nil {
+		return InvoicePaymentLifecycle{}, err
+	}
+
+	return buildInvoicePaymentLifecycle(view, events, eventLimit), nil
+}
+
 type ListLagoWebhookEventsRequest struct {
 	OrganizationID string
 	InvoiceID      string
@@ -466,6 +533,103 @@ func validateWebhookListWindow(limit, offset int) (int, int, error) {
 		return 0, 0, fmt.Errorf("%w: offset must be >= 0", ErrValidation)
 	}
 	return limit, offset, nil
+}
+
+func buildInvoicePaymentLifecycle(view domain.InvoicePaymentStatusView, events []domain.LagoWebhookEvent, eventLimit int) InvoicePaymentLifecycle {
+	out := InvoicePaymentLifecycle{
+		TenantID:             strings.TrimSpace(view.TenantID),
+		OrganizationID:       strings.TrimSpace(view.OrganizationID),
+		InvoiceID:            strings.TrimSpace(view.InvoiceID),
+		InvoiceStatus:        strings.TrimSpace(view.InvoiceStatus),
+		PaymentStatus:        strings.ToLower(strings.TrimSpace(view.PaymentStatus)),
+		PaymentOverdue:       view.PaymentOverdue,
+		LastPaymentError:     strings.TrimSpace(view.LastPaymentError),
+		LastEventType:        strings.TrimSpace(view.LastEventType),
+		EventsAnalyzed:       len(events),
+		EventWindowLimit:     eventLimit,
+		EventWindowTruncated: len(events) >= eventLimit,
+	}
+	if !view.LastEventAt.IsZero() {
+		last := view.LastEventAt.UTC()
+		out.LastEventAt = &last
+	}
+	if !view.UpdatedAt.IsZero() {
+		updated := view.UpdatedAt.UTC()
+		out.UpdatedAt = &updated
+	}
+
+	webhookTypes := make(map[string]struct{}, len(events))
+	for _, event := range events {
+		webhookType := strings.ToLower(strings.TrimSpace(event.WebhookType))
+		paymentStatus := strings.ToLower(strings.TrimSpace(event.PaymentStatus))
+		if webhookType != "" {
+			webhookTypes[webhookType] = struct{}{}
+		}
+		ts := event.OccurredAt.UTC()
+
+		if webhookType == "invoice.payment_failure" || paymentStatus == "failed" {
+			out.FailureEventCount++
+			setLatestLifecycleTime(&out.LastFailureAt, ts)
+		}
+		if paymentStatus == "succeeded" {
+			out.SuccessEventCount++
+			setLatestLifecycleTime(&out.LastSuccessAt, ts)
+		}
+		if paymentStatus == "pending" {
+			out.PendingEventCount++
+			setLatestLifecycleTime(&out.LastPendingAt, ts)
+		}
+		if (event.PaymentOverdue != nil && *event.PaymentOverdue) || webhookType == "invoice.payment_overdue" {
+			out.OverdueSignalCount++
+			setLatestLifecycleTime(&out.LastOverdueAt, ts)
+		}
+	}
+	out.DistinctWebhookTypes = make([]string, 0, len(webhookTypes))
+	for webhookType := range webhookTypes {
+		out.DistinctWebhookTypes = append(out.DistinctWebhookTypes, webhookType)
+	}
+	sort.Strings(out.DistinctWebhookTypes)
+
+	switch out.PaymentStatus {
+	case "succeeded":
+		out.RecommendedAction = "none"
+		out.RecommendedActionNote = "Payment succeeded. No collection action required."
+	case "pending":
+		out.RecommendedAction = "monitor_processing"
+		out.RecommendedActionNote = "Payment is in progress. Monitor timeline for terminal state."
+	case "failed":
+		out.RequiresAction = true
+		out.RetryRecommended = true
+		out.RecommendedAction = "retry_payment"
+		out.RecommendedActionNote = "Payment failed. Trigger retry-payment and verify customer funding method."
+	default:
+		out.RecommendedAction = "investigate"
+		out.RecommendedActionNote = "Payment state is not terminal. Inspect webhook timeline for anomalies."
+	}
+
+	if out.PaymentOverdue != nil && *out.PaymentOverdue {
+		out.RequiresAction = true
+		if out.RecommendedAction == "none" || out.RecommendedAction == "monitor_processing" || out.RecommendedAction == "investigate" {
+			out.RecommendedAction = "collect_payment"
+			out.RecommendedActionNote = "Invoice is overdue. Start collection follow-up or dunning workflow."
+		}
+	}
+	if out.RecommendedAction == "retry_payment" {
+		out.RetryRecommended = true
+	}
+
+	return out
+}
+
+func setLatestLifecycleTime(dst **time.Time, candidate time.Time) {
+	if candidate.IsZero() {
+		return
+	}
+	candidate = candidate.UTC()
+	if *dst == nil || candidate.After((**dst).UTC()) {
+		v := candidate
+		*dst = &v
+	}
 }
 
 func normalizeWebhookListOrder(raw string) (bool, error) {

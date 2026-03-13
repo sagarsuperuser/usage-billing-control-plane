@@ -1068,6 +1068,43 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	if !ok || overdueValue {
 		t.Fatalf("expected final payment_overdue=false, got %v", status["payment_overdue"])
 	}
+	lifecycle := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/lifecycle", "tenant-a-reader", http.StatusOK)
+	if got, _ := lifecycle["payment_status"].(string); got != "succeeded" {
+		t.Fatalf("expected lifecycle payment_status succeeded, got %q", got)
+	}
+	if got, _ := lifecycle["recommended_action"].(string); got != "none" {
+		t.Fatalf("expected lifecycle recommended_action none, got %q", got)
+	}
+	if got, _ := lifecycle["requires_action"].(bool); got {
+		t.Fatalf("expected lifecycle requires_action=false, got true")
+	}
+	if got, _ := lifecycle["retry_recommended"].(bool); got {
+		t.Fatalf("expected lifecycle retry_recommended=false, got true")
+	}
+	if got, _ := lifecycle["events_analyzed"].(float64); int(got) != 4 {
+		t.Fatalf("expected lifecycle events_analyzed=4, got %v", lifecycle["events_analyzed"])
+	}
+	if got, _ := lifecycle["failure_event_count"].(float64); int(got) != 3 {
+		t.Fatalf("expected lifecycle failure_event_count=3, got %v", lifecycle["failure_event_count"])
+	}
+	if got, _ := lifecycle["overdue_signal_count"].(float64); int(got) != 2 {
+		t.Fatalf("expected lifecycle overdue_signal_count=2, got %v", lifecycle["overdue_signal_count"])
+	}
+	if got, _ := lifecycle["event_window_limit"].(float64); int(got) != 200 {
+		t.Fatalf("expected lifecycle event_window_limit default 200, got %v", lifecycle["event_window_limit"])
+	}
+	webhookTypesRaw, ok := lifecycle["distinct_webhook_types"].([]any)
+	if !ok || len(webhookTypesRaw) != 3 {
+		t.Fatalf("expected lifecycle distinct_webhook_types size 3, got %v", lifecycle["distinct_webhook_types"])
+	}
+	lastFailureAt, ok := lifecycle["last_failure_at"].(string)
+	if !ok || strings.TrimSpace(lastFailureAt) == "" {
+		t.Fatalf("expected lifecycle last_failure_at timestamp")
+	}
+	badLifecycleLimit := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123/lifecycle?event_limit=501", "tenant-a-reader", http.StatusBadRequest)
+	if got, _ := badLifecycleLimit["error"].(string); !strings.Contains(got, "event_limit must be between 1 and 500") {
+		t.Fatalf("expected lifecycle event_limit validation error, got %q", got)
+	}
 
 	succeededList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?payment_status=succeeded", "tenant-a-reader", http.StatusOK)
 	succeededItems := listItemsFromResponse(t, succeededList)

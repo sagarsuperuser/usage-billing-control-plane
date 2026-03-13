@@ -81,6 +81,35 @@ export interface InvoicePaymentStatusSummary {
   invoice_status_counts: Record<string, number>;
 }
 
+export interface InvoicePaymentLifecycle {
+  tenant_id: string;
+  organization_id: string;
+  invoice_id: string;
+  invoice_status?: string;
+  payment_status?: string;
+  payment_overdue?: boolean;
+  last_payment_error?: string;
+  last_event_type?: string;
+  last_event_at?: string;
+  updated_at?: string;
+  events_analyzed: number;
+  event_window_limit: number;
+  event_window_truncated: boolean;
+  distinct_webhook_types: string[];
+  failure_event_count: number;
+  success_event_count: number;
+  pending_event_count: number;
+  overdue_signal_count: number;
+  last_failure_at?: string;
+  last_success_at?: string;
+  last_pending_at?: string;
+  last_overdue_at?: string;
+  requires_action: boolean;
+  retry_recommended: boolean;
+  recommended_action: "none" | "monitor_processing" | "retry_payment" | "collect_payment" | "investigate";
+  recommended_action_note: string;
+}
+
 export interface InvoiceExplainabilityLineItem {
   fee_id: string;
   fee_type: string;

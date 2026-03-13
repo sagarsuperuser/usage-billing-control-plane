@@ -951,6 +951,9 @@ func normalizeMetricsRoute(path string) string {
 		if strings.HasSuffix(tail, "/events") {
 			return "/v1/invoice-payment-statuses/{id}/events"
 		}
+		if strings.HasSuffix(tail, "/lifecycle") {
+			return "/v1/invoice-payment-statuses/{id}/lifecycle"
+		}
 		return "/v1/invoice-payment-statuses/{id}"
 	case path == "/v1/api-keys":
 		return "/v1/api-keys"
@@ -1313,6 +1316,21 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 			"offset":     offset,
 			"invoice_id": invoiceID,
 		})
+		return
+	}
+
+	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "lifecycle") {
+		eventLimit, err := parseQueryInt(r, "event_limit")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		lifecycle, err := s.lagoWebhookSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, eventLimit)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, lifecycle)
 		return
 	}
 

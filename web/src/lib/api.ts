@@ -1,5 +1,6 @@
 import {
   InvoiceExplainability,
+  InvoicePaymentLifecycle,
   InvoicePaymentStatusView,
   InvoicePaymentStatusSummary,
   InvoiceStatusFilters,
@@ -180,6 +181,28 @@ export async function fetchInvoiceEvents(input: {
 
   const payload = await apiRequest<ListResponse<LagoWebhookEvent>>(
     `/v1/invoice-payment-statuses/${encodeURIComponent(input.invoiceID)}/events${query}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchInvoiceLifecycle(input: {
+  runtimeBaseURL?: string;
+  invoiceID: string;
+  eventLimit?: number;
+}): Promise<InvoicePaymentLifecycle> {
+  const query = toQuery({
+    event_limit: input.eventLimit,
+  });
+
+  const payload = await apiRequest<InvoicePaymentLifecycle>(
+    `/v1/invoice-payment-statuses/${encodeURIComponent(input.invoiceID)}/lifecycle${query}`,
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
