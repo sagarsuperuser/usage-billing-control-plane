@@ -122,6 +122,7 @@ make prepare-real-payment-fixture
 make test-real-payment-e2e
 make verify-staging-runtime
 make backup-restore-drill
+make rehearse-release-rollback
 make lago-verify
 ```
 

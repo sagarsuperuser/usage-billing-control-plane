@@ -215,3 +215,18 @@ Local path:
 ```bash
 make rollback-staging REVISION=<previous_helm_revision>
 ```
+
+Release rehearsal path (deploy -> rollback -> redeploy):
+
+```bash
+ENVIRONMENT='staging' \
+RELEASE_NAME='lago-alpha' \
+NAMESPACE='lago-alpha' \
+IMAGE_TAG='<candidate_sha>' \
+API_IMAGE_REPOSITORY='<staging_api_ecr_repo>' \
+WEB_IMAGE_REPOSITORY='<staging_web_ecr_repo>' \
+SMOKE_HEALTH_URL='https://alpha-api.staging.example.com/health' \
+CONFIRM_RELEASE_REHEARSAL='YES_I_UNDERSTAND' \
+PLAN_ONLY=1 \
+make rehearse-release-rollback
+```
