@@ -1,0 +1,224 @@
+# Lago Staging Bootstrap
+
+This runbook deploys Lago into the same EKS cluster as `usage-billing-control-plane`, but keeps clean runtime boundaries.
+
+## Topology
+
+- Cluster: shared staging EKS
+- Namespace: `lago`
+- Helm release: `lago`
+- Chart: official `lago/lago`
+- Alpha namespace remains `lago-alpha`
+- Lago API: restricted admin-access API
+- Lago UI: restricted admin surface
+
+## Exposure model
+
+- Do not treat Lago as a customer-facing product API.
+- `usage-billing-control-plane` can call Lago over cluster-internal connectivity or the restricted admin API URL.
+- If humans use the Lago UI in a browser, the Lago `apiUrl` should be reachable from that same restricted admin path.
+- Treat the current EKS ingress/load balancer as the origin only.
+- Preferred long-term browser protection is an edge access layer such as Cloudflare Access or another SSO-aware proxy in front of the Lago hosts.
+- Good options:
+  - restricted admin ingress for both `apiUrl` and `frontUrl`
+  - public DNS with Cloudflare Access / identity-aware proxy / IP allowlist
+  - private ingress plus VPN/Tailscale/SSO access
+
+Important:
+- a browser-visible Lago UI cannot use a cluster-only API URL unless the front end proxies API calls server-side
+- so "public" here should mean "browser-reachable for admins", not "open customer/public API surface"
+
+## What is automated
+
+- namespace creation
+- sync of Lago DB/Redis credentials from AWS Secrets Manager into Kubernetes via `ExternalSecret`
+- persistence of Lago encryption keys in AWS Secrets Manager and sync into Kubernetes via `ExternalSecret`
+- persistence of Lago application secrets (`secretKeyBase`, `rsaPrivateKey`) in AWS Secrets Manager and sync into Kubernetes via `ExternalSecret`
+- Helm repo setup and chart deploy
+- rollout verification
+- API reachability verification
+- bootstrap checklist printing
+
+## What remains manual for first bring-up
+
+- provision Lago Postgres
+- provision Lago Redis
+- provision Lago S3 bucket/credentials or equivalent object storage
+- fill `deploy/lago/environments/staging-values.yaml`
+- generate Lago API key
+- configure Stripe test mode in Lago
+- create initial staging org/customer as needed
+
+## Required preconditions
+
+- `kubectl` points to the staging cluster
+- ingress controller exists in the cluster
+- DNS hosts resolve if you are using admin ingress/public DNS
+- cert-manager/TLS issuer exists if ingress/TLS is enabled at the origin
+- managed Lago Postgres exists
+- managed Lago Redis exists
+- object storage for Lago exists
+
+## Files to prepare
+
+Start from:
+
+- `deploy/lago/environments/staging-values.example.yaml`
+
+Create your real file:
+
+```bash
+cp deploy/lago/environments/staging-values.example.yaml deploy/lago/environments/staging-values.yaml
+```
+
+Then update at minimum:
+
+- `apiUrl`
+- `frontUrl`
+- `global.ingress.apiHostname`
+- `global.ingress.frontHostname`
+- `global.s3.bucket`
+
+Practical guidance:
+
+- `global.existingSecret` should stay set to `lago-credentials`.
+- `encryption.existingSecret` should stay set to `lago-encryption`.
+- `lago-credentials` is synced from AWS secret `lago/staging/backing-services`.
+- `lago-encryption` is synced from AWS secret `lago/staging/encryption`.
+- `lago-secrets` is synced from AWS secret `lago/staging/app-secrets`.
+- `global.s3.bucket` is Lago's object storage bucket.
+- keep `global.s3.enabled=false` until you wire IRSA or explicit AWS access keys for the chart.
+- `apiUrl` and `frontUrl` should match the restricted admin endpoints you actually expose.
+- if alpha talks to Lago over cluster-internal DNS, you may still use that internal URL for alpha config instead of the browser-admin URL.
+
+If you want to sync secrets without deploying yet:
+
+```bash
+make lago-staging-sync-secrets
+```
+
+## TLS at the origin
+
+There are two workable paths:
+
+1. short-term HTTP-01 over the public origin
+2. preferred long-term Cloudflare DNS-01
+
+The preferred long-term path for Lago admin endpoints is Cloudflare DNS-01, because these hosts are meant to sit behind Cloudflare Access or another edge identity layer.
+
+### Short-term HTTP-01 path
+
+For the current `ingress-nginx` setup, the short-term path is:
+
+1. Install cert-manager:
+
+```bash
+make cert-manager-install
+```
+
+2. Copy and fill one issuer template:
+
+- `deploy/cert-manager/cluster-issuer-letsencrypt-staging.example.yaml`
+- `deploy/cert-manager/cluster-issuer-letsencrypt-prod.example.yaml`
+
+3. Apply it:
+
+```bash
+ISSUER_FILE=deploy/cert-manager/cluster-issuer-letsencrypt-prod.yaml \
+make cert-manager-apply-issuer
+```
+
+4. Point your real DNS records to the ingress load balancer hostname.
+
+5. Re-deploy Lago so the ingress annotations/hosts line up with the real DNS names.
+
+This keeps the origin valid for HTTPS while still allowing you to put Cloudflare Access or another SSO-aware edge in front later.
+For this repo, the preferred default is now Cloudflare DNS-01 instead of HTTP-01.
+
+### Preferred Cloudflare DNS-01 path
+
+1. Put the zone on Cloudflare.
+2. Sync the Cloudflare API token into `cert-manager`:
+
+```bash
+CLOUDFLARE_API_TOKEN=replace-me \
+make cloudflare-sync-dns-token
+```
+
+3. Copy and fill one issuer template:
+
+- `deploy/cert-manager/cluster-issuer-letsencrypt-cloudflare-staging.example.yaml`
+- `deploy/cert-manager/cluster-issuer-letsencrypt-cloudflare-prod.example.yaml`
+
+4. Apply it:
+
+```bash
+ISSUER_FILE=deploy/cert-manager/cluster-issuer-letsencrypt-cloudflare-prod.yaml \
+make cert-manager-apply-issuer
+```
+
+5. Update the Lago ingress issuer annotation to the Cloudflare issuer name and re-deploy.
+   The staging values in this repo now default to `letsencrypt-cloudflare-prod`.
+
+See:
+
+- `docs/cloudflare-lago-admin-setup.md`
+
+## Deploy
+
+```bash
+make lago-staging-deploy
+```
+
+Optional overrides:
+
+```bash
+LAGO_NAMESPACE=lago \
+LAGO_RELEASE_NAME=lago \
+LAGO_VALUES_FILE=deploy/lago/environments/staging-values.yaml \
+make lago-staging-deploy
+```
+
+## Verify
+
+```bash
+LAGO_API_URL=https://lago-api-staging.sagarwaidande.org \
+make lago-staging-verify
+```
+
+If Lago API is not browser-reachable from your laptop, verify in one of these ways instead:
+
+```bash
+kubectl -n lago port-forward svc/lago-api-svc 3000:3000
+LAGO_API_URL=http://127.0.0.1:3000 make lago-staging-verify
+```
+
+or skip URL verification and only verify in-cluster readiness:
+
+```bash
+make lago-staging-verify
+```
+
+## Bootstrap outputs needed by alpha
+
+After Lago is healthy, capture:
+
+- `LAGO_API_URL`
+- `LAGO_API_KEY`
+
+Then write alpha runtime secret `lago-alpha/staging/runtime` with:
+
+- `DATABASE_URL`
+- `LAGO_API_URL`
+- `LAGO_API_KEY`
+- `TEMPORAL_ADDRESS`
+- `AUDIT_EXPORT_S3_BUCKET`
+- `RATE_LIMIT_REDIS_URL`
+
+## Manual checklist after deploy
+
+1. Create or retrieve a Lago API key.
+2. Configure Stripe in test mode.
+3. Verify Lago API returns `200` for authenticated requests.
+4. Create the first test customer needed for alpha payment E2E.
+5. Point alpha `LAGO_API_URL` and `LAGO_API_KEY` to this staging stack.

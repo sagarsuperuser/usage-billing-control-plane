@@ -328,6 +328,11 @@ resource "aws_iam_role_policy_attachment" "api_s3" {
 
 locals {
   runtime_secret_arn = var.create_runtime_secret ? aws_secretsmanager_secret.runtime[0].arn : data.aws_secretsmanager_secret.runtime[0].arn
+  external_secrets_allowed_secret_arns = [
+    local.runtime_secret_arn,
+    "arn:aws:secretsmanager:${var.aws_region}:${local.aws_account_id}:secret:lago/staging/*",
+    "arn:aws:secretsmanager:${var.aws_region}:${local.aws_account_id}:secret:rds!db-*",
+  ]
 }
 
 data "aws_iam_policy_document" "external_secrets_assume_role" {
@@ -360,7 +365,7 @@ data "aws_iam_policy_document" "external_secrets_runtime_secret_policy" {
       "secretsmanager:DescribeSecret",
       "secretsmanager:GetSecretValue",
     ]
-    resources = [local.runtime_secret_arn]
+    resources = local.external_secrets_allowed_secret_arns
   }
 }
 
