@@ -1,0 +1,174 @@
+package api_test
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"lago-usage-billing-alpha/internal/api"
+)
+
+type stubRateLimiter struct {
+	mu       sync.Mutex
+	calls    []api.RateLimitRequest
+	decision func(req api.RateLimitRequest) (api.RateLimitDecision, error)
+}
+
+func (s *stubRateLimiter) Allow(_ context.Context, req api.RateLimitRequest) (api.RateLimitDecision, error) {
+	s.mu.Lock()
+	s.calls = append(s.calls, req)
+	s.mu.Unlock()
+	if s.decision != nil {
+		return s.decision(req)
+	}
+	return api.RateLimitDecision{
+		Allowed:   true,
+		Limit:     100,
+		Remaining: 99,
+		ResetAt:   time.Now().UTC().Add(10 * time.Second),
+	}, nil
+}
+
+func TestRateLimitBlocksLoginWhenExceeded(t *testing.T) {
+	authorizer, err := api.NewStaticAPIKeyAuthorizer(map[string]api.Role{
+		"reader-key": api.RoleReader,
+	})
+	if err != nil {
+		t.Fatalf("new static authorizer: %v", err)
+	}
+
+	limiter := &stubRateLimiter{
+		decision: func(req api.RateLimitRequest) (api.RateLimitDecision, error) {
+			if req.Policy != api.RateLimitPolicyPreAuthLogin {
+				t.Fatalf("expected policy %s, got %s", api.RateLimitPolicyPreAuthLogin, req.Policy)
+			}
+			return api.RateLimitDecision{
+				Allowed:   false,
+				Limit:     20,
+				Remaining: 0,
+				ResetAt:   time.Now().UTC().Add(3 * time.Second),
+			}, nil
+		},
+	}
+
+	ts := httptest.NewServer(api.NewServer(nil, api.WithAPIKeyAuthorizer(authorizer), api.WithRateLimiter(limiter, true, false)).Handler())
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/ui/sessions/login", bytes.NewBufferString(`{"api_key":"x"}`))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", resp.StatusCode)
+	}
+	if got := strings.TrimSpace(resp.Header.Get("Retry-After")); got == "" {
+		t.Fatalf("expected Retry-After header")
+	}
+	if got := strings.TrimSpace(resp.Header.Get("X-RateLimit-Limit")); got != "20" {
+		t.Fatalf("expected X-RateLimit-Limit=20, got %q", got)
+	}
+}
+
+func TestRateLimitBlocksProtectedRouteAfterAuth(t *testing.T) {
+	authorizer, err := api.NewStaticAPIKeyAuthorizer(map[string]api.Role{
+		"reader-key": api.RoleReader,
+	})
+	if err != nil {
+		t.Fatalf("new static authorizer: %v", err)
+	}
+
+	limiter := &stubRateLimiter{
+		decision: func(req api.RateLimitRequest) (api.RateLimitDecision, error) {
+			if req.Policy == api.RateLimitPolicyAuthRead {
+				return api.RateLimitDecision{
+					Allowed:   false,
+					Limit:     1200,
+					Remaining: 0,
+					ResetAt:   time.Now().UTC().Add(3 * time.Second),
+				}, nil
+			}
+			return api.RateLimitDecision{
+				Allowed:   true,
+				Limit:     100,
+				Remaining: 99,
+				ResetAt:   time.Now().UTC().Add(10 * time.Second),
+			}, nil
+		},
+	}
+
+	ts := httptest.NewServer(api.NewServer(nil, api.WithAPIKeyAuthorizer(authorizer), api.WithRateLimiter(limiter, true, false)).Handler())
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/v1/unknown", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("X-API-Key", "reader-key")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", resp.StatusCode)
+	}
+	if got := strings.TrimSpace(resp.Header.Get("X-RateLimit-Limit")); got != "1200" {
+		t.Fatalf("expected X-RateLimit-Limit=1200, got %q", got)
+	}
+}
+
+func TestRateLimitFailOpenOnProtectedRoutes(t *testing.T) {
+	authorizer, err := api.NewStaticAPIKeyAuthorizer(map[string]api.Role{
+		"reader-key": api.RoleReader,
+	})
+	if err != nil {
+		t.Fatalf("new static authorizer: %v", err)
+	}
+
+	limiter := &stubRateLimiter{
+		decision: func(req api.RateLimitRequest) (api.RateLimitDecision, error) {
+			if req.Policy == api.RateLimitPolicyAuthRead {
+				return api.RateLimitDecision{}, errors.New("redis unavailable")
+			}
+			return api.RateLimitDecision{
+				Allowed:   true,
+				Limit:     100,
+				Remaining: 99,
+				ResetAt:   time.Now().UTC().Add(10 * time.Second),
+			}, nil
+		},
+	}
+
+	ts := httptest.NewServer(api.NewServer(nil, api.WithAPIKeyAuthorizer(authorizer), api.WithRateLimiter(limiter, true, false)).Handler())
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/v1/unknown", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("X-API-Key", "reader-key")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Route is protected but not registered, so we should fall through to 404 when limiter fails open.
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 with fail-open behavior, got %d", resp.StatusCode)
+	}
+}

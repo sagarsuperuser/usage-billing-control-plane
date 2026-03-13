@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,6 +29,11 @@ import (
 )
 
 func main() {
+	logger := setupLogger()
+	runtimeEnv := resolveRuntimeEnvironment()
+	isProdLike := isProductionLikeEnvironment(runtimeEnv)
+	log.Printf("level=info component=server event=runtime_env_detected environment=%s production_like=%t", runtimeEnv, isProdLike)
+
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
@@ -110,6 +117,7 @@ func main() {
 		temporalReplayWorker     temporalsdkworker.Worker
 		temporalPaymentWorker    temporalsdkworker.Worker
 		replayTemporalDispatcher *replay.TemporalDispatcher
+		rateLimiterCloser        interface{ Close() error }
 	)
 	if runReplayWorker || runReplayDispatcher || runPaymentReconcileWorker || runPaymentReconcileScheduler {
 		temporalClient, err = temporalclient.Dial(temporalclient.Options{
@@ -161,6 +169,11 @@ func main() {
 		if temporalClient != nil {
 			temporalClient.Close()
 		}
+		if rateLimiterCloser != nil {
+			if err := rateLimiterCloser.Close(); err != nil {
+				log.Printf("level=warn component=server event=rate_limiter_close_failed err=%q", err.Error())
+			}
+		}
 	}
 
 	if !runAPIServer {
@@ -171,6 +184,63 @@ func main() {
 		return
 	}
 
+	uiSessionCookieSecure := getBoolEnv("UI_SESSION_COOKIE_SECURE", isProdLike)
+	uiSessionCookieSameSite, uiSessionCookieSameSiteName := parseSameSiteMode(strings.TrimSpace(os.Getenv("UI_SESSION_COOKIE_SAMESITE")))
+	uiSessionRequireOrigin := getBoolEnv("UI_SESSION_REQUIRE_ORIGIN", isProdLike)
+	allowedSessionOrigins, err := api.ParseAllowedOrigins(strings.TrimSpace(os.Getenv("UI_SESSION_ALLOWED_ORIGINS")))
+	if err != nil {
+		log.Fatalf("failed to parse UI_SESSION_ALLOWED_ORIGINS: %v", err)
+	}
+
+	if err := validateAuthRuntimeConfig(authRuntimeConfig{
+		Environment:               runtimeEnv,
+		UISessionCookieSecure:     uiSessionCookieSecure,
+		UISessionCookieSameSite:   uiSessionCookieSameSite,
+		UISessionCookieSameSiteID: uiSessionCookieSameSiteName,
+	}); err != nil {
+		log.Fatalf("invalid auth runtime config: %v", err)
+	}
+	if uiSessionRequireOrigin && isProdLike && len(allowedSessionOrigins) == 0 {
+		log.Printf("level=warn component=server event=session_origin_allowlist_empty behavior=same_origin_only")
+	}
+
+	rateLimitEnabled := getBoolEnv("RATE_LIMIT_ENABLED", isProdLike)
+	rateLimitFailOpen := getBoolEnv("RATE_LIMIT_FAIL_OPEN", true)
+	rateLimitLoginFailOpen := getBoolEnv("RATE_LIMIT_LOGIN_FAIL_OPEN", false)
+	var rateLimiter api.RateLimiter
+	if rateLimitEnabled {
+		rateLimitRedisURL := strings.TrimSpace(os.Getenv("RATE_LIMIT_REDIS_URL"))
+		if rateLimitRedisURL == "" {
+			log.Fatal("RATE_LIMIT_REDIS_URL is required when RATE_LIMIT_ENABLED=true")
+		}
+		policyRates := api.DefaultRateLimitPolicyRates()
+		overrideRateLimitPolicy(policyRates, api.RateLimitPolicyPreAuthLogin, "RATE_LIMIT_PREAUTH_LOGIN")
+		overrideRateLimitPolicy(policyRates, api.RateLimitPolicyPreAuthProtected, "RATE_LIMIT_PREAUTH_PROTECTED")
+		overrideRateLimitPolicy(policyRates, api.RateLimitPolicyWebhook, "RATE_LIMIT_WEBHOOK")
+		overrideRateLimitPolicy(policyRates, api.RateLimitPolicyAuthRead, "RATE_LIMIT_AUTH_READ")
+		overrideRateLimitPolicy(policyRates, api.RateLimitPolicyAuthWrite, "RATE_LIMIT_AUTH_WRITE")
+		overrideRateLimitPolicy(policyRates, api.RateLimitPolicyAuthAdmin, "RATE_LIMIT_AUTH_ADMIN")
+		overrideRateLimitPolicy(policyRates, api.RateLimitPolicyAuthInternal, "RATE_LIMIT_AUTH_INTERNAL")
+
+		redisRateLimiter, err := api.NewRedisRateLimiter(api.RedisRateLimiterConfig{
+			RedisURL:    rateLimitRedisURL,
+			KeyPrefix:   strings.TrimSpace(os.Getenv("RATE_LIMIT_KEY_PREFIX")),
+			PolicyRates: policyRates,
+		})
+		if err != nil {
+			log.Fatalf("failed to initialize rate limiter: %v", err)
+		}
+		rateLimiter = redisRateLimiter
+		rateLimiterCloser = redisRateLimiter
+		log.Printf(
+			"level=info component=server event=rate_limiter_enabled backend=redis fail_open=%t login_fail_open=%t",
+			rateLimitFailOpen,
+			rateLimitLoginFailOpen,
+		)
+	} else if isProdLike {
+		log.Printf("level=warn component=server event=rate_limiter_disabled environment=%s", runtimeEnv)
+	}
+
 	uiSessionManager := scs.New()
 	uiSessionManager.Store = postgresstore.New(db)
 	uiSessionManager.Lifetime = time.Duration(getIntEnv("UI_SESSION_LIFETIME_SEC", 43200)) * time.Second
@@ -179,28 +249,23 @@ func main() {
 		uiSessionManager.Cookie.Name = "lago_alpha_ui_session"
 	}
 	uiSessionManager.Cookie.HttpOnly = true
-	uiSessionManager.Cookie.Secure = getBoolEnv("UI_SESSION_COOKIE_SECURE", false)
+	uiSessionManager.Cookie.Secure = uiSessionCookieSecure
 	uiSessionManager.Cookie.Path = "/"
-	uiSessionManager.Cookie.SameSite = http.SameSiteLaxMode
-	if sameSiteRaw := strings.ToLower(strings.TrimSpace(os.Getenv("UI_SESSION_COOKIE_SAMESITE"))); sameSiteRaw != "" {
-		switch sameSiteRaw {
-		case "strict":
-			uiSessionManager.Cookie.SameSite = http.SameSiteStrictMode
-		case "none":
-			uiSessionManager.Cookie.SameSite = http.SameSiteNoneMode
-		default:
-			uiSessionManager.Cookie.SameSite = http.SameSiteLaxMode
-		}
-	}
+	uiSessionManager.Cookie.SameSite = uiSessionCookieSameSite
 
 	serverOpts := []api.ServerOption{
 		api.WithMetricsProvider(buildMetricsProvider(replayTemporalDispatcher, db)),
 		api.WithSessionManager(uiSessionManager),
+		api.WithSessionOriginPolicy(uiSessionRequireOrigin, allowedSessionOrigins),
+		api.WithLogger(logger),
 		api.WithReadinessCheck(func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			return db.PingContext(ctx)
 		}),
+	}
+	if rateLimiter != nil {
+		serverOpts = append(serverOpts, api.WithRateLimiter(rateLimiter, rateLimitFailOpen, rateLimitLoginFailOpen))
 	}
 
 	lagoAPIURL := strings.TrimSpace(os.Getenv("LAGO_API_URL"))
@@ -300,30 +365,26 @@ func main() {
 	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
 	log.Printf("level=info component=server event=lago_webhook_sync_enabled mapper_entries=%d", len(orgTenantMap))
 
-	if getBoolEnv("API_AUTH_ENABLED", true) {
-		authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
-		if err != nil {
-			log.Fatalf("failed to initialize api key authorizer: %v", err)
-		}
-		serverOpts = append(serverOpts, api.WithAPIKeyAuthorizer(authorizer))
-		log.Printf("level=info component=server event=api_auth_enabled backend=postgres")
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		log.Fatalf("failed to initialize api key authorizer: %v", err)
+	}
+	serverOpts = append(serverOpts, api.WithAPIKeyAuthorizer(authorizer))
+	log.Printf("level=info component=server event=api_auth_enabled backend=postgres")
 
-		rawAPIKeys := strings.TrimSpace(os.Getenv("API_KEYS"))
-		if rawAPIKeys != "" {
-			bootstrapResult, err := api.BootstrapAPIKeysFromConfig(repo, rawAPIKeys)
-			if err != nil {
-				log.Fatalf("failed to bootstrap API_KEYS: %v", err)
-			}
-			log.Printf(
-				"level=info component=server event=api_auth_bootstrap_keys created=%d existing=%d",
-				bootstrapResult.Created,
-				bootstrapResult.Existing,
-			)
-		} else {
-			log.Printf("level=info component=server event=api_auth_bootstrap_skipped reason=api_keys_env_empty")
+	rawAPIKeys := strings.TrimSpace(os.Getenv("API_KEYS"))
+	if rawAPIKeys != "" {
+		bootstrapResult, err := api.BootstrapAPIKeysFromConfig(repo, rawAPIKeys)
+		if err != nil {
+			log.Fatalf("failed to bootstrap API_KEYS: %v", err)
 		}
+		log.Printf(
+			"level=info component=server event=api_auth_bootstrap_keys created=%d existing=%d",
+			bootstrapResult.Created,
+			bootstrapResult.Existing,
+		)
 	} else {
-		log.Printf("level=warn component=server event=api_auth_disabled")
+		log.Printf("level=info component=server event=api_auth_bootstrap_skipped reason=api_keys_env_empty")
 	}
 
 	if getBoolEnv("AUDIT_EXPORTS_ENABLED", false) {
@@ -396,6 +457,105 @@ func main() {
 	log.Printf("level=info component=server event=start addr=%s", httpServer.Addr)
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server failed: %v", err)
+	}
+}
+
+func setupLogger() *slog.Logger {
+	level := parseLogLevel(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
+	opts := &slog.HandlerOptions{Level: level}
+
+	format := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_FORMAT")))
+	var handler slog.Handler
+	switch format {
+	case "", "json":
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	default:
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	}
+
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
+	log.SetFlags(0)
+	log.SetOutput(slog.NewLogLogger(handler, slog.LevelInfo).Writer())
+
+	return logger
+}
+
+type authRuntimeConfig struct {
+	Environment               string
+	UISessionCookieSecure     bool
+	UISessionCookieSameSite   http.SameSite
+	UISessionCookieSameSiteID string
+}
+
+func validateAuthRuntimeConfig(cfg authRuntimeConfig) error {
+	if isProductionLikeEnvironment(cfg.Environment) && !cfg.UISessionCookieSecure {
+		return fmt.Errorf("UI_SESSION_COOKIE_SECURE must be true in %s", cfg.Environment)
+	}
+	if cfg.UISessionCookieSameSite == http.SameSiteNoneMode && !cfg.UISessionCookieSecure {
+		return fmt.Errorf("UI_SESSION_COOKIE_SAMESITE=%s requires UI_SESSION_COOKIE_SECURE=true", cfg.UISessionCookieSameSiteID)
+	}
+	return nil
+}
+
+func resolveRuntimeEnvironment() string {
+	candidates := []string{
+		strings.TrimSpace(os.Getenv("APP_ENV")),
+		strings.TrimSpace(os.Getenv("ENVIRONMENT")),
+	}
+	for _, candidate := range candidates {
+		candidate = strings.ToLower(strings.TrimSpace(candidate))
+		if candidate != "" {
+			return candidate
+		}
+	}
+	return "local"
+}
+
+func isProductionLikeEnvironment(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "prod", "production", "staging":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseSameSiteMode(raw string) (http.SameSite, string) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "strict":
+		return http.SameSiteStrictMode, "strict"
+	case "none":
+		return http.SameSiteNoneMode, "none"
+	case "lax", "":
+		return http.SameSiteLaxMode, "lax"
+	default:
+		return http.SameSiteLaxMode, "lax"
+	}
+}
+
+func overrideRateLimitPolicy(policyRates map[string]string, policy, envKey string) {
+	if policyRates == nil {
+		return
+	}
+	value := strings.TrimSpace(os.Getenv(envKey))
+	if value == "" {
+		return
+	}
+	policyRates[policy] = value
+}
+
+func parseLogLevel(raw string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
 	}
 }
 

@@ -78,6 +78,9 @@ Functional checks:
 - Create replay job via API; verify corresponding Temporal workflow execution.
 - Payment operations UI loads and can list invoice payment statuses.
 - Invoice explainability endpoint returns deterministic digest and line items.
+- API logs include structured `event=http_request` entries and `X-Request-ID` correlation.
+- Runtime auth hardening is active (`APP_ENV=staging`, `UI_SESSION_COOKIE_SECURE=true`, `UI_SESSION_REQUIRE_ORIGIN=true`).
+- Runtime rate limiting is active (`RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REDIS_URL` configured) and 429 responses include `Retry-After` + `X-RateLimit-*`.
 - Run `Real Payment E2E` workflow at least once with a Stripe test-mode invoice (`expected_final_status=succeeded`).
 
 ## 6) Release Gate Decision

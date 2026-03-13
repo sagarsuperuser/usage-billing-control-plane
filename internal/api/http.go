@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/csv"
@@ -9,8 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,21 +30,27 @@ import (
 )
 
 type Server struct {
-	ratingService  *service.RatingService
-	meterService   *service.MeterService
-	usageService   *service.UsageService
-	apiKeyService  *service.APIKeyService
-	auditExportSvc *service.AuditExportService
-	lagoClient     *service.LagoClient
-	lagoWebhookSvc *service.LagoWebhookService
-	replayService  *replay.Service
-	recService     *reconcile.Service
-	authorizer     APIKeyAuthorizer
-	sessionManager *scs.SessionManager
-	metricsFn      func() map[string]any
-	readinessFn    func() error
-	requestMetrics *requestMetricsCollector
-	mux            *http.ServeMux
+	ratingService             *service.RatingService
+	meterService              *service.MeterService
+	usageService              *service.UsageService
+	apiKeyService             *service.APIKeyService
+	auditExportSvc            *service.AuditExportService
+	lagoClient                *service.LagoClient
+	lagoWebhookSvc            *service.LagoWebhookService
+	replayService             *replay.Service
+	recService                *reconcile.Service
+	authorizer                APIKeyAuthorizer
+	sessionManager            *scs.SessionManager
+	metricsFn                 func() map[string]any
+	readinessFn               func() error
+	requestMetrics            *requestMetricsCollector
+	logger                    *slog.Logger
+	rateLimiter               RateLimiter
+	rateLimitFailOpen         bool
+	rateLimitLoginFailOpen    bool
+	requireSessionOriginCheck bool
+	allowedSessionOrigins     map[string]struct{}
+	mux                       *http.ServeMux
 }
 
 const (
@@ -49,6 +59,7 @@ const (
 	sessionAPIKeyIDKey = "principal_api_key_id"
 	sessionCSRFKey     = "csrf_token"
 	csrfHeaderName     = "X-CSRF-Token"
+	requestIDHeaderKey = "X-Request-ID"
 )
 
 type requestMetricsCollector struct {
@@ -87,7 +98,8 @@ func (c *requestMetricsCollector) Snapshot() map[string]int64 {
 
 type statusCapturingResponseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode   int
+	bytesWritten int
 }
 
 func (w *statusCapturingResponseWriter) WriteHeader(statusCode int) {
@@ -99,7 +111,9 @@ func (w *statusCapturingResponseWriter) Write(p []byte) (int, error) {
 	if w.statusCode == 0 {
 		w.statusCode = http.StatusOK
 	}
-	return w.ResponseWriter.Write(p)
+	n, err := w.ResponseWriter.Write(p)
+	w.bytesWritten += n
+	return n, err
 }
 
 type ServerOption func(*Server)
@@ -146,16 +160,52 @@ func WithLagoWebhookService(lagoWebhookSvc *service.LagoWebhookService) ServerOp
 	}
 }
 
+func WithLogger(logger *slog.Logger) ServerOption {
+	return func(s *Server) {
+		s.logger = logger
+	}
+}
+
+func WithRateLimiter(rateLimiter RateLimiter, failOpen bool, loginFailOpen bool) ServerOption {
+	return func(s *Server) {
+		s.rateLimiter = rateLimiter
+		s.rateLimitFailOpen = failOpen
+		s.rateLimitLoginFailOpen = loginFailOpen
+	}
+}
+
+func WithSessionOriginPolicy(require bool, allowedOrigins []string) ServerOption {
+	return func(s *Server) {
+		s.requireSessionOriginCheck = require
+		s.allowedSessionOrigins = make(map[string]struct{}, len(allowedOrigins))
+		for _, origin := range allowedOrigins {
+			normalized, ok := normalizeAbsoluteOrigin(origin)
+			if !ok {
+				continue
+			}
+			s.allowedSessionOrigins[normalized] = struct{}{}
+		}
+	}
+}
+
+type requestIDContextKey struct{}
+
+var httpRequestIDContextKey requestIDContextKey
+
 func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s := &Server{
-		ratingService:  service.NewRatingService(repo),
-		meterService:   service.NewMeterService(repo),
-		usageService:   service.NewUsageService(repo),
-		apiKeyService:  service.NewAPIKeyService(repo),
-		replayService:  replay.NewService(repo),
-		recService:     reconcile.NewService(repo),
-		requestMetrics: newRequestMetricsCollector(),
-		mux:            http.NewServeMux(),
+		ratingService:          service.NewRatingService(repo),
+		meterService:           service.NewMeterService(repo),
+		usageService:           service.NewUsageService(repo),
+		apiKeyService:          service.NewAPIKeyService(repo),
+		replayService:          replay.NewService(repo),
+		recService:             reconcile.NewService(repo),
+		requestMetrics:         newRequestMetricsCollector(),
+		logger:                 slog.Default(),
+		rateLimitFailOpen:      true,
+		rateLimitLoginFailOpen: false,
+		allowedSessionOrigins:  make(map[string]struct{}),
+		mux:                    http.NewServeMux(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -165,7 +215,12 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 }
 
 func (s *Server) Handler() http.Handler {
-	return s.instrumentMiddleware(s.authMiddleware(s.mux))
+	var handler http.Handler = s.mux
+	handler = s.accessLogMiddleware(handler)
+	handler = s.authMiddleware(handler)
+	handler = s.instrumentMiddleware(handler)
+	handler = s.requestIDMiddleware(handler)
+	return handler
 }
 
 func (s *Server) instrumentMiddleware(next http.Handler) http.Handler {
@@ -180,6 +235,99 @@ func (s *Server) instrumentMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func (s *Server) requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := normalizeRequestID(r.Header.Get(requestIDHeaderKey))
+		if requestID == "" {
+			token, err := randomHexToken(12)
+			if err != nil {
+				requestID = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+			} else {
+				requestID = token
+			}
+		}
+
+		w.Header().Set(requestIDHeaderKey, requestID)
+		next.ServeHTTP(w, r.WithContext(withRequestID(r.Context(), requestID)))
+	})
+}
+
+func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
+	if s.logger == nil {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now().UTC()
+		recorder := &statusCapturingResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(recorder, r)
+
+		statusCode := recorder.statusCode
+		if statusCode == 0 {
+			statusCode = http.StatusOK
+		}
+		durationMs := time.Since(start).Milliseconds()
+		attrs := []any{
+			"component", "api",
+			"event", "http_request",
+			"request_id", requestIDFromContext(r.Context()),
+			"method", r.Method,
+			"route", normalizeMetricsRoute(r.URL.Path),
+			"path", r.URL.Path,
+			"status", statusCode,
+			"duration_ms", durationMs,
+			"bytes", recorder.bytesWritten,
+			"auth_method", inferAuthMethod(r),
+		}
+
+		principal, ok := principalFromContext(r.Context())
+		if ok {
+			attrs = append(attrs,
+				"tenant_id", normalizeTenantID(principal.TenantID),
+				"role", string(principal.Role),
+			)
+			if apiKeyID := strings.TrimSpace(principal.APIKeyID); apiKeyID != "" {
+				attrs = append(attrs, "api_key_id", apiKeyID)
+			}
+		}
+
+		switch {
+		case statusCode >= http.StatusInternalServerError:
+			s.logger.Error("http request", attrs...)
+		case statusCode >= http.StatusBadRequest:
+			s.logger.Warn("http request", attrs...)
+		default:
+			s.logger.Info("http request", attrs...)
+		}
+	})
+}
+
+func (s *Server) logAuthFailure(r *http.Request, statusCode int, reason string, err error) {
+	if s.logger == nil {
+		return
+	}
+
+	attrs := []any{
+		"component", "api",
+		"event", "auth_denied",
+		"request_id", requestIDFromContext(r.Context()),
+		"method", r.Method,
+		"route", normalizeMetricsRoute(r.URL.Path),
+		"path", r.URL.Path,
+		"status", statusCode,
+		"reason", reason,
+		"auth_method", inferAuthMethod(r),
+	}
+	if err != nil {
+		attrs = append(attrs, "error", err.Error())
+	}
+
+	if statusCode >= http.StatusInternalServerError {
+		s.logger.Error("http auth denied", attrs...)
+		return
+	}
+	s.logger.Warn("http auth denied", attrs...)
+}
+
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	if s.authorizer == nil && s.sessionManager == nil {
 		return next
@@ -187,6 +335,11 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requiredRole, protected := requiredRoleForRequest(r)
+		if policy, identifier, failOpen, ok := s.preAuthRateLimitTarget(r, protected); ok {
+			if !s.enforceRateLimit(w, r, policy, identifier, failOpen) {
+				return
+			}
+		}
 		if !protected {
 			next.ServeHTTP(w, r)
 			return
@@ -194,28 +347,391 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 		principal, usingSession, err := s.authorizePrincipal(r)
 		if err != nil {
+			statusCode := http.StatusInternalServerError
+			reason := "authorization_failed"
+			if errors.Is(err, errUnauthorized) {
+				statusCode = http.StatusUnauthorized
+				reason = "unauthorized"
+			}
+			s.logAuthFailure(r, statusCode, reason, err)
 			writeAuthError(w, err)
 			return
 		}
 		if roleRank(principal.Role) == 0 {
+			s.logAuthFailure(r, http.StatusUnauthorized, "invalid_role", nil)
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		if !roleAllows(principal.Role, requiredRole) {
+			s.logAuthFailure(r, http.StatusForbidden, "insufficient_role", nil)
 			writeError(w, http.StatusForbidden, "forbidden")
 			return
 		}
 		if usingSession && isUnsafeMethod(r.Method) {
+			if s.requireSessionOriginCheck && !s.isAllowedSessionOrigin(r) {
+				s.logAuthFailure(r, http.StatusForbidden, "origin_mismatch", nil)
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
 			expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
 			providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
 			if expectedCSRF == "" || providedCSRF == "" || subtleConstantTimeMatch(expectedCSRF, providedCSRF) == false {
+				s.logAuthFailure(r, http.StatusForbidden, "csrf_mismatch", nil)
 				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
+		}
+
+		if policy, identifier, failOpen, ok := s.authRateLimitTarget(r, principal, requiredRole, usingSession); ok {
+			if !s.enforceRateLimit(w, r, policy, identifier, failOpen) {
 				return
 			}
 		}
 
 		next.ServeHTTP(w, r.WithContext(withPrincipal(r.Context(), principal)))
 	})
+}
+
+func (s *Server) preAuthRateLimitTarget(r *http.Request, protected bool) (policy string, identifier string, failOpen bool, ok bool) {
+	if s.rateLimiter == nil {
+		return "", "", false, false
+	}
+
+	path := strings.TrimSpace(r.URL.Path)
+	switch {
+	case path == "/health":
+		return "", "", false, false
+	case path == "/v1/ui/sessions/login":
+		return RateLimitPolicyPreAuthLogin, "ip:" + requestClientIP(r), s.rateLimitLoginFailOpen, true
+	case path == "/internal/lago/webhooks":
+		return RateLimitPolicyWebhook, "ip:" + requestClientIP(r), s.rateLimitFailOpen, true
+	case protected:
+		return RateLimitPolicyPreAuthProtected, "ip:" + requestClientIP(r) + ":route:" + normalizeMetricsRoute(path), s.rateLimitFailOpen, true
+	default:
+		return "", "", false, false
+	}
+}
+
+func (s *Server) authRateLimitTarget(r *http.Request, principal Principal, requiredRole Role, usingSession bool) (policy string, identifier string, failOpen bool, ok bool) {
+	if s.rateLimiter == nil {
+		return "", "", false, false
+	}
+
+	identifier = authRateLimitIdentifier(r, principal, usingSession)
+	if identifier == "" {
+		return "", "", false, false
+	}
+
+	policy = authRateLimitPolicy(r, requiredRole)
+	return policy, identifier, s.rateLimitFailOpen, true
+}
+
+func authRateLimitPolicy(r *http.Request, requiredRole Role) string {
+	path := strings.TrimSpace(r.URL.Path)
+	if strings.HasPrefix(path, "/internal/") {
+		return RateLimitPolicyAuthInternal
+	}
+	switch requiredRole {
+	case RoleAdmin:
+		return RateLimitPolicyAuthAdmin
+	case RoleWriter:
+		return RateLimitPolicyAuthWrite
+	default:
+		return RateLimitPolicyAuthRead
+	}
+}
+
+func authRateLimitIdentifier(r *http.Request, principal Principal, usingSession bool) string {
+	base := "tenant:" + normalizeTenantID(principal.TenantID)
+
+	if usingSession {
+		return base + ":session_ip:" + requestClientIP(r)
+	}
+
+	if apiKeyID := strings.TrimSpace(principal.APIKeyID); apiKeyID != "" {
+		return base + ":api_key_id:" + apiKeyID
+	}
+
+	rawAPIKey := strings.TrimSpace(r.Header.Get(apiKeyHeader))
+	if rawAPIKey != "" {
+		return base + ":api_key_prefix:" + KeyPrefixFromHash(HashAPIKey(rawAPIKey))
+	}
+
+	role := strings.TrimSpace(strings.ToLower(string(principal.Role)))
+	if role == "" {
+		role = "unknown"
+	}
+	return base + ":role:" + role
+}
+
+func requestClientIP(r *http.Request) string {
+	if r == nil {
+		return "unknown"
+	}
+
+	if forwarded := strings.TrimSpace(forwardedValue(r.Header.Get("X-Forwarded-For"))); forwarded != "" {
+		return sanitizeClientIP(forwarded)
+	}
+	if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+		return sanitizeClientIP(realIP)
+	}
+
+	host := strings.TrimSpace(r.RemoteAddr)
+	if host == "" {
+		return "unknown"
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		return sanitizeClientIP(parsedHost)
+	}
+	return sanitizeClientIP(host)
+}
+
+func sanitizeClientIP(raw string) string {
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	if raw == "" {
+		return "unknown"
+	}
+	return strings.ReplaceAll(raw, " ", "")
+}
+
+func (s *Server) enforceRateLimit(w http.ResponseWriter, r *http.Request, policy, identifier string, failOpen bool) bool {
+	if s.rateLimiter == nil {
+		return true
+	}
+
+	decision, err := s.rateLimiter.Allow(r.Context(), RateLimitRequest{
+		Policy:     policy,
+		Identifier: identifier,
+	})
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn(
+				"rate limit check failed",
+				"component", "api",
+				"event", "rate_limit_error",
+				"request_id", requestIDFromContext(r.Context()),
+				"policy", policy,
+				"fail_open", failOpen,
+				"error", err.Error(),
+			)
+		}
+		if failOpen {
+			return true
+		}
+		writeError(w, http.StatusServiceUnavailable, "rate limiter unavailable")
+		return false
+	}
+
+	writeRateLimitHeaders(w, decision)
+	if decision.Allowed {
+		return true
+	}
+
+	if retryAfter := retryAfterSeconds(decision.ResetAt); retryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
+	}
+	if s.logger != nil {
+		s.logger.Warn(
+			"rate limit exceeded",
+			"component", "api",
+			"event", "rate_limited",
+			"request_id", requestIDFromContext(r.Context()),
+			"policy", policy,
+			"path", r.URL.Path,
+			"method", r.Method,
+		)
+	}
+	writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+	return false
+}
+
+func writeRateLimitHeaders(w http.ResponseWriter, decision RateLimitDecision) {
+	w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(decision.Limit, 10))
+	w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(decision.Remaining, 10))
+	if !decision.ResetAt.IsZero() {
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(decision.ResetAt.Unix(), 10))
+	}
+}
+
+func retryAfterSeconds(resetAt time.Time) int64 {
+	if resetAt.IsZero() {
+		return 1
+	}
+	remaining := time.Until(resetAt)
+	if remaining <= 0 {
+		return 1
+	}
+	seconds := int64(remaining.Seconds())
+	if remaining%time.Second != 0 {
+		seconds++
+	}
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
+}
+
+func normalizeRequestID(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > 128 {
+		return ""
+	}
+	for _, r := range raw {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			continue
+		}
+		return ""
+	}
+	return raw
+}
+
+func withRequestID(ctx context.Context, requestID string) context.Context {
+	return context.WithValue(ctx, httpRequestIDContextKey, requestID)
+}
+
+func requestIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	requestID, _ := ctx.Value(httpRequestIDContextKey).(string)
+	return strings.TrimSpace(requestID)
+}
+
+func inferAuthMethod(r *http.Request) string {
+	if strings.TrimSpace(r.Header.Get(apiKeyHeader)) != "" {
+		return "api_key"
+	}
+	if strings.TrimSpace(r.Header.Get("Cookie")) != "" {
+		return "session"
+	}
+	return "none"
+}
+
+func ParseAllowedOrigins(raw string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, item := range parts {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		normalized, ok := normalizeAbsoluteOrigin(item)
+		if !ok {
+			return nil, fmt.Errorf("invalid origin %q", item)
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func (s *Server) isAllowedSessionOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin != "" {
+		normalized, ok := normalizeAbsoluteOrigin(origin)
+		if !ok {
+			return false
+		}
+		return s.isAllowedOrigin(normalized, r)
+	}
+
+	referer := strings.TrimSpace(r.Header.Get("Referer"))
+	if referer == "" {
+		return false
+	}
+	refURL, err := url.Parse(referer)
+	if err != nil {
+		return false
+	}
+	if refURL.Scheme == "" || refURL.Host == "" {
+		return false
+	}
+	normalized, ok := normalizeAbsoluteOrigin(refURL.Scheme + "://" + refURL.Host)
+	if !ok {
+		return false
+	}
+	return s.isAllowedOrigin(normalized, r)
+}
+
+func (s *Server) isAllowedOrigin(origin string, r *http.Request) bool {
+	if _, ok := s.allowedSessionOrigins[origin]; ok {
+		return true
+	}
+
+	requestOrigin, ok := effectiveRequestOrigin(r)
+	if !ok {
+		return false
+	}
+	return strings.EqualFold(origin, requestOrigin)
+}
+
+func effectiveRequestOrigin(r *http.Request) (string, bool) {
+	scheme := forwardedValue(r.Header.Get("X-Forwarded-Proto"))
+	if scheme == "" {
+		if r.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+
+	host := forwardedValue(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = strings.TrimSpace(r.Host)
+	}
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return "", false
+	}
+
+	return scheme + "://" + host, true
+}
+
+func forwardedValue(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	parts := strings.Split(raw, ",")
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(parts[0])
+}
+
+func normalizeAbsoluteOrigin(raw string) (string, bool) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", false
+	}
+	if u == nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", false
+	}
+	scheme := strings.ToLower(strings.TrimSpace(u.Scheme))
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Host))
+	if host == "" {
+		return "", false
+	}
+	path := strings.TrimSpace(u.EscapedPath())
+	if path != "" && path != "/" {
+		return "", false
+	}
+	return scheme + "://" + host, true
 }
 
 func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {

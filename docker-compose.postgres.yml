@@ -54,3 +54,9 @@ services:
     ports:
       - "${ALPHA_MINIO_PORT:-19000}:9000"
       - "${ALPHA_MINIO_CONSOLE_PORT:-19001}:9001"
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "${ALPHA_REDIS_PORT:-16379}:6379"

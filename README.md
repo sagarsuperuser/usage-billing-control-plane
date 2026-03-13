@@ -44,13 +44,29 @@ export RUN_MIGRATIONS_ON_BOOT=false
 export RUN_API_SERVER=true
 export RUN_REPLAY_WORKER=true
 export RUN_REPLAY_DISPATCHER=true
-export API_AUTH_ENABLED=true
 # optional bootstrap on startup; creates missing keys in Postgres
 export API_KEYS='reader_key:reader,writer_key:writer,admin_key:admin'
+export LOG_FORMAT=json
+export LOG_LEVEL=info
+export APP_ENV=local
 export UI_SESSION_LIFETIME_SEC=43200
 export UI_SESSION_COOKIE_NAME=lago_alpha_ui_session
-export UI_SESSION_COOKIE_SECURE=false
+export UI_SESSION_COOKIE_SECURE=true
 export UI_SESSION_COOKIE_SAMESITE=lax
+export UI_SESSION_REQUIRE_ORIGIN=true
+export UI_SESSION_ALLOWED_ORIGINS='https://billing.example.com,https://api.billing.example.com'
+export RATE_LIMIT_ENABLED=true
+export RATE_LIMIT_FAIL_OPEN=true
+export RATE_LIMIT_LOGIN_FAIL_OPEN=false
+export RATE_LIMIT_KEY_PREFIX='lago_alpha:ratelimit'
+export RATE_LIMIT_PREAUTH_LOGIN='20-M'
+export RATE_LIMIT_PREAUTH_PROTECTED='600-M'
+export RATE_LIMIT_WEBHOOK='2400-M'
+export RATE_LIMIT_AUTH_READ='1200-M'
+export RATE_LIMIT_AUTH_WRITE='300-M'
+export RATE_LIMIT_AUTH_ADMIN='120-M'
+export RATE_LIMIT_AUTH_INTERNAL='120-M'
+export RATE_LIMIT_REDIS_URL='redis://localhost:6379/0'
 export TEMPORAL_ADDRESS=localhost:7233
 export TEMPORAL_NAMESPACE=default
 export REPLAY_TEMPORAL_TASK_QUEUE=alpha-replay-jobs
@@ -138,11 +154,15 @@ go run ./cmd/server
 ```
 
 Server starts on `:8080` by default.
-With auth enabled (default):
+Auth is always enabled:
 - machine/API clients can authenticate with `X-API-Key`
 - browser control-plane UI can authenticate with cookie session endpoints (`/v1/ui/sessions/login|me|logout`)
 - unsafe session-authenticated writes require `X-CSRF-Token`
+- unsafe session-authenticated writes can enforce Origin/Referer policy (`UI_SESSION_REQUIRE_ORIGIN=true`)
+- `APP_ENV`/`ENVIRONMENT` in `staging|prod|production` enforces hard guard: `UI_SESSION_COOKIE_SECURE=true`
+- distributed rate limiting supports pre-auth/login, webhook, and authenticated read/write/admin buckets (Redis-backed)
 - `/internal/metrics` still requires an admin principal
+- API responses include `X-Request-ID`; send your own `X-Request-ID` header to preserve upstream correlation IDs
 API keys are validated against Postgres (`api_keys` table) using hashed key storage and revocation/expiration checks.
 Each API key is tenant-scoped (`tenant_id`), and API reads/writes are isolated to that tenant.
 `API_KEYS` bootstrap entries are created for tenant `default`.

@@ -31,6 +31,13 @@ web:
     repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-prod/web"
     tag: "latest"
 
+env:
+  APP_ENV: "prod"
+  UI_SESSION_COOKIE_SECURE: "true"
+  UI_SESSION_COOKIE_SAMESITE: "lax"
+  UI_SESSION_REQUIRE_ORIGIN: "true"
+  UI_SESSION_ALLOWED_ORIGINS: "https://billing.example.com,https://api.billing.example.com"
+
 serviceAccounts:
   api:
     create: true
