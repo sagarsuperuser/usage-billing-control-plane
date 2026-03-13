@@ -401,8 +401,6 @@ func (s *Server) preAuthRateLimitTarget(r *http.Request, protected bool) (policy
 	switch {
 	case path == "/health":
 		return "", "", false, false
-	case path == "/v1/ui/sessions/login":
-		return RateLimitPolicyPreAuthLogin, "ip:" + requestClientIP(r), s.rateLimitLoginFailOpen, true
 	case path == "/internal/lago/webhooks":
 		return RateLimitPolicyWebhook, "ip:" + requestClientIP(r), s.rateLimitFailOpen, true
 	case protected:
@@ -1038,6 +1036,11 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
 		return
+	}
+	if s.rateLimiter != nil {
+		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, "ip:"+requestClientIP(r), s.rateLimitLoginFailOpen) {
+			return
+		}
 	}
 	if s.sessionManager == nil || s.authorizer == nil {
 		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")

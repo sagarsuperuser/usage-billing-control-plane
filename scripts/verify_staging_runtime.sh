@@ -57,7 +57,9 @@ ALPHA_API_BASE_URL="$(trim_trailing_slash "$ALPHA_API_BASE_URL")"
 INVOICE_ID="$(echo "${INVOICE_ID:-}" | xargs)"
 BAD_KEY="${BAD_KEY:-invalid_key}"
 RATE_LIMIT_PROBE_ATTEMPTS="${RATE_LIMIT_PROBE_ATTEMPTS:-30}"
-RATE_LIMIT_PROBE_PATH="${RATE_LIMIT_PROBE_PATH:-/v1/meters}"
+RATE_LIMIT_PROBE_METHOD="${RATE_LIMIT_PROBE_METHOD:-POST}"
+RATE_LIMIT_PROBE_PATH="${RATE_LIMIT_PROBE_PATH:-/v1/ui/sessions/login}"
+RATE_LIMIT_PROBE_BODY="${RATE_LIMIT_PROBE_BODY:-{\"api_key\":\"${BAD_KEY}\"}}"
 REQUIRE_LIFECYCLE="${REQUIRE_LIFECYCLE:-1}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
 
@@ -159,11 +161,18 @@ else
   echo "[warn] INVOICE_ID is empty; skipping invoice-specific checks (status/events/lifecycle)"
 fi
 
-echo "[info] probing runtime rate limiting on $RATE_LIMIT_PROBE_PATH"
+echo "[info] probing runtime rate limiting on $RATE_LIMIT_PROBE_METHOD $RATE_LIMIT_PROBE_PATH"
 rate_limited="0"
 saw_rate_limit_headers="0"
 for i in $(seq 1 "$RATE_LIMIT_PROBE_ATTEMPTS"); do
-  http_call "GET" "$ALPHA_API_BASE_URL$RATE_LIMIT_PROBE_PATH" "" "X-API-Key: $BAD_KEY"
+  probe_body=""
+  probe_headers=()
+  if [[ "$RATE_LIMIT_PROBE_METHOD" == "GET" || "$RATE_LIMIT_PROBE_METHOD" == "HEAD" ]]; then
+    probe_headers=("X-API-Key: $BAD_KEY")
+  else
+    probe_body="$RATE_LIMIT_PROBE_BODY"
+  fi
+  http_call "$RATE_LIMIT_PROBE_METHOD" "$ALPHA_API_BASE_URL$RATE_LIMIT_PROBE_PATH" "$probe_body" "${probe_headers[@]}"
   if [[ "$HTTP_CODE" == "429" ]]; then
     rate_limited="1"
     if grep -qi "^Retry-After:" <<<"$HTTP_HEADERS" &&
@@ -206,6 +215,7 @@ jq -n \
   --arg lifecycle_failure_event_count "$lifecycle_failure_event_count" \
   --arg lifecycle_events_analyzed "$lifecycle_events_analyzed" \
   --arg rate_limit_probe_path "$RATE_LIMIT_PROBE_PATH" \
+  --arg rate_limit_probe_method "$RATE_LIMIT_PROBE_METHOD" \
   --argjson rate_limit_probe_attempts "$RATE_LIMIT_PROBE_ATTEMPTS" \
   '{
     alpha_api_base_url: $alpha_api_base_url,
@@ -214,6 +224,7 @@ jq -n \
     invoice_payment_status_list_count: $invoice_list_count,
     summary_attention_required_count: $invoice_summary_attention_required,
     rate_limit: {
+      probe_method: $rate_limit_probe_method,
       probe_path: $rate_limit_probe_path,
       probe_attempts: $rate_limit_probe_attempts,
       throttled: true,
