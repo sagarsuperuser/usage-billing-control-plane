@@ -37,9 +37,14 @@ jobs:
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
+    env:
+      ARTIFACT_DIR: artifacts/staging-runtime-verify
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Prepare artifact directory
+        run: mkdir -p "$ARTIFACT_DIR"
 
       - name: Validate required secrets
         shell: bash
@@ -63,5 +68,39 @@ jobs:
           RATE_LIMIT_PROBE_ATTEMPTS: ${{ inputs.rate_limit_probe_attempts }}
           RATE_LIMIT_PROBE_PATH: ${{ inputs.rate_limit_probe_path }}
           REQUIRE_LIFECYCLE: ${{ inputs.require_lifecycle && '1' || '0' }}
+          OUTPUT_FILE: ${{ env.ARTIFACT_DIR }}/result.json
         run: |
           bash ./scripts/verify_staging_runtime.sh
+
+      - name: Write workflow summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "## Staging Runtime Verify" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: \`${{ inputs.environment }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Invoice id: \`${{ inputs.invoice_id || 'none' }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Rate-limit probe path: \`${{ inputs.rate_limit_probe_path }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "$ARTIFACT_DIR/result.json" ]]; then
+            echo "- Health status: \`$(jq -r '.health_status' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Invoice list count sampled: \`$(jq -r '.invoice_payment_status_list_count' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Attention required count: \`$(jq -r '.summary_attention_required_count' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Rate limiting active: \`$(jq -r '.rate_limit.throttled' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$(jq -r '.invoice != null' "$ARTIFACT_DIR/result.json")" == "true" ]]; then
+              echo "- Invoice payment status: \`$(jq -r '.invoice.payment_status' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+              if [[ "$(jq -r '.invoice.lifecycle != null' "$ARTIFACT_DIR/result.json")" == "true" ]]; then
+                echo "- Lifecycle action: \`$(jq -r '.invoice.lifecycle.recommended_action' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          else
+            echo "- Result artifact not generated" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload runtime verification artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-runtime-verify-${{ inputs.environment }}-${{ github.run_id }}
+          path: ${{ env.ARTIFACT_DIR }}
+          if-no-files-found: warn

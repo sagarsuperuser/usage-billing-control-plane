@@ -58,6 +58,7 @@ TIMEOUT_SEC="${TIMEOUT_SEC:-600}"
 POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-5}"
 REQUIRE_WEBHOOK_TYPES="${REQUIRE_WEBHOOK_TYPES:-invoice.payment_status_updated,invoice.payment_failure,invoice.payment_overdue}"
 RETRY_PAYMENT_BODY="${RETRY_PAYMENT_BODY:-{}}"
+OUTPUT_FILE="${OUTPUT_FILE:-}"
 
 if [[ "$EXPECTED_FINAL_STATUS" != "succeeded" && "$EXPECTED_FINAL_STATUS" != "failed" ]]; then
   echo "EXPECTED_FINAL_STATUS must be one of: succeeded, failed" >&2
@@ -141,12 +142,18 @@ done
 
 alpha_status=""
 alpha_last_event_at=""
+alpha_last_payment_error=""
+alpha_payment_overdue=""
+alpha_last_webhook_key=""
 echo "[info] polling alpha payment projection status"
 while true; do
   http_call "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID" "" "X-API-Key: $ALPHA_READER_API_KEY"
   if [[ "$HTTP_CODE" == "200" ]]; then
     alpha_status="$(jq -r '.payment_status // ""' <<<"$HTTP_BODY")"
     alpha_last_event_at="$(jq -r '.last_event_at // ""' <<<"$HTTP_BODY")"
+    alpha_last_payment_error="$(jq -r '.last_payment_error // ""' <<<"$HTTP_BODY")"
+    alpha_payment_overdue="$(jq -r 'if .payment_overdue == null then "" else (.payment_overdue|tostring) end' <<<"$HTTP_BODY")"
+    alpha_last_webhook_key="$(jq -r '.last_webhook_key // ""' <<<"$HTTP_BODY")"
     if [[ "$alpha_status" == "$EXPECTED_FINAL_STATUS" && -n "$alpha_last_event_at" ]]; then
       echo "[pass] alpha projection converged: payment_status=$alpha_status last_event_at=$alpha_last_event_at"
       break
@@ -190,13 +197,66 @@ if [[ "$matched_required_type" != "true" ]]; then
   exit 1
 fi
 
+echo "[info] validating alpha lifecycle summary"
+http_call "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID/lifecycle" "" "X-API-Key: $ALPHA_READER_API_KEY"
+if [[ "$HTTP_CODE" != "200" ]]; then
+  echo "[fail] failed to fetch alpha lifecycle summary: status=$HTTP_CODE body=$HTTP_BODY" >&2
+  exit 1
+fi
+
+lifecycle_payment_status="$(jq -r '.payment_status // ""' <<<"$HTTP_BODY")"
+lifecycle_recommended_action="$(jq -r '.recommended_action // ""' <<<"$HTTP_BODY")"
+lifecycle_requires_action="$(jq -r '.requires_action // false' <<<"$HTTP_BODY")"
+lifecycle_retry_recommended="$(jq -r '.retry_recommended // false' <<<"$HTTP_BODY")"
+lifecycle_failure_event_count="$(jq -r '.failure_event_count // 0' <<<"$HTTP_BODY")"
+lifecycle_overdue_signal_count="$(jq -r '.overdue_signal_count // 0' <<<"$HTTP_BODY")"
+lifecycle_events_analyzed="$(jq -r '.events_analyzed // 0' <<<"$HTTP_BODY")"
+lifecycle_last_failure_at="$(jq -r '.last_failure_at // ""' <<<"$HTTP_BODY")"
+
+if [[ "$lifecycle_payment_status" != "$EXPECTED_FINAL_STATUS" ]]; then
+  echo "[fail] lifecycle payment_status mismatch: got=$lifecycle_payment_status expected=$EXPECTED_FINAL_STATUS" >&2
+  exit 1
+fi
+
+case "$EXPECTED_FINAL_STATUS" in
+  succeeded)
+    if [[ "$lifecycle_recommended_action" != "none" || "$lifecycle_requires_action" != "false" || "$lifecycle_retry_recommended" != "false" ]]; then
+      echo "[fail] succeeded lifecycle expectation mismatch: recommended_action=$lifecycle_recommended_action requires_action=$lifecycle_requires_action retry_recommended=$lifecycle_retry_recommended" >&2
+      exit 1
+    fi
+    ;;
+  failed)
+    if [[ "$lifecycle_recommended_action" != "retry_payment" || "$lifecycle_requires_action" != "true" || "$lifecycle_retry_recommended" != "true" ]]; then
+      echo "[fail] failed lifecycle expectation mismatch: recommended_action=$lifecycle_recommended_action requires_action=$lifecycle_requires_action retry_recommended=$lifecycle_retry_recommended" >&2
+      exit 1
+    fi
+    if ! [[ "$lifecycle_failure_event_count" =~ ^[0-9]+$ ]] || [[ "$lifecycle_failure_event_count" -lt 1 ]]; then
+      echo "[fail] expected failure lifecycle to include at least one failure event, got=$lifecycle_failure_event_count" >&2
+      exit 1
+    fi
+    ;;
+esac
+
+echo "[pass] alpha lifecycle summary matches expected outcome"
+
 echo "[pass] real payment e2e completed"
+result_json="$(
 jq -n \
   --arg invoice_id "$INVOICE_ID" \
   --arg expected_status "$EXPECTED_FINAL_STATUS" \
   --arg lago_final_status "$lago_payment_status_final" \
   --arg alpha_final_status "$alpha_status" \
   --arg alpha_last_event_at "$alpha_last_event_at" \
+  --arg alpha_last_payment_error "$alpha_last_payment_error" \
+  --arg alpha_payment_overdue "$alpha_payment_overdue" \
+  --arg alpha_last_webhook_key "$alpha_last_webhook_key" \
+  --arg lifecycle_recommended_action "$lifecycle_recommended_action" \
+  --arg lifecycle_requires_action "$lifecycle_requires_action" \
+  --arg lifecycle_retry_recommended "$lifecycle_retry_recommended" \
+  --arg lifecycle_last_failure_at "$lifecycle_last_failure_at" \
+  --argjson lifecycle_failure_event_count "$lifecycle_failure_event_count" \
+  --argjson lifecycle_overdue_signal_count "$lifecycle_overdue_signal_count" \
+  --argjson lifecycle_events_analyzed "$lifecycle_events_analyzed" \
   --argjson event_count "$event_count" \
   '{
     invoice_id: $invoice_id,
@@ -204,5 +264,24 @@ jq -n \
     lago_final_status: $lago_final_status,
     alpha_final_status: $alpha_final_status,
     alpha_last_event_at: $alpha_last_event_at,
+    alpha_last_payment_error: $alpha_last_payment_error,
+    alpha_payment_overdue: $alpha_payment_overdue,
+    alpha_last_webhook_key: $alpha_last_webhook_key,
+    lifecycle: {
+      recommended_action: $lifecycle_recommended_action,
+      requires_action: ($lifecycle_requires_action == "true"),
+      retry_recommended: ($lifecycle_retry_recommended == "true"),
+      failure_event_count: $lifecycle_failure_event_count,
+      overdue_signal_count: $lifecycle_overdue_signal_count,
+      events_analyzed: $lifecycle_events_analyzed,
+      last_failure_at: $lifecycle_last_failure_at
+    },
     event_count: $event_count
   }'
+)"
+
+if [[ -n "$OUTPUT_FILE" ]]; then
+  printf '%s\n' "$result_json" >"$OUTPUT_FILE"
+fi
+
+printf '%s\n' "$result_json"

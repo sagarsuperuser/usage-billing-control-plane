@@ -59,9 +59,14 @@ jobs:
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
+    env:
+      ARTIFACT_DIR: artifacts/real-payment-e2e
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Prepare artifact directory
+        run: mkdir -p "$ARTIFACT_DIR"
 
       - name: Validate required secrets
         shell: bash
@@ -95,6 +100,10 @@ jobs:
           set -euo pipefail
           invoice_id="$(echo "$INPUT_INVOICE_ID" | xargs)"
           if [[ -n "$invoice_id" ]]; then
+            jq -n \
+              --arg invoice_id "$invoice_id" \
+              --arg source "workflow_input" \
+              '{invoice_id: $invoice_id, source: $source}' > "$ARTIFACT_DIR/fixture.json"
             echo "invoice_id=$invoice_id" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -114,6 +123,7 @@ jobs:
           UNIT_AMOUNT_CENTS="$FIXTURE_UNIT_AMOUNT_CENTS" \
           FINALIZE_INVOICE=1 \
           REQUIRE_STRIPE_BILLING_CONFIG=1 \
+          OUTPUT_FILE="$ARTIFACT_DIR/fixture.json" \
           bash ./scripts/prepare_real_payment_invoice_fixture.sh
 
       - name: Run real payment collection E2E
@@ -127,5 +137,34 @@ jobs:
           EXPECTED_FINAL_STATUS: ${{ inputs.expected_final_status }}
           TIMEOUT_SEC: ${{ inputs.timeout_sec }}
           POLL_INTERVAL_SEC: ${{ inputs.poll_interval_sec }}
+          OUTPUT_FILE: ${{ env.ARTIFACT_DIR }}/result.json
         run: |
           bash ./scripts/test_real_payment_e2e.sh
+
+      - name: Write workflow summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "## Real Payment E2E" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: \`${{ inputs.environment }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Expected final status: \`${{ inputs.expected_final_status }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Invoice id: \`${{ steps.resolve_invoice.outputs.invoice_id || 'unknown' }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f "$ARTIFACT_DIR/result.json" ]]; then
+            echo "- Alpha final status: \`$(jq -r '.alpha_final_status' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Lago final status: \`$(jq -r '.lago_final_status' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Lifecycle action: \`$(jq -r '.lifecycle.recommended_action' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Webhook events captured: \`$(jq -r '.event_count' "$ARTIFACT_DIR/result.json")\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Result artifact not generated" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-payment-e2e-${{ inputs.environment }}-${{ github.run_id }}
+          path: ${{ env.ARTIFACT_DIR }}
+          if-no-files-found: warn

@@ -120,6 +120,11 @@ GitHub workflow shortcut:
 - input `environment=staging`
 - optionally pass `invoice_id=<known_invoice_id>` for lifecycle/timeline checks
 
+Evidence to retain from `Real Payment E2E`:
+- workflow step summary
+- uploaded `fixture.json` and `result.json` artifacts
+- invoice ids used for success and failure runs
+
 Payment visibility checks (replace env vars):
 
 ```bash

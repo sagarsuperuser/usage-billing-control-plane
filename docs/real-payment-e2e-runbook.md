@@ -50,6 +50,15 @@ Inputs:
 3. Polls Lago invoice until terminal payment status matches expectation.
 4. Polls alpha projection `GET /v1/invoice-payment-statuses/{id}` until it converges.
 5. Verifies alpha webhook timeline exists via `GET /v1/invoice-payment-statuses/{id}/events`.
+6. Verifies alpha lifecycle summary via `GET /v1/invoice-payment-statuses/{id}/lifecycle`.
+
+Expected lifecycle assertions:
+- success flow: `recommended_action=none`, `requires_action=false`, `retry_recommended=false`
+- failure flow: `recommended_action=retry_payment`, `requires_action=true`, `retry_recommended=true`
+
+Workflow evidence:
+- uploads `fixture.json` and `result.json` as workflow artifacts
+- writes invoice id, Lago status, alpha status, lifecycle action, and event count to the GitHub Actions step summary
 
 ## 5) Local Manual Execution
 
@@ -87,4 +96,5 @@ bash ./scripts/test_real_payment_e2e.sh
 - `customer billing provider is not stripe`: ensure the customer has Stripe billing configuration in Lago.
 - `timeout waiting for Lago terminal status`: check Stripe provider config, customer payment method, and Lago worker logs.
 - `timeout waiting for alpha projection convergence`: check Lago -> alpha webhook delivery/signature/tenant mapping.
+- `failed lifecycle expectation mismatch`: inspect `/v1/invoice-payment-statuses/{id}/lifecycle` and webhook ordering for the target invoice.
 - `expected webhook_type` mismatch: inspect `/v1/invoice-payment-statuses/{id}/events` payload and webhook routing.
