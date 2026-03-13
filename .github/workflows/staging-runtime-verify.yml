@@ -1,0 +1,67 @@
+name: Staging Runtime Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - prod
+      invoice_id:
+        description: "Optional invoice id for deep status/events/lifecycle checks"
+        required: false
+        type: string
+      rate_limit_probe_attempts:
+        description: "Rate-limit probe attempts"
+        required: false
+        default: "30"
+        type: string
+      rate_limit_probe_path:
+        description: "Rate-limit probe API path"
+        required: false
+        default: "/v1/meters"
+        type: string
+      require_lifecycle:
+        description: "Require lifecycle endpoint checks"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  verify-runtime:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          ALPHA_API_BASE_URL: ${{ secrets.ALPHA_API_BASE_URL }}
+          ALPHA_READER_API_KEY: ${{ secrets.ALPHA_READER_API_KEY }}
+        run: |
+          required=(ALPHA_API_BASE_URL ALPHA_READER_API_KEY)
+          for key in "${required[@]}"; do
+            if [[ -z "${!key}" ]]; then
+              echo "Missing required environment secret: ${key}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Run runtime verification gate
+        env:
+          ALPHA_API_BASE_URL: ${{ secrets.ALPHA_API_BASE_URL }}
+          ALPHA_READER_API_KEY: ${{ secrets.ALPHA_READER_API_KEY }}
+          INVOICE_ID: ${{ inputs.invoice_id }}
+          RATE_LIMIT_PROBE_ATTEMPTS: ${{ inputs.rate_limit_probe_attempts }}
+          RATE_LIMIT_PROBE_PATH: ${{ inputs.rate_limit_probe_path }}
+          REQUIRE_LIFECYCLE: ${{ inputs.require_lifecycle && '1' || '0' }}
+        run: |
+          bash ./scripts/verify_staging_runtime.sh

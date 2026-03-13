@@ -115,6 +115,11 @@ INVOICE_ID='inv_xxx' \
 make verify-staging-runtime
 ```
 
+GitHub workflow shortcut:
+- run workflow `Staging Runtime Verify`
+- input `environment=staging`
+- optionally pass `invoice_id=<known_invoice_id>` for lifecycle/timeline checks
+
 Payment visibility checks (replace env vars):
 
 ```bash

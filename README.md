@@ -629,6 +629,9 @@ Workflows:
   - manual protected gate for real Stripe test-mode payment collection via alpha + Lago
   - can auto-prepare fixture invoice (`prepare_fixture=true`)
   - validates retry-payment -> Lago terminal payment status -> alpha webhook projection convergence
+- `.github/workflows/staging-runtime-verify.yml`
+  - manual gate for runtime verification (`/health`, payment visibility, lifecycle endpoint, and rate-limit behavior)
+  - uses environment secrets and runs `scripts/verify_staging_runtime.sh`
 
 Required repository variables:
 
