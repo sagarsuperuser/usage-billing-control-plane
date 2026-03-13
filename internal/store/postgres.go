@@ -13,8 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"lago-usage-billing-alpha/internal/domain"
-	"lago-usage-billing-alpha/migrations"
+	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/migrations"
 )
 
 const (

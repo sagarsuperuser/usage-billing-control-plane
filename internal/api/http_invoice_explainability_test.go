@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"lago-usage-billing-alpha/internal/api"
-	"lago-usage-billing-alpha/internal/service"
+	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/service"
 )
 
 func TestInvoiceExplainabilityEndpoint(t *testing.T) {

@@ -1,6 +1,6 @@
 # Web Control Plane
 
-UI for `lago-usage-billing-alpha` control plane.
+UI for `usage-billing-control-plane` control plane.
 
 ## Run
 

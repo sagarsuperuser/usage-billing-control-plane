@@ -22,11 +22,11 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
-	"lago-usage-billing-alpha/internal/domain"
-	"lago-usage-billing-alpha/internal/reconcile"
-	"lago-usage-billing-alpha/internal/replay"
-	"lago-usage-billing-alpha/internal/service"
-	"lago-usage-billing-alpha/internal/store"
+	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/reconcile"
+	"usage-billing-control-plane/internal/replay"
+	"usage-billing-control-plane/internal/service"
+	"usage-billing-control-plane/internal/store"
 )
 
 type Server struct {

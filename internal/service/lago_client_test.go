@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"lago-usage-billing-alpha/internal/domain"
+	"usage-billing-control-plane/internal/domain"
 )
 
 func TestNewLagoClientRequiresConfig(t *testing.T) {

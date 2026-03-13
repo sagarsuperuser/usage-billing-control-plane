@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"lago-usage-billing-alpha/internal/domain"
-	"lago-usage-billing-alpha/internal/store"
+	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/store"
 )
 
 type AuditExportService struct {

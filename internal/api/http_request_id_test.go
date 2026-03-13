@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"lago-usage-billing-alpha/internal/api"
+	"usage-billing-control-plane/internal/api"
 )
 
 func TestRequestIDMiddlewareGeneratesAndPropagates(t *testing.T) {

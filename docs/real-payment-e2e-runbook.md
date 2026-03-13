@@ -1,7 +1,7 @@
 # Real Payment E2E Runbook (Stripe via Lago)
 
 This runbook validates real payment collection end-to-end:
-- retry-payment call through `lago-usage-billing-alpha`
+- retry-payment call through `usage-billing-control-plane`
 - real Lago payment processing
 - real Stripe test-mode charge outcome
 - webhook ingestion to alpha payment projections

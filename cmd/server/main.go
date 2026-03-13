@@ -21,11 +21,11 @@ import (
 	temporalclient "go.temporal.io/sdk/client"
 	temporalsdkworker "go.temporal.io/sdk/worker"
 
-	"lago-usage-billing-alpha/internal/api"
-	"lago-usage-billing-alpha/internal/paymentsync"
-	"lago-usage-billing-alpha/internal/replay"
-	"lago-usage-billing-alpha/internal/service"
-	"lago-usage-billing-alpha/internal/store"
+	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/paymentsync"
+	"usage-billing-control-plane/internal/replay"
+	"usage-billing-control-plane/internal/service"
+	"usage-billing-control-plane/internal/store"
 )
 
 func main() {

@@ -17,7 +17,7 @@ import (
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
 
-	"lago-usage-billing-alpha/internal/store"
+	"usage-billing-control-plane/internal/store"
 )
 
 const (

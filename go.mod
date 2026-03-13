@@ -1,4 +1,4 @@
-module lago-usage-billing-alpha
+module usage-billing-control-plane
 
 go 1.25.1
 

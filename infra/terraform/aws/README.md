@@ -1,6 +1,6 @@
 # AWS Terraform Stack
 
-Production baseline for `lago-usage-billing-alpha` on AWS.
+Production baseline for `usage-billing-control-plane` on AWS.
 
 ## Provisions
 

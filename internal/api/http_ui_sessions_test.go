@@ -16,8 +16,8 @@ import (
 	"github.com/alexedwards/scs/v2"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"lago-usage-billing-alpha/internal/api"
-	"lago-usage-billing-alpha/internal/store"
+	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/store"
 )
 
 func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {

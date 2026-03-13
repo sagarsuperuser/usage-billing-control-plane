@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"lago-usage-billing-alpha/internal/domain"
-	"lago-usage-billing-alpha/internal/store"
+	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/store"
 )
 
 var ErrValidation = errors.New("validation error")

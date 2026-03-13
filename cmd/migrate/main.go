@@ -11,7 +11,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"lago-usage-billing-alpha/migrations"
+	"usage-billing-control-plane/migrations"
 )
 
 type command string

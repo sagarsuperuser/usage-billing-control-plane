@@ -50,7 +50,7 @@ func EnsureNamespaceReady(ctx context.Context, temporalClient temporalclient.Cli
 		if errors.As(describeErr, &namespaceNotFound) {
 			_, registerErr := serviceClient.RegisterNamespace(ctx, &workflowservice.RegisterNamespaceRequest{
 				Namespace:                        namespace,
-				Description:                      "lago-usage-billing-alpha integration namespace",
+				Description:                      "usage-billing-control-plane integration namespace",
 				OwnerEmail:                       "integration-tests@local",
 				WorkflowExecutionRetentionPeriod: durationpb.New(retention),
 			})

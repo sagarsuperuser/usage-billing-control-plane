@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"lago-usage-billing-alpha/internal/domain"
+	"usage-billing-control-plane/internal/domain"
 )
 
 const (
@@ -67,7 +67,7 @@ func (c *LagoClient) SyncMeter(ctx context.Context, meter domain.Meter) error {
 		"name":             meter.Name,
 		"code":             meter.Key,
 		"aggregation_type": aggregationType,
-		"description":      fmt.Sprintf("synced by lago-usage-billing-alpha meter_id=%s rule_version_id=%s", meter.ID, meter.RatingRuleVersionID),
+		"description":      fmt.Sprintf("synced by usage-billing-control-plane meter_id=%s rule_version_id=%s", meter.ID, meter.RatingRuleVersionID),
 	}
 	if aggregationType != "count_agg" {
 		billableMetric["field_name"] = "value"

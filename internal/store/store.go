@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"lago-usage-billing-alpha/internal/domain"
+	"usage-billing-control-plane/internal/domain"
 )
 
 var (

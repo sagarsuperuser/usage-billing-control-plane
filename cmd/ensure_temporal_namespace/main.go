@@ -9,7 +9,7 @@ import (
 
 	temporalclient "go.temporal.io/sdk/client"
 
-	"lago-usage-billing-alpha/internal/temporalutil"
+	"usage-billing-control-plane/internal/temporalutil"
 )
 
 func main() {

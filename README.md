@@ -1,4 +1,4 @@
-# lago-usage-billing-alpha
+# usage-billing-control-plane
 
 Production-oriented API foundation for:
 - Deterministic rating rules (versioned)
@@ -8,7 +8,7 @@ Production-oriented API foundation for:
 - Reconciliation reports (JSON/CSV)
 
 Architecture split:
-- `lago-usage-billing-alpha` is the control-plane layer (auth, tenancy, replay/reconcile tooling, audit).
+- `usage-billing-control-plane` is the control-plane layer (auth, tenancy, replay/reconcile tooling, audit).
 - `../lago` remains the billing engine backend (metering/rating/invoice/payment primitives).
 - Alpha integrates with Lago APIs; no local fallback billing engine is used.
 

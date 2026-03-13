@@ -1,6 +1,6 @@
 # Staging Go-Live Checklist
 
-This checklist is the release gate for shipping `lago-usage-billing-alpha` to staging with real AWS infrastructure and real Lago integration.
+This checklist is the release gate for shipping `usage-billing-control-plane` to staging with real AWS infrastructure and real Lago integration.
 
 ## 0) v1 Release Scope
 

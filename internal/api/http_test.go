@@ -20,13 +20,13 @@ import (
 	temporalclient "go.temporal.io/sdk/client"
 	temporalsdkworker "go.temporal.io/sdk/worker"
 
-	"lago-usage-billing-alpha/internal/api"
-	"lago-usage-billing-alpha/internal/domain"
-	"lago-usage-billing-alpha/internal/reconcile"
-	"lago-usage-billing-alpha/internal/replay"
-	"lago-usage-billing-alpha/internal/service"
-	"lago-usage-billing-alpha/internal/store"
-	"lago-usage-billing-alpha/internal/temporalutil"
+	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/reconcile"
+	"usage-billing-control-plane/internal/replay"
+	"usage-billing-control-plane/internal/service"
+	"usage-billing-control-plane/internal/store"
+	"usage-billing-control-plane/internal/temporalutil"
 )
 
 func TestEndToEndPreviewReplayReconciliation(t *testing.T) {

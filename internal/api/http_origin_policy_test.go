@@ -12,7 +12,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
-	"lago-usage-billing-alpha/internal/api"
+	"usage-billing-control-plane/internal/api"
 )
 
 func TestParseAllowedOrigins(t *testing.T) {
