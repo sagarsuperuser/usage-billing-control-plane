@@ -79,6 +79,19 @@ variable "eks_node_max_size" {
   default     = 12
 }
 
+variable "eks_cluster_admin_principal_arns" {
+  description = "IAM principal ARNs granted cluster-admin access through EKS access entries."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.eks_cluster_admin_principal_arns : can(regex("^arn:aws:iam::[0-9]{12}:(user|role)/.+", arn))
+    ])
+    error_message = "eks_cluster_admin_principal_arns must contain valid IAM user or role ARNs."
+  }
+}
+
 variable "db_name" {
   description = "RDS database name."
   type        = string

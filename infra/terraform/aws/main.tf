@@ -43,8 +43,26 @@ module "eks" {
   cluster_name    = "${local.name_prefix}-eks"
   cluster_version = var.eks_version
 
-  cluster_endpoint_public_access = true
-  enable_irsa                    = true
+  cluster_endpoint_public_access           = true
+  authentication_mode                      = "API"
+  enable_cluster_creator_admin_permissions = false
+  enable_irsa                              = true
+
+  access_entries = {
+    for principal_arn in var.eks_cluster_admin_principal_arns :
+    replace(replace(replace(principal_arn, ":", "-"), "/", "-"), "@", "-") => {
+      principal_arn = principal_arn
+
+      policy_associations = {
+        cluster_admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 
   vpc_id                   = module.vpc.vpc_id
   subnet_ids               = module.vpc.private_subnets
@@ -52,11 +70,13 @@ module "eks" {
 
   eks_managed_node_groups = {
     app = {
-      name           = "${local.name_prefix}-ng-app"
-      instance_types = var.eks_node_instance_types
-      min_size       = var.eks_node_min_size
-      max_size       = var.eks_node_max_size
-      desired_size   = var.eks_node_desired_size
+      name                     = "${local.name_prefix}-ng-app"
+      iam_role_name            = "${local.name_prefix}-ng-app-role"
+      iam_role_use_name_prefix = false
+      instance_types           = var.eks_node_instance_types
+      min_size                 = var.eks_node_min_size
+      max_size                 = var.eks_node_max_size
+      desired_size             = var.eks_node_desired_size
 
       labels = {
         workload = "general"
