@@ -8,6 +8,13 @@ plan_out="${PLAN_OUT:-$repo_root/infra/terraform/aws/tfplan-${ENVIRONMENT:-unkno
 skip_backend_init="${SKIP_BACKEND_INIT:-0}"
 extra_plan_args="${EXTRA_PLAN_ARGS:-}"
 
+if [[ "$tf_dir" != /* ]]; then
+  tf_dir="$repo_root/$tf_dir"
+fi
+if [[ "$plan_out" != /* ]]; then
+  plan_out="$repo_root/$plan_out"
+fi
+
 if [[ "$environment" != "staging" && "$environment" != "prod" ]]; then
   echo "ENVIRONMENT must be one of: staging, prod" >&2
   exit 1

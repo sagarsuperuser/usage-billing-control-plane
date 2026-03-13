@@ -7,6 +7,13 @@ environment="${ENVIRONMENT:-}"
 plan_file="${PLAN_FILE:-$repo_root/infra/terraform/aws/tfplan-${ENVIRONMENT:-unknown}.bin}"
 skip_backend_init="${SKIP_BACKEND_INIT:-0}"
 
+if [[ "$tf_dir" != /* ]]; then
+  tf_dir="$repo_root/$tf_dir"
+fi
+if [[ "$plan_file" != /* ]]; then
+  plan_file="$repo_root/$plan_file"
+fi
+
 if [[ "$environment" != "staging" && "$environment" != "prod" ]]; then
   echo "ENVIRONMENT must be one of: staging, prod" >&2
   exit 1
