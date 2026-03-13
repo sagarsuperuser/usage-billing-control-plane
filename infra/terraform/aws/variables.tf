@@ -92,6 +92,25 @@ variable "eks_cluster_admin_principal_arns" {
   }
 }
 
+variable "eks_admin_role_trusted_principal_arns" {
+  description = "IAM principal ARNs allowed to assume the dedicated EKS admin role."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.eks_admin_role_trusted_principal_arns : can(regex("^arn:aws:iam::[0-9]{12}:(user|role)/.+", arn))
+    ])
+    error_message = "eks_admin_role_trusted_principal_arns must contain valid IAM user or role ARNs."
+  }
+}
+
+variable "eks_admin_role_name" {
+  description = "Optional dedicated IAM role name for EKS admin access. Leave empty for the default generated name."
+  type        = string
+  default     = ""
+}
+
 variable "db_name" {
   description = "RDS database name."
   type        = string

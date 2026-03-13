@@ -3,10 +3,62 @@ locals {
 
   runtime_secret_name = trimspace(var.runtime_secret_name) != "" ? var.runtime_secret_name : "${local.name_prefix}/runtime"
   aws_account_id      = trimspace(var.aws_account_id) != "" ? trimspace(var.aws_account_id) : data.aws_caller_identity.current[0].account_id
+  cluster_name        = "${local.name_prefix}-eks"
+  cluster_arn         = "arn:aws:eks:${var.aws_region}:${local.aws_account_id}:cluster/${local.cluster_name}"
+  eks_admin_role_name = trimspace(var.eks_admin_role_name) != "" ? trimspace(var.eks_admin_role_name) : "${local.name_prefix}-eks-admin"
 }
 
 data "aws_caller_identity" "current" {
   count = trimspace(var.aws_account_id) == "" ? 1 : 0
+}
+
+data "aws_iam_policy_document" "eks_admin_assume_role" {
+  count = length(var.eks_admin_role_trusted_principal_arns) > 0 ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "AWS"
+      identifiers = var.eks_admin_role_trusted_principal_arns
+    }
+  }
+}
+
+resource "aws_iam_role" "eks_admin" {
+  count = length(var.eks_admin_role_trusted_principal_arns) > 0 ? 1 : 0
+
+  name               = local.eks_admin_role_name
+  assume_role_policy = data.aws_iam_policy_document.eks_admin_assume_role[0].json
+}
+
+data "aws_iam_policy_document" "eks_admin" {
+  count = length(var.eks_admin_role_trusted_principal_arns) > 0 ? 1 : 0
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "eks:DescribeCluster",
+    ]
+    resources = [local.cluster_arn]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "eks:ListClusters",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "eks_admin" {
+  count = length(var.eks_admin_role_trusted_principal_arns) > 0 ? 1 : 0
+
+  name   = "${local.name_prefix}-eks-admin"
+  role   = aws_iam_role.eks_admin[0].id
+  policy = data.aws_iam_policy_document.eks_admin[0].json
 }
 
 module "vpc" {
@@ -40,7 +92,7 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.36"
 
-  cluster_name    = "${local.name_prefix}-eks"
+  cluster_name    = local.cluster_name
   cluster_version = var.eks_version
 
   cluster_endpoint_public_access           = true
@@ -48,21 +100,37 @@ module "eks" {
   enable_cluster_creator_admin_permissions = false
   enable_irsa                              = true
 
-  access_entries = {
-    for principal_arn in var.eks_cluster_admin_principal_arns :
-    replace(replace(replace(principal_arn, ":", "-"), "/", "-"), "@", "-") => {
-      principal_arn = principal_arn
+  access_entries = merge(
+    {
+      for principal_arn in var.eks_cluster_admin_principal_arns :
+      replace(replace(replace(principal_arn, ":", "-"), "/", "-"), "@", "-") => {
+        principal_arn = principal_arn
 
-      policy_associations = {
-        cluster_admin = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = {
-            type = "cluster"
+        policy_associations = {
+          cluster_admin = {
+            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+            access_scope = {
+              type = "cluster"
+            }
           }
         }
       }
-    }
-  }
+    },
+    length(var.eks_admin_role_trusted_principal_arns) > 0 ? {
+      eks_admin_role = {
+        principal_arn = aws_iam_role.eks_admin[0].arn
+
+        policy_associations = {
+          cluster_admin = {
+            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+            access_scope = {
+              type = "cluster"
+            }
+          }
+        }
+      }
+    } : {},
+  )
 
   vpc_id                   = module.vpc.vpc_id
   subnet_ids               = module.vpc.private_subnets

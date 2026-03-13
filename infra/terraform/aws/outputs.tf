@@ -62,3 +62,8 @@ output "runtime_secret_arn" {
   value       = local.runtime_secret_arn
   description = "AWS Secrets Manager secret ARN containing runtime env."
 }
+
+output "eks_admin_role_arn" {
+  value       = try(aws_iam_role.eks_admin[0].arn, null)
+  description = "Dedicated IAM role ARN for EKS admin access."
+}
