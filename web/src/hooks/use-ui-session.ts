@@ -44,10 +44,16 @@ export function useUISession() {
   });
 
   const session = loginMutation.data ?? sessionQuery.data ?? null;
+  const role = session?.role ?? null;
+  const canWrite = role === "writer" || role === "admin";
+  const isAdmin = role === "admin";
   return {
     apiBaseURL,
     setAPIBaseURL,
     session,
+    role,
+    canWrite,
+    isAdmin,
     csrfToken: session?.csrf_token ?? "",
     isAuthenticated: Boolean(session?.authenticated),
     isLoading: sessionQuery.isLoading,

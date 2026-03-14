@@ -67,7 +67,7 @@ function invoiceBadgeClass(status?: string): string {
 export function PaymentOperationsScreen() {
   const queryClient = useQueryClient();
   const { selectedInvoiceID, setSelectedInvoiceID } = useSessionStore();
-  const { apiBaseURL, csrfToken, isAuthenticated } = useUISession();
+  const { apiBaseURL, csrfToken, isAuthenticated, canWrite, role } = useUISession();
 
   const [organizationID, setOrganizationID] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
@@ -444,8 +444,9 @@ export function PaymentOperationsScreen() {
                               event.stopPropagation();
                               retryMutation.mutate(item.invoice_id);
                             }}
-                            disabled={!isAuthenticated || !csrfToken || retrying}
+                            disabled={!isAuthenticated || !csrfToken || !canWrite || retrying}
                             className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                            title={!canWrite ? "Writer or admin role required" : undefined}
                           >
                             {retrying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                             Retry
@@ -493,6 +494,12 @@ export function PaymentOperationsScreen() {
         {retryMutation.isSuccess ? (
           <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
             Retry request sent to billing engine for invoice <strong>{retryMutation.variables}</strong>.
+          </section>
+        ) : null}
+
+        {isAuthenticated && !canWrite ? (
+          <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+            Current session role <strong>{role ?? "reader"}</strong> is read-only for payment retry operations. Use a writer or admin key to trigger retries.
           </section>
         ) : null}
       </main>

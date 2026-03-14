@@ -6,7 +6,21 @@ type BillingMockWindow = Window & typeof globalThis & {
   };
 };
 
-const sessionPayload = {
+type SessionPayload = {
+  authenticated: boolean;
+  role: "reader" | "writer" | "admin";
+  tenant_id: string;
+  api_key_id: string;
+  csrf_token: string;
+};
+
+type InitPayload = {
+  session: SessionPayload;
+  summary: typeof summaryPayload;
+  row: typeof invoiceRow;
+};
+
+const sessionPayload: SessionPayload = {
   authenticated: true,
   role: "writer",
   tenant_id: "tenant_a",
@@ -45,8 +59,8 @@ const invoiceRow = {
   updated_at: new Date().toISOString(),
 };
 
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(({ session, summary, row }) => {
+async function installPaymentOpsMock(page: any, session: SessionPayload) {
+  await page.addInitScript(({ session, summary, row }: InitPayload) => {
     let loggedIn = true;
     let retryCSRF = "";
 
@@ -113,7 +127,11 @@ test.beforeEach(async ({ page }) => {
 
       return originalFetch(input, init);
     };
-  }, { session: sessionPayload, summary: summaryPayload, row: invoiceRow });
+  }, { session, summary: summaryPayload, row: invoiceRow });
+}
+
+test.beforeEach(async ({ page }) => {
+  await installPaymentOpsMock(page, sessionPayload);
 });
 
 test("supports session logout in payment operations UI", async ({ page }) => {
@@ -134,4 +152,18 @@ test("sends CSRF token when retrying failed payment", async ({ page }) => {
 
   await expect.poll(async () => page.evaluate(() => (window as BillingMockWindow).__billingMock.retryCSRF)).toBe("csrf-abc-123");
   await expect(page.getByText("Retry request sent to billing engine for invoice")).toBeVisible();
+});
+
+test("disables retry for reader sessions", async ({ page }) => {
+  await installPaymentOpsMock(page, {
+    ...sessionPayload,
+    role: "reader",
+    api_key_id: "api_key_reader_1",
+  });
+
+  await page.goto("/payment-operations");
+
+  const retryButton = page.getByRole("button", { name: "Retry" }).first();
+  await expect(retryButton).toBeDisabled();
+  await expect(page.getByText("Current session role reader is read-only for payment retry operations.")).toBeVisible();
 });
