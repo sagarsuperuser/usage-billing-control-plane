@@ -218,9 +218,51 @@ func (s *Server) Handler() http.Handler {
 	var handler http.Handler = s.mux
 	handler = s.accessLogMiddleware(handler)
 	handler = s.authMiddleware(handler)
+	handler = s.corsMiddleware(handler)
 	handler = s.instrumentMiddleware(handler)
 	handler = s.requestIDMiddleware(handler)
 	return handler
+}
+
+func (s *Server) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		normalizedOrigin, ok := normalizeAbsoluteOrigin(origin)
+		if !ok || !s.isAllowedOrigin(normalizedOrigin, r) {
+			if r.Method == http.MethodOptions {
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Add("Vary", "Origin")
+		w.Header().Add("Vary", "Access-Control-Request-Method")
+		w.Header().Add("Vary", "Access-Control-Request-Headers")
+		w.Header().Set("Access-Control-Allow-Origin", normalizedOrigin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+
+		requestedHeaders := strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers"))
+		if requestedHeaders == "" {
+			requestedHeaders = "Content-Type, X-CSRF-Token, X-API-Key"
+		}
+		w.Header().Set("Access-Control-Allow-Headers", requestedHeaders)
+		w.Header().Set("Access-Control-Expose-Headers", requestIDHeaderKey)
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) instrumentMiddleware(next http.Handler) http.Handler {

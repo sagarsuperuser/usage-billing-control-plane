@@ -40,3 +40,13 @@ npx -y pnpm@10.30.0 build
 npx -y pnpm@10.30.0 exec playwright install --with-deps chromium
 npx -y pnpm@10.30.0 e2e
 ```
+
+Live staging smoke for payment operations UI:
+
+```bash
+PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_WRITER_API_KEY='replace_me_writer_key' \
+PLAYWRIGHT_LIVE_READER_API_KEY='replace_me_reader_key' \
+npx -y pnpm@10.30.0 exec playwright test tests/e2e/payment-operations-live.spec.ts
+```

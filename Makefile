@@ -169,8 +169,8 @@ rehearse-release-rollback: ## Run deploy -> rollback -> redeploy rehearsal (requ
 web-e2e: ## Run browser E2E tests for control-plane UI
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
 
-web-e2e-live: ## Run live staging browser smoke for payment-operations UI (requires PLAYWRIGHT_LIVE_BASE_URL/PLAYWRIGHT_LIVE_API_KEY)
-	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_KEY='$(PLAYWRIGHT_LIVE_API_KEY)' npx -y pnpm@10.30.0 exec playwright test tests/e2e/payment-operations-live.spec.ts
+web-e2e-live: ## Run live staging browser smoke for payment-operations UI (requires PLAYWRIGHT_LIVE_BASE_URL/PLAYWRIGHT_LIVE_API_BASE_URL/PLAYWRIGHT_LIVE_WRITER_API_KEY; optional PLAYWRIGHT_LIVE_READER_API_KEY)
+	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_API_KEY='$(PLAYWRIGHT_LIVE_API_KEY)' PLAYWRIGHT_LIVE_WRITER_API_KEY='$(PLAYWRIGHT_LIVE_WRITER_API_KEY)' PLAYWRIGHT_LIVE_READER_API_KEY='$(PLAYWRIGHT_LIVE_READER_API_KEY)' npx -y pnpm@10.30.0 exec playwright test tests/e2e/payment-operations-live.spec.ts --workers=1
 
 tf-fmt: ## Format Terraform code
 	@terraform fmt -recursive $(TF_DIR)
