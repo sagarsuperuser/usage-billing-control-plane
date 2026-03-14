@@ -1,0 +1,14 @@
+controller:
+  ingressClass: nginx
+  ingressClassResource:
+    default: false
+    name: nginx
+
+  replicaCount: 2
+  minAvailable: 1
+
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb

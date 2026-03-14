@@ -30,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -99,6 +99,45 @@ lago-ps: ## Show Lago compose service status
 
 lago-verify: ## Run Lago replay/correctness verification suites
 	@cd '$(LAGO_REPO_PATH)' && ./scripts/verify_e2e.sh
+
+lago-staging-deploy: ## Deploy Lago staging into the current cluster (expects deploy/lago/environments/staging-values.yaml)
+	@./scripts/deploy_lago_staging.sh
+
+lago-staging-sync-secrets: ## Sync Lago staging runtime secrets from AWS Secrets Manager into Kubernetes
+	@./scripts/sync_lago_staging_secrets.sh
+
+lago-staging-verify: ## Verify Lago staging namespace, services, and optional API reachability
+	@./scripts/verify_lago_staging.sh
+
+lago-staging-checklist: ## Print first-time manual Lago bootstrap steps
+	@./scripts/print_lago_bootstrap_checklist.sh
+
+temporal-staging-deploy: ## Deploy Temporal staging into the current cluster (official Helm chart, internal only)
+	@./scripts/deploy_temporal_staging.sh
+
+temporal-staging-sync-secrets: ## Sync Temporal SQL password secret from AWS RDS master secret into Kubernetes
+	@./scripts/sync_temporal_staging_secrets.sh
+
+temporal-staging-verify: ## Verify Temporal staging deployments and the default namespace
+	@./scripts/verify_temporal_staging.sh
+
+external-secrets-install: ## Install the external-secrets operator with staging IRSA wiring
+	@./scripts/install_external_secrets.sh
+
+ingress-nginx-install-staging: ## Install or upgrade ingress-nginx with tracked staging values
+	@./scripts/install_ingress_nginx.sh
+
+cert-manager-install: ## Install or upgrade cert-manager in the current cluster
+	@./scripts/install_cert_manager.sh
+
+cert-manager-apply-issuer: ## Apply a cert-manager ClusterIssuer manifest (ISSUER_FILE=...)
+	@ISSUER_FILE='$(ISSUER_FILE)' ./scripts/apply_cluster_issuer.sh
+
+cloudflare-sync-dns-token: ## Create/update the cert-manager Cloudflare API token secret (requires CLOUDFLARE_API_TOKEN)
+	@./scripts/sync_cloudflare_dns_token.sh
+
+build-staging-images: ## Build and push linux/amd64 staging images to ECR (requires IMAGE_TAG/API_IMAGE_REPOSITORY/WEB_IMAGE_REPOSITORY)
+	@ENVIRONMENT=staging IMAGE_TAG='$(IMAGE_TAG)' API_IMAGE_REPOSITORY='$(API_IMAGE_REPOSITORY)' WEB_IMAGE_REPOSITORY='$(WEB_IMAGE_REPOSITORY)' AWS_REGION='$(AWS_REGION)' ./scripts/build_and_push_images.sh
 
 test-integration: ## Run integration tests with real Postgres + real Lago
 	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' TEST_TEMPORAL_ADDRESS='$(TEST_TEMPORAL_ADDRESS)' TEST_TEMPORAL_NAMESPACE='$(TEST_TEMPORAL_NAMESPACE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' BOOTSTRAP_LAGO_FOR_TESTS='$(BOOTSTRAP_LAGO_FOR_TESTS)' LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' CLEANUP_LAGO_ON_EXIT='$(CLEANUP_LAGO_ON_EXIT)' VERIFY_LAGO_BACKEND_FOR_TESTS='$(VERIFY_LAGO_BACKEND_FOR_TESTS)' LAGO_VERIFY_COMPOSE_FILE='$(LAGO_VERIFY_COMPOSE_FILE)' bash ./scripts/test_integration.sh

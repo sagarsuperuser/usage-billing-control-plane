@@ -103,9 +103,10 @@ fi
 
 customer_currency="$(jq -r '.customer.currency // empty' <<<"$HTTP_BODY")"
 billing_provider="$(jq -r '.customer.billing_configuration.payment_provider // .customer.payment_provider // empty' <<<"$HTTP_BODY")"
+billing_provider_normalized="$(printf '%s' "$billing_provider" | tr '[:upper:]' '[:lower:]')"
 
 if [[ "$REQUIRE_STRIPE_BILLING_CONFIG" == "1" ]]; then
-  if [[ "${billing_provider,,}" != "stripe" ]]; then
+  if [[ "$billing_provider_normalized" != "stripe" ]]; then
     echo "[fail] customer billing provider is not stripe (provider=${billing_provider:-<empty>})" >&2
     echo "       configure customer billing_configuration.payment_provider=stripe before real payment fixture prep" >&2
     exit 1

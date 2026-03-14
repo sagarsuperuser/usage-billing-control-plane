@@ -130,27 +130,33 @@ For the current `ingress-nginx` setup, the short-term path is:
 
 Staging should keep `externalTrafficPolicy: Local` on the `ingress-nginx-controller` Service. The root cause was the worker node security group only allowing self-referenced TCP 1025-65535, which broke cross-node traffic to services listening on low ports like `80`. That SG rule has been fixed, but `Local` remains the safer edge setting for staging because it avoids unnecessary node hops through the NLB.
 
-1. Install cert-manager:
+1. Install or reconcile ingress-nginx with the tracked staging values if needed:
+
+```bash
+make ingress-nginx-install-staging
+```
+
+2. Install cert-manager:
 
 ```bash
 make cert-manager-install
 ```
 
-2. Copy and fill one issuer template:
+3. Copy and fill one issuer template:
 
 - `deploy/cert-manager/cluster-issuer-letsencrypt-staging.example.yaml`
 - `deploy/cert-manager/cluster-issuer-letsencrypt-prod.example.yaml`
 
-3. Apply it:
+4. Apply it:
 
 ```bash
 ISSUER_FILE=deploy/cert-manager/cluster-issuer-letsencrypt-prod.yaml \
 make cert-manager-apply-issuer
 ```
 
-4. Point your real DNS records to the ingress load balancer hostname.
+5. Point your real DNS records to the ingress load balancer hostname.
 
-5. Re-deploy Lago so the ingress annotations/hosts line up with the real DNS names.
+6. Re-deploy Lago so the ingress annotations/hosts line up with the real DNS names.
 
 This keeps the origin valid for HTTPS while still allowing you to put Cloudflare Access or another SSO-aware edge in front later.
 For this repo, the preferred default is now Cloudflare DNS-01 instead of HTTP-01.
