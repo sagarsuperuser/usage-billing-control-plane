@@ -115,16 +115,19 @@ export function InvoiceExplainabilityScreen() {
               value={invoiceID}
               onChange={setInvoiceID}
               placeholder="inv_123"
+              dataTestID="explainability-invoice-id"
             />
             <InputField
               label="Fee Types"
               value={feeTypesInput}
               onChange={setFeeTypesInput}
               placeholder="charge,subscription"
+              dataTestID="explainability-fee-types"
             />
             <div className="grid gap-2">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Sort</label>
               <select
+                data-testid="explainability-sort"
                 className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
                 value={lineItemSort}
                 onChange={(event) => setLineItemSort(event.target.value as ExplainabilitySort)}
@@ -145,6 +148,7 @@ export function InvoiceExplainabilityScreen() {
               onChange={setPage}
               placeholder="1"
               className="w-[120px]"
+              dataTestID="explainability-page"
             />
             <InputField
               label="Limit"
@@ -152,9 +156,11 @@ export function InvoiceExplainabilityScreen() {
               onChange={setLimit}
               placeholder="50"
               className="w-[120px]"
+              dataTestID="explainability-limit"
             />
             <button
               type="button"
+              data-testid="explainability-load"
               onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
               disabled={!isAuthenticated || !invoiceID.trim()}
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -164,6 +170,7 @@ export function InvoiceExplainabilityScreen() {
             </button>
             <button
               type="button"
+              data-testid="explainability-refresh"
               onClick={() => explainabilityQuery.refetch()}
               disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !isAuthenticated}
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 text-sm text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -181,15 +188,15 @@ export function InvoiceExplainabilityScreen() {
         {!isAuthenticated ? <SessionLoginCard /> : null}
 
         {explainabilityQuery.error ? (
-          <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <section data-testid="explainability-error" className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
             {(explainabilityQuery.error as Error).message}
           </section>
         ) : null}
 
         <section className="rounded-2xl border border-white/10 bg-slate-900/75 p-4 backdrop-blur">
           <div className="grid gap-2 md:grid-cols-2">
-            <MetaRow label="Invoice" value={explainabilityQuery.data?.invoice_number || submittedInvoiceID || "-"} />
-            <MetaRow label="Invoice ID" value={explainabilityQuery.data?.invoice_id || "-"} />
+            <MetaRow label="Invoice" value={explainabilityQuery.data?.invoice_number || submittedInvoiceID || "-"} dataTestID="explainability-meta-invoice" />
+            <MetaRow label="Invoice ID" value={explainabilityQuery.data?.invoice_id || "-"} dataTestID="explainability-meta-invoice-id" />
             <MetaRow
               label="Total Amount"
               value={
@@ -197,13 +204,19 @@ export function InvoiceExplainabilityScreen() {
                   ? formatMoney(explainabilityQuery.data.total_amount_cents, explainabilityQuery.data.currency || "USD")
                   : "-"
               }
+              dataTestID="explainability-meta-total"
             />
-            <MetaRow label="Generated At" value={explainabilityQuery.data ? formatExactTimestamp(explainabilityQuery.data.generated_at) : "-"} />
-            <MetaRow label="Digest Version" value={explainabilityQuery.data?.explainability_version || "-"} />
+            <MetaRow
+              label="Generated At"
+              value={explainabilityQuery.data ? formatExactTimestamp(explainabilityQuery.data.generated_at) : "-"}
+              dataTestID="explainability-meta-generated-at"
+            />
+            <MetaRow label="Digest Version" value={explainabilityQuery.data?.explainability_version || "-"} dataTestID="explainability-meta-version" />
             <MetaRow
               label="Digest"
               value={explainabilityQuery.data?.explainability_digest || "-"}
               mono
+              dataTestID="explainability-meta-digest"
             />
           </div>
         </section>
@@ -224,7 +237,7 @@ export function InvoiceExplainabilityScreen() {
               </thead>
               <tbody>
                 {lineItems.map((line) => (
-                  <tr key={line.fee_id} className="bg-slate-950/75">
+                  <tr key={line.fee_id} data-testid={`explainability-line-item-${line.fee_id}`} className="bg-slate-950/75">
                     <td className="rounded-l-xl px-3 py-3 align-top">
                       <p className="font-medium text-cyan-100">{line.item_name}</p>
                       <p className="text-xs text-slate-400">{line.item_code || "-"}</p>
@@ -263,7 +276,7 @@ export function InvoiceExplainabilityScreen() {
             </table>
           </div>
           {lineItems.length === 0 && !explainabilityQuery.isFetching ? (
-            <div className="px-4 py-8 text-center text-sm text-slate-300">
+            <div data-testid="explainability-empty" className="px-4 py-8 text-center text-sm text-slate-300">
               No line items yet. Load an invoice to inspect explainability.
             </div>
           ) : null}
@@ -294,9 +307,9 @@ function MetricCard({
   );
 }
 
-function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MetaRow({ label, value, mono, dataTestID }: { label: string; value: string; mono?: boolean; dataTestID?: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2">
+    <div data-testid={dataTestID} className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2">
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
       <p className={`mt-1 text-sm text-slate-100 ${mono ? "break-all font-mono" : ""}`}>{value}</p>
     </div>
@@ -310,6 +323,7 @@ function InputField({
   placeholder,
   sensitive,
   className,
+  dataTestID,
 }: {
   label: string;
   value: string;
@@ -317,12 +331,14 @@ function InputField({
   placeholder: string;
   sensitive?: boolean;
   className?: string;
+  dataTestID?: string;
 }) {
   return (
     <div className={`grid gap-2 ${className || ""}`}>
       <label className="text-xs font-medium uppercase tracking-wider text-slate-300">{label}</label>
       <input
         type={sensitive ? "password" : "text"}
+        data-testid={dataTestID}
         className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
         placeholder={placeholder}
         value={value}

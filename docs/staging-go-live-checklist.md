@@ -233,6 +233,7 @@ Pass criteria:
 - timeline drawer opens
 - writer retry button submission is accepted from the browser UI
 - reader session can inspect the screen but retry stays disabled with a read-only message
+- if `PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID` is provided, invoice explainability loads for that known invoice and returns non-empty digest metadata
 
 ## 7) Runtime Security and Rate-Limit Verification
 
