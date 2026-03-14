@@ -118,10 +118,21 @@ secret_json="$(aws secretsmanager get-secret-value \
 
 database_url="$(printf '%s' "$secret_json" | json_get databaseUrl)"
 redis_url="$(printf '%s' "$secret_json" | json_get redisUrl)"
+redis_cache_url="$(printf '%s' "$secret_json" | json_get redisCacheUrl)"
 
 if [[ -z "$database_url" || -z "$redis_url" ]]; then
   echo "secret $backing_secret_id must contain databaseUrl and redisUrl" >&2
   exit 1
+fi
+
+if [[ -z "$redis_cache_url" ]]; then
+  redis_cache_url="$redis_url"
+  secret_json="$(printf '%s' "$secret_json" | jq -c --arg redisCacheUrl "$redis_cache_url" '. + {redisCacheUrl: $redisCacheUrl}')"
+  echo_info "updating aws secret $backing_secret_id to include redisCacheUrl"
+  aws secretsmanager put-secret-value \
+    --secret-id "$backing_secret_id" \
+    --region "$aws_region" \
+    --secret-string "$secret_json" >/dev/null
 fi
 
 if kubectl -n "$namespace" get secret "$encryption_secret_name" >/dev/null 2>&1; then
@@ -198,34 +209,30 @@ spec:
   dataFrom:
     - extract:
         key: ${encryption_secret_id}
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: ${app_secret_name}
-  namespace: ${namespace}
-spec:
-  refreshInterval: 1m
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: ${cluster_secret_store_name}
-  target:
-    name: ${app_secret_name}
-    creationPolicy: Owner
-  dataFrom:
-    - extract:
-        key: ${app_secret_id}
 EOF
 
 wait_for_k8s_secret "$credentials_secret_name"
 wait_for_k8s_secret "$encryption_secret_name"
+
+if kubectl -n "$namespace" get externalsecret "$app_secret_name" >/dev/null 2>&1; then
+  echo_info "removing ExternalSecret $app_secret_name to avoid Helm hook ownership conflicts"
+  kubectl -n "$namespace" delete externalsecret "$app_secret_name" >/dev/null
+  kubectl -n "$namespace" wait --for=delete "externalsecret/$app_secret_name" --timeout=60s >/dev/null
+fi
+
+echo_info "upserting Kubernetes secret $app_secret_name from AWS seed data"
+kubectl -n "$namespace" create secret generic "$app_secret_name" \
+  --from-literal=secretKeyBase="$secret_key_base" \
+  --from-literal=rsaPrivateKey="$rsa_private_key" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
 wait_for_k8s_secret "$app_secret_name"
 
-echo_pass "Lago Kubernetes secrets are synced via ExternalSecret"
+echo_pass "Lago Kubernetes secrets are prepared"
 echo "  namespace: $namespace"
 echo "  credentials secret: $credentials_secret_name"
 echo "  encryption secret: $encryption_secret_name"
-echo "  application secret: $app_secret_name"
+echo "  application secret: $app_secret_name (seeded from AWS; chart-managed thereafter)"
 echo "  backing aws secret: $backing_secret_id"
 echo "  encryption aws secret: $encryption_secret_id"
 echo "  app aws secret: $app_secret_id"

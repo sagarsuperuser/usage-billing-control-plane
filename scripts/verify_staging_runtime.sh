@@ -30,24 +30,51 @@ http_call() {
   local url="$2"
   local body="${3:-}"
   shift 3
-  local -a headers=("$@")
+  local -a headers=()
+  if [[ $# -gt 0 ]]; then
+    headers=("$@")
+  fi
   local response_headers_file
   response_headers_file="$(mktemp)"
-  local -a args=(-sS -X "$method" "$url" -D "$response_headers_file" -H "Accept: application/json")
+  local -a args=(-sS --max-time "${CURL_MAX_TIME:-15}" -X "$method" "$url" -D "$response_headers_file" -H "Accept: application/json")
   local h
-  for h in "${headers[@]}"; do
-    args+=(-H "$h")
-  done
+  if [[ ${#headers[@]} -gt 0 ]]; then
+    for h in "${headers[@]}"; do
+      args+=(-H "$h")
+    done
+  fi
   if [[ -n "$body" ]]; then
     args+=(-H "Content-Type: application/json" --data "$body")
   fi
 
   local out
-  out="$(curl "${args[@]}" -w $'\n%{http_code}')"
+  if ! out="$(curl "${args[@]}" -w $'\n%{http_code}' 2>&1)"; then
+    HTTP_CODE="000"
+    HTTP_BODY="$out"
+    HTTP_HEADERS="$(tr -d '\r' <"$response_headers_file")"
+    rm -f "$response_headers_file"
+    return 0
+  fi
   HTTP_CODE="${out##*$'\n'}"
   HTTP_BODY="${out%$'\n'*}"
   HTTP_HEADERS="$(tr -d '\r' <"$response_headers_file")"
   rm -f "$response_headers_file"
+}
+
+http_call_retry() {
+  local attempts="$1"
+  shift
+  local n
+  for n in $(seq 1 "$attempts"); do
+    http_call "$@"
+    if [[ "$HTTP_CODE" != "000" ]]; then
+      return 0
+    fi
+    if [[ "$n" -lt "$attempts" ]]; then
+      sleep 1
+    fi
+  done
+  return 0
 }
 
 require_env ALPHA_API_BASE_URL
@@ -60,6 +87,7 @@ RATE_LIMIT_PROBE_ATTEMPTS="${RATE_LIMIT_PROBE_ATTEMPTS:-30}"
 RATE_LIMIT_PROBE_METHOD="${RATE_LIMIT_PROBE_METHOD:-POST}"
 RATE_LIMIT_PROBE_PATH="${RATE_LIMIT_PROBE_PATH:-/v1/ui/sessions/login}"
 RATE_LIMIT_PROBE_BODY="${RATE_LIMIT_PROBE_BODY:-{\"api_key\":\"${BAD_KEY}\"}}"
+RATE_LIMIT_PROBE_CURL_MAX_TIME="${RATE_LIMIT_PROBE_CURL_MAX_TIME:-5}"
 REQUIRE_LIFECYCLE="${REQUIRE_LIFECYCLE:-1}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
 
@@ -73,7 +101,7 @@ if [[ "$REQUIRE_LIFECYCLE" != "0" && "$REQUIRE_LIFECYCLE" != "1" ]]; then
 fi
 
 echo "[info] checking health endpoint"
-http_call "GET" "$ALPHA_API_BASE_URL/health" "" "X-API-Key: $ALPHA_READER_API_KEY"
+http_call_retry 3 "GET" "$ALPHA_API_BASE_URL/health" "" "X-API-Key: $ALPHA_READER_API_KEY"
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo "[fail] health check failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
   exit 1
@@ -82,7 +110,7 @@ echo "[pass] health endpoint returned 200"
 health_status="$HTTP_CODE"
 
 echo "[info] checking invoice payment statuses list"
-http_call "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses?limit=1" "" "X-API-Key: $ALPHA_READER_API_KEY"
+http_call_retry 3 "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses?limit=1" "" "X-API-Key: $ALPHA_READER_API_KEY"
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo "[fail] invoice status list failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
   exit 1
@@ -94,7 +122,7 @@ fi
 echo "[pass] invoice payment status list reachable"
 invoice_list_count="$(jq -r '.items | length' <<<"$HTTP_BODY")"
 
-http_call "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/summary" "" "X-API-Key: $ALPHA_READER_API_KEY"
+http_call_retry 3 "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/summary" "" "X-API-Key: $ALPHA_READER_API_KEY"
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo "[fail] invoice summary failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
   exit 1
@@ -113,7 +141,7 @@ lifecycle_events_analyzed=""
 
 if [[ -n "$INVOICE_ID" ]]; then
   echo "[info] checking invoice payment status invoice_id=$INVOICE_ID"
-  http_call "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID" "" "X-API-Key: $ALPHA_READER_API_KEY"
+  http_call_retry 3 "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID" "" "X-API-Key: $ALPHA_READER_API_KEY"
   if [[ "$HTTP_CODE" != "200" ]]; then
     echo "[fail] invoice payment status lookup failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
     exit 1
@@ -128,7 +156,7 @@ if [[ -n "$INVOICE_ID" ]]; then
   invoice_last_payment_error="$(jq -r '.last_payment_error // ""' <<<"$HTTP_BODY")"
 
   echo "[info] checking invoice timeline events invoice_id=$INVOICE_ID"
-  http_call "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID/events?limit=10&order=desc" "" "X-API-Key: $ALPHA_READER_API_KEY"
+  http_call_retry 3 "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID/events?limit=10&order=desc" "" "X-API-Key: $ALPHA_READER_API_KEY"
   if [[ "$HTTP_CODE" != "200" ]]; then
     echo "[fail] invoice timeline fetch failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
     exit 1
@@ -142,7 +170,7 @@ if [[ -n "$INVOICE_ID" ]]; then
 
   if [[ "$REQUIRE_LIFECYCLE" == "1" ]]; then
     echo "[info] checking lifecycle summary invoice_id=$INVOICE_ID"
-    http_call "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID/lifecycle" "" "X-API-Key: $ALPHA_READER_API_KEY"
+    http_call_retry 3 "GET" "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$INVOICE_ID/lifecycle" "" "X-API-Key: $ALPHA_READER_API_KEY"
     if [[ "$HTTP_CODE" != "200" ]]; then
       echo "[fail] lifecycle endpoint failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
       exit 1
@@ -167,12 +195,17 @@ saw_rate_limit_headers="0"
 for i in $(seq 1 "$RATE_LIMIT_PROBE_ATTEMPTS"); do
   probe_body=""
   probe_headers=()
+  probe_curl_max_time="$RATE_LIMIT_PROBE_CURL_MAX_TIME"
   if [[ "$RATE_LIMIT_PROBE_METHOD" == "GET" || "$RATE_LIMIT_PROBE_METHOD" == "HEAD" ]]; then
     probe_headers=("X-API-Key: $BAD_KEY")
   else
     probe_body="$RATE_LIMIT_PROBE_BODY"
   fi
-  http_call "$RATE_LIMIT_PROBE_METHOD" "$ALPHA_API_BASE_URL$RATE_LIMIT_PROBE_PATH" "$probe_body" "${probe_headers[@]}"
+  if [[ ${#probe_headers[@]} -gt 0 ]]; then
+    CURL_MAX_TIME="$probe_curl_max_time" http_call "$RATE_LIMIT_PROBE_METHOD" "$ALPHA_API_BASE_URL$RATE_LIMIT_PROBE_PATH" "$probe_body" "${probe_headers[@]}"
+  else
+    CURL_MAX_TIME="$probe_curl_max_time" http_call "$RATE_LIMIT_PROBE_METHOD" "$ALPHA_API_BASE_URL$RATE_LIMIT_PROBE_PATH" "$probe_body"
+  fi
   if [[ "$HTTP_CODE" == "429" ]]; then
     rate_limited="1"
     if grep -qi "^Retry-After:" <<<"$HTTP_HEADERS" &&
@@ -230,18 +263,18 @@ jq -n \
       throttled: true,
       required_headers_present: true
     },
-    invoice: if $invoice_id == "" then null else {
+    invoice: (if $invoice_id == "" then null else {
       payment_status: $invoice_payment_status,
       last_event_at: $invoice_last_event_at,
       last_payment_error: $invoice_last_payment_error,
       events_count: (if $invoice_events_count == "" then null else ($invoice_events_count | tonumber) end),
-      lifecycle: if $require_lifecycle == "1" then {
+      lifecycle: (if $require_lifecycle == "1" then {
         recommended_action: $lifecycle_recommended_action,
         requires_action: ($lifecycle_requires_action == "true"),
         failure_event_count: (if $lifecycle_failure_event_count == "" then 0 else ($lifecycle_failure_event_count | tonumber) end),
         events_analyzed: (if $lifecycle_events_analyzed == "" then 0 else ($lifecycle_events_analyzed | tonumber) end)
-      } else null end
-    } end
+      } else null end)
+    } end)
   }'
 )"
 

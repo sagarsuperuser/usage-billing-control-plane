@@ -59,9 +59,9 @@ if [[ -n "$lago_api_url" ]]; then
       exit 1
     fi
   else
-    http_code="$(curl -ksS -o /tmp/lago-staging-verify.out -w '%{http_code}' "$lago_api_url")"
-    if [[ "$http_code" =~ ^(200|301|302|401|403)$ ]]; then
-      echo_pass "Lago URL is reachable (status=$http_code)"
+    http_code="$(curl -ksS -o /tmp/lago-staging-verify.out -w '%{http_code}' "$lago_api_url/health")"
+    if [[ "$http_code" == "200" ]]; then
+      echo_pass "Lago health endpoint is reachable"
     else
       echo "Lago URL is not reachable as expected: status=$http_code body=$(cat /tmp/lago-staging-verify.out)" >&2
       exit 1

@@ -61,7 +61,7 @@ ingress:
   enabled: true
   className: "nginx"
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare-prod"
   apiHost: "api.billing.example.com"
   webHost: "billing.example.com"
   tls:
