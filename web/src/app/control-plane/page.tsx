@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ReceiptText } from "lucide-react";
+import { Activity, ReceiptText, Workflow } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
@@ -26,13 +26,20 @@ export default function ControlPlanePage() {
           </p>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Card
             href="/payment-operations"
             title="Payment Operations"
             description="Monitor invoice payment failures, inspect webhook timeline, and trigger retry-payment."
             icon={<Activity className="h-5 w-5 text-cyan-200" />}
             accent="border-cyan-400/40 bg-cyan-500/10"
+          />
+          <Card
+            href="/replay-operations"
+            title="Replay Recovery"
+            description="Queue replay jobs, inspect Temporal-style diagnostics, and recover failed reprocessing runs."
+            icon={<Workflow className="h-5 w-5 text-amber-200" />}
+            accent="border-amber-400/40 bg-amber-500/10"
           />
           <Card
             href="/invoice-explainability"

@@ -6,6 +6,8 @@ import {
   InvoiceStatusFilters,
   LagoWebhookEvent,
   ListResponse,
+  ReplayJob,
+  ReplayJobDiagnostics,
   UISession,
 } from "@/lib/types";
 
@@ -257,6 +259,98 @@ export async function fetchInvoiceExplainability(input: {
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchReplayJobs(input: {
+  runtimeBaseURL?: string;
+  customerID?: string;
+  meterID?: string;
+  status?: "queued" | "running" | "done" | "failed" | "";
+  limit?: number;
+  offset?: number;
+  cursor?: string;
+}): Promise<ListResponse<ReplayJob>> {
+  const query = toQuery({
+    customer_id: input.customerID,
+    meter_id: input.meterID,
+    status: input.status,
+    limit: input.limit,
+    offset: input.offset,
+    cursor: input.cursor,
+  });
+
+  const payload = await apiRequest<ListResponse<ReplayJob>>(`/v1/replay-jobs${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createReplayJob(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  customerID: string;
+  meterID: string;
+  from?: string;
+  to?: string;
+  idempotencyKey: string;
+}): Promise<{ idempotent_replay: boolean; job: ReplayJob }> {
+  const payload = await apiRequest<{ idempotent_replay: boolean; job: ReplayJob }>("/v1/replay-jobs", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: {
+      customer_id: input.customerID,
+      meter_id: input.meterID,
+      from: input.from || undefined,
+      to: input.to || undefined,
+      idempotency_key: input.idempotencyKey,
+    },
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchReplayJobDiagnostics(input: {
+  runtimeBaseURL?: string;
+  jobID: string;
+}): Promise<ReplayJobDiagnostics> {
+  const payload = await apiRequest<ReplayJobDiagnostics>(
+    `/v1/replay-jobs/${encodeURIComponent(input.jobID)}/events`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function retryReplayJob(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  jobID: string;
+}): Promise<ReplayJob> {
+  const payload = await apiRequest<ReplayJob>(
+    `/v1/replay-jobs/${encodeURIComponent(input.jobID)}/retry`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
     }
   );
   if (!payload) {

@@ -54,8 +54,10 @@ export interface LagoWebhookEvent {
 
 export interface ListResponse<T> {
   items: T[];
+  total?: number;
   limit?: number;
   offset?: number;
+  next_cursor?: string;
 }
 
 export interface InvoiceStatusFilters {
@@ -143,4 +145,47 @@ export interface InvoiceExplainability {
   explainability_digest: string;
   line_items_count: number;
   line_items: InvoiceExplainabilityLineItem[];
+}
+
+export interface ReplayJobWorkflowTelemetry {
+  current_step: string;
+  progress_percent: number;
+  attempt_count: number;
+  last_attempt_at?: string;
+  processed_records: number;
+  updated_at?: string;
+}
+
+export interface ReplayJobArtifactLinks {
+  report_json?: string;
+  report_csv?: string;
+  dataset_digest?: string;
+}
+
+export interface ReplayJob {
+  id: string;
+  tenant_id?: string;
+  customer_id?: string;
+  meter_id?: string;
+  from?: string;
+  to?: string;
+  idempotency_key: string;
+  status: "queued" | "running" | "done" | "failed";
+  attempt_count: number;
+  last_attempt_at?: string;
+  processed_records: number;
+  error?: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  workflow_telemetry?: ReplayJobWorkflowTelemetry;
+  artifact_links?: ReplayJobArtifactLinks;
+}
+
+export interface ReplayJobDiagnostics {
+  job: ReplayJob;
+  usage_events_count: number;
+  usage_quantity: number;
+  billed_entries_count: number;
+  billed_amount_cents: number;
 }

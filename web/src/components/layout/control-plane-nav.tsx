@@ -9,6 +9,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 const links = [
   { href: "/control-plane", label: "Overview" },
   { href: "/payment-operations", label: "Payment Ops" },
+  { href: "/replay-operations", label: "Replay Ops" },
   { href: "/invoice-explainability", label: "Invoice Explainability" },
 ];
 
