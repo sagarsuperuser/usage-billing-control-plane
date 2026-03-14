@@ -128,6 +128,8 @@ The preferred long-term path for Lago admin endpoints is Cloudflare DNS-01, beca
 
 For the current `ingress-nginx` setup, the short-term path is:
 
+Staging should keep `externalTrafficPolicy: Local` on the `ingress-nginx-controller` Service. The root cause was the worker node security group only allowing self-referenced TCP 1025-65535, which broke cross-node traffic to services listening on low ports like `80`. That SG rule has been fixed, but `Local` remains the safer edge setting for staging because it avoids unnecessary node hops through the NLB.
+
 1. Install cert-manager:
 
 ```bash

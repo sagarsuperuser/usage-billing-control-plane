@@ -65,7 +65,7 @@ api:
       cpu: "300m"
 
 front:
-  replicas: 1
+  replicas: 2
   resources:
     requests:
       memory: 256Mi

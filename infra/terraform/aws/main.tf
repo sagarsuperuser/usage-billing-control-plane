@@ -136,6 +136,17 @@ module "eks" {
   subnet_ids               = module.vpc.private_subnets
   control_plane_subnet_ids = module.vpc.private_subnets
 
+  node_security_group_additional_rules = {
+    ingress_self_all = {
+      description = "Node-to-node all traffic for pod networking"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      type        = "ingress"
+      self        = true
+    }
+  }
+
   eks_managed_node_groups = {
     app = {
       name                     = "${local.name_prefix}-ng-app"
