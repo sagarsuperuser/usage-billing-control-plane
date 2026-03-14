@@ -174,6 +174,38 @@ resource "aws_security_group" "rds" {
   }
 }
 
+resource "aws_security_group" "rate_limit_cache" {
+  name        = "${local.name_prefix}-rate-limit-cache-sg"
+  description = "Rate-limit cache access from EKS nodes"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description     = "Valkey/Redis from EKS nodes"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [module.eks.node_security_group_id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_elasticache_serverless_cache" "rate_limit" {
+  name        = "${local.name_prefix}-rate-limit"
+  description = var.rate_limit_cache_description
+  engine      = var.rate_limit_cache_engine
+
+  major_engine_version = trimspace(var.rate_limit_cache_major_engine_version) != "" ? var.rate_limit_cache_major_engine_version : null
+
+  security_group_ids = [aws_security_group.rate_limit_cache.id]
+  subnet_ids         = module.vpc.private_subnets
+}
+
 module "rds" {
   source  = "terraform-aws-modules/rds/aws"
   version = "~> 6.13"
@@ -326,6 +358,79 @@ resource "aws_iam_role_policy_attachment" "api_s3" {
   policy_arn = aws_iam_policy.api_s3.arn
 }
 
+data "aws_s3_bucket" "lago_uploads" {
+  count  = trimspace(var.lago_uploads_bucket_name) == "" ? 0 : 1
+  bucket = var.lago_uploads_bucket_name
+}
+
+data "aws_iam_policy_document" "lago_assume_role" {
+  count = trimspace(var.lago_uploads_bucket_name) == "" ? 0 : 1
+
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [module.eks.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(module.eks.oidc_provider, "https://", "")}:sub"
+      values   = ["system:serviceaccount:${var.lago_service_account_namespace}:${var.lago_service_account_name}"]
+    }
+  }
+}
+
+resource "aws_iam_role" "lago_irsa" {
+  count              = trimspace(var.lago_uploads_bucket_name) == "" ? 0 : 1
+  name               = "${local.name_prefix}-lago-irsa"
+  assume_role_policy = data.aws_iam_policy_document.lago_assume_role[0].json
+}
+
+data "aws_iam_policy_document" "lago_s3_policy" {
+  count = trimspace(var.lago_uploads_bucket_name) == "" ? 0 : 1
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListBucket",
+      "s3:ListBucketMultipartUploads",
+    ]
+    resources = [
+      data.aws_s3_bucket.lago_uploads[0].arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts",
+    ]
+    resources = [
+      "${data.aws_s3_bucket.lago_uploads[0].arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "lago_s3" {
+  count  = trimspace(var.lago_uploads_bucket_name) == "" ? 0 : 1
+  name   = "${local.name_prefix}-lago-s3"
+  policy = data.aws_iam_policy_document.lago_s3_policy[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "lago_s3" {
+  count      = trimspace(var.lago_uploads_bucket_name) == "" ? 0 : 1
+  role       = aws_iam_role.lago_irsa[0].name
+  policy_arn = aws_iam_policy.lago_s3[0].arn
+}
+
 locals {
   runtime_secret_arn = var.create_runtime_secret ? aws_secretsmanager_secret.runtime[0].arn : data.aws_secretsmanager_secret.runtime[0].arn
   external_secrets_allowed_secret_arns = [
@@ -377,4 +482,42 @@ resource "aws_iam_policy" "external_secrets_runtime_secret" {
 resource "aws_iam_role_policy_attachment" "external_secrets_runtime_secret" {
   role       = aws_iam_role.external_secrets_irsa.name
   policy_arn = aws_iam_policy.external_secrets_runtime_secret.arn
+}
+
+data "aws_iam_policy_document" "ebs_csi_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [module.eks.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(module.eks.oidc_provider, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi_irsa" {
+  name               = "${local.name_prefix}-ebs-csi-irsa"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {
+  role       = aws_iam_role.ebs_csi_irsa.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name                = module.eks.cluster_name
+  addon_name                  = "aws-ebs-csi-driver"
+  service_account_role_arn    = aws_iam_role.ebs_csi_irsa.arn
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [aws_iam_role_policy_attachment.ebs_csi_driver]
 }

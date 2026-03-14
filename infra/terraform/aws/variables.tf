@@ -166,6 +166,29 @@ variable "audit_exports_bucket_force_destroy" {
   }
 }
 
+variable "rate_limit_cache_engine" {
+  description = "Managed cache engine for alpha rate limiting."
+  type        = string
+  default     = "valkey"
+
+  validation {
+    condition     = contains(["valkey", "redis"], var.rate_limit_cache_engine)
+    error_message = "rate_limit_cache_engine must be one of: valkey, redis."
+  }
+}
+
+variable "rate_limit_cache_major_engine_version" {
+  description = "Major engine version for the alpha rate-limit cache. Leave empty to let AWS choose."
+  type        = string
+  default     = ""
+}
+
+variable "rate_limit_cache_description" {
+  description = "Description for the alpha rate-limit cache."
+  type        = string
+  default     = "Alpha staging rate limiting cache"
+}
+
 variable "external_secrets_namespace" {
   description = "Namespace where external-secrets operator runs."
   type        = string
@@ -194,6 +217,24 @@ variable "runtime_secret_recovery_window_in_days" {
   description = "Recovery window for deleting runtime secret."
   type        = number
   default     = 30
+}
+
+variable "lago_uploads_bucket_name" {
+  description = "Existing S3 bucket name used by Lago for uploads. Leave empty to skip Lago IRSA creation."
+  type        = string
+  default     = ""
+}
+
+variable "lago_service_account_namespace" {
+  description = "Namespace for the Lago service account that should assume the uploads IRSA role."
+  type        = string
+  default     = "lago"
+}
+
+variable "lago_service_account_name" {
+  description = "Service account name for Lago workloads that should assume the uploads IRSA role."
+  type        = string
+  default     = "lago-serviceaccount"
 }
 
 variable "tags" {

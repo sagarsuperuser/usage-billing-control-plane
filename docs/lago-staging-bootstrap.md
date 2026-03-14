@@ -33,8 +33,10 @@ Important:
 - namespace creation
 - sync of Lago DB/Redis credentials from AWS Secrets Manager into Kubernetes via `ExternalSecret`
 - persistence of Lago encryption keys in AWS Secrets Manager and sync into Kubernetes via `ExternalSecret`
-- persistence of Lago application secrets (`secretKeyBase`, `rsaPrivateKey`) in AWS Secrets Manager and sync into Kubernetes via `ExternalSecret`
+- persistence of Lago application secrets (`secretKeyBase`, `rsaPrivateKey`) in AWS Secrets Manager and bootstrap into Kubernetes before Helm deploy
+- dedicated Lago service account with IRSA for S3-backed ActiveStorage
 - Helm repo setup and chart deploy
+- sequential safe rollout for Lago deployments that share the `lago-storage-data` `RWO` volume
 - rollout verification
 - API reachability verification
 - bootstrap checklist printing
@@ -82,12 +84,15 @@ Then update at minimum:
 Practical guidance:
 
 - `global.existingSecret` should stay set to `lago-credentials`.
+- `global.serviceAccountName` should stay set to `lago-serviceaccount`.
 - `encryption.existingSecret` should stay set to `lago-encryption`.
 - `lago-credentials` is synced from AWS secret `lago/staging/backing-services`.
 - `lago-encryption` is synced from AWS secret `lago/staging/encryption`.
-- `lago-secrets` is synced from AWS secret `lago/staging/app-secrets`.
+- `lago-secrets` is seeded from AWS secret `lago/staging/app-secrets`, then reused by the chart.
 - `global.s3.bucket` is Lago's object storage bucket.
-- keep `global.s3.enabled=false` until you wire IRSA or explicit AWS access keys for the chart.
+- `global.s3.enabled=true` is the preferred long-term mode.
+- the deploy script now precreates `lago-serviceaccount` and can annotate it with the Lago IRSA role.
+- because the upstream chart still injects static S3 credential env refs when `global.existingSecret` is set, the deploy script pulls the upstream chart locally and patches the S3 credential conditions so IRSA can be used cleanly under Helm 4.
 - `apiUrl` and `frontUrl` should match the restricted admin endpoints you actually expose.
 - if alpha talks to Lago over cluster-internal DNS, you may still use that internal URL for alpha config instead of the browser-admin URL.
 
@@ -96,6 +101,19 @@ If you want to sync secrets without deploying yet:
 ```bash
 make lago-staging-sync-secrets
 ```
+
+## Upgrade behavior
+
+- The upstream Lago chart hardcodes `RollingUpdate` for deployments that mount the shared `lago-storage-data` PVC.
+- In this cluster that PVC is `ReadWriteOnce`, so naive rolling updates can deadlock on EBS multi-attach.
+- `scripts/deploy_lago_staging.sh` now handles those deployments sequentially after Helm apply:
+  - `lago-api`
+  - `lago-billing-worker`
+  - `lago-clock-worker`
+  - `lago-payment-worker`
+  - `lago-pdf-worker`
+  - `lago-worker`
+- This is controlled by `LAGO_SAFE_SHARED_PVC_ROLLOUT=1` and is enabled by default.
 
 ## TLS at the origin
 
@@ -176,6 +194,7 @@ Optional overrides:
 LAGO_NAMESPACE=lago \
 LAGO_RELEASE_NAME=lago \
 LAGO_VALUES_FILE=deploy/lago/environments/staging-values.yaml \
+LAGO_SERVICE_ACCOUNT_ROLE_ARN=arn:aws:iam::123456789012:role/lago-alpha-staging-lago-irsa \
 make lago-staging-deploy
 ```
 
