@@ -2,6 +2,36 @@
 
 This checklist is the release gate for shipping `usage-billing-control-plane` to staging with real AWS infrastructure and real Lago integration.
 
+## Current Proven State
+
+Validated on `2026-03-14` against the live staging stack:
+
+- Alpha API:
+  - `https://api-staging.sagarwaidande.org`
+- Alpha UI:
+  - `https://staging.sagarwaidande.org`
+- Lago API:
+  - `https://lago-api-staging.sagarwaidande.org`
+- Lago UI:
+  - `https://lago-staging.sagarwaidande.org`
+- Lago webhook endpoint configured:
+  - `https://api-staging.sagarwaidande.org/internal/lago/webhooks`
+  - signature algorithm: `jwt`
+- Runtime verification passed:
+  - health endpoint
+  - invoice payment status list + summary
+  - login pre-auth rate limiting
+- Real payment E2E passed for both terminal outcomes:
+  - success invoice: `56251c97-597a-4cec-9a22-8106d746def8`
+  - failure invoice: `baa27549-32d4-47cd-9f14-d98b61c8b0fa`
+- Known staging test customers:
+  - `cust_e2e_success`
+  - `cust_e2e_failure`
+
+Important staging nuance:
+- the Stripe account used here is India-based
+- success-path test customers must have a billing address synced to Stripe, or Stripe rejects export transactions even with a valid `4242` card
+
 ## 0) v1 Release Scope
 
 The first customer/internal release is considered ready only when these flows pass in staging:
@@ -25,6 +55,11 @@ Use this as a tracked board. Do not promote while any row remains open.
 | P0-4 | Runtime Security/Resilience | verify staging env values and limits from section 7 below | `UI_SESSION_COOKIE_SECURE=true`, `UI_SESSION_REQUIRE_ORIGIN=true`, `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REDIS_URL` configured; 429 contains `Retry-After` + `X-RateLimit-*` | config diff + curl output | [ ] |
 | P0-5 | Backup/Restore Drill | run snapshot + restore drill in section 8 below | snapshot and restore complete; restored instance endpoint/status captured; cleanup decision documented | AWS CLI output + runbook log | [ ] |
 | P0-6 | Deploy/Rollback Safety | run release deploy then rollback then redeploy | release healthy, rollback healthy, redeploy healthy; no migration/data corruption | helm history + smoke logs | [ ] |
+
+Status note as of `2026-03-14`:
+- `P0-2` is proven manually in live staging, but the workflow evidence and runbook links still need to be recorded in this checklist.
+- `P0-3` and `P0-4` are proven at the API/runtime level; UI screenshots and retained evidence still need to be captured.
+- `P0-1`, `P0-5`, and `P0-6` still need formal execution/capture.
 
 ## 2) Local Preflight
 
@@ -75,6 +110,11 @@ Required keys:
 Optional:
 - `LAGO_ORG_TENANT_MAP`
 
+TLS / edge note:
+- when the staging hosts are proxied by Cloudflare, use the Cloudflare DNS-01 ClusterIssuer (`letsencrypt-cloudflare-prod`) instead of origin HTTP-01
+- sync the Cloudflare API token first with `make cloudflare-sync-dns-token`
+- apply `deploy/cert-manager/cluster-issuer-letsencrypt-cloudflare-prod.yaml`
+
 ## 5) Release Deploy (Staging)
 
 Auto path:
@@ -124,6 +164,18 @@ Evidence to retain from `Real Payment E2E`:
 - workflow step summary
 - uploaded `fixture.json` and `result.json` artifacts
 - invoice ids used for success and failure runs
+
+Known good staging evidence from `2026-03-14`:
+- success invoice: `56251c97-597a-4cec-9a22-8106d746def8`
+- failure invoice: `baa27549-32d4-47cd-9f14-d98b61c8b0fa`
+- failure path converged in alpha with:
+  - `recommended_action=retry_payment`
+  - `requires_action=true`
+  - `retry_recommended=true`
+- success path converged in alpha with:
+  - `recommended_action=none`
+  - `requires_action=false`
+  - `retry_recommended=false`
 
 Payment visibility checks (replace env vars):
 
@@ -207,6 +259,21 @@ Promote only if all pass:
 - Real payment collection E2E gate is green for staging.
 - Rollback workflow has been validated for staging at least once.
 - all P0 rows in section 1 are checked complete.
+
+## Remaining Cleanup Items
+
+These are not current blockers to the already-proven staging payment/runtime paths, but they should be cleaned up before treating staging as a durable pre-prod environment:
+
+- capture and link formal CI/workflow evidence for the already-proven manual payment E2E runs
+- automate Stripe/Lago staging bootstrap for:
+  - `cust_e2e_success`
+  - `cust_e2e_failure`
+  - required Stripe payment method attachment
+  - India-account customer address sync requirement
+- decide whether to commit additional tracked ingress/cert-manager operational docs or automation still living only in live cluster state
+- run and record a formal backup/restore drill
+- run and record a formal deploy -> rollback -> redeploy rehearsal
+- review remaining uncommitted repo drift and separate true changes from stale local noise
 
 ## 10) Rollback (If Needed)
 
