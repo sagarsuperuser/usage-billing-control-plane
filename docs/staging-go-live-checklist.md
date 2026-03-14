@@ -217,6 +217,20 @@ Pass criteria for visibility:
 - events endpoint returns at least one relevant payment event row
 - for failed flows, `payment_status=failed` and `last_payment_error` is populated when provided by upstream Lago payload
 
+Browser UI smoke for the payment operations console:
+
+```bash
+PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_API_KEY='replace_me_writer_key' \
+make web-e2e-live
+```
+
+Pass criteria:
+- UI session login succeeds
+- failed-payment list renders
+- timeline drawer opens
+- retry button submission is accepted from the browser UI
+
 ## 7) Runtime Security and Rate-Limit Verification
 
 Validate effective runtime config in staging:
