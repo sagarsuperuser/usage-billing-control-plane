@@ -1,0 +1,121 @@
+serviceAccount:
+  create: true
+
+server:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  config:
+    logLevel: info
+    persistence:
+      default:
+        driver: sql
+        sql:
+          driver: postgres12
+          host: ""
+          port: 5432
+          database: temporal
+          user: ""
+          existingSecret: temporal-sql
+          maxConns: 20
+          maxIdleConns: 20
+          maxConnLifetime: "1h"
+          tls:
+            enabled: true
+            enableHostVerification: false
+      visibility:
+        driver: sql
+        sql:
+          driver: postgres12
+          host: ""
+          port: 5432
+          database: temporal_visibility
+          user: ""
+          existingSecret: temporal-sql
+          maxConns: 20
+          maxIdleConns: 20
+          maxConnLifetime: "1h"
+          tls:
+            enabled: true
+            enableHostVerification: false
+    namespaces:
+      create: false
+
+frontend:
+  service:
+    type: ClusterIP
+    port: 7233
+
+history:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+matching:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 384Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+
+worker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 384Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+
+admintools:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+web:
+  enabled: false
+
+schema:
+  createDatabase:
+    enabled: true
+  setup:
+    enabled: true
+  update:
+    enabled: true
+
+cassandra:
+  enabled: false
+
+mysql:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+elasticsearch:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
