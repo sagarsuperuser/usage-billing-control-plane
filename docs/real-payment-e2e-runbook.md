@@ -13,6 +13,7 @@ Use this in staging first, then production.
 - Lago organization has a Stripe payment provider configured (`secret_key`, redirect URL, `supports_3ds` as needed).
 - Alpha has a working Lago integration (`LAGO_API_URL`, `LAGO_API_KEY`) and webhook ingestion endpoint.
 - You have a finalized collectible invoice in Lago (`invoice_id`) bound to a customer with a Stripe payment method.
+- If the Stripe account is India-based, the Lago customer must also have a complete billing address synced to Stripe. Without customer name/address, Stripe can reject export transactions even with a valid test card.
 
 Recommended Stripe test cards:
 - Success path: `4242 4242 4242 4242`
@@ -46,7 +47,7 @@ Inputs:
 ## 4) What the Gate Verifies
 
 1. Confirms invoice exists in Lago and is `finalized`.
-2. Calls alpha endpoint `POST /v1/invoices/{id}/retry-payment`.
+2. Calls alpha endpoint `POST /v1/invoices/{id}/retry-payment` when the invoice has not already reached the expected terminal status.
 3. Polls Lago invoice until terminal payment status matches expectation.
 4. Polls alpha projection `GET /v1/invoice-payment-statuses/{id}` until it converges.
 5. Verifies alpha webhook timeline exists via `GET /v1/invoice-payment-statuses/{id}/events`.
@@ -95,6 +96,8 @@ bash ./scripts/test_real_payment_e2e.sh
 - `invoice must be finalized`: finalize/regenerate target invoice first.
 - `customer billing provider is not stripe`: ensure the customer has Stripe billing configuration in Lago.
 - `timeout waiting for Lago terminal status`: check Stripe provider config, customer payment method, and Lago worker logs.
+- `retry-payment failed: status=405 code=invalid_status`: the invoice already reached a terminal state before retry. This is valid for the success path if Lago auto-collected the payment first.
+- `export transactions require a customer name and address`: for India-based Stripe accounts, add customer address fields in Lago and ensure they are synced to Stripe before retrying the payment.
 - `timeout waiting for alpha projection convergence`: check Lago -> alpha webhook delivery/signature/tenant mapping.
 - `failed lifecycle expectation mismatch`: inspect `/v1/invoice-payment-statuses/{id}/lifecycle` and webhook ordering for the target invoice.
 - `expected webhook_type` mismatch: inspect `/v1/invoice-payment-statuses/{id}/events` payload and webhook routing.

@@ -101,20 +101,24 @@ if [[ "$lago_invoice_status" != "finalized" ]]; then
 fi
 echo "[pass] lago invoice is finalized with initial payment_status=$lago_payment_status_initial"
 
-echo "[info] triggering payment retry via alpha control plane"
-http_call \
-  "POST" \
-  "$ALPHA_API_BASE_URL/v1/invoices/$INVOICE_ID/retry-payment" \
-  "$RETRY_PAYMENT_BODY" \
-  "X-API-Key: $ALPHA_WRITER_API_KEY"
-if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "202" ]]; then
-  echo "[fail] retry-payment failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
-  exit 1
-fi
-echo "[pass] retry-payment accepted: status=$HTTP_CODE"
-
 deadline_epoch="$(( $(date +%s) + TIMEOUT_SEC ))"
-lago_payment_status_final=""
+lago_payment_status_final="$lago_payment_status_initial"
+
+if [[ "$EXPECTED_FINAL_STATUS" == "succeeded" && "$lago_payment_status_initial" == "succeeded" ]]; then
+  echo "[info] skipping retry-payment because invoice already reached succeeded"
+else
+  echo "[info] triggering payment retry via alpha control plane"
+  http_call \
+    "POST" \
+    "$ALPHA_API_BASE_URL/v1/invoices/$INVOICE_ID/retry-payment" \
+    "$RETRY_PAYMENT_BODY" \
+    "X-API-Key: $ALPHA_WRITER_API_KEY"
+  if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "202" ]]; then
+    echo "[fail] retry-payment failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
+    exit 1
+  fi
+  echo "[pass] retry-payment accepted: status=$HTTP_CODE"
+fi
 
 echo "[info] polling Lago invoice payment status (expected=$EXPECTED_FINAL_STATUS)"
 while true; do
