@@ -109,6 +109,19 @@ POLL_INTERVAL_SEC='5' \
 bash ./scripts/test_real_payment_e2e.sh
 ```
 
+To run the full staging alpha acceptance gate in one command:
+
+```bash
+ALPHA_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+ALPHA_WRITER_API_KEY='...' \
+ALPHA_READER_API_KEY='...' \
+LAGO_API_URL='https://lago-api-staging.sagarwaidande.org' \
+LAGO_API_KEY='...' \
+SUCCESS_INVOICE_ID='56251c97-597a-4cec-9a22-8106d746def8' \
+FAILURE_INVOICE_ID='baa27549-32d4-47cd-9f14-d98b61c8b0fa' \
+bash ./scripts/verify_staging_acceptance.sh
+```
+
 ## 6) Troubleshooting
 
 - `invoice must be finalized`: finalize/regenerate target invoice first.

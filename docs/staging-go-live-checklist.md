@@ -156,6 +156,25 @@ INVOICE_ID='inv_xxx' \
 make verify-staging-runtime
 ```
 
+Combined acceptance gate shortcut:
+
+```bash
+ALPHA_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+ALPHA_WRITER_API_KEY='replace_me' \
+ALPHA_READER_API_KEY='replace_me' \
+LAGO_API_URL='https://lago-api-staging.sagarwaidande.org' \
+LAGO_API_KEY='replace_me' \
+SUCCESS_INVOICE_ID='56251c97-597a-4cec-9a22-8106d746def8' \
+FAILURE_INVOICE_ID='baa27549-32d4-47cd-9f14-d98b61c8b0fa' \
+make verify-staging-acceptance
+```
+
+What this acceptance gate does:
+- runs `verify-staging-runtime`
+- runs success-path payment E2E
+- runs failure-path payment E2E
+- emits one combined JSON result for the full alpha payment visibility gate
+
 GitHub workflow shortcut:
 - run workflow `Staging Runtime Verify`
 - input `environment=staging`
