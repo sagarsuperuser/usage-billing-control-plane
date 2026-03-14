@@ -31,6 +31,7 @@ Validated on `2026-03-14` against the live staging stack:
 Important staging nuance:
 - the Stripe account used here is India-based
 - success-path test customers must have a billing address synced to Stripe, or Stripe rejects export transactions even with a valid `4242` card
+- the Stripe/Lago staging bootstrap is now automated via `make lago-staging-bootstrap-payments`
 
 ## 0) v1 Release Scope
 

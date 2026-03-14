@@ -30,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -111,6 +111,9 @@ lago-staging-verify: ## Verify Lago staging namespace, services, and optional AP
 
 lago-staging-checklist: ## Print first-time manual Lago bootstrap steps
 	@./scripts/print_lago_bootstrap_checklist.sh
+
+lago-staging-bootstrap-payments: ## Bootstrap Lago Stripe/webhook/test-customer payment fixtures in staging
+	@./scripts/bootstrap_lago_stripe_staging.sh
 
 temporal-staging-deploy: ## Deploy Temporal staging into the current cluster (official Helm chart, internal only)
 	@./scripts/deploy_temporal_staging.sh
