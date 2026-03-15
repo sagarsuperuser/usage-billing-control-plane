@@ -92,8 +92,28 @@ Why:
 - but the first tenant admin key still needs platform bootstrap
 
 Current supported model:
-- use the bootstrap/admin path backed by alpha runtime key bootstrap or direct operator provisioning in the alpha DB
+- use the dedicated operator bootstrap command below to mint the first tenant `admin` key
 - after that, keep all routine access management inside the tenant through the API key endpoints
+
+Operator bootstrap command:
+
+```bash
+DATABASE_URL='postgres://...' \
+TENANT_ID='tenant_acme' \
+KEY_NAME='acme-platform-admin' \
+make bootstrap-tenant-admin-key
+```
+
+Behavior:
+- creates one `admin` API key for the requested tenant
+- prints the one-time `secret` so it can be handed to the tenant admin securely
+- refuses to run if the tenant already has active keys unless `ALLOW_EXISTING_ACTIVE_KEYS=1` is set
+- supports optional expiry with `EXPIRES_AT=<RFC3339 timestamp>`
+
+Recommended operator handling:
+- capture the JSON output once
+- hand the `secret` to the tenant's technical owner through a secure channel
+- do not store the cleartext secret in docs or chat logs after handoff
 
 After the first admin key exists, that tenant admin can create more keys with:
 
