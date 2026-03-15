@@ -98,3 +98,15 @@ So the current recommendation is:
 - automate the successful live replay smoke
 - treat failed replay retry as an operator drill using a naturally failed staging job when one exists
 - if failure injection becomes a real requirement, add an explicit non-production fault-injection path instead of relying on hidden breakage
+## 5. Latest Proven Staging Fixture
+
+Validated on `2026-03-15`:
+- replay job: `rpl_432a72de0e30cac9`
+- customer: `cust_replay_smoke_20260315062139-27785`
+- meter: `mtr_e03fb302d1808662`
+- replay adjustment billed entry: `bil_6fe4f70a0e246513`
+- pre-replay delta: `20` cents
+- post-replay delta: `0` cents
+
+Browser replay smoke also passed against the live staging UI after deploying image tag `staging-20260315-replay-ui`.
+

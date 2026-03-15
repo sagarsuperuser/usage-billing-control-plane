@@ -140,3 +140,10 @@ Configure repository secrets used by `.github/workflows/infra-deploy.yml`:
 And repository variable:
 
 - `AWS_REGION`
+
+Latest proven staging drill (`2026-03-15`):
+- source instance: `lagoalphastagingdb`
+- snapshot: `lago-alpha-staging-drill-snap-20260315121714`
+- restored instance: `lago-alpha-staging-drill-restore-20260315121714`
+- restored endpoint reached `available` before cleanup
+- cleanup completed with restored instance deleted

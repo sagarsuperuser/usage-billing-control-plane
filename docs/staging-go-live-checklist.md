@@ -4,7 +4,7 @@ This checklist is the release gate for shipping `usage-billing-control-plane` to
 
 ## Current Proven State
 
-Validated on `2026-03-14` against the live staging stack:
+Validated on `2026-03-15` against the live staging stack:
 
 - Alpha API:
   - `https://api-staging.sagarwaidande.org`
@@ -27,6 +27,19 @@ Validated on `2026-03-14` against the live staging stack:
 - Known staging test customers:
   - `cust_e2e_success`
   - `cust_e2e_failure`
+- Live replay smoke passed:
+  - replay job: `rpl_432a72de0e30cac9`
+  - replay customer: `cust_replay_smoke_20260315062139-27785`
+  - replay meter: `mtr_e03fb302d1808662`
+  - replay adjustment billed entry: `bil_6fe4f70a0e246513`
+- Backup/restore drill passed:
+  - snapshot: `lago-alpha-staging-drill-snap-20260315121714`
+  - restored instance: `lago-alpha-staging-drill-restore-20260315121714`
+- Rollback rehearsal passed:
+  - initial revision: `7`
+  - rollback revision: `7`
+  - final revision after redeploy: `10`
+  - image tag: `staging-20260315-replay-ui`
 
 Important staging nuance:
 - the Stripe account used here is India-based
@@ -57,10 +70,12 @@ Use this as a tracked board. Do not promote while any row remains open.
 | P0-5 | Backup/Restore Drill | run snapshot + restore drill in section 8 below | snapshot and restore complete; restored instance endpoint/status captured; cleanup decision documented | AWS CLI output + runbook log | [ ] |
 | P0-6 | Deploy/Rollback Safety | run release deploy then rollback then redeploy | release healthy, rollback healthy, redeploy healthy; no migration/data corruption | helm history + smoke logs | [ ] |
 
-Status note as of `2026-03-14`:
-- `P0-2` is proven manually in live staging, but the workflow evidence and runbook links still need to be recorded in this checklist.
-- `P0-3` and `P0-4` are proven at the API/runtime level; UI screenshots and retained evidence still need to be captured.
-- `P0-1`, `P0-5`, and `P0-6` still need formal execution/capture.
+Status note as of `2026-03-15`:
+- `P0-2` is proven in live staging with retained success/failure invoice ids recorded below.
+- `P0-3` and `P0-4` are proven through runtime verification and browser smoke coverage; only formal screenshot/artifact capture remains if you want release-package completeness.
+- `P0-5` is now proven with a completed snapshot -> restore -> delete drill.
+- `P0-6` is now proven with a full deploy -> rollback -> redeploy rehearsal.
+- `P0-1` still depends on how formally you want to capture CI evidence versus local/prod-like staging evidence already gathered.
 
 ## 2) Local Preflight
 
@@ -196,6 +211,22 @@ Known good staging evidence from `2026-03-14`:
   - `recommended_action=none`
   - `requires_action=false`
   - `retry_recommended=false`
+- replay smoke fixture from `2026-03-15`:
+  - replay job: `rpl_432a72de0e30cac9`
+  - customer: `cust_replay_smoke_20260315062139-27785`
+  - meter: `mtr_e03fb302d1808662`
+  - replay adjustment billed entry: `bil_6fe4f70a0e246513`
+  - pre-replay delta: `20` cents
+  - post-replay delta: `0` cents
+- rollback rehearsal from `2026-03-15`:
+  - initial revision: `7`
+  - rollback revision: `7`
+  - final revision: `10`
+  - image tag: `staging-20260315-replay-ui`
+- backup/restore drill from `2026-03-15`:
+  - snapshot id: `lago-alpha-staging-drill-snap-20260315121714`
+  - restore instance id: `lago-alpha-staging-drill-restore-20260315121714`
+  - restore endpoint reached `available` before deletion
 
 Payment visibility checks (replace env vars):
 
