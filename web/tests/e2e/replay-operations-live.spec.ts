@@ -43,10 +43,10 @@ test.describe("replay operations live staging", () => {
     await page.getByTestId(`replay-open-diagnostics-${liveReplayJobID}`).click();
 
     await expect(page.getByTestId("replay-diagnostics-drawer")).toBeVisible();
-    await expect(page.getByText(liveReplayJobID)).toBeVisible();
+    await expect(page.getByRole("heading", { name: liveReplayJobID })).toBeVisible();
     await expect(page.getByText("Usage events")).toBeVisible();
     await expect(page.getByText("Billed entries")).toBeVisible();
-    await expect(page.getByText("Report JSON")).toBeVisible();
+    await expect(page.getByText("Workflow telemetry")).toBeVisible();
   });
 
   test("writer session can queue a fresh replay job from the live replay screen", async ({ page }) => {
