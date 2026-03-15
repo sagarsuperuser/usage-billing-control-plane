@@ -273,7 +273,8 @@ summary_json="$(jq -n \
   --argjson replay_job "$(jq -c . <<<"$replay_job_json")" \
   --argjson replay_diagnostics "$(jq -c . <<<"$replay_diag_json")" \
   --argjson replay_adjustment_entry "$replay_adjustment_json" \
-  --argjson after_reconciliation "$(jq -c . <<<"$after_recon_json")" \  '{
+  --argjson after_reconciliation "$(jq -c . <<<"$after_recon_json")" \
+  '{
     alpha_api_base_url: $alpha_api_base_url,
     run_id: $run_id,
     fixture: {
