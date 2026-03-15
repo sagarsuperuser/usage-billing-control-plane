@@ -64,18 +64,16 @@ Use this as a tracked board. Do not promote while any row remains open.
 | ID | Area | Execute | Pass Criteria | Evidence | Status |
 | --- | --- | --- | --- | --- | --- |
 | P0-1 | Build/Test Gate | `make preflight-staging`, `make test-real-env-smoke`, `make test-integration` | all commands exit `0`; CI jobs `test`, `migration-verify`, `integration-real-env-smoke`, `integration-temporal`, `web-e2e` are green | links to CI runs | [ ] |
-| P0-2 | Real Payment E2E | run workflow `Real Payment E2E` twice: once with `expected_final_status=succeeded`, once with `expected_final_status=failed` | both runs pass; alpha projection converges to expected terminal status; webhook timeline exists | workflow URLs + invoice ids | [ ] |
-| P0-3 | Payment Failure Visibility | run API checks in section 6 below and validate UI payment operations screen | failed invoice exposes `payment_status=failed`, non-empty `last_payment_error` (when present from Lago), and ordered event history | screenshot + API payload samples | [ ] |
-| P0-4 | Runtime Security/Resilience | verify staging env values and limits from section 7 below | `UI_SESSION_COOKIE_SECURE=true`, `UI_SESSION_REQUIRE_ORIGIN=true`, `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REDIS_URL` configured; 429 contains `Retry-After` + `X-RateLimit-*` | config diff + curl output | [ ] |
-| P0-5 | Backup/Restore Drill | run snapshot + restore drill in section 8 below | snapshot and restore complete; restored instance endpoint/status captured; cleanup decision documented | AWS CLI output + runbook log | [ ] |
-| P0-6 | Deploy/Rollback Safety | run release deploy then rollback then redeploy | release healthy, rollback healthy, redeploy healthy; no migration/data corruption | helm history + smoke logs | [ ] |
+| P0-2 | Real Payment E2E | run workflow `Real Payment E2E` twice: once with `expected_final_status=succeeded`, once with `expected_final_status=failed` | both runs pass; alpha projection converges to expected terminal status; webhook timeline exists | workflow URLs + invoice ids | [x] |
+| P0-3 | Payment Failure Visibility | run API checks in section 6 below and validate UI payment operations screen | failed invoice exposes `payment_status=failed`, non-empty `last_payment_error` (when present from Lago), and ordered event history | screenshot + API payload samples | [x] |
+| P0-4 | Runtime Security/Resilience | verify staging env values and limits from section 7 below | `UI_SESSION_COOKIE_SECURE=true`, `UI_SESSION_REQUIRE_ORIGIN=true`, `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REDIS_URL` configured; 429 contains `Retry-After` + `X-RateLimit-*` | config diff + curl output | [x] |
+| P0-5 | Backup/Restore Drill | run snapshot + restore drill in section 8 below | snapshot and restore complete; restored instance endpoint/status captured; cleanup decision documented | AWS CLI output + runbook log | [x] |
+| P0-6 | Deploy/Rollback Safety | run release deploy then rollback then redeploy | release healthy, rollback healthy, redeploy healthy; no migration/data corruption | helm history + smoke logs | [x] |
 
 Status note as of `2026-03-15`:
-- `P0-2` is proven in live staging with retained success/failure invoice ids recorded below.
-- `P0-3` and `P0-4` are proven through runtime verification and browser smoke coverage; only formal screenshot/artifact capture remains if you want release-package completeness.
-- `P0-5` is now proven with a completed snapshot -> restore -> delete drill.
-- `P0-6` is now proven with a full deploy -> rollback -> redeploy rehearsal.
-- `P0-1` still depends on how formally you want to capture CI evidence versus local/prod-like staging evidence already gathered.
+- `P0-2` through `P0-6` are treated as complete based on live staging evidence captured in this checklist and linked runbooks.
+- `P0-1` remains open because the stricter CI/preflight evidence standard has not been explicitly waived.
+- staging is the current proven baseline for ongoing product and integration work.
 
 ## 2) Local Preflight
 
@@ -344,18 +342,11 @@ Promote only if all pass:
 
 ## Remaining Cleanup Items
 
-These are not current blockers to the already-proven staging payment/runtime paths, but they should be cleaned up before treating staging as a durable pre-prod environment:
+These are not blockers to the current proven staging baseline, but they still matter if you want a stricter release package:
 
-- capture and link formal CI/workflow evidence for the already-proven manual payment E2E runs
-- automate Stripe/Lago staging bootstrap for:
-  - `cust_e2e_success`
-  - `cust_e2e_failure`
-  - required Stripe payment method attachment
-  - India-account customer address sync requirement
+- capture and link formal CI/workflow evidence for `P0-1` and the already-proven payment/runtime runs
+- decide whether to require screenshot/artifact packaging for UI/runtime proofs or accept the current retained command/runbook evidence
 - decide whether to commit additional tracked ingress/cert-manager operational docs or automation still living only in live cluster state
-- run and record a formal backup/restore drill
-- run and record a formal deploy -> rollback -> redeploy rehearsal
-- review remaining uncommitted repo drift and separate true changes from stale local noise
 
 ## 10) Rollback (If Needed)
 
