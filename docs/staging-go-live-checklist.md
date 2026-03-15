@@ -227,6 +227,18 @@ PLAYWRIGHT_LIVE_READER_API_KEY='replace_me_reader_key' \
 make web-e2e-live
 ```
 
+Live replay smoke fixture creation:
+
+```bash
+ALPHA_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+ALPHA_WRITER_API_KEY='replace_me_writer_key' \
+ALPHA_READER_API_KEY='replace_me_reader_key' \
+OUTPUT_FILE='/tmp/replay-smoke.json' \
+make verify-replay-smoke-staging
+```
+
+Use `/tmp/replay-smoke.json` to feed `PLAYWRIGHT_LIVE_REPLAY_JOB_ID`, `PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID`, and `PLAYWRIGHT_LIVE_REPLAY_METER_ID` into the live replay browser smoke.
+
 Pass criteria:
 - writer UI session login succeeds
 - failed-payment list renders
@@ -234,6 +246,7 @@ Pass criteria:
 - writer retry button submission is accepted from the browser UI
 - reader session can inspect the screen but retry stays disabled with a read-only message
 - if `PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID` is provided, invoice explainability loads for that known invoice and returns non-empty digest metadata
+- if `PLAYWRIGHT_LIVE_REPLAY_JOB_ID`, `PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID`, and `PLAYWRIGHT_LIVE_REPLAY_METER_ID` are provided, replay diagnostics open for the known live replay fixture and the writer session can queue a fresh replay job from the browser UI
 
 ## 7) Runtime Security and Rate-Limit Verification
 

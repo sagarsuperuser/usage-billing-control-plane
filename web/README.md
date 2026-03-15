@@ -12,6 +12,7 @@ npx -y pnpm@10.30.0 dev
 Open:
 - `http://localhost:3000/control-plane`
 - `http://localhost:3000/payment-operations`
+- `http://localhost:3000/replay-operations`
 - `http://localhost:3000/invoice-explainability`
 
 Optional API base override:
@@ -41,14 +42,29 @@ npx -y pnpm@10.30.0 exec playwright install --with-deps chromium
 npx -y pnpm@10.30.0 e2e
 ```
 
-Live staging smoke for payment operations UI:
+Live staging smoke for payment operations, replay operations, and invoice explainability:
 
 ```bash
 PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
 PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \
 PLAYWRIGHT_LIVE_WRITER_API_KEY='replace_me_writer_key' \
 PLAYWRIGHT_LIVE_READER_API_KEY='replace_me_reader_key' \
-npx -y pnpm@10.30.0 exec playwright test tests/e2e/payment-operations-live.spec.ts
+make web-e2e-live
+
+ALPHA_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+ALPHA_WRITER_API_KEY='replace_me_writer_key' \
+ALPHA_READER_API_KEY='replace_me_reader_key' \
+OUTPUT_FILE='/tmp/replay-smoke.json' \
+make verify-replay-smoke-staging
+
+PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_WRITER_API_KEY='replace_me_writer_key' \
+PLAYWRIGHT_LIVE_READER_API_KEY='replace_me_reader_key' \
+PLAYWRIGHT_LIVE_REPLAY_JOB_ID="$(jq -r '.live_browser_smoke.playwright_live_replay_job_id' /tmp/replay-smoke.json)" \
+PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID="$(jq -r '.live_browser_smoke.playwright_live_replay_customer_id' /tmp/replay-smoke.json)" \
+PLAYWRIGHT_LIVE_REPLAY_METER_ID="$(jq -r '.live_browser_smoke.playwright_live_replay_meter_id' /tmp/replay-smoke.json)" \
+npx -y pnpm@10.30.0 exec playwright test tests/e2e/replay-operations-live.spec.ts
 
 PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
 PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \
