@@ -173,8 +173,8 @@ What that already automates in staging:
 - ensures the success customer has a usable Stripe payment method and billing address
 
 For environment-specific billing details, follow:
-- [real-payment-e2e-runbook.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/real-payment-e2e-runbook.md)
-- [lago-staging-bootstrap.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/lago-staging-bootstrap.md)
+- [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
+- [lago-staging-bootstrap.md](./lago-staging-bootstrap.md)
 
 ### Step 4: Seed Tenant Pricing Metadata
 
@@ -229,7 +229,7 @@ Create or confirm:
 - one failure-path customer if you want to prove retry/recovery behavior
 
 For staging payment setup and fixture creation, use the existing runbook and scripts:
-- [real-payment-e2e-runbook.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/real-payment-e2e-runbook.md)
+- [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
 - `make lago-staging-bootstrap-payments`
 - `make verify-staging-acceptance`
 
@@ -373,8 +373,8 @@ This keeps onboarding reproducible and auditable.
 ## 8. Related Runbooks
 
 Use these together with this onboarding doc:
-- [staging-go-live-checklist.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/staging-go-live-checklist.md)
-- [real-payment-e2e-runbook.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/real-payment-e2e-runbook.md)
-- [replay-recovery-live-runbook.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/replay-recovery-live-runbook.md)
-- [lago-staging-bootstrap.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/lago-staging-bootstrap.md)
-- [infra-rollout-runbook.md](/Users/superuser/projects/golang/usage-billing-control-plane/docs/infra-rollout-runbook.md)
+- [staging-go-live-checklist.md](./staging-go-live-checklist.md)
+- [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
+- [replay-recovery-live-runbook.md](./replay-recovery-live-runbook.md)
+- [lago-staging-bootstrap.md](./lago-staging-bootstrap.md)
+- [infra-rollout-runbook.md](./infra-rollout-runbook.md)
