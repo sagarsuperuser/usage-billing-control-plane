@@ -25,7 +25,6 @@ Architecture split:
 - Migrations are applied by `cmd/migrate` for CI/CD-safe rollout.
 - Server boot migrations are optional and disabled by default.
 - Migration state is tracked in `schema_migrations` (golang-migrate table).
-- Legacy custom `schema_migrations(version,name,applied_at)` is auto-renamed once to `schema_migrations_legacy_custom`.
 
 ## Run
 

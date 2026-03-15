@@ -66,10 +66,6 @@ func (r *Runner) Run(ctx context.Context) error {
 	ctx, cancel := r.withTimeoutContext(ctx)
 	defer cancel()
 
-	if err := prepareLegacyTableCompatibility(ctx, r.db, r.table); err != nil {
-		return err
-	}
-
 	m, err := r.newMigrator()
 	if err != nil {
 		return err
@@ -92,10 +88,6 @@ func (r *Runner) Run(ctx context.Context) error {
 func (r *Runner) Status(ctx context.Context) (StatusReport, error) {
 	ctx, cancel := r.withTimeoutContext(ctx)
 	defer cancel()
-
-	if err := prepareLegacyTableCompatibility(ctx, r.db, r.table); err != nil {
-		return StatusReport{}, err
-	}
 
 	available, err := listAvailableMigrations()
 	if err != nil {
@@ -253,97 +245,4 @@ func parseVersion(filename string) (uint, error) {
 		return 0, fmt.Errorf("invalid migration version in %q: version must be > 0", filename)
 	}
 	return uint(v), nil
-}
-
-func prepareLegacyTableCompatibility(ctx context.Context, db *sql.DB, table string) error {
-	if !isSafeIdentifier(table) {
-		return fmt.Errorf("invalid migrations table name %q", table)
-	}
-
-	rows, err := db.QueryContext(ctx, `
-		SELECT column_name
-		FROM information_schema.columns
-		WHERE table_schema = 'public' AND table_name = $1
-	`, table)
-	if err != nil {
-		return fmt.Errorf("inspect migrations table compatibility: %w", err)
-	}
-	defer rows.Close()
-
-	columns := make(map[string]struct{})
-	for rows.Next() {
-		var col string
-		if err := rows.Scan(&col); err != nil {
-			return fmt.Errorf("scan migrations table column: %w", err)
-		}
-		columns[col] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate migrations table columns: %w", err)
-	}
-
-	if len(columns) == 0 {
-		return nil
-	}
-
-	if hasColumns(columns, "version", "dirty") {
-		return nil
-	}
-
-	if hasColumns(columns, "version", "name", "applied_at") {
-		legacyName := table + "_legacy_custom"
-		if !isSafeIdentifier(legacyName) {
-			return fmt.Errorf("invalid legacy migrations table name %q", legacyName)
-		}
-
-		if exists, err := tableExists(ctx, db, legacyName); err != nil {
-			return err
-		} else if exists {
-			return fmt.Errorf("legacy migrations table %q already exists; manual cleanup required", legacyName)
-		}
-
-		if _, err := db.ExecContext(ctx, fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, quoteIdent(table), quoteIdent(legacyName))); err != nil {
-			return fmt.Errorf("rename legacy custom migrations table: %w", err)
-		}
-		return nil
-	}
-
-	return fmt.Errorf("unsupported migrations table shape for %q; manual migration table cleanup required", table)
-}
-
-func tableExists(ctx context.Context, db *sql.DB, table string) (bool, error) {
-	var exists bool
-	if err := db.QueryRowContext(ctx, `SELECT EXISTS (
-		SELECT 1 FROM information_schema.tables
-		WHERE table_schema = 'public' AND table_name = $1
-	)`, table).Scan(&exists); err != nil {
-		return false, fmt.Errorf("check table %q existence: %w", table, err)
-	}
-	return exists, nil
-}
-
-func hasColumns(columns map[string]struct{}, required ...string) bool {
-	for _, req := range required {
-		if _, ok := columns[req]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func isSafeIdentifier(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (i > 0 && r >= '0' && r <= '9') {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func quoteIdent(s string) string {
-	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 }

@@ -23,7 +23,7 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(`DROP TABLE IF EXISTS schema_migrations, schema_migrations_legacy_custom, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions CASCADE`); err != nil {
+	if _, err := db.Exec(`DROP TABLE IF EXISTS schema_migrations, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions CASCADE`); err != nil {
 		t.Fatalf("drop existing tables: %v", err)
 	}
 
