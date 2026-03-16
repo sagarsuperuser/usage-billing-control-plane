@@ -53,14 +53,20 @@ type UpsertCustomerBillingProfileRequest struct {
 	ProviderCode  string `json:"provider_code,omitempty"`
 }
 
-type UpsertCustomerPaymentSetupRequest struct {
-	DefaultPaymentMethodPresent    bool       `json:"default_payment_method_present"`
-	PaymentMethodType              string     `json:"payment_method_type,omitempty"`
-	ProviderCustomerReference      string     `json:"provider_customer_reference,omitempty"`
-	ProviderPaymentMethodReference string     `json:"provider_payment_method_reference,omitempty"`
-	LastVerifiedAt                 *time.Time `json:"last_verified_at,omitempty"`
-	LastVerificationResult         string     `json:"last_verification_result,omitempty"`
-	LastVerificationError          string     `json:"last_verification_error,omitempty"`
+type BeginCustomerPaymentSetupRequest struct {
+	PaymentMethodType string `json:"payment_method_type,omitempty"`
+}
+
+type BeginCustomerPaymentSetupResult struct {
+	ExternalID   string                      `json:"external_id"`
+	CheckoutURL  string                      `json:"checkout_url"`
+	PaymentSetup domain.CustomerPaymentSetup `json:"payment_setup"`
+}
+
+type RefreshCustomerPaymentSetupResult struct {
+	ExternalID   string                      `json:"external_id"`
+	PaymentSetup domain.CustomerPaymentSetup `json:"payment_setup"`
+	Readiness    CustomerReadiness           `json:"readiness"`
 }
 
 type CustomerReadiness struct {
@@ -258,44 +264,88 @@ func (s *CustomerService) GetCustomerBillingProfile(tenantID, externalID string)
 	return profile, nil
 }
 
-func (s *CustomerService) UpsertCustomerPaymentSetup(tenantID, externalID string, req UpsertCustomerPaymentSetupRequest) (domain.CustomerPaymentSetup, error) {
+func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string, req BeginCustomerPaymentSetupRequest) (BeginCustomerPaymentSetupResult, error) {
 	if s == nil || s.store == nil {
-		return domain.CustomerPaymentSetup{}, fmt.Errorf("%w: customer repository is required", ErrValidation)
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: customer repository is required", ErrValidation)
+	}
+	if s.billingAdapter == nil {
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: customer billing adapter is required", ErrValidation)
 	}
 	customer, err := s.GetCustomerByExternalID(tenantID, externalID)
 	if err != nil {
-		return domain.CustomerPaymentSetup{}, err
+		return BeginCustomerPaymentSetupResult{}, err
+	}
+	if customer.Status != domain.CustomerStatusActive {
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: customer must be active before payment setup", ErrValidation)
 	}
 	current, err := s.store.GetCustomerPaymentSetup(customer.TenantID, customer.ID)
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
-		return domain.CustomerPaymentSetup{}, err
+		return BeginCustomerPaymentSetupResult{}, err
 	}
 	if errors.Is(err, store.ErrNotFound) {
 		current = defaultCustomerPaymentSetup(customer)
 	}
-
-	current.DefaultPaymentMethodPresent = req.DefaultPaymentMethodPresent
-	current.PaymentMethodType = strings.TrimSpace(req.PaymentMethodType)
-	current.ProviderCustomerReference = strings.TrimSpace(req.ProviderCustomerReference)
-	current.ProviderPaymentMethodReference = strings.TrimSpace(req.ProviderPaymentMethodReference)
-	current.LastVerifiedAt = req.LastVerifiedAt
-	current.LastVerificationResult = strings.TrimSpace(req.LastVerificationResult)
-	current.LastVerificationError = strings.TrimSpace(req.LastVerificationError)
-	current.SetupStatus = derivePaymentSetupStatus(current)
-	current.UpdatedAt = time.Now().UTC()
-	setup, err := s.store.UpsertCustomerPaymentSetup(current)
-	if err != nil {
-		return domain.CustomerPaymentSetup{}, err
-	}
 	profile, err := s.GetCustomerBillingProfile(customer.TenantID, customer.ExternalID)
 	if err != nil {
-		return domain.CustomerPaymentSetup{}, err
+		return BeginCustomerPaymentSetupResult{}, err
 	}
-	_, _, setup, err = s.syncAndVerifyCustomerBilling(tenantID, customer, profile, setup)
+	if profile.ProfileStatus != domain.BillingProfileStatusReady {
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: billing profile must be ready before payment setup", ErrValidation)
+	}
+	tenant, err := s.store.GetTenant(normalizeTenantID(tenantID))
 	if err != nil {
-		return domain.CustomerPaymentSetup{}, err
+		return BeginCustomerPaymentSetupResult{}, err
 	}
-	return setup, nil
+	if strings.TrimSpace(tenant.LagoBillingProviderCode) == "" {
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: tenant billing provider is not configured", ErrValidation)
+	}
+
+	paymentMethodType := strings.TrimSpace(req.PaymentMethodType)
+	if paymentMethodType != "" {
+		current.PaymentMethodType = paymentMethodType
+	}
+	if strings.TrimSpace(current.PaymentMethodType) == "" {
+		current.PaymentMethodType = "card"
+	}
+
+	customer, profile, current, err = s.syncAndVerifyCustomerBilling(tenantID, customer, profile, current)
+	if err != nil {
+		return BeginCustomerPaymentSetupResult{}, err
+	}
+	if current.DefaultPaymentMethodPresent && current.SetupStatus == domain.PaymentSetupStatusReady {
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: default payment method is already verified", ErrValidation)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	statusCode, body, err := s.billingAdapter.GenerateCustomerCheckoutURL(ctx, customer.ExternalID)
+	if err != nil {
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: generate payment setup checkout url: %v", ErrValidation, err)
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: lago checkout_url returned status=%d body=%s", ErrValidation, statusCode, abbrevForLog(body))
+	}
+	checkout, err := decodeLagoCustomerCheckoutResponse(body)
+	if err != nil {
+		return BeginCustomerPaymentSetupResult{}, err
+	}
+
+	now := time.Now().UTC()
+	current.LastVerifiedAt = nil
+	current.LastVerificationResult = "checkout_url_generated"
+	current.LastVerificationError = ""
+	current.SetupStatus = derivePaymentSetupStatus(current)
+	current.UpdatedAt = now
+	setup, err := s.store.UpsertCustomerPaymentSetup(current)
+	if err != nil {
+		return BeginCustomerPaymentSetupResult{}, err
+	}
+	return BeginCustomerPaymentSetupResult{
+		ExternalID:   customer.ExternalID,
+		CheckoutURL:  checkout.Customer.CheckoutURL,
+		PaymentSetup: setup,
+	}, nil
 }
 
 func (s *CustomerService) GetCustomerPaymentSetup(tenantID, externalID string) (domain.CustomerPaymentSetup, error) {
@@ -336,50 +386,37 @@ func (s *CustomerService) GetCustomerReadiness(tenantID, externalID string) (Cus
 	if err != nil {
 		return CustomerReadiness{}, err
 	}
-	customer, profile, setup, err = s.syncAndVerifyCustomerBilling(tenant.ID, customer, profile, setup)
+	return buildCustomerReadiness(tenant, customer, profile, setup), nil
+}
+
+func (s *CustomerService) RefreshCustomerPaymentSetup(tenantID, externalID string) (RefreshCustomerPaymentSetupResult, error) {
+	if s == nil || s.store == nil {
+		return RefreshCustomerPaymentSetupResult{}, fmt.Errorf("%w: customer repository is required", ErrValidation)
+	}
+	customer, err := s.GetCustomerByExternalID(tenantID, externalID)
 	if err != nil {
-		return CustomerReadiness{}, err
+		return RefreshCustomerPaymentSetupResult{}, err
 	}
-
-	missing := make([]string, 0)
-	status := "ready"
-	billingProviderConfigured := strings.TrimSpace(tenant.LagoBillingProviderCode) != ""
-	lagoCustomerSynced := strings.TrimSpace(customer.LagoCustomerID) != "" && profile.LastSyncedAt != nil && strings.TrimSpace(profile.LastSyncError) == ""
-	defaultPaymentMethodVerified := setup.DefaultPaymentMethodPresent && strings.TrimSpace(setup.LastVerificationError) == ""
-	if customer.Status != domain.CustomerStatusActive {
-		missing = append(missing, "customer_active")
+	profile, err := s.GetCustomerBillingProfile(customer.TenantID, customer.ExternalID)
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
 	}
-	if !billingProviderConfigured {
-		missing = append(missing, "billing_provider_configured")
+	setup, err := s.GetCustomerPaymentSetup(customer.TenantID, customer.ExternalID)
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
 	}
-	if profile.ProfileStatus != domain.BillingProfileStatusReady {
-		missing = append(missing, "billing_profile_ready")
+	customer, profile, setup, err = s.syncAndVerifyCustomerBilling(tenantID, customer, profile, setup)
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
 	}
-	if !lagoCustomerSynced {
-		missing = append(missing, "lago_customer_synced")
+	tenant, err := s.store.GetTenant(normalizeTenantID(tenantID))
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
 	}
-	if setup.SetupStatus != domain.PaymentSetupStatusReady {
-		missing = append(missing, "payment_setup_ready")
-	}
-	if !defaultPaymentMethodVerified {
-		missing = append(missing, "default_payment_method_verified")
-	}
-	if len(missing) > 0 {
-		status = "pending"
-	}
-
-	return CustomerReadiness{
-		Status:                       status,
-		MissingSteps:                 missing,
-		CustomerExists:               true,
-		CustomerActive:               customer.Status == domain.CustomerStatusActive,
-		BillingProviderConfigured:    billingProviderConfigured,
-		LagoCustomerSynced:           lagoCustomerSynced,
-		DefaultPaymentMethodVerified: defaultPaymentMethodVerified,
-		BillingProfileStatus:         profile.ProfileStatus,
-		PaymentSetupStatus:           setup.SetupStatus,
-		BillingProfile:               profile,
-		PaymentSetup:                 setup,
+	return RefreshCustomerPaymentSetupResult{
+		ExternalID:   customer.ExternalID,
+		PaymentSetup: setup,
+		Readiness:    buildCustomerReadiness(tenant, customer, profile, setup),
 	}, nil
 }
 
@@ -549,6 +586,12 @@ type lagoPaymentMethodsResponse struct {
 	} `json:"payment_methods"`
 }
 
+type lagoCustomerCheckoutResponse struct {
+	Customer struct {
+		CheckoutURL string `json:"checkout_url"`
+	} `json:"customer"`
+}
+
 func buildLagoCustomerPayload(tenant domain.Tenant, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) ([]byte, error) {
 	providerCode := strings.TrimSpace(profile.ProviderCode)
 	if providerCode == "" {
@@ -614,6 +657,60 @@ func decodeLagoPaymentMethodsResponse(body []byte) (lagoPaymentMethodsResponse, 
 		}{}
 	}
 	return out, nil
+}
+
+func decodeLagoCustomerCheckoutResponse(body []byte) (lagoCustomerCheckoutResponse, error) {
+	var out lagoCustomerCheckoutResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return lagoCustomerCheckoutResponse{}, fmt.Errorf("%w: lago customer checkout payload must be valid json", ErrValidation)
+	}
+	if strings.TrimSpace(out.Customer.CheckoutURL) == "" {
+		return lagoCustomerCheckoutResponse{}, fmt.Errorf("%w: lago customer checkout payload missing customer.checkout_url", ErrValidation)
+	}
+	return out, nil
+}
+
+func buildCustomerReadiness(tenant domain.Tenant, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) CustomerReadiness {
+	missing := make([]string, 0)
+	status := "ready"
+	billingProviderConfigured := strings.TrimSpace(tenant.LagoBillingProviderCode) != ""
+	lagoCustomerSynced := strings.TrimSpace(customer.LagoCustomerID) != "" && profile.LastSyncedAt != nil && strings.TrimSpace(profile.LastSyncError) == ""
+	defaultPaymentMethodVerified := setup.DefaultPaymentMethodPresent && strings.TrimSpace(setup.LastVerificationError) == ""
+	if customer.Status != domain.CustomerStatusActive {
+		missing = append(missing, "customer_active")
+	}
+	if !billingProviderConfigured {
+		missing = append(missing, "billing_provider_configured")
+	}
+	if profile.ProfileStatus != domain.BillingProfileStatusReady {
+		missing = append(missing, "billing_profile_ready")
+	}
+	if !lagoCustomerSynced {
+		missing = append(missing, "lago_customer_synced")
+	}
+	if setup.SetupStatus != domain.PaymentSetupStatusReady {
+		missing = append(missing, "payment_setup_ready")
+	}
+	if !defaultPaymentMethodVerified {
+		missing = append(missing, "default_payment_method_verified")
+	}
+	if len(missing) > 0 {
+		status = "pending"
+	}
+
+	return CustomerReadiness{
+		Status:                       status,
+		MissingSteps:                 missing,
+		CustomerExists:               true,
+		CustomerActive:               customer.Status == domain.CustomerStatusActive,
+		BillingProviderConfigured:    billingProviderConfigured,
+		LagoCustomerSynced:           lagoCustomerSynced,
+		DefaultPaymentMethodVerified: defaultPaymentMethodVerified,
+		BillingProfileStatus:         profile.ProfileStatus,
+		PaymentSetupStatus:           setup.SetupStatus,
+		BillingProfile:               profile,
+		PaymentSetup:                 setup,
+	}
 }
 
 func inferPaymentProviderFromCode(code string) (string, error) {

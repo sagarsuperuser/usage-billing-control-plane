@@ -113,8 +113,6 @@ Recommended fields:
 - `setup_status`
 - `default_payment_method_present`
 - `payment_method_type`
-- `provider_customer_reference`
-- `provider_payment_method_reference`
 - `last_verified_at`
 - `last_verification_result`
 - `last_verification_error`
@@ -206,8 +204,9 @@ Recommended first endpoints:
 - `PATCH /v1/customers/{external_id}`
 - `PUT /v1/customers/{external_id}/billing-profile`
 - `GET /v1/customers/{external_id}/billing-profile`
-- `PUT /v1/customers/{external_id}/payment-setup`
 - `GET /v1/customers/{external_id}/payment-setup`
+- `POST /v1/customers/{external_id}/payment-setup/checkout-url`
+- `POST /v1/customers/{external_id}/payment-setup/refresh`
 - `GET /v1/customers/{external_id}/readiness`
 
 Keep the path identifier as `external_id` initially.
@@ -229,13 +228,12 @@ This should feed Phase 3 onboarding work.
 
 Current implementation note:
 - Alpha now syncs customer billing configuration to Lago through a dedicated adapter when billing-profile data is complete
-- Alpha verifies customer payment-method readiness against Lago payment methods
+- Alpha initiates provider setup through an Alpha-owned checkout action instead of asking callers to submit provider references manually
+- Alpha verifies customer payment-method readiness through an explicit refresh action, not a mutating GET
 - Alpha persists sync and verification results back into:
   - `customers.lago_customer_id`
   - `customer_billing_profiles.last_synced_at`
   - `customer_billing_profiles.last_sync_error`
-  - `customer_payment_setup.provider_customer_reference`
-  - `customer_payment_setup.provider_payment_method_reference`
 
 ## Initial Status Enums
 

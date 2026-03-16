@@ -353,24 +353,34 @@ What Alpha does now:
 - syncs the customer billing configuration into Lago behind the scenes when the profile is complete
 - records sync failures back onto the customer readiness state instead of requiring operators to work in Lago directly
 
-Set the payment readiness record in Alpha:
+Start payment-method setup in Alpha:
 
 ```bash
-curl -sS -X PUT "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/payment-setup" \
+curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/payment-setup/checkout-url" \
   -H "X-API-Key: $TENANT_WRITER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "default_payment_method_present": true,
-    "payment_method_type": "card",
-    "provider_customer_reference": "pcus_replace_me",
-    "provider_payment_method_reference": "pm_replace_me",
-    "last_verification_result": "verified"
+    "payment_method_type": "card"
   }'
 ```
 
 What Alpha does now:
-- verifies customer payment-method state against Lago when customer readiness is evaluated
-- updates the local readiness record with the provider customer reference and default-payment-method verification result
+- requests a provider checkout URL from Lago behind the scenes
+- marks local payment setup as pending in Alpha
+- does not mutate readiness state through `GET` calls
+
+Refresh payment setup after the customer completes checkout:
+
+```bash
+curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/payment-setup/refresh" \
+  -H "X-API-Key: $TENANT_WRITER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+What Alpha does now:
+- syncs and verifies payment-method state against Lago explicitly
+- updates the local readiness record with the verified default payment method state
 
 Inspect customer readiness:
 

@@ -71,6 +71,10 @@ func TestLagoCustomerBillingAdapter(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_123","is_default":true,"provider_method_id":"pm_123"}]}`))
 			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_123/checkout_url":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"checkout_url":"https://checkout.example.test/cust_123"}}`))
+			return
 		default:
 			http.NotFound(w, r)
 		}
@@ -118,6 +122,17 @@ func TestLagoCustomerBillingAdapter(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "pm_123") {
 		t.Fatalf("expected provider payment method id in response, got %s", string(body))
+	}
+
+	status, body, err = adapter.GenerateCustomerCheckoutURL(context.Background(), "cust_123")
+	if err != nil {
+		t.Fatalf("generate customer checkout url: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", status)
+	}
+	if !strings.Contains(string(body), "checkout.example.test/cust_123") {
+		t.Fatalf("expected checkout url in response, got %s", string(body))
 	}
 }
 

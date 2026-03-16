@@ -1084,10 +1084,25 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/customers/"):
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
-		if strings.HasSuffix(tail, "/billing-profile") || strings.HasSuffix(tail, "/payment-setup") {
+		if strings.HasSuffix(tail, "/billing-profile") {
 			if r.Method == http.MethodPut {
 				return RoleWriter, true
 			}
+			return RoleReader, true
+		}
+		if strings.HasSuffix(tail, "/payment-setup/checkout-url") {
+			if r.Method == http.MethodPost {
+				return RoleWriter, true
+			}
+			return RoleReader, true
+		}
+		if strings.HasSuffix(tail, "/payment-setup/refresh") {
+			if r.Method == http.MethodPost {
+				return RoleWriter, true
+			}
+			return RoleReader, true
+		}
+		if strings.HasSuffix(tail, "/payment-setup") {
 			return RoleReader, true
 		}
 		if r.Method == http.MethodPatch {
@@ -1217,6 +1232,12 @@ func normalizeMetricsRoute(path string) string {
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
 		if strings.HasSuffix(tail, "/billing-profile") {
 			return "/v1/customers/{id}/billing-profile"
+		}
+		if strings.HasSuffix(tail, "/payment-setup/checkout-url") {
+			return "/v1/customers/{id}/payment-setup/checkout-url"
+		}
+		if strings.HasSuffix(tail, "/payment-setup/refresh") {
+			return "/v1/customers/{id}/payment-setup/refresh"
 		}
 		if strings.HasSuffix(tail, "/payment-setup") {
 			return "/v1/customers/{id}/payment-setup"
@@ -1687,17 +1708,20 @@ func parseInternalTenantPath(path string) (tenantID string, action string) {
 	return tenantID, action
 }
 
-func parseCustomerPath(path string) (externalID string, action string) {
+func parseCustomerPath(path string) (externalID string, action string, subaction string) {
 	tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
 	if tail == "" {
-		return "", ""
+		return "", "", ""
 	}
 	parts := strings.Split(tail, "/")
 	externalID = strings.TrimSpace(parts[0])
 	if len(parts) > 1 {
 		action = strings.TrimSpace(parts[1])
 	}
-	return externalID, action
+	if len(parts) > 2 {
+		subaction = strings.TrimSpace(parts[2])
+	}
+	return externalID, action, subaction
 }
 
 func metricsTenantKey(principal Principal) string {
@@ -1781,7 +1805,7 @@ func (s *Server) handleCustomers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCustomerByExternalID(w http.ResponseWriter, r *http.Request) {
 	tenantID := requestTenantID(r)
-	externalID, action := parseCustomerPath(r.URL.Path)
+	externalID, action, subaction := parseCustomerPath(r.URL.Path)
 	if externalID == "" {
 		writeError(w, http.StatusBadRequest, "customer external_id is required")
 		return
@@ -1837,21 +1861,40 @@ func (s *Server) handleCustomerByExternalID(w http.ResponseWriter, r *http.Reque
 			writeMethodNotAllowed(w)
 		}
 	case "payment-setup":
-		switch r.Method {
-		case http.MethodGet:
-			setup, err := s.customerService.GetCustomerPaymentSetup(tenantID, externalID)
-			if err != nil {
-				writeDomainError(w, err)
+		if subaction == "checkout-url" {
+			if r.Method != http.MethodPost {
+				writeMethodNotAllowed(w)
 				return
 			}
-			writeJSON(w, http.StatusOK, setup)
-		case http.MethodPut:
-			var req service.UpsertCustomerPaymentSetupRequest
+			var req service.BeginCustomerPaymentSetupRequest
 			if err := decodeJSON(r, &req); err != nil {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			setup, err := s.customerService.UpsertCustomerPaymentSetup(tenantID, externalID, req)
+			result, err := s.customerService.BeginCustomerPaymentSetup(tenantID, externalID, req)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, result)
+			return
+		}
+		if subaction == "refresh" {
+			if r.Method != http.MethodPost {
+				writeMethodNotAllowed(w)
+				return
+			}
+			result, err := s.customerService.RefreshCustomerPaymentSetup(tenantID, externalID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, result)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			setup, err := s.customerService.GetCustomerPaymentSetup(tenantID, externalID)
 			if err != nil {
 				writeDomainError(w, err)
 				return

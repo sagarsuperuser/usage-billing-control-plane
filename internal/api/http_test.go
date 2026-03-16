@@ -1261,10 +1261,53 @@ func TestTenantIsolationAcrossAPIKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoTransport, lagoCleanup := newTestLagoTransport(t)
+	paymentMethodReady := false
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/billable_metrics":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"billable_metric":{"code":"tenant_onboard_api_calls"}}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_onboard","external_id":"cust_onboard","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_onboard","provider_customer_id":"pcus_onboard","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_onboard/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			if paymentMethodReady {
+				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_onboard","is_default":true,"provider_method_id":"pm_onboard"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_onboard/checkout_url":
+			paymentMethodReady = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_onboard","checkout_url":"https://checkout.example.test/cust_onboard"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	lagoCleanup := func() {}
 	defer lagoCleanup()
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+	).Handler())
 	defer ts.Close()
 
 	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
@@ -1324,10 +1367,51 @@ func TestRatingRuleGovernanceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoTransport, lagoCleanup := newTestLagoTransport(t)
-	defer lagoCleanup()
+	paymentMethodReady := false
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/billable_metrics":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"billable_metric":{"code":"tenant_onboard_api_calls"}}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_onboard","external_id":"cust_onboard","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_onboard","provider_customer_id":"pcus_onboard","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_onboard/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			if paymentMethodReady {
+				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_onboard","is_default":true,"provider_method_id":"pm_onboard"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_onboard/checkout_url":
+			paymentMethodReady = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_onboard","checkout_url":"https://checkout.example.test/cust_onboard"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+	).Handler())
 	defer ts.Close()
 
 	v1 := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
@@ -1504,10 +1588,51 @@ func TestAPIKeyLifecycleEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoTransport, lagoCleanup := newTestLagoTransport(t)
-	defer lagoCleanup()
+	paymentMethodReady := false
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/billable_metrics":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"billable_metric":{"code":"tenant_onboard_api_calls"}}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_onboard","external_id":"cust_onboard","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_onboard","provider_customer_id":"pcus_onboard","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_onboard/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			if paymentMethodReady {
+				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_onboard","is_default":true,"provider_method_id":"pm_onboard"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_onboard/checkout_url":
+			paymentMethodReady = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_onboard","checkout_url":"https://checkout.example.test/cust_onboard"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+	).Handler())
 	defer ts.Close()
 
 	_ = postJSON(t, ts.URL+"/v1/api-keys", map[string]any{
@@ -1965,13 +2090,18 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 		"currency":              "USD",
 		"provider_code":         "stripe_onboard",
 	}, adminSecret, http.StatusOK)
-	_ = putJSON(t, ts.URL+"/v1/customers/cust_onboard/payment-setup", map[string]any{
-		"default_payment_method_present":    true,
-		"payment_method_type":               "card",
-		"provider_customer_reference":       "pcus_onboard",
-		"provider_payment_method_reference": "pm_onboard",
-		"last_verification_result":          "verified",
+	checkout := postJSON(t, ts.URL+"/v1/customers/cust_onboard/payment-setup/checkout-url", map[string]any{
+		"payment_method_type": "card",
 	}, adminSecret, http.StatusOK)
+	if got, _ := checkout["checkout_url"].(string); got == "" {
+		t.Fatalf("expected checkout_url from customer payment setup")
+	}
+	refreshed := postJSON(t, ts.URL+"/v1/customers/cust_onboard/payment-setup/refresh", map[string]any{}, adminSecret, http.StatusOK)
+	if readiness, ok := refreshed["readiness"].(map[string]any); !ok {
+		t.Fatalf("expected readiness in payment setup refresh response")
+	} else if got, _ := readiness["status"].(string); got != "ready" {
+		t.Fatalf("expected customer readiness ready after payment setup refresh, got %q", got)
+	}
 
 	finalReadiness := getJSON(t, ts.URL+"/internal/onboarding/tenants/tenant_onboard", "platform-admin", http.StatusOK)
 	finalReadinessData, ok := finalReadiness["readiness"].(map[string]any)
@@ -2297,6 +2427,7 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 		t.Fatalf("new authorizer: %v", err)
 	}
 
+	customerPaymentMethodReady := false
 	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
@@ -2305,7 +2436,16 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 			return
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_alpha/payment_methods":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_alpha","is_default":true,"provider_method_id":"pm_123"}]}`))
+			if customerPaymentMethodReady {
+				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_alpha","is_default":true,"provider_method_id":"pm_123"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_alpha/checkout_url":
+			customerPaymentMethodReady = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_alpha","checkout_url":"https://checkout.example.test/cust_alpha"}}`))
 			return
 		default:
 			http.NotFound(w, r)
@@ -2398,14 +2538,6 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 		t.Fatalf("expected billing profile status incomplete, got %q", got)
 	}
 
-	setupPending := putJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", map[string]any{
-		"payment_method_type":         "card",
-		"provider_customer_reference": "pcus_123",
-	}, "customer-writer-key", http.StatusOK)
-	if got, _ := setupPending["setup_status"].(string); got != "pending" {
-		t.Fatalf("expected payment setup status pending, got %q", got)
-	}
-
 	readinessStillPending := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "customer-reader-key", http.StatusOK)
 	if got, _ := readinessStillPending["status"].(string); got != "pending" {
 		t.Fatalf("expected readiness pending after partial setup, got %q", got)
@@ -2429,17 +2561,30 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 		t.Fatalf("expected lago_customer_id lago_cust_alpha after sync, got %q", got)
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
-	setupReady := putJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", map[string]any{
-		"default_payment_method_present":    true,
-		"payment_method_type":               "card",
-		"provider_customer_reference":       "pcus_123",
-		"provider_payment_method_reference": "pm_123",
-		"last_verified_at":                  now,
-		"last_verification_result":          "verified",
+	checkout := postJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup/checkout-url", map[string]any{
+		"payment_method_type": "card",
 	}, "customer-writer-key", http.StatusOK)
-	if got, _ := setupReady["setup_status"].(string); got != "ready" {
-		t.Fatalf("expected payment setup status ready, got %q", got)
+	if got, _ := checkout["checkout_url"].(string); got != "https://checkout.example.test/cust_alpha" {
+		t.Fatalf("expected checkout_url response, got %q", got)
+	}
+	setupPending := getJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", "customer-reader-key", http.StatusOK)
+	if got, _ := setupPending["setup_status"].(string); got != "pending" {
+		t.Fatalf("expected payment setup status pending immediately after checkout generation, got %q", got)
+	}
+	readinessAfterCheckout := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "customer-reader-key", http.StatusOK)
+	if got, _ := readinessAfterCheckout["status"].(string); got != "pending" {
+		t.Fatalf("expected readiness to remain pending before explicit refresh, got %q", got)
+	}
+	refresh := postJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup/refresh", map[string]any{}, "customer-writer-key", http.StatusOK)
+	if got, _ := refresh["external_id"].(string); got != "cust_alpha" {
+		t.Fatalf("expected refresh external_id cust_alpha, got %q", got)
+	}
+	refreshReadiness, ok := refresh["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected readiness in refresh response")
+	}
+	if got, _ := refreshReadiness["status"].(string); got != "ready" {
+		t.Fatalf("expected refresh readiness ready, got %q", got)
 	}
 
 	readinessReady := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "customer-reader-key", http.StatusOK)
