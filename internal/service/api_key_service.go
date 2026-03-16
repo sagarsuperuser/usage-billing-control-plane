@@ -90,6 +90,13 @@ func (s *APIKeyService) CreateAPIKey(tenantID, actorAPIKeyID string, req CreateA
 	tenantID = normalizeTenantID(tenantID)
 	actorAPIKeyID = strings.TrimSpace(actorAPIKeyID)
 
+	if _, err := s.store.GetTenant(tenantID); err != nil {
+		if err == store.ErrNotFound {
+			return CreateAPIKeyResult{}, fmt.Errorf("%w: tenant not found", ErrValidation)
+		}
+		return CreateAPIKeyResult{}, err
+	}
+
 	role, err := normalizeAPIKeyRole(req.Role)
 	if err != nil {
 		return CreateAPIKeyResult{}, fmt.Errorf("%w: invalid role", ErrValidation)

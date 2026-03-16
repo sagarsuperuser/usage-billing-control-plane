@@ -28,7 +28,10 @@ const (
 	defaultTenantID    = "default"
 )
 
-var errUnauthorized = errors.New("unauthorized")
+var (
+	errUnauthorized  = errors.New("unauthorized")
+	errTenantBlocked = errors.New("tenant blocked")
+)
 
 type Principal struct {
 	Role     Role
@@ -42,6 +45,7 @@ type APIKeyAuthorizer interface {
 
 type APIKeyStore interface {
 	CreateAPIKey(input domain.APIKey) (domain.APIKey, error)
+	GetTenant(id string) (domain.Tenant, error)
 	GetAPIKeyByPrefix(prefix string) (domain.APIKey, error)
 	GetActiveAPIKeyByPrefix(prefix string, at time.Time) (domain.APIKey, error)
 	TouchAPIKeyLastUsed(id string, usedAt time.Time) error
@@ -131,6 +135,17 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 	role, err := ParseRole(record.Role)
 	if err != nil {
 		return Principal{}, fmt.Errorf("invalid stored role for key prefix %q: %w", prefix, err)
+	}
+
+	tenant, err := a.store.GetTenant(record.TenantID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return Principal{}, errUnauthorized
+		}
+		return Principal{}, fmt.Errorf("load tenant: %w", err)
+	}
+	if tenant.Status != domain.TenantStatusActive {
+		return Principal{}, fmt.Errorf("%w: tenant %q status=%s", errTenantBlocked, normalizeTenantID(record.TenantID), tenant.Status)
 	}
 
 	_ = a.store.TouchAPIKeyLastUsed(record.ID, time.Now().UTC())

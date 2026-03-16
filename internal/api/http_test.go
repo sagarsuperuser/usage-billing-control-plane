@@ -1639,6 +1639,47 @@ func TestAPIKeyLifecycleEndpoints(t *testing.T) {
 	}
 }
 
+func TestBlockedTenantCannotUseAPIKey(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	for _, status := range []string{"suspended", "deleted"} {
+		resetTables(t, db)
+		mustCreateAPIKey(t, repo, "blocked-"+status+"-admin", api.RoleAdmin, "tenant_blocked_"+status)
+		if _, err := db.Exec(`UPDATE tenants SET status = $1 WHERE id = $2`, status, "tenant_blocked_"+status); err != nil {
+			t.Fatalf("update tenant status to %s: %v", status, err)
+		}
+
+		authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+		if err != nil {
+			t.Fatalf("new authorizer: %v", err)
+		}
+		lagoClient, lagoCleanup := newTestLagoClient(t)
+		defer lagoCleanup()
+
+		ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+		resp := getJSON(t, ts.URL+"/v1/api-keys", "blocked-"+status+"-admin", http.StatusForbidden)
+		if got, _ := resp["error"].(string); got != "forbidden" {
+			t.Fatalf("expected forbidden error for status=%s, got %v", status, resp["error"])
+		}
+		ts.Close()
+	}
+}
+
 func TestAuditExportToS3(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -1909,6 +1950,14 @@ func startTemporalReplayRuntime(t *testing.T, repo *store.PostgresStore) (func()
 
 func mustCreateAPIKey(t *testing.T, repo *store.PostgresStore, rawKey string, role api.Role, tenantID string) {
 	t.Helper()
+
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:     tenantID,
+		Name:   tenantID,
+		Status: domain.TenantStatusActive,
+	}); err != nil && err != store.ErrAlreadyExists && err != store.ErrDuplicateKey {
+		t.Fatalf("create tenant %q: %v", tenantID, err)
+	}
 
 	hashed := api.HashAPIKey(rawKey)
 	prefix := api.KeyPrefixFromHash(hashed)

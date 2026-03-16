@@ -71,6 +71,86 @@ func (s *PostgresStore) Migrate() error {
 	return runner.Run(context.Background())
 }
 
+func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error) {
+	input.ID = normalizeTenantID(input.ID)
+	input.Name = strings.TrimSpace(input.Name)
+	input.Status = normalizeTenantStatus(input.Status)
+	if input.Name == "" {
+		input.Name = input.ID
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO tenants (id, name, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, name, status, created_at, updated_at`,
+		input.ID,
+		input.Name,
+		string(input.Status),
+		input.CreatedAt,
+		input.UpdatedAt,
+	)
+	tenant, err := scanTenant(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.Tenant{}, ErrAlreadyExists
+		}
+		return domain.Tenant{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Tenant{}, err
+	}
+	return tenant, nil
+}
+
+func (s *PostgresStore) GetTenant(id string) (domain.Tenant, error) {
+	id = normalizeTenantID(id)
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, name, status, created_at, updated_at
+		FROM tenants
+		WHERE id = $1`,
+		id,
+	)
+	tenant, err := scanTenant(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Tenant{}, ErrNotFound
+		}
+		return domain.Tenant{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Tenant{}, err
+	}
+	return tenant, nil
+}
+
 func (s *PostgresStore) beginTxWithSession(ctx context.Context, mode txSessionMode, tenantID string) (*sql.Tx, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -2866,6 +2946,18 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 	return out, nil
 }
 
+func scanTenant(s rowScanner) (domain.Tenant, error) {
+	var out domain.Tenant
+	var status string
+	if err := s.Scan(&out.ID, &out.Name, &status, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.Tenant{}, err
+	}
+	out.ID = normalizeTenantID(out.ID)
+	out.Name = strings.TrimSpace(out.Name)
+	out.Status = normalizeTenantStatus(domain.TenantStatus(status))
+	return out, nil
+}
+
 func scanAPIKey(s rowScanner) (domain.APIKey, error) {
 	var out domain.APIKey
 	var tenantID sql.NullString
@@ -3312,6 +3404,17 @@ func normalizeTenantID(v string) string {
 		return defaultTenantID
 	}
 	return v
+}
+
+func normalizeTenantStatus(v domain.TenantStatus) domain.TenantStatus {
+	switch domain.TenantStatus(strings.ToLower(strings.TrimSpace(string(v)))) {
+	case domain.TenantStatusSuspended:
+		return domain.TenantStatusSuspended
+	case domain.TenantStatusDeleted:
+		return domain.TenantStatusDeleted
+	default:
+		return domain.TenantStatusActive
+	}
 }
 
 func normalizeBilledEntrySource(v domain.BilledEntrySource) domain.BilledEntrySource {

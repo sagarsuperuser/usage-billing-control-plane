@@ -394,6 +394,9 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			if errors.Is(err, errUnauthorized) {
 				statusCode = http.StatusUnauthorized
 				reason = "unauthorized"
+			} else if errors.Is(err, errTenantBlocked) {
+				statusCode = http.StatusForbidden
+				reason = "tenant_blocked"
 			}
 			s.logAuthFailure(r, statusCode, reason, err)
 			writeAuthError(w, err)
@@ -827,6 +830,10 @@ func subtleConstantTimeMatch(expected, provided string) bool {
 func writeAuthError(w http.ResponseWriter, err error) {
 	if errors.Is(err, errUnauthorized) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if errors.Is(err, errTenantBlocked) {
+		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
 	writeError(w, http.StatusInternalServerError, "authorization failed")

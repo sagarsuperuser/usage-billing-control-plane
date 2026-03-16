@@ -173,6 +173,9 @@ type InvoicePaymentSyncCandidate struct {
 type Repository interface {
 	Migrate() error
 
+	CreateTenant(input domain.Tenant) (domain.Tenant, error)
+	GetTenant(id string) (domain.Tenant, error)
+
 	CreateRatingRuleVersion(input domain.RatingRuleVersion) (domain.RatingRuleVersion, error)
 	ListRatingRuleVersions(filter RatingRuleListFilter) ([]domain.RatingRuleVersion, error)
 	GetRatingRuleVersion(tenantID, id string) (domain.RatingRuleVersion, error)
