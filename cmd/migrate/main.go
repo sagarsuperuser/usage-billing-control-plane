@@ -2,15 +2,13 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
-	"strconv"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
+	"usage-billing-control-plane/internal/appconfig"
+	"usage-billing-control-plane/internal/logging"
 	"usage-billing-control-plane/migrations"
 )
 
@@ -23,29 +21,35 @@ const (
 )
 
 func main() {
+	logger := logging.ConfigureDefault(logging.LoadConfigFromEnv())
+
 	cmd, err := parseCommand(os.Args[1:])
 	if err != nil {
-		log.Fatalf("%v", err)
+		fatal(logger, err.Error())
 	}
 
-	db, err := openDBFromEnv()
+	dbCfg, err := appconfig.LoadDBConfigFromEnv()
 	if err != nil {
-		log.Fatalf("%v", err)
+		fatal(logger, err.Error())
+	}
+
+	db, err := appconfig.OpenPostgres(dbCfg)
+	if err != nil {
+		fatal(logger, "open database", "error", err)
 	}
 	defer db.Close()
 
-	migrationTimeout := time.Duration(getIntEnv("DB_MIGRATION_TIMEOUT_SEC", 60)) * time.Second
-	runner := migrations.NewRunner(db, migrations.WithTimeout(migrationTimeout))
+	runner := migrations.NewRunner(db, migrations.WithTimeout(dbCfg.MigrationTimeout))
 
 	switch cmd {
 	case commandUp:
-		runUp(runner)
+		runUp(logger, runner)
 	case commandStatus:
-		runStatus(runner)
+		runStatus(logger, runner)
 	case commandVerify:
-		runVerify(runner)
+		runVerify(logger, runner)
 	default:
-		log.Fatalf("unsupported command: %s", cmd)
+		fatal(logger, "unsupported command", "command", cmd)
 	}
 }
 
@@ -71,45 +75,20 @@ func parseCommand(args []string) (command, error) {
 	return "", nil
 }
 
-func openDBFromEnv() (*sql.DB, error) {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL is required")
-	}
-
-	db, err := sql.Open("pgx", databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-
-	db.SetMaxOpenConns(getIntEnv("DB_MAX_OPEN_CONNS", 20))
-	db.SetMaxIdleConns(getIntEnv("DB_MAX_IDLE_CONNS", 5))
-	db.SetConnMaxLifetime(time.Duration(getIntEnv("DB_CONN_MAX_LIFETIME_MIN", 30)) * time.Minute)
-
-	pingCtx, pingCancel := context.WithTimeout(context.Background(), time.Duration(getIntEnv("DB_PING_TIMEOUT_SEC", 5))*time.Second)
-	defer pingCancel()
-	if err := db.PingContext(pingCtx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	return db, nil
-}
-
-func runUp(runner *migrations.Runner) {
+func runUp(logger *slog.Logger, runner *migrations.Runner) {
 	before, err := runner.Status(context.Background())
 	if err != nil {
-		log.Fatalf("failed to load migration status before run: %v", err)
+		fatal(logger, "load migration status before run", "error", err)
 	}
 
 	started := time.Now().UTC()
 	if err := runner.Run(context.Background()); err != nil {
-		log.Fatalf("migration run failed: %v", err)
+		fatal(logger, "migration run failed", "error", err)
 	}
 
 	after, err := runner.Status(context.Background())
 	if err != nil {
-		log.Fatalf("failed to load migration status after run: %v", err)
+		fatal(logger, "load migration status after run", "error", err)
 	}
 
 	appliedThisRun := before.PendingCount - after.PendingCount
@@ -117,19 +96,22 @@ func runUp(runner *migrations.Runner) {
 		appliedThisRun = 0
 	}
 
-	durationMs := time.Since(started).Milliseconds()
-	log.Printf(
-		"level=info component=migrate event=completed applied_this_run=%d %s duration_ms=%d",
-		appliedThisRun,
-		after.SummaryString(),
-		durationMs,
+	logger.Info(
+		"migrations completed",
+		"component", "migrate",
+		"applied_this_run", appliedThisRun,
+		"available", len(after.Available),
+		"applied", after.AppliedCount,
+		"pending", after.PendingCount,
+		"latest", after.LatestVersion,
+		"duration_ms", time.Since(started).Milliseconds(),
 	)
 }
 
-func runStatus(runner *migrations.Runner) {
+func runStatus(logger *slog.Logger, runner *migrations.Runner) {
 	status, err := runner.Status(context.Background())
 	if err != nil {
-		log.Fatalf("failed to load migration status: %v", err)
+		fatal(logger, "load migration status", "error", err)
 	}
 
 	fmt.Println(status.SummaryString())
@@ -139,11 +121,11 @@ func runStatus(runner *migrations.Runner) {
 	}
 }
 
-func runVerify(runner *migrations.Runner) {
+func runVerify(logger *slog.Logger, runner *migrations.Runner) {
 	if err := runner.Verify(context.Background()); err != nil {
-		log.Fatalf("verification failed: %v", err)
+		fatal(logger, "migration verification failed", "error", err)
 	}
-	log.Printf("level=info component=migrate event=verified")
+	logger.Info("migrations verified", "component", "migrate")
 }
 
 func usageText() string {
@@ -162,14 +144,7 @@ func printUsage() {
 	fmt.Print(usageText())
 }
 
-func getIntEnv(key string, defaultVal int) int {
-	raw := os.Getenv(key)
-	if raw == "" {
-		return defaultVal
-	}
-	parsed, err := strconv.Atoi(raw)
-	if err != nil {
-		return defaultVal
-	}
-	return parsed
+func fatal(logger *slog.Logger, msg string, args ...any) {
+	logger.Error(msg, args...)
+	os.Exit(1)
 }

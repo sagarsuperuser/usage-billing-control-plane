@@ -4,15 +4,19 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	temporalclient "go.temporal.io/sdk/client"
 
+	"usage-billing-control-plane/internal/logging"
 	"usage-billing-control-plane/internal/temporalutil"
 )
 
 func main() {
+	logger := logging.ConfigureDefault(logging.LoadConfigFromEnv())
+
 	var address string
 	var namespace string
 	var timeout time.Duration
@@ -29,12 +33,12 @@ func main() {
 
 	client, err := dialTemporalWithRetry(ctx, address, namespace)
 	if err != nil {
-		log.Fatalf("%v", err)
+		fatal(logger, err.Error())
 	}
 	defer client.Close()
 
 	if err := temporalutil.EnsureNamespaceReady(ctx, client, namespace, retention); err != nil {
-		log.Fatalf("ensure namespace %q: %v", namespace, err)
+		fatal(logger, fmt.Sprintf("ensure namespace %q", namespace), "error", err)
 	}
 
 	fmt.Printf("temporal namespace %q is ready at %s\n", namespace, address)
@@ -80,4 +84,9 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 	case <-t.C:
 		return nil
 	}
+}
+
+func fatal(logger *slog.Logger, msg string, args ...any) {
+	logger.Error(msg, args...)
+	os.Exit(1)
 }

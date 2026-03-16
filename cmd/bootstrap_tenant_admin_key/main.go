@@ -1,18 +1,16 @@
 package main
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
+	"usage-billing-control-plane/internal/appconfig"
+	"usage-billing-control-plane/internal/logging"
 	"usage-billing-control-plane/internal/service"
 	"usage-billing-control-plane/internal/store"
 )
@@ -30,6 +28,9 @@ type result struct {
 }
 
 func main() {
+	logger := logging.ConfigureDefault(logging.LoadConfigFromEnv())
+	envCfg := appconfig.LoadBootstrapTenantAdminConfigFromEnv()
+
 	var (
 		tenantID                string
 		name                    string
@@ -38,16 +39,16 @@ func main() {
 		allowExistingActiveKeys bool
 	)
 
-	flag.StringVar(&tenantID, "tenant-id", strings.TrimSpace(os.Getenv("TENANT_ID")), "tenant id to bootstrap")
-	flag.StringVar(&name, "name", strings.TrimSpace(os.Getenv("KEY_NAME")), "display name for the new admin key")
-	flag.StringVar(&expiresAtRaw, "expires-at", strings.TrimSpace(os.Getenv("EXPIRES_AT")), "optional RFC3339 expiry timestamp")
-	flag.StringVar(&output, "output", strings.TrimSpace(os.Getenv("OUTPUT")), "output format: json or text")
-	flag.BoolVar(&allowExistingActiveKeys, "allow-existing-active-keys", envBool("ALLOW_EXISTING_ACTIVE_KEYS"), "allow bootstrap even when the tenant already has active keys")
+	flag.StringVar(&tenantID, "tenant-id", envCfg.TenantID, "tenant id to bootstrap")
+	flag.StringVar(&name, "name", envCfg.KeyName, "display name for the new admin key")
+	flag.StringVar(&expiresAtRaw, "expires-at", envCfg.ExpiresAt, "optional RFC3339 expiry timestamp")
+	flag.StringVar(&output, "output", envCfg.Output, "output format: json or text")
+	flag.BoolVar(&allowExistingActiveKeys, "allow-existing-active-keys", envCfg.AllowExistingActiveKeys, "allow bootstrap even when the tenant already has active keys")
 	flag.Parse()
 
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
-		log.Fatal("TENANT_ID or -tenant-id is required")
+		fatal(logger, "TENANT_ID or -tenant-id is required")
 	}
 	if name == "" {
 		name = "bootstrap-admin-" + tenantID
@@ -57,40 +58,34 @@ func main() {
 	}
 	output = strings.ToLower(strings.TrimSpace(output))
 	if output != "json" && output != "text" {
-		log.Fatalf("unsupported output format %q", output)
+		fatal(logger, "unsupported output format", "output", output)
 	}
 
-	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is required")
+	dbCfg, err := appconfig.LoadDBConfigFromEnv()
+	if err != nil {
+		fatal(logger, err.Error())
 	}
 
 	var expiresAt *time.Time
 	if expiresAtRaw != "" {
 		parsed, err := time.Parse(time.RFC3339, expiresAtRaw)
 		if err != nil {
-			log.Fatalf("invalid EXPIRES_AT/-expires-at value %q: %v", expiresAtRaw, err)
+			fatal(logger, "invalid expires-at value", "value", expiresAtRaw, "error", err)
 		}
 		parsed = parsed.UTC()
 		expiresAt = &parsed
 	}
 
-	db, err := sql.Open("pgx", databaseURL)
+	db, err := appconfig.OpenPostgres(dbCfg)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		fatal(logger, "open database", "error", err)
 	}
 	defer db.Close()
 
-	pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := db.PingContext(pingCtx); err != nil {
-		log.Fatalf("failed to ping database: %v", err)
-	}
-
 	repo := store.NewPostgresStore(
 		db,
-		store.WithQueryTimeout(5*time.Second),
-		store.WithMigrationTimeout(60*time.Second),
+		store.WithQueryTimeout(dbCfg.QueryTimeout),
+		store.WithMigrationTimeout(dbCfg.MigrationTimeout),
 	)
 	keyService := service.NewAPIKeyService(repo)
 
@@ -99,10 +94,10 @@ func main() {
 		Limit: 1,
 	})
 	if err != nil {
-		log.Fatalf("failed to inspect existing active keys for tenant %q: %v", tenantID, err)
+		fatal(logger, "inspect existing active keys", "tenant_id", tenantID, "error", err)
 	}
 	if activeKeys.Total > 0 && !allowExistingActiveKeys {
-		log.Fatalf("tenant %q already has %d active key(s); refusing to create another bootstrap admin key without -allow-existing-active-keys", tenantID, activeKeys.Total)
+		fatal(logger, "tenant already has active keys; refusing bootstrap", "tenant_id", tenantID, "active_keys", activeKeys.Total)
 	}
 
 	created, err := keyService.CreateAPIKey(tenantID, "", service.CreateAPIKeyRequest{
@@ -111,7 +106,7 @@ func main() {
 		ExpiresAt: expiresAt,
 	})
 	if err != nil {
-		log.Fatalf("failed to create tenant admin key for tenant %q: %v", tenantID, err)
+		fatal(logger, "create tenant admin key", "tenant_id", tenantID, "error", err)
 	}
 
 	res := result{
@@ -133,7 +128,7 @@ func main() {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(res); err != nil {
-			log.Fatalf("failed to encode result: %v", err)
+			fatal(logger, "encode result", "error", err)
 		}
 	}
 }
@@ -152,12 +147,7 @@ func printText(res result) {
 	fmt.Printf("secret=%s\n", res.Secret)
 }
 
-func envBool(key string) bool {
-	v := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
-	switch v {
-	case "1", "true", "yes", "y", "on":
-		return true
-	default:
-		return false
-	}
+func fatal(logger *slog.Logger, msg string, args ...any) {
+	logger.Error(msg, args...)
+	os.Exit(1)
 }

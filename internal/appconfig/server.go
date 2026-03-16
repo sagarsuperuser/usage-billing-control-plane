@@ -102,11 +102,6 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	runtimeEnv := resolveRuntimeEnvironment()
 	productionLike := isProductionLikeEnvironment(runtimeEnv)
 
-	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if databaseURL == "" {
-		return ServerConfig{}, fmt.Errorf("DATABASE_URL is required")
-	}
-
 	roles := RoleConfig{
 		RunAPIServer:                 getBoolEnv("RUN_API_SERVER", true),
 		RunReplayWorker:              getBoolEnv("RUN_REPLAY_WORKER", true),
@@ -183,21 +178,17 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		sessionToken = strings.TrimSpace(os.Getenv("AWS_SESSION_TOKEN"))
 	}
 
+	dbCfg, err := LoadDBConfigFromEnv()
+	if err != nil {
+		return ServerConfig{}, err
+	}
+
 	cfg := ServerConfig{
 		RuntimeEnv:     runtimeEnv,
 		ProductionLike: productionLike,
 		Port:           firstNonEmpty(strings.TrimSpace(os.Getenv("PORT")), "8080"),
-		DB: DBConfig{
-			URL:                 databaseURL,
-			MaxOpenConns:        getIntEnv("DB_MAX_OPEN_CONNS", 20),
-			MaxIdleConns:        getIntEnv("DB_MAX_IDLE_CONNS", 5),
-			ConnMaxLifetime:     time.Duration(getIntEnv("DB_CONN_MAX_LIFETIME_MIN", 30)) * time.Minute,
-			PingTimeout:         time.Duration(getIntEnv("DB_PING_TIMEOUT_SEC", 5)) * time.Second,
-			QueryTimeout:        time.Duration(getIntEnv("DB_QUERY_TIMEOUT_MS", 5000)) * time.Millisecond,
-			MigrationTimeout:    time.Duration(getIntEnv("DB_MIGRATION_TIMEOUT_SEC", 60)) * time.Second,
-			RunMigrationsOnBoot: getBoolEnv("RUN_MIGRATIONS_ON_BOOT", false),
-		},
-		Roles: roles,
+		DB:             dbCfg,
+		Roles:          roles,
 		Temporal: TemporalConfig{
 			Address:               firstNonEmpty(strings.TrimSpace(os.Getenv("TEMPORAL_ADDRESS")), "localhost:7233"),
 			Namespace:             firstNonEmpty(strings.TrimSpace(os.Getenv("TEMPORAL_NAMESPACE")), "default"),
