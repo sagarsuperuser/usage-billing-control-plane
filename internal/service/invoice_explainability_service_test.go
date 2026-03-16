@@ -125,6 +125,56 @@ func TestBuildInvoiceExplainabilityFromLago_FilterSortPaginate(t *testing.T) {
 	}
 }
 
+func TestBuildInvoiceExplainabilityFromLago_AcceptsStringUnitsAndEventsCount(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"invoice": {
+			"lago_id": "inv_live_1",
+			"number": "INV-LIVE-1",
+			"status": "finalized",
+			"currency": "USD",
+			"total_amount_cents": 100,
+			"fees": [
+				{
+					"lago_id": "fee_live_1",
+					"amount_cents": 100,
+					"taxes_amount_cents": 0,
+					"total_amount_cents": 100,
+					"units": "1.0",
+					"events_count": "1",
+					"created_at": "2026-03-10T10:00:00Z",
+					"item": {
+						"type": "charge",
+						"code": "api_calls",
+						"name": "API Calls"
+					}
+				}
+			]
+		}
+	}`)
+
+	opts, err := NewInvoiceExplainabilityOptions(nil, "", 0, 0)
+	if err != nil {
+		t.Fatalf("new explainability options: %v", err)
+	}
+
+	out, err := BuildInvoiceExplainabilityFromLago(payload, opts)
+	if err != nil {
+		t.Fatalf("build explainability: %v", err)
+	}
+
+	if len(out.LineItems) != 1 {
+		t.Fatalf("expected one line item, got %d", len(out.LineItems))
+	}
+	if out.LineItems[0].Units == nil || *out.LineItems[0].Units != 1 {
+		t.Fatalf("expected units=1, got %#v", out.LineItems[0].Units)
+	}
+	if out.LineItems[0].EventsCount == nil || *out.LineItems[0].EventsCount != 1 {
+		t.Fatalf("expected events_count=1, got %#v", out.LineItems[0].EventsCount)
+	}
+}
+
 func TestNewInvoiceExplainabilityOptions_ValidateSort(t *testing.T) {
 	t.Parallel()
 

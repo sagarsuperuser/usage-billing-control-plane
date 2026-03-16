@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,8 +83,8 @@ type lagoFeeRaw struct {
 	AmountCents         int64          `json:"amount_cents"`
 	TaxesAmountCents    int64          `json:"taxes_amount_cents"`
 	TotalAmountCents    int64          `json:"total_amount_cents"`
-	Units               *float64       `json:"units"`
-	EventsCount         *int64         `json:"events_count"`
+	UnitsRaw            any            `json:"units"`
+	EventsCountRaw      any            `json:"events_count"`
 	CreatedAt           string         `json:"created_at"`
 	FromDatetime        string         `json:"from_datetime"`
 	ToDatetime          string         `json:"to_datetime"`
@@ -205,8 +206,8 @@ func buildExplainabilityLineItem(fee lagoFeeRaw) domain.InvoiceExplainabilityLin
 		AmountCents:             fee.AmountCents,
 		TaxesAmountCents:        fee.TaxesAmountCents,
 		TotalAmountCents:        totalAmount,
-		Units:                   fee.Units,
-		EventsCount:             fee.EventsCount,
+		Units:                   parseOptionalFloat64(fee.UnitsRaw),
+		EventsCount:             parseOptionalInt64(fee.EventsCountRaw),
 		ComputationMode:         computationMode,
 		ChargeModel:             chargeModel,
 		RuleReference:           ruleRef,
@@ -373,6 +374,50 @@ func normalizeJSONValue(v any) any {
 		return out
 	default:
 		return typed
+	}
+}
+
+func parseOptionalFloat64(v any) *float64 {
+	switch typed := v.(type) {
+	case nil:
+		return nil
+	case float64:
+		out := typed
+		return &out
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return nil
+		}
+		out, err := strconv.ParseFloat(trimmed, 64)
+		if err != nil {
+			return nil
+		}
+		return &out
+	default:
+		return nil
+	}
+}
+
+func parseOptionalInt64(v any) *int64 {
+	switch typed := v.(type) {
+	case nil:
+		return nil
+	case float64:
+		out := int64(typed)
+		return &out
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return nil
+		}
+		out, err := strconv.ParseInt(trimmed, 10, 64)
+		if err != nil {
+			return nil
+		}
+		return &out
+	default:
+		return nil
 	}
 }
 
