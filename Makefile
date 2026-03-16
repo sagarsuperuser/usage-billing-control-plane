@@ -163,7 +163,7 @@ prepare-real-payment-fixture: ## Prepare collectible Lago invoice fixture (requi
 test-real-payment-e2e: ## Run manual real payment collection E2E (requires staging/prod credentials + invoice id)
 	@bash ./scripts/test_real_payment_e2e.sh
 
-verify-staging-runtime: ## Verify staging runtime payment visibility + rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
+verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh
 
 verify-staging-acceptance: ## Run staging runtime verify + success/failure payment E2E (requires staging URLs/keys/invoice ids)

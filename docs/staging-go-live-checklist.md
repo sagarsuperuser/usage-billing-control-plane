@@ -20,7 +20,7 @@ Validated on `2026-03-15` against the live staging stack:
 - Runtime verification passed:
   - health endpoint
   - invoice payment status list + summary
-  - login pre-auth rate limiting
+  - isolated pre-auth login rate limiting
 - Real payment E2E passed for both terminal outcomes:
   - success invoice: `56251c97-597a-4cec-9a22-8106d746def8`
   - failure invoice: `baa27549-32d4-47cd-9f14-d98b61c8b0fa`
@@ -161,6 +161,7 @@ Functional checks:
 - API logs include structured `event=http_request` entries and `X-Request-ID` correlation.
 - Runtime auth hardening is active (`APP_ENV=staging`, `UI_SESSION_COOKIE_SECURE=true`, `UI_SESSION_REQUIRE_ORIGIN=true`).
 - Runtime rate limiting is active (`RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REDIS_URL` configured) and 429 responses include `Retry-After` + `X-RateLimit-*`.
+- The staging runtime verifier now probes `/v1/ui/sessions/rate-limit-probe`, a dedicated pre-auth endpoint that uses the login rate-limit policy with a route-scoped key. That proves login throttling without poisoning the browser-session smoke that often runs afterward.
 - Run `Real Payment E2E` workflow at least once with a Stripe test-mode invoice (`expected_final_status=succeeded`).
 
 Automated verification shortcut:
@@ -186,7 +187,7 @@ make verify-staging-acceptance
 ```
 
 What this acceptance gate does:
-- runs `verify-staging-runtime`
+- runs `verify-staging-runtime` using the dedicated pre-auth rate-limit probe that is safe to run before browser smoke
 - runs success-path payment E2E
 - runs failure-path payment E2E
 - emits one combined JSON result for the full alpha payment visibility gate

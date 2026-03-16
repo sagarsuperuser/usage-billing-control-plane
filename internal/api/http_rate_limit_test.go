@@ -48,6 +48,9 @@ func TestRateLimitBlocksLoginWhenExceeded(t *testing.T) {
 			if req.Policy != api.RateLimitPolicyPreAuthLogin {
 				t.Fatalf("expected policy %s, got %s", api.RateLimitPolicyPreAuthLogin, req.Policy)
 			}
+			if !strings.Contains(req.Identifier, ":route:/v1/ui/sessions/login") {
+				t.Fatalf("expected login rate limit identifier to include login route, got %q", req.Identifier)
+			}
 			return api.RateLimitDecision{
 				Allowed:   false,
 				Limit:     20,
@@ -173,5 +176,57 @@ func TestRateLimitFailOpenOnProtectedRoutes(t *testing.T) {
 	// Route is protected but not registered, so we should fall through to 404 when limiter fails open.
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404 with fail-open behavior, got %d", resp.StatusCode)
+	}
+}
+
+func TestRateLimitProbeDoesNotShareLoginBucket(t *testing.T) {
+	authorizer, err := api.NewStaticAPIKeyAuthorizer(map[string]api.Role{
+		"reader-key": api.RoleReader,
+	})
+	if err != nil {
+		t.Fatalf("new static authorizer: %v", err)
+	}
+
+	limiter := &stubRateLimiter{
+		decision: func(req api.RateLimitRequest) (api.RateLimitDecision, error) {
+			if req.Policy != api.RateLimitPolicyPreAuthLogin {
+				return api.RateLimitDecision{Allowed: true, Limit: 100, Remaining: 99, ResetAt: time.Now().UTC().Add(10 * time.Second)}, nil
+			}
+			if strings.Contains(req.Identifier, ":route:/v1/ui/sessions/rate-limit-probe") {
+				return api.RateLimitDecision{Allowed: false, Limit: 20, Remaining: 0, ResetAt: time.Now().UTC().Add(3 * time.Second)}, nil
+			}
+			return api.RateLimitDecision{Allowed: true, Limit: 20, Remaining: 19, ResetAt: time.Now().UTC().Add(3 * time.Second)}, nil
+		},
+	}
+
+	ts := httptest.NewServer(api.NewServer(nil, api.WithAPIKeyAuthorizer(authorizer), api.WithRateLimiter(limiter, true, false)).Handler())
+	defer ts.Close()
+
+	probeReq, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/ui/sessions/rate-limit-probe", bytes.NewBufferString(`{}`))
+	if err != nil {
+		t.Fatalf("new probe request: %v", err)
+	}
+	probeReq.Header.Set("Content-Type", "application/json")
+	probeResp, err := http.DefaultClient.Do(probeReq)
+	if err != nil {
+		t.Fatalf("do probe request: %v", err)
+	}
+	defer probeResp.Body.Close()
+	if probeResp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected probe 429, got %d", probeResp.StatusCode)
+	}
+
+	loginReq, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/ui/sessions/login", bytes.NewBufferString(`{"api_key":"missing"}`))
+	if err != nil {
+		t.Fatalf("new login request: %v", err)
+	}
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginResp, err := http.DefaultClient.Do(loginReq)
+	if err != nil {
+		t.Fatalf("do login request: %v", err)
+	}
+	defer loginResp.Body.Close()
+	if loginResp.StatusCode == http.StatusTooManyRequests {
+		t.Fatalf("expected login not to share probe bucket")
 	}
 }

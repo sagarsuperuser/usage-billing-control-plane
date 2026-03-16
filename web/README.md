@@ -44,6 +44,8 @@ npx -y pnpm@10.30.0 e2e
 
 Live staging smoke for overview, payment operations, replay operations, and invoice explainability:
 
+The staging runtime verifier no longer hammers `/v1/ui/sessions/login` directly. It now probes `/v1/ui/sessions/rate-limit-probe`, which shares the login throttling policy but uses its own route-scoped bucket, so it is safe to run `make verify-staging-runtime` before `make web-e2e-live`.
+
 ```bash
 PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
 PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \

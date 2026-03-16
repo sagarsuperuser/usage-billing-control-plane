@@ -705,6 +705,10 @@ func authRateLimitIdentifier(r *http.Request, principal Principal, usingSession 
 	return base + ":role:" + role
 }
 
+func preAuthLoginRateLimitIdentifier(r *http.Request) string {
+	return "ip:" + requestClientIP(r) + ":route:" + normalizeMetricsRoute(r.URL.Path)
+}
+
 func requestClientIP(r *http.Request) string {
 	if r == nil {
 		return "unknown"
@@ -1090,6 +1094,9 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/v1/ui/sessions/login" {
 		return "", false
 	}
+	if path == "/v1/ui/sessions/rate-limit-probe" {
+		return "", false
+	}
 	if path == "/v1/ui/sessions/me" {
 		return RoleReader, true
 	}
@@ -1252,6 +1259,8 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/tenants/{id}"
 	case path == "/v1/ui/sessions/login":
 		return "/v1/ui/sessions/login"
+	case path == "/v1/ui/sessions/rate-limit-probe":
+		return "/v1/ui/sessions/rate-limit-probe"
 	case path == "/v1/ui/sessions/me":
 		return "/v1/ui/sessions/me"
 	case path == "/v1/ui/sessions/logout":
@@ -1382,6 +1391,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/internal/tenants", s.handleInternalTenants)
 	s.mux.HandleFunc("/internal/tenants/", s.handleInternalTenantByID)
 	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
+	s.mux.HandleFunc("/v1/ui/sessions/rate-limit-probe", s.handleUIPreAuthRateLimitProbe)
 	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
 	s.mux.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
 	s.mux.HandleFunc("/v1/customer-onboarding", s.handleCustomerOnboarding)
@@ -1664,13 +1674,26 @@ type uiSessionLoginRequest struct {
 	APIKey string `json:"api_key"`
 }
 
+func (s *Server) handleUIPreAuthRateLimitProbe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.rateLimiter != nil {
+		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
 		return
 	}
 	if s.rateLimiter != nil {
-		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, "ip:"+requestClientIP(r), "", s.rateLimitLoginFailOpen) {
+		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
 			return
 		}
 	}

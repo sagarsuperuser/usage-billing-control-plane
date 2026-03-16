@@ -85,8 +85,8 @@ INVOICE_ID="$(echo "${INVOICE_ID:-}" | xargs)"
 BAD_KEY="${BAD_KEY:-invalid_key}"
 RATE_LIMIT_PROBE_ATTEMPTS="${RATE_LIMIT_PROBE_ATTEMPTS:-30}"
 RATE_LIMIT_PROBE_METHOD="${RATE_LIMIT_PROBE_METHOD:-POST}"
-RATE_LIMIT_PROBE_PATH="${RATE_LIMIT_PROBE_PATH:-/v1/ui/sessions/login}"
-RATE_LIMIT_PROBE_BODY="${RATE_LIMIT_PROBE_BODY:-{\"api_key\":\"${BAD_KEY}\"}}"
+RATE_LIMIT_PROBE_PATH="${RATE_LIMIT_PROBE_PATH:-/v1/ui/sessions/rate-limit-probe}"
+RATE_LIMIT_PROBE_BODY="${RATE_LIMIT_PROBE_BODY:-{}}"
 RATE_LIMIT_PROBE_CURL_MAX_TIME="${RATE_LIMIT_PROBE_CURL_MAX_TIME:-5}"
 REQUIRE_LIFECYCLE="${REQUIRE_LIFECYCLE:-1}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
@@ -190,6 +190,8 @@ else
 fi
 
 echo "[info] probing runtime rate limiting on $RATE_LIMIT_PROBE_METHOD $RATE_LIMIT_PROBE_PATH"
+echo "[info] default probe targets a dedicated pre-auth probe endpoint with its own route-scoped bucket"
+echo "[info] browser UI session login uses the same pre-auth policy but a different route key, so browser smoke stays isolated"
 rate_limited="0"
 saw_rate_limit_headers="0"
 for i in $(seq 1 "$RATE_LIMIT_PROBE_ATTEMPTS"); do
