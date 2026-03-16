@@ -1314,18 +1314,14 @@ func (s *Server) handleInternalTenants(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		tenant, created, err := s.tenantService.EnsureTenant(req, requestActorAPIKeyID(r))
+		tenant, err := s.tenantService.CreateTenant(req, requestActorAPIKeyID(r))
 		if err != nil {
 			writeDomainError(w, err)
 			return
 		}
-		status := http.StatusCreated
-		if !created {
-			status = http.StatusOK
-		}
-		writeJSON(w, status, map[string]any{
+		writeJSON(w, http.StatusCreated, map[string]any{
 			"tenant":  tenant,
-			"created": created,
+			"created": true,
 		})
 	case http.MethodGet:
 		tenants, err := s.tenantService.ListTenants(service.ListTenantsRequest{

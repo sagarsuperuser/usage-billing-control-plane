@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -50,9 +51,9 @@ func NewTenantService(s store.Repository) *TenantService {
 	return &TenantService{store: s}
 }
 
-func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID string) (domain.Tenant, bool, error) {
+func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID string) (domain.Tenant, error) {
 	if s == nil || s.store == nil {
-		return domain.Tenant{}, false, fmt.Errorf("%w: tenant repository is required", ErrValidation)
+		return domain.Tenant{}, fmt.Errorf("%w: tenant repository is required", ErrValidation)
 	}
 
 	id := normalizeTenantID(req.ID)
@@ -73,24 +74,49 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		CreatedAt:               now,
 		UpdatedAt:               now,
 	})
-	if err == nil {
-		if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
-			TenantID:      id,
-			ActorAPIKeyID: strings.TrimSpace(actorAPIKeyID),
-			Action:        "created",
-			Metadata: map[string]any{
-				"name":                       created.Name,
-				"status":                     created.Status,
-				"lago_organization_id":       created.LagoOrganizationID,
-				"lago_billing_provider_code": created.LagoBillingProviderCode,
-			},
-			CreatedAt: now,
-		}); auditErr != nil {
-			return domain.Tenant{}, false, fmt.Errorf("create tenant audit event: %w", auditErr)
+	if err != nil {
+		if err == store.ErrAlreadyExists || err == store.ErrDuplicateKey {
+			return domain.Tenant{}, fmt.Errorf("%w: tenant already exists", store.ErrDuplicateKey)
 		}
+		return domain.Tenant{}, err
+	}
+
+	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
+		TenantID:      id,
+		ActorAPIKeyID: strings.TrimSpace(actorAPIKeyID),
+		Action:        "created",
+		Metadata: map[string]any{
+			"name":                       created.Name,
+			"status":                     created.Status,
+			"lago_organization_id":       created.LagoOrganizationID,
+			"lago_billing_provider_code": created.LagoBillingProviderCode,
+		},
+		CreatedAt: now,
+	}); auditErr != nil {
+		return domain.Tenant{}, fmt.Errorf("create tenant audit event: %w", auditErr)
+	}
+	return created, nil
+}
+
+func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID string) (domain.Tenant, bool, error) {
+	if s == nil || s.store == nil {
+		return domain.Tenant{}, false, fmt.Errorf("%w: tenant repository is required", ErrValidation)
+	}
+
+	id := normalizeTenantID(req.ID)
+	name := strings.TrimSpace(req.Name)
+	lagoOrganizationID := strings.TrimSpace(req.LagoOrganizationID)
+	lagoBillingProviderCode := strings.TrimSpace(req.LagoBillingProviderCode)
+	if name == "" {
+		name = id
+	}
+
+	now := time.Now().UTC()
+	created, err := s.CreateTenant(req, actorAPIKeyID)
+	if err == nil {
 		return created, true, nil
 	}
-	if err != store.ErrAlreadyExists && err != store.ErrDuplicateKey {
+	if !errors.Is(err, store.ErrDuplicateKey) && !errors.Is(err, store.ErrAlreadyExists) {
 		return domain.Tenant{}, false, err
 	}
 

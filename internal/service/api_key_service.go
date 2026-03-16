@@ -90,11 +90,15 @@ func (s *APIKeyService) CreateAPIKey(tenantID, actorAPIKeyID string, req CreateA
 	tenantID = normalizeTenantID(tenantID)
 	actorAPIKeyID = strings.TrimSpace(actorAPIKeyID)
 
-	if _, err := s.store.GetTenant(tenantID); err != nil {
+	tenant, err := s.store.GetTenant(tenantID)
+	if err != nil {
 		if err == store.ErrNotFound {
 			return CreateAPIKeyResult{}, fmt.Errorf("%w: tenant not found", ErrValidation)
 		}
 		return CreateAPIKeyResult{}, err
+	}
+	if tenant.Status != domain.TenantStatusActive {
+		return CreateAPIKeyResult{}, fmt.Errorf("%w: tenant status must be active", ErrValidation)
 	}
 
 	role, err := normalizeAPIKeyRole(req.Role)

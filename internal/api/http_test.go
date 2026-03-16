@@ -1741,6 +1741,14 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 		t.Fatalf("expected stripe_ops provider code, got %v", createdTenant["lago_billing_provider_code"])
 	}
 
+	duplicateCreate := postJSON(t, ts.URL+"/internal/tenants", map[string]any{
+		"id":   "tenant_ops",
+		"name": "Tenant Ops Again",
+	}, "platform-admin", http.StatusConflict)
+	if got, _ := duplicateCreate["error"].(string); !strings.Contains(strings.ToLower(got), "already exists") {
+		t.Fatalf("expected duplicate tenant create conflict, got %v", duplicateCreate["error"])
+	}
+
 	_ = postJSON(t, ts.URL+"/internal/tenants", map[string]any{
 		"id":   "tenant_denied",
 		"name": "Denied",
@@ -1759,12 +1767,6 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 		t.Fatalf("expected get response to include lago org id, got %v", got["lago_organization_id"])
 	}
 
-	updated := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
-		"status": "suspended",
-	}, "platform-admin", http.StatusOK)
-	if updated["status"] != "suspended" {
-		t.Fatalf("expected suspended status, got %v", updated["status"])
-	}
 	updated2 := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
 		"lago_billing_provider_code": "stripe_v2",
 	}, "platform-admin", http.StatusOK)
@@ -1807,6 +1809,17 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	if secret, _ := bootstrapped["secret"].(string); strings.TrimSpace(secret) == "" {
 		t.Fatalf("expected bootstrap response secret")
 	}
+
+	updated := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
+		"status": "suspended",
+	}, "platform-admin", http.StatusOK)
+	if updated["status"] != "suspended" {
+		t.Fatalf("expected suspended status, got %v", updated["status"])
+	}
+
+	_ = postJSON(t, ts.URL+"/internal/tenants/tenant_ops/bootstrap-admin-key", map[string]any{
+		"name": "tenant-ops-bootstrap-2",
+	}, "platform-admin", http.StatusBadRequest)
 }
 
 func TestAuditExportToS3(t *testing.T) {
