@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 type SessionPayload = {
   authenticated: boolean;
@@ -94,10 +94,9 @@ const explainabilityPayload: ExplainabilityPayload = {
   ],
 };
 
-async function installExplainabilityMock(page: any, session: SessionPayload, payload: ExplainabilityPayload) {
+async function installExplainabilityMock(page: Page, session: SessionPayload, payload: ExplainabilityPayload) {
   await page.addInitScript(({ session, payload }: { session: SessionPayload; payload: ExplainabilityPayload }) => {
     let loggedIn = true;
-    let requestCount = 0;
 
     const json = (status: number, body: unknown) =>
       new Response(JSON.stringify(body), {
@@ -134,7 +133,6 @@ async function installExplainabilityMock(page: any, session: SessionPayload, pay
       }
 
       if (path === `/v1/invoices/${encodeURIComponent(payload.invoice_id)}/explainability` && method === "GET") {
-        requestCount += 1;
         const feeTypes = url.searchParams.get("fee_types") || "";
         if (feeTypes && feeTypes !== "charge,subscription") {
           return json(200, { ...payload, line_items: [], line_items_count: 0 });

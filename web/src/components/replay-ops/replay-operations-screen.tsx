@@ -21,7 +21,8 @@ import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
 import { type ReplayJob } from "@/lib/types";
 
-const replayStatusOptions = ["", "queued", "running", "done", "failed"] as const;
+type ReplayStatusFilter = "" | "queued" | "running" | "done" | "failed";
+const EMPTY_REPLAY_JOBS: ReplayJob[] = [];
 
 function generateReplayIdempotencyKey(): string {
   return `replay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -56,7 +57,7 @@ export function ReplayOperationsScreen() {
 
   const [customerFilter, setCustomerFilter] = useState("");
   const [meterFilter, setMeterFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof replayStatusOptions)[number]>("");
+  const [statusFilter, setStatusFilter] = useState<ReplayStatusFilter>("");
   const [limit, setLimit] = useState(20);
   const [offset, setOffset] = useState(0);
 
@@ -138,7 +139,7 @@ export function ReplayOperationsScreen() {
     },
   });
 
-  const jobs = jobsQuery.data?.items ?? [];
+  const jobs = jobsQuery.data?.items ?? EMPTY_REPLAY_JOBS;
   const totalJobs = jobsQuery.data?.total ?? jobs.length;
   const queuedCount = jobs.filter((job) => job.status === "queued").length;
   const runningCount = jobs.filter((job) => job.status === "running").length;
@@ -239,7 +240,7 @@ export function ReplayOperationsScreen() {
                     className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
                     value={statusFilter}
                     onChange={(event) => {
-                      setStatusFilter(event.target.value as (typeof replayStatusOptions)[number]);
+                      setStatusFilter(event.target.value as ReplayStatusFilter);
                       setOffset(0);
                     }}
                   >

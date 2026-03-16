@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 type ReplayMockWindow = Window & typeof globalThis & {
   __replayMock: {
@@ -91,7 +91,7 @@ const initialJobs: ReplayJob[] = [
   }),
 ];
 
-async function installReplayMock(page: any, session: SessionPayload) {
+async function installReplayMock(page: Page, session: SessionPayload) {
   await page.addInitScript(({ session, jobsSeed }: { session: SessionPayload; jobsSeed: ReplayJob[] }) => {
     let loggedIn = true;
     let jobs = jobsSeed.map((job) => ({ ...job }));

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 type BillingMockWindow = Window & typeof globalThis & {
   __billingMock: {
@@ -59,7 +59,7 @@ const invoiceRow = {
   updated_at: new Date().toISOString(),
 };
 
-async function installPaymentOpsMock(page: any, session: SessionPayload) {
+async function installPaymentOpsMock(page: Page, session: SessionPayload) {
   await page.addInitScript(({ session, summary, row }: InitPayload) => {
     let loggedIn = true;
     let retryCSRF = "";
