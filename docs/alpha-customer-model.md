@@ -227,6 +227,16 @@ Recommended readiness sections:
 
 This should feed Phase 3 onboarding work.
 
+Current implementation note:
+- Alpha now syncs customer billing configuration to Lago through a dedicated adapter when billing-profile data is complete
+- Alpha verifies customer payment-method readiness against Lago payment methods
+- Alpha persists sync and verification results back into:
+  - `customers.lago_customer_id`
+  - `customer_billing_profiles.last_synced_at`
+  - `customer_billing_profiles.last_sync_error`
+  - `customer_payment_setup.provider_customer_reference`
+  - `customer_payment_setup.provider_payment_method_reference`
+
 ## Initial Status Enums
 
 Keep status sets small.

@@ -39,6 +39,12 @@ type InvoiceBillingAdapter interface {
 	GetInvoice(ctx context.Context, invoiceID string) (int, []byte, error)
 }
 
+type CustomerBillingAdapter interface {
+	UpsertCustomer(ctx context.Context, payload []byte) (int, []byte, error)
+	GetCustomer(ctx context.Context, externalID string) (int, []byte, error)
+	ListCustomerPaymentMethods(ctx context.Context, externalID string) (int, []byte, error)
+}
+
 type WebhookPublicKeyProvider interface {
 	FetchWebhookPublicKey(ctx context.Context) (*rsa.PublicKey, error)
 	ExpectedIssuer() string
@@ -195,6 +201,78 @@ func (a *LagoInvoiceAdapter) GetInvoice(ctx context.Context, invoiceID string) (
 	}
 	if len(body) == 0 {
 		body = []byte("{}")
+	}
+	if !json.Valid(body) {
+		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))
+	}
+	return status, body, nil
+}
+
+type LagoCustomerBillingAdapter struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoCustomerBillingAdapter(transport *LagoHTTPTransport) *LagoCustomerBillingAdapter {
+	return &LagoCustomerBillingAdapter{transport: transport}
+}
+
+func (a *LagoCustomerBillingAdapter) UpsertCustomer(ctx context.Context, payload []byte) (int, []byte, error) {
+	if a == nil || a.transport == nil {
+		return 0, nil, fmt.Errorf("%w: lago customer billing adapter is required", ErrValidation)
+	}
+	if !json.Valid(payload) {
+		return 0, nil, fmt.Errorf("%w: request body must be valid json", ErrValidation)
+	}
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodPost, "/api/v1/customers", payload)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(body) == 0 {
+		body = []byte("{}")
+	}
+	if !json.Valid(body) {
+		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))
+	}
+	return status, body, nil
+}
+
+func (a *LagoCustomerBillingAdapter) GetCustomer(ctx context.Context, externalID string) (int, []byte, error) {
+	if a == nil || a.transport == nil {
+		return 0, nil, fmt.Errorf("%w: lago customer billing adapter is required", ErrValidation)
+	}
+	externalID = strings.TrimSpace(externalID)
+	if externalID == "" {
+		return 0, nil, fmt.Errorf("%w: external customer id is required", ErrValidation)
+	}
+	path := "/api/v1/customers/" + url.PathEscape(externalID)
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(body) == 0 {
+		body = []byte("{}")
+	}
+	if !json.Valid(body) {
+		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))
+	}
+	return status, body, nil
+}
+
+func (a *LagoCustomerBillingAdapter) ListCustomerPaymentMethods(ctx context.Context, externalID string) (int, []byte, error) {
+	if a == nil || a.transport == nil {
+		return 0, nil, fmt.Errorf("%w: lago customer billing adapter is required", ErrValidation)
+	}
+	externalID = strings.TrimSpace(externalID)
+	if externalID == "" {
+		return 0, nil, fmt.Errorf("%w: external customer id is required", ErrValidation)
+	}
+	path := "/api/v1/customers/" + url.PathEscape(externalID) + "/payment_methods"
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(body) == 0 {
+		body = []byte(`{"payment_methods":[]}`)
 	}
 	if !json.Valid(body) {
 		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))

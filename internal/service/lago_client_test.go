@@ -54,6 +54,73 @@ func TestLagoInvoiceAdapterGetInvoice(t *testing.T) {
 	}
 }
 
+func TestLagoCustomerBillingAdapter(t *testing.T) {
+	t.Parallel()
+
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_123","external_id":"cust_123","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_123","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_123":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_123","external_id":"cust_123","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_123","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_123/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_123","is_default":true,"provider_method_id":"pm_123"}]}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	adapter := NewLagoCustomerBillingAdapter(transport)
+	status, body, err := adapter.UpsertCustomer(context.Background(), []byte(`{"customer":{"external_id":"cust_123"}}`))
+	if err != nil {
+		t.Fatalf("upsert customer: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", status)
+	}
+	if !strings.Contains(string(body), "lago_cust_123") {
+		t.Fatalf("expected lago customer id in response, got %s", string(body))
+	}
+
+	status, body, err = adapter.GetCustomer(context.Background(), "cust_123")
+	if err != nil {
+		t.Fatalf("get customer: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", status)
+	}
+	if !strings.Contains(string(body), "pcus_123") {
+		t.Fatalf("expected provider customer id in response, got %s", string(body))
+	}
+
+	status, body, err = adapter.ListCustomerPaymentMethods(context.Background(), "cust_123")
+	if err != nil {
+		t.Fatalf("list customer payment methods: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", status)
+	}
+	if !strings.Contains(string(body), "pm_123") {
+		t.Fatalf("expected provider payment method id in response, got %s", string(body))
+	}
+}
+
 func TestLagoAdaptersWithRealLago(t *testing.T) {
 	baseURL := strings.TrimSpace(os.Getenv("TEST_LAGO_API_URL"))
 	apiKey := strings.TrimSpace(os.Getenv("TEST_LAGO_API_KEY"))

@@ -208,7 +208,12 @@ func main() {
 	if err != nil {
 		fatal(logger, "initialize lago client", "error", err)
 	}
-	serverOpts = append(serverOpts, api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)))
+	serverOpts = append(
+		serverOpts,
+		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+	)
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL)
 
 	if cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler {

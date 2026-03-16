@@ -2297,9 +2297,35 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 		t.Fatalf("new authorizer: %v", err)
 	}
 
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_alpha","external_id":"cust_alpha","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_123","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_alpha/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_alpha","is_default":true,"provider_method_id":"pm_123"}]}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
+
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
 	).Handler())
 	defer ts.Close()
 
@@ -2398,6 +2424,10 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 	if got, _ := profileReady["profile_status"].(string); got != "ready" {
 		t.Fatalf("expected billing profile status ready, got %q", got)
 	}
+	gotCustomerAfterSync := getJSON(t, ts.URL+"/v1/customers/cust_alpha", "customer-reader-key", http.StatusOK)
+	if got, _ := gotCustomerAfterSync["lago_customer_id"].(string); got != "lago_cust_alpha" {
+		t.Fatalf("expected lago_customer_id lago_cust_alpha after sync, got %q", got)
+	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	setupReady := putJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", map[string]any{
@@ -2415,6 +2445,15 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 	readinessReady := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "customer-reader-key", http.StatusOK)
 	if got, _ := readinessReady["status"].(string); got != "ready" {
 		t.Fatalf("expected readiness ready, got %q", got)
+	}
+	if got, _ := readinessReady["billing_provider_configured"].(bool); !got {
+		t.Fatalf("expected billing_provider_configured=true")
+	}
+	if got, _ := readinessReady["lago_customer_synced"].(bool); !got {
+		t.Fatalf("expected lago_customer_synced=true")
+	}
+	if got, _ := readinessReady["default_payment_method_verified"].(bool); !got {
+		t.Fatalf("expected default_payment_method_verified=true")
 	}
 	if missingRaw, ok := readinessReady["missing_steps"].([]any); !ok || len(missingRaw) != 0 {
 		t.Fatalf("expected readiness missing_steps empty, got %v", readinessReady["missing_steps"])

@@ -348,6 +348,11 @@ curl -sS -X PUT "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/billing-prof
   }'
 ```
 
+What Alpha does now:
+- stores the canonical billing-profile readiness state locally
+- syncs the customer billing configuration into Lago behind the scenes when the profile is complete
+- records sync failures back onto the customer readiness state instead of requiring operators to work in Lago directly
+
 Set the payment readiness record in Alpha:
 
 ```bash
@@ -362,6 +367,10 @@ curl -sS -X PUT "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/payment-setu
     "last_verification_result": "verified"
   }'
 ```
+
+What Alpha does now:
+- verifies customer payment-method state against Lago when customer readiness is evaluated
+- updates the local readiness record with the provider customer reference and default-payment-method verification result
 
 Inspect customer readiness:
 
@@ -381,6 +390,13 @@ Expected outcome:
 - `billing_integration.status = ready`
 - `first_customer.status = ready`
 - top-level onboarding `status = ready`
+
+If customer readiness stays pending, inspect:
+- `billing_provider_configured`
+- `lago_customer_synced`
+- `default_payment_method_verified`
+- `billing_profile.profile_status`
+- `payment_setup.setup_status`
 
 For staging payment fixture creation and verification, use the existing runbook and scripts:
 - [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)

@@ -30,6 +30,7 @@ import (
 )
 
 type Server struct {
+	repo                      store.Repository
 	ratingService             *service.RatingService
 	tenantService             *service.TenantService
 	customerService           *service.CustomerService
@@ -40,6 +41,7 @@ type Server struct {
 	auditExportSvc            *service.AuditExportService
 	meterSyncAdapter          service.MeterSyncAdapter
 	invoiceBillingAdapter     service.InvoiceBillingAdapter
+	customerBillingAdapter    service.CustomerBillingAdapter
 	lagoWebhookSvc            *service.LagoWebhookService
 	replayService             *replay.Service
 	recService                *reconcile.Service
@@ -294,6 +296,12 @@ func WithInvoiceBillingAdapter(adapter service.InvoiceBillingAdapter) ServerOpti
 	}
 }
 
+func WithCustomerBillingAdapter(adapter service.CustomerBillingAdapter) ServerOption {
+	return func(s *Server) {
+		s.customerBillingAdapter = adapter
+	}
+}
+
 func WithLagoWebhookService(lagoWebhookSvc *service.LagoWebhookService) ServerOption {
 	return func(s *Server) {
 		s.lagoWebhookSvc = lagoWebhookSvc
@@ -334,13 +342,7 @@ var httpRequestIDContextKey requestIDContextKey
 
 func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s := &Server{
-		ratingService:          service.NewRatingService(repo),
-		tenantService:          service.NewTenantService(repo),
-		customerService:        service.NewCustomerService(repo),
-		meterService:           service.NewMeterService(repo),
-		usageService:           service.NewUsageService(repo),
-		apiKeyService:          service.NewAPIKeyService(repo),
-		onboardingService:      service.NewTenantOnboardingService(service.NewTenantService(repo), service.NewCustomerService(repo), service.NewAPIKeyService(repo), service.NewRatingService(repo), service.NewMeterService(repo)),
+		repo:                   repo,
 		replayService:          replay.NewService(repo),
 		recService:             reconcile.NewService(repo),
 		requestMetrics:         newRequestMetricsCollector(),
@@ -353,6 +355,13 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	for _, opt := range opts {
 		opt(s)
 	}
+	s.ratingService = service.NewRatingService(repo)
+	s.tenantService = service.NewTenantService(repo)
+	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter)
+	s.meterService = service.NewMeterService(repo)
+	s.usageService = service.NewUsageService(repo)
+	s.apiKeyService = service.NewAPIKeyService(repo)
+	s.onboardingService = service.NewTenantOnboardingService(s.tenantService, s.customerService, s.apiKeyService, s.ratingService, s.meterService)
 	s.registerRoutes()
 	return s
 }
