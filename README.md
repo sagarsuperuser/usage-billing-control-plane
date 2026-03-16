@@ -108,6 +108,8 @@ make migrate-status
 make migrate-verify
 make verify-governance
 make preflight-staging
+make bootstrap-platform-admin-key
+make bootstrap-platform-admin-key-cluster
 make preflight-prod
 make tf-plan-staging
 make tf-apply-staging

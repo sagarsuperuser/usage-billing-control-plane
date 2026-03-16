@@ -111,11 +111,19 @@ PLATFORM_KEY_NAME='alpha-platform-root' \
 make bootstrap-platform-admin-key
 ```
 
+If the environment uses a private database and your laptop cannot reach it directly, use the in-cluster bootstrap path instead:
+
+```bash
+PLATFORM_KEY_NAME='alpha-platform-root' \
+make bootstrap-platform-admin-key-cluster
+```
+
 Behavior:
 - creates one `platform_admin` API key
 - prints the one-time `secret`
 - refuses to run if active platform keys already exist unless `ALLOW_EXISTING_ACTIVE_KEYS=1` is set
 - supports optional expiry with `EXPIRES_AT=<RFC3339 timestamp>`
+- the cluster path reuses the deployed API workload image, service account, config map, and runtime secret so it runs inside cluster network boundaries
 
 Recommended operator handling:
 - capture the JSON output once

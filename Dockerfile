@@ -12,12 +12,14 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/server ./cmd/server
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/migrate ./cmd/migrate
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/bootstrap_platform_admin_key ./cmd/bootstrap_platform_admin_key
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 
 COPY --from=builder /out/server /app/server
 COPY --from=builder /out/migrate /app/migrate
+COPY --from=builder /out/bootstrap_platform_admin_key /app/bootstrap_platform_admin_key
 COPY --from=builder /src/migrations /app/migrations
 
 EXPOSE 8080

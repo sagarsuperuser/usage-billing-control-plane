@@ -30,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -90,6 +90,9 @@ run: ## Start API server
 
 bootstrap-platform-admin-key: ## Bootstrap the first platform admin API key (requires DATABASE_URL)
 	@bash ./scripts/bootstrap_platform_admin_key.sh
+
+bootstrap-platform-admin-key-cluster: ## Bootstrap a platform admin API key from inside the current cluster using the deployed API workload wiring
+	@bash ./scripts/bootstrap_platform_admin_key_cluster.sh
 
 lago-up: ## Start Lago services and provision deterministic API key for tests
 	@LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' bash ./scripts/bootstrap_lago.sh
