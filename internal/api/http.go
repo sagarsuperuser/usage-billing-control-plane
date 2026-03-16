@@ -35,6 +35,7 @@ type Server struct {
 	meterService              *service.MeterService
 	usageService              *service.UsageService
 	apiKeyService             *service.APIKeyService
+	onboardingService         *service.TenantOnboardingService
 	auditExportSvc            *service.AuditExportService
 	lagoClient                *service.LagoClient
 	lagoWebhookSvc            *service.LagoWebhookService
@@ -330,6 +331,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 		meterService:           service.NewMeterService(repo),
 		usageService:           service.NewUsageService(repo),
 		apiKeyService:          service.NewAPIKeyService(repo),
+		onboardingService:      service.NewTenantOnboardingService(service.NewTenantService(repo), service.NewAPIKeyService(repo), service.NewRatingService(repo), service.NewMeterService(repo)),
 		replayService:          replay.NewService(repo),
 		recService:             reconcile.NewService(repo),
 		requestMetrics:         newRequestMetricsCollector(),
@@ -1034,6 +1036,12 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/internal/tenants/audit" {
 		return RoleAdmin, true
 	}
+	if path == "/internal/onboarding/tenants" {
+		return RoleAdmin, true
+	}
+	if strings.HasPrefix(path, "/internal/onboarding/tenants/") {
+		return RoleAdmin, true
+	}
 	if path == "/internal/tenants" {
 		return RoleAdmin, true
 	}
@@ -1127,6 +1135,10 @@ func requiresPlatformScope(r *http.Request) bool {
 		return true
 	case path == "/internal/ready":
 		return true
+	case path == "/internal/onboarding/tenants":
+		return true
+	case strings.HasPrefix(path, "/internal/onboarding/tenants/"):
+		return true
 	case path == "/internal/tenants":
 		return true
 	case path == "/internal/tenants/audit":
@@ -1146,6 +1158,10 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/metrics"
 	case path == "/internal/ready":
 		return "/internal/ready"
+	case path == "/internal/onboarding/tenants":
+		return "/internal/onboarding/tenants"
+	case strings.HasPrefix(path, "/internal/onboarding/tenants/"):
+		return "/internal/onboarding/tenants/{id}"
 	case path == "/internal/lago/webhooks":
 		return "/internal/lago/webhooks"
 	case path == "/internal/tenants/audit":
@@ -1255,6 +1271,8 @@ func isTenantMatch(resourceTenantID, requestTenantID string) bool {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/health", s.handleHealth)
 	s.mux.HandleFunc("/internal/lago/webhooks", s.handleLagoWebhooks)
+	s.mux.HandleFunc("/internal/onboarding/tenants", s.handleInternalOnboardingTenants)
+	s.mux.HandleFunc("/internal/onboarding/tenants/", s.handleInternalOnboardingTenantByID)
 	s.mux.HandleFunc("/internal/tenants/audit", s.handleInternalTenantAudit)
 	s.mux.HandleFunc("/internal/tenants", s.handleInternalTenants)
 	s.mux.HandleFunc("/internal/tenants/", s.handleInternalTenantByID)
@@ -1473,6 +1491,64 @@ func (s *Server) handleInternalTenantAudit(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, events)
+}
+
+func (s *Server) handleInternalOnboardingTenants(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	var req service.TenantOnboardingRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := s.onboardingService.OnboardTenant(req, requestActorAPIKeyID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if result.TenantCreated {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, result)
+}
+
+func (s *Server) handleInternalOnboardingTenantByID(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/internal/onboarding/tenants/"), "/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	readiness, err := s.onboardingService.GetTenantReadiness(id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	tenant, err := s.tenantService.GetTenant(id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tenant":    tenant,
+		"readiness": readiness,
+		"tenant_id": normalizeTenantID(id),
+	})
 }
 
 type uiSessionLoginRequest struct {

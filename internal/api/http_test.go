@@ -1822,6 +1822,120 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	}, "platform-admin", http.StatusBadRequest)
 }
 
+func TestInternalTenantOnboardingFlow(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoClient, lagoCleanup := newTestLagoClient(t)
+	defer lagoCleanup()
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	defer ts.Close()
+
+	onboarded := postJSON(t, ts.URL+"/internal/onboarding/tenants", map[string]any{
+		"id":                         "tenant_onboard",
+		"name":                       "Tenant Onboard",
+		"lago_organization_id":       "org_onboard",
+		"lago_billing_provider_code": "stripe_onboard",
+		"admin_key_name":             "tenant-onboard-admin",
+	}, "platform-admin", http.StatusCreated)
+
+	tenant, ok := onboarded["tenant"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tenant object in onboarding response")
+	}
+	if tenant["id"] != "tenant_onboard" {
+		t.Fatalf("expected tenant_onboard id, got %v", tenant["id"])
+	}
+	bootstrap, ok := onboarded["tenant_admin_bootstrap"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tenant_admin_bootstrap object")
+	}
+	if created, _ := bootstrap["created"].(bool); !created {
+		t.Fatalf("expected tenant admin bootstrap to create a key")
+	}
+	adminSecret, _ := bootstrap["secret"].(string)
+	if strings.TrimSpace(adminSecret) == "" {
+		t.Fatalf("expected tenant admin secret in onboarding response")
+	}
+	readiness, ok := onboarded["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected readiness object")
+	}
+	if got, _ := readiness["status"].(string); got != "pending" {
+		t.Fatalf("expected onboarding status pending before pricing, got %q", got)
+	}
+	if got, _ := readiness["billing_mapping_ready"].(bool); !got {
+		t.Fatalf("expected billing_mapping_ready=true")
+	}
+	if got, _ := readiness["tenant_admin_ready"].(bool); !got {
+		t.Fatalf("expected tenant_admin_ready=true")
+	}
+	if got, _ := readiness["pricing_ready"].(bool); got {
+		t.Fatalf("expected pricing_ready=false before pricing bootstrap")
+	}
+
+	initialReadiness := getJSON(t, ts.URL+"/internal/onboarding/tenants/tenant_onboard", "platform-admin", http.StatusOK)
+	initialReadinessData, ok := initialReadiness["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected readiness object from onboarding status endpoint")
+	}
+	if got, _ := initialReadinessData["status"].(string); got != "pending" {
+		t.Fatalf("expected onboarding readiness pending before pricing, got %q", got)
+	}
+
+	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":          "tenant_onboard_api_calls",
+		"name":              "Tenant Onboard API Calls",
+		"version":           1,
+		"lifecycle_state":   "active",
+		"mode":              "flat",
+		"currency":          "USD",
+		"flat_amount_cents": 100,
+	}, adminSecret, http.StatusCreated)
+	ruleID := rule["id"].(string)
+
+	_ = postJSON(t, ts.URL+"/v1/meters", map[string]any{
+		"key":                    "tenant_onboard_api_calls",
+		"name":                   "Tenant Onboard API Calls",
+		"unit":                   "call",
+		"aggregation":            "sum",
+		"rating_rule_version_id": ruleID,
+	}, adminSecret, http.StatusCreated)
+
+	finalReadiness := getJSON(t, ts.URL+"/internal/onboarding/tenants/tenant_onboard", "platform-admin", http.StatusOK)
+	finalReadinessData, ok := finalReadiness["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected readiness object from onboarding status endpoint")
+	}
+	if got, _ := finalReadinessData["status"].(string); got != "ready" {
+		t.Fatalf("expected onboarding status ready after pricing bootstrap, got %q", got)
+	}
+	if got, _ := finalReadinessData["pricing_ready"].(bool); !got {
+		t.Fatalf("expected pricing_ready=true after pricing bootstrap")
+	}
+}
+
 func TestAuditExportToS3(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
