@@ -143,6 +143,10 @@ This prints export-ready values for:
 - `PLAYWRIGHT_LIVE_READER_API_KEY`
 - `PLAYWRIGHT_LIVE_TENANT_ID`
 
+Behavior notes:
+- existing active keys with the same minted names are revoked before new keys are created
+- minted live E2E keys default to a 24h expiry unless `EXPIRES_AT` is set explicitly
+
 Recommended operator handling:
 - capture the JSON output once
 - store the `secret` in the operator secret manager

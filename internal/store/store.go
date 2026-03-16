@@ -268,4 +268,5 @@ type Repository interface {
 	GetActivePlatformAPIKeyByPrefix(prefix string, at time.Time) (domain.PlatformAPIKey, error)
 	TouchPlatformAPIKeyLastUsed(id string, usedAt time.Time) error
 	CountActivePlatformAPIKeys(at time.Time) (int, error)
+	RevokeActivePlatformAPIKeysByName(name string, revokedAt time.Time) (int, error)
 }

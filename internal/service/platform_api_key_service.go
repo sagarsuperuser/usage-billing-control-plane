@@ -78,6 +78,17 @@ func (s *PlatformAPIKeyService) CountActivePlatformAPIKeys() (int, error) {
 	return s.store.CountActivePlatformAPIKeys(time.Now().UTC())
 }
 
+func (s *PlatformAPIKeyService) RevokeActivePlatformAPIKeysByName(name string) (int, error) {
+	if s == nil || s.store == nil {
+		return 0, fmt.Errorf("%w: api key repository is required", ErrValidation)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, fmt.Errorf("%w: name is required", ErrValidation)
+	}
+	return s.store.RevokeActivePlatformAPIKeysByName(name, time.Now().UTC())
+}
+
 func normalizePlatformAPIKeyRole(raw string) (string, error) {
 	role := strings.ToLower(strings.TrimSpace(raw))
 	switch role {

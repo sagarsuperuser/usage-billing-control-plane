@@ -3706,6 +3706,47 @@ func (s *PostgresStore) CountActivePlatformAPIKeys(at time.Time) (int, error) {
 	return count, nil
 }
 
+func (s *PostgresStore) RevokeActivePlatformAPIKeysByName(name string, revokedAt time.Time) (int, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, ErrNotFound
+	}
+	if revokedAt.IsZero() {
+		revokedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return 0, err
+	}
+	defer rollbackSilently(tx)
+
+	res, err := tx.ExecContext(
+		ctx,
+		`UPDATE platform_api_keys
+		SET revoked_at = COALESCE(revoked_at, $1)
+		WHERE name = $2
+		  AND revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > $1)`,
+		revokedAt,
+		name,
+	)
+	if err != nil {
+		return 0, err
+	}
+	updated, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return int(updated), nil
+}
+
 func (s *PostgresStore) withTimeout() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), s.queryTimeout)
 }

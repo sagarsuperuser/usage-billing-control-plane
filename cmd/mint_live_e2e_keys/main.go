@@ -15,6 +15,8 @@ import (
 	"usage-billing-control-plane/internal/store"
 )
 
+const defaultLiveE2EKeyTTL = 24 * time.Hour
+
 type mintedKey struct {
 	Name      string     `json:"name"`
 	Role      string     `json:"role"`
@@ -68,6 +70,13 @@ func main() {
 		fatal(logger, "unsupported output format", "output", output)
 	}
 
+	platformKeyName = strings.TrimSpace(platformKeyName)
+	writerKeyName = strings.TrimSpace(writerKeyName)
+	readerKeyName = strings.TrimSpace(readerKeyName)
+	if platformKeyName == "" || writerKeyName == "" || readerKeyName == "" {
+		fatal(logger, "platform-key-name, writer-key-name, and reader-key-name are required")
+	}
+
 	dbCfg, err := appconfig.LoadDBConfigFromEnv()
 	if err != nil {
 		fatal(logger, err.Error())
@@ -81,6 +90,9 @@ func main() {
 		}
 		parsed = parsed.UTC()
 		expiresAt = &parsed
+	} else {
+		defaultExpiry := time.Now().UTC().Add(defaultLiveE2EKeyTTL)
+		expiresAt = &defaultExpiry
 	}
 
 	db, err := appconfig.OpenPostgres(dbCfg)
@@ -106,8 +118,18 @@ func main() {
 		fatal(logger, "ensure tenant", "error", err)
 	}
 
+	if _, err := platformKeyService.RevokeActivePlatformAPIKeysByName(platformKeyName); err != nil {
+		fatal(logger, "revoke prior platform api keys", "error", err)
+	}
+	if err := revokeMatchingTenantKeys(apiKeyService, tenant.ID, writerKeyName); err != nil {
+		fatal(logger, "revoke prior tenant writer api keys", "error", err)
+	}
+	if err := revokeMatchingTenantKeys(apiKeyService, tenant.ID, readerKeyName); err != nil {
+		fatal(logger, "revoke prior tenant reader api keys", "error", err)
+	}
+
 	platformCreated, err := platformKeyService.CreatePlatformAPIKey(service.CreatePlatformAPIKeyRequest{
-		Name:      strings.TrimSpace(platformKeyName),
+		Name:      platformKeyName,
 		Role:      "platform_admin",
 		ExpiresAt: expiresAt,
 	})
@@ -116,7 +138,7 @@ func main() {
 	}
 
 	writerCreated, err := apiKeyService.CreateAPIKey(tenant.ID, "", service.CreateAPIKeyRequest{
-		Name:      strings.TrimSpace(writerKeyName),
+		Name:      writerKeyName,
 		Role:      "writer",
 		ExpiresAt: expiresAt,
 	})
@@ -125,7 +147,7 @@ func main() {
 	}
 
 	readerCreated, err := apiKeyService.CreateAPIKey(tenant.ID, "", service.CreateAPIKeyRequest{
-		Name:      strings.TrimSpace(readerKeyName),
+		Name:      readerKeyName,
 		Role:      "reader",
 		ExpiresAt: expiresAt,
 	})
@@ -205,6 +227,26 @@ func printShell(res result) {
 	fmt.Printf("export PLAYWRIGHT_LIVE_WRITER_API_KEY=%q\n", res.TenantWriterAPIKey.Secret)
 	fmt.Printf("export PLAYWRIGHT_LIVE_READER_API_KEY=%q\n", res.TenantReaderAPIKey.Secret)
 	fmt.Printf("export PLAYWRIGHT_LIVE_TENANT_ID=%q\n", res.TenantID)
+}
+
+func revokeMatchingTenantKeys(apiKeyService *service.APIKeyService, tenantID, name string) error {
+	keys, err := apiKeyService.ListAPIKeys(tenantID, service.ListAPIKeysRequest{
+		NameContains: strings.TrimSpace(name),
+		State:        "active",
+		Limit:        100,
+	})
+	if err != nil {
+		return err
+	}
+	for _, item := range keys.Items {
+		if item.Name != name {
+			continue
+		}
+		if _, err := apiKeyService.RevokeAPIKey(tenantID, "", item.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func fatal(logger *slog.Logger, msg string, args ...any) {
