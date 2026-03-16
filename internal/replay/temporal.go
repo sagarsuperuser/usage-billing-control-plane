@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -97,6 +97,7 @@ type TemporalDispatcher struct {
 	taskQueue    string
 	pollInterval time.Duration
 	batchSize    int
+	logger       *slog.Logger
 
 	scannedTotal             atomic.Int64
 	dispatchStartedTotal     atomic.Int64
@@ -106,7 +107,7 @@ type TemporalDispatcher struct {
 	dispatcherIdlePollsTotal atomic.Int64
 }
 
-func NewTemporalDispatcher(repo store.Repository, temporalClient client.Client, taskQueue string, pollInterval time.Duration, batchSize int) *TemporalDispatcher {
+func NewTemporalDispatcher(repo store.Repository, temporalClient client.Client, taskQueue string, pollInterval time.Duration, batchSize int, loggers ...*slog.Logger) *TemporalDispatcher {
 	if strings.TrimSpace(taskQueue) == "" {
 		taskQueue = DefaultTemporalReplayTaskQueue
 	}
@@ -119,6 +120,13 @@ func NewTemporalDispatcher(repo store.Repository, temporalClient client.Client, 
 	if batchSize > 500 {
 		batchSize = 500
 	}
+	logger := slog.Default()
+	if len(loggers) > 0 && loggers[0] != nil {
+		logger = loggers[0]
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	return &TemporalDispatcher{
 		store:        repo,
@@ -126,6 +134,7 @@ func NewTemporalDispatcher(repo store.Repository, temporalClient client.Client, 
 		taskQueue:    taskQueue,
 		pollInterval: pollInterval,
 		batchSize:    batchSize,
+		logger:       logger.With("component", "replay_temporal_dispatcher"),
 	}
 }
 
@@ -134,7 +143,7 @@ func (d *TemporalDispatcher) Run(ctx context.Context) {
 		dispatched, err := d.dispatchOnce(ctx)
 		if err != nil {
 			d.dispatcherErrorsTotal.Add(1)
-			log.Printf("level=error component=replay_temporal_dispatcher event=dispatch_loop_error err=%q", err.Error())
+			d.logger.Error("dispatch loop error", "error", err)
 		}
 		if dispatched == 0 {
 			d.dispatcherIdlePollsTotal.Add(1)
@@ -175,7 +184,7 @@ func (d *TemporalDispatcher) dispatchOnce(ctx context.Context) (int, error) {
 				continue
 			}
 			d.dispatchErrorsTotal.Add(1)
-			log.Printf("level=error component=replay_temporal_dispatcher event=start_failed job_id=%s tenant_id=%s err=%q", job.ID, job.TenantID, err.Error())
+			d.logger.Error("start workflow failed", "job_id", job.ID, "tenant_id", job.TenantID, "error", err)
 			continue
 		}
 		dispatched++
