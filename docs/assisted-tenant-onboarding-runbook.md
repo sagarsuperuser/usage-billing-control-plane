@@ -125,6 +125,24 @@ Behavior:
 - supports optional expiry with `EXPIRES_AT=<RFC3339 timestamp>`
 - the cluster path reuses the deployed API workload image, service account, config map, and runtime secret so it runs inside cluster network boundaries
 
+### Optional: Mint Fresh Live UI E2E Keys In Cluster
+
+If you need fresh staging browser-smoke credentials without depending on stale shared secrets, use:
+
+```bash
+PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+TARGET_TENANT_ID='default' \
+OUTPUT='shell' \
+make mint-live-e2e-keys-cluster
+```
+
+This prints export-ready values for:
+- `PLAYWRIGHT_LIVE_PLATFORM_API_KEY`
+- `PLAYWRIGHT_LIVE_WRITER_API_KEY`
+- `PLAYWRIGHT_LIVE_READER_API_KEY`
+- `PLAYWRIGHT_LIVE_TENANT_ID`
+
 Recommended operator handling:
 - capture the JSON output once
 - store the `secret` in the operator secret manager

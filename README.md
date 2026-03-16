@@ -110,6 +110,7 @@ make verify-governance
 make preflight-staging
 make bootstrap-platform-admin-key
 make bootstrap-platform-admin-key-cluster
+make mint-live-e2e-keys-cluster
 make preflight-prod
 make tf-plan-staging
 make tf-apply-staging
