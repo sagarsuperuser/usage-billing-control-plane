@@ -232,7 +232,8 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
   await page.getByLabel("Billing postal code").fill("560001");
   await page.getByLabel("Billing country").fill("IN");
   await page.getByLabel("Currency").fill("USD");
-  await page.getByLabel("Provider code").fill("stripe_default");
+  await page.getByRole("heading", { name: "Payment setup options" }).click();
+  await page.getByLabel("Billing connection code").fill("stripe_default");
   await page.getByRole("button", { name: "Run customer setup" }).click();
 
   await expect.poll(async () =>

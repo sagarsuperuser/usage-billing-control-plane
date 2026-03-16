@@ -147,6 +147,8 @@ export function CustomerOnboardingScreen() {
     return { total: customers.length, active, withLago };
   }, [customers]);
 
+  const nextActions = selectedReadiness?.missing_steps.map(describeCustomerMissingStep) ?? [];
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#164e63_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
       <div className="pointer-events-none absolute inset-0 opacity-55">
@@ -200,43 +202,105 @@ export function CustomerOnboardingScreen() {
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">First customer</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                  Start with customer identity, complete the billing profile, and then decide whether to launch payment setup immediately.
+                </p>
               </div>
               <span className="inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-cyan-100">
                 <UserRoundPlus className="h-5 w-5" />
               </span>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              <InputField label="Customer external ID" value={externalID} onChange={setExternalID} placeholder="cust_acme_primary" />
-              <InputField label="Display name" value={displayName} onChange={setDisplayName} placeholder="Acme Primary Customer" />
-              <InputField label="Billing email" value={email} onChange={setEmail} placeholder="billing@acme.test" />
-              <InputField label="Legal name" value={legalName} onChange={setLegalName} placeholder="Acme Primary Customer LLC" />
-              <InputField label="Billing address line 1" value={addressLine1} onChange={setAddressLine1} placeholder="1 Billing Street" />
-              <InputField label="Billing city" value={city} onChange={setCity} placeholder="Bengaluru" />
-              <InputField label="Billing postal code" value={postalCode} onChange={setPostalCode} placeholder="560001" />
-              <InputField label="Billing country" value={country} onChange={setCountry} placeholder="IN" />
-              <InputField label="Currency" value={currency} onChange={setCurrency} placeholder="USD" />
-              <InputField label="Provider code" value={providerCode} onChange={setProviderCode} placeholder="stripe_default" />
+            <div className="mt-6 grid gap-3 lg:grid-cols-3">
+              <StepCard
+                index="1"
+                title="Create the customer"
+                body="Capture the customer identity you want teams to search for and manage later."
+              />
+              <StepCard
+                index="2"
+                title="Complete billing profile"
+                body="Add the legal and billing details Alpha needs before it can sync billing state."
+              />
+              <StepCard
+                index="3"
+                title="Start payment setup"
+                body="Launch payment setup now, or leave it for a controlled follow-up after the customer record is ready."
+              />
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Payment setup</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-                <InputField
-                  label="Payment method type"
-                  value={paymentMethodType}
-                  onChange={setPaymentMethodType}
-                  placeholder="card"
-                />
-                <label className="flex items-center gap-2 text-sm text-slate-200 md:mb-2">
-                  <input
-                    type="checkbox"
-                    checked={startPaymentSetup}
-                    onChange={(event) => setStartPaymentSetup(event.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
+            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 1</p>
+              <h3 className="mt-2 text-lg font-semibold text-white">Customer identity</h3>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InputField label="Customer external ID" value={externalID} onChange={setExternalID} placeholder="cust_acme_primary" />
+                <InputField label="Display name" value={displayName} onChange={setDisplayName} placeholder="Acme Primary Customer" />
+                <InputField label="Billing email" value={email} onChange={setEmail} placeholder="billing@acme.test" />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 2</p>
+              <h3 className="mt-2 text-lg font-semibold text-white">Billing profile</h3>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InputField label="Legal name" value={legalName} onChange={setLegalName} placeholder="Acme Primary Customer LLC" />
+                <InputField label="Billing address line 1" value={addressLine1} onChange={setAddressLine1} placeholder="1 Billing Street" />
+                <InputField label="Billing city" value={city} onChange={setCity} placeholder="Bengaluru" />
+                <InputField label="Billing postal code" value={postalCode} onChange={setPostalCode} placeholder="560001" />
+                <InputField label="Billing country" value={country} onChange={setCountry} placeholder="IN" />
+                <InputField label="Currency" value={currency} onChange={setCurrency} placeholder="USD" />
+              </div>
+            </div>
+
+            <details className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 3</p>
+                    <h3 className="mt-2 text-lg font-semibold text-white">Payment setup options</h3>
+                  </div>
+                  <span className="text-xs uppercase tracking-[0.14em] text-slate-400">Expand</span>
+                </div>
+              </summary>
+              <div className="mt-4 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
+                <div className="grid gap-3">
+                  <InputField
+                    label="Billing connection code"
+                    value={providerCode}
+                    onChange={setProviderCode}
+                    placeholder="stripe_default"
                   />
-                  Start payment setup
-                </label>
+                  <InputField
+                    label="Payment method type"
+                    value={paymentMethodType}
+                    onChange={setPaymentMethodType}
+                    placeholder="card"
+                  />
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Advanced controls</p>
+                  <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={startPaymentSetup}
+                      onChange={(event) => setStartPaymentSetup(event.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
+                    />
+                    Start payment setup now
+                  </label>
+                </div>
+              </div>
+            </details>
+
+            <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Before you run</p>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <ChecklistLine done={externalID.trim().length > 0} text="Customer external ID is set" />
+                <ChecklistLine done={displayName.trim().length > 0} text="Display name is set" />
+                <ChecklistLine done={email.trim().length > 0} text="Billing email is set" />
+                <ChecklistLine done={providerCode.trim().length > 0} text="Billing connection code is set" />
+                <ChecklistLine done={currency.trim().length > 0} text="Currency is set" />
+                <ChecklistLine done={startPaymentSetup} text="Payment setup will start after customer sync" />
               </div>
             </div>
 
@@ -379,6 +443,17 @@ export function CustomerOnboardingScreen() {
                       </span>
                     </div>
 
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                      <p className="text-sm font-semibold text-white">Next actions</p>
+                      <div className="mt-3 grid gap-2">
+                        {nextActions.length > 0 ? (
+                          nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />)
+                        ) : (
+                          <ChecklistLine done text="Customer is fully ready for payment operations." />
+                        )}
+                      </div>
+                    </div>
+
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <StatusCard title="Billing profile" value={selectedReadiness.billing_profile_status} />
                       <StatusCard title="Payment setup" value={selectedReadiness.payment_setup_status} />
@@ -401,33 +476,41 @@ export function CustomerOnboardingScreen() {
                       </div>
                     </div>
 
-                    <dl className="mt-4 grid gap-3 md:grid-cols-2">
-                      <MetaItem label="Billing customer ID" value={selectedCustomer.lago_customer_id || "-"} mono />
-                      <MetaItem label="Last billing sync error" value={selectedReadiness.billing_profile.last_sync_error || "-"} />
-                      <MetaItem label="Last synced" value={formatExactTimestamp(selectedReadiness.billing_profile.last_synced_at)} />
-                      <MetaItem label="Last verified" value={formatExactTimestamp(selectedReadiness.payment_setup.last_verified_at)} />
-                    </dl>
+                    <details className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-white">Advanced diagnostics and recovery</p>
+                          <span className="text-xs uppercase tracking-[0.14em] text-slate-400">Expand</span>
+                        </div>
+                      </summary>
+                      <dl className="mt-4 grid gap-3 md:grid-cols-2">
+                        <MetaItem label="Billing customer ID" value={selectedCustomer.lago_customer_id || "-"} mono />
+                        <MetaItem label="Last billing sync error" value={selectedReadiness.billing_profile.last_sync_error || "-"} />
+                        <MetaItem label="Last synced" value={formatExactTimestamp(selectedReadiness.billing_profile.last_synced_at)} />
+                        <MetaItem label="Last verified" value={formatExactTimestamp(selectedReadiness.payment_setup.last_verified_at)} />
+                      </dl>
 
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => retryMutation.mutate(selectedCustomer.external_id)}
-                        disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 px-3 text-sm text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                        Retry billing sync
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => refreshMutation.mutate(selectedCustomer.external_id)}
-                        disabled={!canWrite || !csrfToken || refreshMutation.isPending}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {refreshMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        Refresh payment setup
-                      </button>
-                    </div>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => retryMutation.mutate(selectedCustomer.external_id)}
+                          disabled={!canWrite || !csrfToken || retryMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 px-3 text-sm text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                          Retry billing sync
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => refreshMutation.mutate(selectedCustomer.external_id)}
+                          disabled={!canWrite || !csrfToken || refreshMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {refreshMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                          Refresh payment setup
+                        </button>
+                      </div>
+                    </details>
                   </>
                 )}
               </div>
@@ -435,6 +518,16 @@ export function CustomerOnboardingScreen() {
           </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function StepCard({ index, title, body }: { index: string; title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+      <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Step {index}</p>
+      <p className="mt-2 text-sm font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm text-slate-300">{body}</p>
     </div>
   );
 }
@@ -489,6 +582,21 @@ function StatusCard({ title, value }: { title: string; value: string }) {
       <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${profileTone(value)}`}>
         {formatReadinessStatus(value)}
       </span>
+    </div>
+  );
+}
+
+function ChecklistLine({ done, text }: { done: boolean; text: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3">
+      <span
+        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
+          done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"
+        }`}
+      >
+        {done ? "OK" : "!"}
+      </span>
+      <p className="text-sm text-slate-200">{text}</p>
     </div>
   );
 }
