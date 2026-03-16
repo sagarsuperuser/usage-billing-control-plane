@@ -25,7 +25,7 @@ export function SessionLoginCard() {
   return (
     <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
       <p className="mb-3 text-sm font-medium text-amber-100">
-        Sign in with a control-plane API key to start this session.
+        Sign in with a tenant or platform control-plane API key to start this session.
       </p>
       <form className="grid gap-3 md:grid-cols-3" onSubmit={onSubmit}>
         <div className="grid gap-2">
@@ -35,7 +35,7 @@ export function SessionLoginCard() {
             data-testid="session-login-api-key"
             value={apiKey}
             onChange={(event) => setAPIKey(event.target.value)}
-            placeholder="reader/writer/admin key"
+            placeholder="tenant or platform key"
             className="h-10 rounded-xl border border-white/20 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
           />
         </div>

@@ -43,6 +43,10 @@ export function useUISession() {
       queryClient.invalidateQueries({ queryKey: ["invoice-status-summary"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-events"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-explainability"] });
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      queryClient.invalidateQueries({ queryKey: ["tenant-onboarding-status"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-readiness"] });
     },
   });
 
@@ -52,16 +56,22 @@ export function useUISession() {
     }
   }, [sessionQuery.data, sessionQuery.isSuccess, setSession]);
 
-  const role = session?.role ?? null;
+  const scope = session?.scope ?? "tenant";
+  const role = scope === "tenant" ? (session?.role ?? null) : null;
+  const platformRole = scope === "platform" ? (session?.platform_role ?? null) : null;
   const canWrite = role === "writer" || role === "admin";
   const isAdmin = role === "admin";
+  const isPlatformAdmin = platformRole === "platform_admin";
   return {
     apiBaseURL,
     setAPIBaseURL,
     session,
+    scope,
     role,
+    platformRole,
     canWrite,
     isAdmin,
+    isPlatformAdmin,
     csrfToken: session?.csrf_token ?? "",
     isAuthenticated: Boolean(session?.authenticated),
     isLoading: sessionQuery.isLoading,

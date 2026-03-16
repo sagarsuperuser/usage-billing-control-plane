@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ReceiptText, Workflow } from "lucide-react";
+import { Activity, Building2, ReceiptText, UserRoundPlus, Workflow } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
@@ -27,6 +27,20 @@ export default function ControlPlanePage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Card
+            href="/tenant-onboarding"
+            title="Tenant Onboarding"
+            description="Platform-admin workflow for tenant create/reconcile, bootstrap-admin, and layered readiness inspection."
+            icon={<Building2 className="h-5 w-5 text-sky-200" />}
+            accent="border-sky-400/40 bg-sky-500/10"
+          />
+          <Card
+            href="/customer-onboarding"
+            title="Customer Onboarding"
+            description="Tenant workflow for first-customer setup, billing-profile sync, checkout start, and readiness recovery."
+            icon={<UserRoundPlus className="h-5 w-5 text-teal-200" />}
+            accent="border-teal-400/40 bg-teal-500/10"
+          />
           <Card
             href="/payment-operations"
             title="Payment Operations"

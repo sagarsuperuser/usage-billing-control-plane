@@ -8,6 +8,8 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 const links = [
   { href: "/control-plane", label: "Overview" },
+  { href: "/tenant-onboarding", label: "Tenant Onboarding", scope: "platform" as const },
+  { href: "/customer-onboarding", label: "Customer Onboarding", scope: "tenant" as const },
   { href: "/payment-operations", label: "Payment Ops" },
   { href: "/replay-operations", label: "Replay Ops" },
   { href: "/invoice-explainability", label: "Invoice Explainability" },
@@ -15,12 +17,21 @@ const links = [
 
 export function ControlPlaneNav() {
   const pathname = usePathname();
-  const { isAuthenticated, session, csrfToken, logout, loggingOut } = useUISession();
+  const { isAuthenticated, session, scope, platformRole, csrfToken, logout, loggingOut } = useUISession();
+  const visibleLinks = links.filter((link) => {
+    if (!("scope" in link) || !link.scope) {
+      return true;
+    }
+    if (!isAuthenticated) {
+      return true;
+    }
+    return link.scope === scope;
+  });
 
   return (
     <nav className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2">
       <div className="flex flex-wrap items-center gap-2">
-        {links.map((link) => {
+        {visibleLinks.map((link) => {
           const active = pathname === link.href;
           return (
             <Link
@@ -40,7 +51,7 @@ export function ControlPlaneNav() {
       {isAuthenticated ? (
         <div className="flex items-center gap-2">
           <span className="rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-emerald-100">
-            {session?.role ?? "reader"}
+            {scope === "platform" ? platformRole ?? "platform" : session?.role ?? "reader"}
           </span>
           <button
             type="button"

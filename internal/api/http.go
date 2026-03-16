@@ -61,12 +61,14 @@ type Server struct {
 }
 
 const (
-	sessionRoleKey     = "principal_role"
-	sessionTenantIDKey = "principal_tenant_id"
-	sessionAPIKeyIDKey = "principal_api_key_id"
-	sessionCSRFKey     = "csrf_token"
-	csrfHeaderName     = "X-CSRF-Token"
-	requestIDHeaderKey = "X-Request-ID"
+	sessionScopeKey        = "principal_scope"
+	sessionRoleKey         = "principal_role"
+	sessionPlatformRoleKey = "principal_platform_role"
+	sessionTenantIDKey     = "principal_tenant_id"
+	sessionAPIKeyIDKey     = "principal_api_key_id"
+	sessionCSRFKey         = "csrf_token"
+	csrfHeaderName         = "X-CSRF-Token"
+	requestIDHeaderKey     = "X-Request-ID"
 )
 
 type requestMetricsCollector struct {
@@ -988,22 +990,39 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 		return Principal{}, false, errUnauthorized
 	}
 
+	scopeRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionScopeKey))
 	roleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionRoleKey))
+	platformRoleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionPlatformRoleKey))
 	tenantID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionTenantIDKey))
 	apiKeyID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionAPIKeyIDKey))
-	if roleRaw == "" || tenantID == "" {
+	switch Scope(scopeRaw) {
+	case ScopePlatform:
+		platformRole, err := ParsePlatformRole(platformRoleRaw)
+		if err != nil {
+			return Principal{}, true, errUnauthorized
+		}
+		return Principal{
+			Scope:        ScopePlatform,
+			PlatformRole: platformRole,
+			APIKeyID:     apiKeyID,
+		}, true, nil
+	case ScopeTenant, "":
+		if roleRaw == "" || tenantID == "" {
+			return Principal{}, true, errUnauthorized
+		}
+		role, err := ParseRole(roleRaw)
+		if err != nil {
+			return Principal{}, true, errUnauthorized
+		}
+		return Principal{
+			Scope:    ScopeTenant,
+			Role:     role,
+			TenantID: normalizeTenantID(tenantID),
+			APIKeyID: apiKeyID,
+		}, true, nil
+	default:
 		return Principal{}, true, errUnauthorized
 	}
-	role, err := ParseRole(roleRaw)
-	if err != nil {
-		return Principal{}, true, errUnauthorized
-	}
-	return Principal{
-		Scope:    ScopeTenant,
-		Role:     role,
-		TenantID: normalizeTenantID(tenantID),
-		APIKeyID: apiKeyID,
-	}, true, nil
 }
 
 func isUnsafeMethod(method string) bool {
@@ -1680,10 +1699,6 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, err)
 		return
 	}
-	if principal.Scope != ScopeTenant {
-		writeError(w, http.StatusForbidden, "ui sessions require tenant api keys")
-		return
-	}
 
 	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to renew session")
@@ -1696,20 +1711,34 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.sessionManager.Put(r.Context(), sessionRoleKey, string(principal.Role))
-	s.sessionManager.Put(r.Context(), sessionTenantIDKey, normalizeTenantID(principal.TenantID))
+	s.sessionManager.Put(r.Context(), sessionScopeKey, string(principal.Scope))
+	if principal.Scope == ScopePlatform {
+		s.sessionManager.Remove(r.Context(), sessionRoleKey)
+		s.sessionManager.Put(r.Context(), sessionPlatformRoleKey, string(principal.PlatformRole))
+		s.sessionManager.Remove(r.Context(), sessionTenantIDKey)
+	} else {
+		s.sessionManager.Put(r.Context(), sessionRoleKey, string(principal.Role))
+		s.sessionManager.Remove(r.Context(), sessionPlatformRoleKey)
+		s.sessionManager.Put(r.Context(), sessionTenantIDKey, normalizeTenantID(principal.TenantID))
+	}
 	s.sessionManager.Put(r.Context(), sessionAPIKeyIDKey, strings.TrimSpace(principal.APIKeyID))
 	s.sessionManager.Put(r.Context(), sessionCSRFKey, csrfToken)
 
 	expiresAt := time.Now().UTC().Add(s.sessionManager.Lifetime)
-	writeJSON(w, http.StatusCreated, map[string]any{
+	resp := map[string]any{
 		"authenticated": true,
-		"role":          principal.Role,
-		"tenant_id":     normalizeTenantID(principal.TenantID),
+		"scope":         principal.Scope,
 		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
 		"csrf_token":    csrfToken,
 		"expires_at":    expiresAt,
-	})
+	}
+	if principal.Scope == ScopePlatform {
+		resp["platform_role"] = principal.PlatformRole
+	} else {
+		resp["role"] = principal.Role
+		resp["tenant_id"] = normalizeTenantID(principal.TenantID)
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func parseInternalTenantPath(path string) (tenantID string, action string) {
@@ -1759,7 +1788,7 @@ func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	principal, ok := principalFromContext(r.Context())
-	if !ok || principal.Role == "" {
+	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -1769,13 +1798,20 @@ func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"authenticated": true,
-		"role":          principal.Role,
-		"tenant_id":     normalizeTenantID(principal.TenantID),
+		"scope":         principal.Scope,
 		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
 		"csrf_token":    csrfToken,
-	})
+	}
+	if principal.Scope == ScopePlatform {
+		resp["platform_role"] = principal.PlatformRole
+	} else {
+		resp["role"] = principal.Role
+		resp["tenant_id"] = normalizeTenantID(principal.TenantID)
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleCustomerOnboarding(w http.ResponseWriter, r *http.Request) {

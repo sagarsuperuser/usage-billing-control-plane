@@ -20,11 +20,171 @@ export interface InvoicePaymentStatusView {
 
 export interface UISession {
   authenticated: boolean;
-  role: "reader" | "writer" | "admin";
-  tenant_id: string;
+  scope?: "tenant" | "platform";
+  role?: "reader" | "writer" | "admin";
+  platform_role?: "platform_admin";
+  tenant_id?: string;
   api_key_id: string;
   csrf_token: string;
   expires_at?: string;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  status: "active" | "suspended" | "deleted";
+  lago_organization_id?: string;
+  lago_billing_provider_code?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface APIKey {
+  id: string;
+  key_prefix: string;
+  name: string;
+  role: string;
+  tenant_id: string;
+  created_at: string;
+  expires_at?: string;
+  revoked_at?: string;
+  last_used_at?: string;
+}
+
+export interface TenantCoreReadiness {
+  status: string;
+  tenant_exists: boolean;
+  tenant_active: boolean;
+  tenant_admin_ready: boolean;
+  missing_steps: string[];
+}
+
+export interface BillingIntegrationReadiness {
+  status: string;
+  billing_mapping_ready: boolean;
+  pricing_ready: boolean;
+  missing_steps: string[];
+}
+
+export interface FirstCustomerBillingReadiness {
+  status: string;
+  managed: boolean;
+  customer_exists: boolean;
+  customer_external_id?: string;
+  customer_active: boolean;
+  billing_profile_status: "missing" | "incomplete" | "ready" | "sync_error";
+  payment_setup_status: "missing" | "pending" | "ready" | "error";
+  missing_steps: string[];
+  note?: string;
+}
+
+export interface TenantOnboardingReadiness {
+  status: string;
+  missing_steps: string[];
+  tenant: TenantCoreReadiness;
+  billing_integration: BillingIntegrationReadiness;
+  first_customer: FirstCustomerBillingReadiness;
+}
+
+export interface TenantAdminBootstrapResult {
+  created: boolean;
+  existing_active_keys: number;
+  api_key?: APIKey;
+  secret?: string;
+}
+
+export interface TenantOnboardingResult {
+  tenant: Tenant;
+  tenant_created: boolean;
+  tenant_admin_bootstrap: TenantAdminBootstrapResult;
+  readiness: TenantOnboardingReadiness;
+}
+
+export interface Customer {
+  id: string;
+  tenant_id?: string;
+  external_id: string;
+  display_name: string;
+  email?: string;
+  status: "active" | "suspended" | "archived";
+  lago_customer_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerBillingProfile {
+  customer_id: string;
+  tenant_id?: string;
+  legal_name?: string;
+  email?: string;
+  phone?: string;
+  billing_address_line1?: string;
+  billing_address_line2?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_postal_code?: string;
+  billing_country?: string;
+  currency?: string;
+  tax_identifier?: string;
+  provider_code?: string;
+  profile_status: "missing" | "incomplete" | "ready" | "sync_error";
+  last_synced_at?: string;
+  last_sync_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerPaymentSetup {
+  customer_id: string;
+  tenant_id?: string;
+  setup_status: "missing" | "pending" | "ready" | "error";
+  default_payment_method_present: boolean;
+  payment_method_type?: string;
+  provider_customer_reference?: string;
+  provider_payment_method_reference?: string;
+  last_verified_at?: string;
+  last_verification_result?: string;
+  last_verification_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerReadiness {
+  status: string;
+  missing_steps: string[];
+  customer_exists: boolean;
+  customer_active: boolean;
+  billing_provider_configured: boolean;
+  lago_customer_synced: boolean;
+  default_payment_method_verified: boolean;
+  billing_profile_status: "missing" | "incomplete" | "ready" | "sync_error";
+  payment_setup_status: "missing" | "pending" | "ready" | "error";
+  billing_profile: CustomerBillingProfile;
+  payment_setup: CustomerPaymentSetup;
+}
+
+export interface CustomerOnboardingResult {
+  customer: Customer;
+  customer_created: boolean;
+  billing_profile_applied: boolean;
+  payment_setup_started: boolean;
+  checkout_url?: string;
+  billing_profile: CustomerBillingProfile;
+  payment_setup: CustomerPaymentSetup;
+  readiness: CustomerReadiness;
+}
+
+export interface RetryCustomerBillingProfileSyncResult {
+  external_id: string;
+  billing_profile: CustomerBillingProfile;
+  payment_setup: CustomerPaymentSetup;
+  readiness: CustomerReadiness;
+}
+
+export interface RefreshCustomerPaymentSetupResult {
+  external_id: string;
+  payment_setup: CustomerPaymentSetup;
+  readiness: CustomerReadiness;
 }
 
 export interface LagoWebhookEvent {

@@ -87,6 +87,79 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 	_ = sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusUnauthorized)
 }
 
+func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	mustCreatePlatformAPIKey(t, repo, "platform-admin-ui")
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_platform_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithSessionManager(sessionManager),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"api_key": "platform-admin-ui",
+	}, "", http.StatusCreated)
+	csrfToken, _ := loginResp["csrf_token"].(string)
+	if csrfToken == "" {
+		t.Fatalf("expected csrf_token in login response")
+	}
+	if got, _ := loginResp["scope"].(string); got != "platform" {
+		t.Fatalf("expected scope platform, got %q", got)
+	}
+	if got, _ := loginResp["platform_role"].(string); got != string(api.PlatformRoleAdmin) {
+		t.Fatalf("expected platform_role platform_admin, got %q", got)
+	}
+
+	_ = sessionGetJSON(t, client, ts.URL+"/internal/metrics", http.StatusOK)
+	meResp := sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusOK)
+	if got, _ := meResp["scope"].(string); got != "platform" {
+		t.Fatalf("expected me.scope platform, got %q", got)
+	}
+	if got, _ := meResp["platform_role"].(string); got != string(api.PlatformRoleAdmin) {
+		t.Fatalf("expected me.platform_role platform_admin, got %q", got)
+	}
+
+	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, "", http.StatusForbidden)
+	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, csrfToken, http.StatusOK)
+	_ = sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusUnauthorized)
+}
+
 func TestUISessionCSRFProtectionForUnsafeMethods(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {

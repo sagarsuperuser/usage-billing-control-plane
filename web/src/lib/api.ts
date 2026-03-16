@@ -1,4 +1,7 @@
 import {
+  Customer,
+  CustomerOnboardingResult,
+  CustomerReadiness,
   InvoiceExplainability,
   InvoicePaymentLifecycle,
   InvoicePaymentStatusView,
@@ -8,6 +11,11 @@ import {
   ListResponse,
   ReplayJob,
   ReplayJobDiagnostics,
+  RefreshCustomerPaymentSetupResult,
+  RetryCustomerBillingProfileSyncResult,
+  Tenant,
+  TenantOnboardingReadiness,
+  TenantOnboardingResult,
   UISession,
 } from "@/lib/types";
 
@@ -110,6 +118,154 @@ export async function logoutUISession(input: {
     csrfToken: input.csrfToken,
     body: {},
   });
+}
+
+export async function fetchTenants(input: {
+  runtimeBaseURL?: string;
+  status?: string;
+}): Promise<Tenant[]> {
+  const query = toQuery({
+    status: input.status,
+  });
+  const payload = await apiRequest<Tenant[]>(`/internal/tenants${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function onboardTenant(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<TenantOnboardingResult> {
+  const payload = await apiRequest<TenantOnboardingResult>("/internal/onboarding/tenants", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchTenantOnboardingStatus(input: {
+  runtimeBaseURL?: string;
+  tenantID: string;
+}): Promise<{ tenant: Tenant; readiness: TenantOnboardingReadiness; tenant_id: string }> {
+  const payload = await apiRequest<{ tenant: Tenant; readiness: TenantOnboardingReadiness; tenant_id: string }>(
+    `/internal/onboarding/tenants/${encodeURIComponent(input.tenantID)}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function onboardCustomer(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<CustomerOnboardingResult> {
+  const payload = await apiRequest<CustomerOnboardingResult>("/v1/customer-onboarding", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchCustomers(input: {
+  runtimeBaseURL?: string;
+  status?: string;
+  externalID?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<Customer[]> {
+  const query = toQuery({
+    status: input.status,
+    external_id: input.externalID,
+    limit: input.limit,
+    offset: input.offset,
+  });
+  const payload = await apiRequest<Customer[]>(`/v1/customers${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchCustomerReadiness(input: {
+  runtimeBaseURL?: string;
+  externalID: string;
+}): Promise<CustomerReadiness> {
+  const payload = await apiRequest<CustomerReadiness>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/readiness`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function retryCustomerBillingSync(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  externalID: string;
+}): Promise<RetryCustomerBillingProfileSyncResult> {
+  const payload = await apiRequest<RetryCustomerBillingProfileSyncResult>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/billing-profile/retry-sync`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function refreshCustomerPaymentSetup(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  externalID: string;
+}): Promise<RefreshCustomerPaymentSetupResult> {
+  const payload = await apiRequest<RefreshCustomerPaymentSetupResult>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/payment-setup/refresh`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }
 
 export async function fetchInvoiceStatuses(input: {
