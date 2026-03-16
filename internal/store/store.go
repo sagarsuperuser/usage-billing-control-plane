@@ -246,4 +246,9 @@ type Repository interface {
 	GetAPIKeyByPrefix(prefix string) (domain.APIKey, error)
 	GetActiveAPIKeyByPrefix(prefix string, at time.Time) (domain.APIKey, error)
 	TouchAPIKeyLastUsed(id string, usedAt time.Time) error
+	CreatePlatformAPIKey(input domain.PlatformAPIKey) (domain.PlatformAPIKey, error)
+	GetPlatformAPIKeyByPrefix(prefix string) (domain.PlatformAPIKey, error)
+	GetActivePlatformAPIKeyByPrefix(prefix string, at time.Time) (domain.PlatformAPIKey, error)
+	TouchPlatformAPIKeyLastUsed(id string, usedAt time.Time) error
+	CountActivePlatformAPIKeys(at time.Time) (int, error)
 }

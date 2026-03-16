@@ -50,6 +50,7 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	mustCreateAPIKey(t, repo, "test-reader-key", api.RoleReader, "default")
 	mustCreateAPIKey(t, repo, "test-writer-key", api.RoleWriter, "default")
 	mustCreateAPIKey(t, repo, "test-admin-key", api.RoleAdmin, "default")
+	mustCreatePlatformAPIKey(t, repo, "test-platform-admin")
 
 	replayMetricsProvider, replayRuntimeCleanup := startTemporalReplayRuntime(t, repo)
 	defer replayRuntimeCleanup()
@@ -562,7 +563,8 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	}
 
 	getJSON(t, ts.URL+"/internal/metrics", "test-writer-key", http.StatusForbidden)
-	metrics := getJSON(t, ts.URL+"/internal/metrics", "test-admin-key", http.StatusOK)
+	getJSON(t, ts.URL+"/internal/metrics", "test-admin-key", http.StatusForbidden)
+	metrics := getJSON(t, ts.URL+"/internal/metrics", "test-platform-admin", http.StatusOK)
 	if _, ok := metrics["metrics"]; !ok {
 		t.Fatalf("expected metrics payload")
 	}
@@ -583,7 +585,8 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 		t.Fatalf("expected tenant_http_rate_limited_total in metrics payload")
 	}
 	getJSON(t, ts.URL+"/internal/ready", "test-writer-key", http.StatusForbidden)
-	ready := getJSON(t, ts.URL+"/internal/ready", "test-admin-key", http.StatusOK)
+	getJSON(t, ts.URL+"/internal/ready", "test-admin-key", http.StatusForbidden)
+	ready := getJSON(t, ts.URL+"/internal/ready", "test-platform-admin", http.StatusOK)
 	if ready["status"] != "ready" {
 		t.Fatalf("expected internal ready status to be ready, got %v", ready["status"])
 	}
@@ -600,7 +603,7 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 
 func resetTables(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec(`TRUNCATE TABLE tenant_audit_events, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
+	_, err := db.Exec(`TRUNCATE TABLE platform_api_keys, tenant_audit_events, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate tables: %v", err)
 	}
@@ -1705,7 +1708,7 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	}
 	resetTables(t, db)
 
-	mustCreateAPIKey(t, repo, "default-admin", api.RoleAdmin, "default")
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
 	mustCreateAPIKey(t, repo, "tenant-a-admin", api.RoleAdmin, "tenant_a")
 
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
@@ -1723,7 +1726,7 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 		"name":                       "Tenant Ops",
 		"lago_organization_id":       "org_ops",
 		"lago_billing_provider_code": "stripe_ops",
-	}, "default-admin", http.StatusCreated)
+	}, "platform-admin", http.StatusCreated)
 	createdTenant, ok := created["tenant"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected tenant object in create response")
@@ -1743,12 +1746,12 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 		"name": "Denied",
 	}, "tenant-a-admin", http.StatusForbidden)
 
-	list := getJSONArray(t, ts.URL+"/internal/tenants?status=active", "default-admin", http.StatusOK)
+	list := getJSONArray(t, ts.URL+"/internal/tenants?status=active", "platform-admin", http.StatusOK)
 	if len(list) == 0 {
 		t.Fatalf("expected active tenant list to include tenants")
 	}
 
-	got := getJSON(t, ts.URL+"/internal/tenants/tenant_ops", "default-admin", http.StatusOK)
+	got := getJSON(t, ts.URL+"/internal/tenants/tenant_ops", "platform-admin", http.StatusOK)
 	if got["id"] != "tenant_ops" {
 		t.Fatalf("expected tenant_ops get response, got %v", got["id"])
 	}
@@ -1758,18 +1761,18 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 
 	updated := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
 		"status": "suspended",
-	}, "default-admin", http.StatusOK)
+	}, "platform-admin", http.StatusOK)
 	if updated["status"] != "suspended" {
 		t.Fatalf("expected suspended status, got %v", updated["status"])
 	}
 	updated2 := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
 		"lago_billing_provider_code": "stripe_v2",
-	}, "default-admin", http.StatusOK)
+	}, "platform-admin", http.StatusOK)
 	if updated2["lago_billing_provider_code"] != "stripe_v2" {
 		t.Fatalf("expected updated provider code, got %v", updated2["lago_billing_provider_code"])
 	}
 
-	auditPage := getJSON(t, ts.URL+"/internal/tenants/audit?tenant_id=tenant_ops&limit=10", "default-admin", http.StatusOK)
+	auditPage := getJSON(t, ts.URL+"/internal/tenants/audit?tenant_id=tenant_ops&limit=10", "platform-admin", http.StatusOK)
 	if got, _ := auditPage["total"].(float64); got < 3 {
 		t.Fatalf("expected at least 3 tenant audit events, got %v", got)
 	}
@@ -1786,7 +1789,24 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 
 	_ = patchJSON(t, ts.URL+"/internal/tenants/default", map[string]any{
 		"status": "suspended",
-	}, "default-admin", http.StatusBadRequest)
+	}, "platform-admin", http.StatusBadRequest)
+
+	bootstrapped := postJSON(t, ts.URL+"/internal/tenants/tenant_ops/bootstrap-admin-key", map[string]any{
+		"name": "tenant-ops-bootstrap",
+	}, "platform-admin", http.StatusCreated)
+	apiKey, ok := bootstrapped["api_key"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected bootstrap response api_key object")
+	}
+	if gotRole, _ := apiKey["role"].(string); gotRole != "admin" {
+		t.Fatalf("expected bootstrapped tenant admin role admin, got %q", gotRole)
+	}
+	if gotTenant, _ := apiKey["tenant_id"].(string); gotTenant != "tenant_ops" {
+		t.Fatalf("expected bootstrapped tenant admin tenant_id tenant_ops, got %q", gotTenant)
+	}
+	if secret, _ := bootstrapped["secret"].(string); strings.TrimSpace(secret) == "" {
+		t.Fatalf("expected bootstrap response secret")
+	}
 }
 
 func TestAuditExportToS3(t *testing.T) {
@@ -2079,6 +2099,22 @@ func mustCreateAPIKey(t *testing.T, repo *store.PostgresStore, rawKey string, ro
 	})
 	if err != nil {
 		t.Fatalf("create api key %q: %v", rawKey, err)
+	}
+}
+
+func mustCreatePlatformAPIKey(t *testing.T, repo *store.PostgresStore, rawKey string) {
+	t.Helper()
+
+	hashed := api.HashAPIKey(rawKey)
+	prefix := api.KeyPrefixFromHash(hashed)
+	_, err := repo.CreatePlatformAPIKey(domain.PlatformAPIKey{
+		KeyPrefix: prefix,
+		KeyHash:   hashed,
+		Name:      "test-platform-admin",
+		Role:      string(api.PlatformRoleAdmin),
+	})
+	if err != nil {
+		t.Fatalf("create platform api key %q: %v", rawKey, err)
 	}
 }
 

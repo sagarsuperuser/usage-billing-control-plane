@@ -2232,6 +2232,63 @@ func (s *PostgresStore) CreateAPIKey(input domain.APIKey) (domain.APIKey, error)
 	return key, nil
 }
 
+func (s *PostgresStore) CreatePlatformAPIKey(input domain.PlatformAPIKey) (domain.PlatformAPIKey, error) {
+	input.KeyPrefix = strings.TrimSpace(input.KeyPrefix)
+	input.KeyHash = strings.ToLower(strings.TrimSpace(input.KeyHash))
+	input.Name = strings.TrimSpace(input.Name)
+	input.Role = strings.ToLower(strings.TrimSpace(input.Role))
+
+	if input.KeyPrefix == "" || input.KeyHash == "" || input.Role == "" {
+		return domain.PlatformAPIKey{}, fmt.Errorf("validation failed: key prefix, key hash, and role are required")
+	}
+	if input.Name == "" {
+		input.Name = input.KeyPrefix
+	}
+	if input.ID == "" {
+		input.ID = newID("pkey")
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.PlatformAPIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO platform_api_keys (
+			id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		RETURNING id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at`,
+		input.ID,
+		input.KeyPrefix,
+		input.KeyHash,
+		input.Name,
+		input.Role,
+		input.CreatedAt,
+		input.ExpiresAt,
+		input.RevokedAt,
+		input.LastUsedAt,
+	)
+	key, err := scanPlatformAPIKey(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.PlatformAPIKey{}, ErrAlreadyExists
+		}
+		return domain.PlatformAPIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.PlatformAPIKey{}, err
+	}
+	return key, nil
+}
+
 func (s *PostgresStore) GetAPIKeyByID(tenantID, id string) (domain.APIKey, error) {
 	tenantID = normalizeTenantID(tenantID)
 	ctx, cancel := s.withTimeout()
@@ -3051,6 +3108,41 @@ func (s *PostgresStore) GetAPIKeyByPrefix(prefix string) (domain.APIKey, error) 
 	return key, nil
 }
 
+func (s *PostgresStore) GetPlatformAPIKeyByPrefix(prefix string) (domain.PlatformAPIKey, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return domain.PlatformAPIKey{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.PlatformAPIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at
+		FROM platform_api_keys
+		WHERE key_prefix = $1`,
+		prefix,
+	)
+	key, err := scanPlatformAPIKey(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.PlatformAPIKey{}, ErrNotFound
+		}
+		return domain.PlatformAPIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.PlatformAPIKey{}, err
+	}
+	return key, nil
+}
+
 func (s *PostgresStore) GetActiveAPIKeyByPrefix(prefix string, at time.Time) (domain.APIKey, error) {
 	prefix = strings.TrimSpace(prefix)
 	if prefix == "" {
@@ -3093,6 +3185,47 @@ func (s *PostgresStore) GetActiveAPIKeyByPrefix(prefix string, at time.Time) (do
 	return key, nil
 }
 
+func (s *PostgresStore) GetActivePlatformAPIKeyByPrefix(prefix string, at time.Time) (domain.PlatformAPIKey, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return domain.PlatformAPIKey{}, ErrNotFound
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.PlatformAPIKey{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at
+		FROM platform_api_keys
+		WHERE key_prefix = $1
+		  AND revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > $2)`,
+		prefix,
+		at,
+	)
+	key, err := scanPlatformAPIKey(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.PlatformAPIKey{}, ErrNotFound
+		}
+		return domain.PlatformAPIKey{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.PlatformAPIKey{}, err
+	}
+	return key, nil
+}
+
 func (s *PostgresStore) TouchAPIKeyLastUsed(id string, usedAt time.Time) error {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -3127,6 +3260,73 @@ func (s *PostgresStore) TouchAPIKeyLastUsed(id string, usedAt time.Time) error {
 		return err
 	}
 	return nil
+}
+
+func (s *PostgresStore) TouchPlatformAPIKeyLastUsed(id string, usedAt time.Time) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	if usedAt.IsZero() {
+		usedAt = time.Now().UTC()
+	}
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return err
+	}
+	defer rollbackSilently(tx)
+
+	res, err := tx.ExecContext(ctx, `UPDATE platform_api_keys SET last_used_at = $1 WHERE id = $2`, usedAt, id)
+	if err != nil {
+		return err
+	}
+	updated, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresStore) CountActivePlatformAPIKeys(at time.Time) (int, error) {
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return 0, err
+	}
+	defer rollbackSilently(tx)
+
+	var count int
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*)
+		FROM platform_api_keys
+		WHERE revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > $1)`,
+		at,
+	).Scan(&count); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (s *PostgresStore) withTimeout() (context.Context, context.CancelFunc) {
@@ -3304,6 +3504,41 @@ func scanAPIKey(s rowScanner) (domain.APIKey, error) {
 	} else {
 		out.TenantID = defaultTenantID
 	}
+	if expiresAt.Valid {
+		t := expiresAt.Time.UTC()
+		out.ExpiresAt = &t
+	}
+	if revokedAt.Valid {
+		t := revokedAt.Time.UTC()
+		out.RevokedAt = &t
+	}
+	if lastUsedAt.Valid {
+		t := lastUsedAt.Time.UTC()
+		out.LastUsedAt = &t
+	}
+	return out, nil
+}
+
+func scanPlatformAPIKey(s rowScanner) (domain.PlatformAPIKey, error) {
+	var out domain.PlatformAPIKey
+	var expiresAt sql.NullTime
+	var revokedAt sql.NullTime
+	var lastUsedAt sql.NullTime
+
+	if err := s.Scan(
+		&out.ID,
+		&out.KeyPrefix,
+		&out.KeyHash,
+		&out.Name,
+		&out.Role,
+		&out.CreatedAt,
+		&expiresAt,
+		&revokedAt,
+		&lastUsedAt,
+	); err != nil {
+		return domain.PlatformAPIKey{}, err
+	}
+
 	if expiresAt.Valid {
 		t := expiresAt.Time.UTC()
 		out.ExpiresAt = &t

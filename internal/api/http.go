@@ -455,11 +455,17 @@ func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
 
 		principal, ok := principalFromContext(r.Context())
 		if ok {
-			s.requestMetrics.IncTenant(principal.TenantID)
-			attrs = append(attrs,
-				"tenant_id", normalizeTenantID(principal.TenantID),
-				"role", string(principal.Role),
-			)
+			s.requestMetrics.IncTenant(metricsTenantKey(principal))
+			attrs = append(attrs, "scope", string(principal.Scope))
+			switch principal.Scope {
+			case ScopePlatform:
+				attrs = append(attrs, "platform_role", string(principal.PlatformRole))
+			default:
+				attrs = append(attrs,
+					"tenant_id", normalizeTenantID(principal.TenantID),
+					"role", string(principal.Role),
+				)
+			}
 			if apiKeyID := strings.TrimSpace(principal.APIKeyID); apiKeyID != "" {
 				attrs = append(attrs, "api_key_id", apiKeyID)
 			}
@@ -523,6 +529,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requiredRole, protected := requiredRoleForRequest(r)
+		requiresPlatform := requiresPlatformScope(r)
 		if policy, identifier, failOpen, ok := s.preAuthRateLimitTarget(r, protected); ok {
 			if !s.enforceRateLimit(w, r, policy, identifier, "", failOpen) {
 				return
@@ -548,15 +555,33 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			writeAuthError(w, err)
 			return
 		}
-		if roleRank(principal.Role) == 0 {
-			s.logAuthFailure(r, http.StatusUnauthorized, "invalid_role", nil)
-			writeError(w, http.StatusUnauthorized, "unauthorized")
-			return
-		}
-		if !roleAllows(principal.Role, requiredRole) {
-			s.logAuthFailure(r, http.StatusForbidden, "insufficient_role", nil)
-			writeError(w, http.StatusForbidden, "forbidden")
-			return
+		if requiresPlatform {
+			if principal.Scope != ScopePlatform {
+				s.logAuthFailure(r, http.StatusForbidden, "platform_scope_required", nil)
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
+			if principal.PlatformRole != PlatformRoleAdmin {
+				s.logAuthFailure(r, http.StatusForbidden, "insufficient_platform_role", nil)
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
+		} else {
+			if principal.Scope != ScopeTenant {
+				s.logAuthFailure(r, http.StatusForbidden, "tenant_scope_required", nil)
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
+			if roleRank(principal.Role) == 0 {
+				s.logAuthFailure(r, http.StatusUnauthorized, "invalid_role", nil)
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			if !roleAllows(principal.Role, requiredRole) {
+				s.logAuthFailure(r, http.StatusForbidden, "insufficient_role", nil)
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
 		}
 		if usingSession && isUnsafeMethod(r.Method) {
 			if s.requireSessionOriginCheck && !s.isAllowedSessionOrigin(r) {
@@ -632,6 +657,9 @@ func authRateLimitPolicy(r *http.Request, requiredRole Role) string {
 
 func authRateLimitIdentifier(r *http.Request, principal Principal, usingSession bool) string {
 	base := "tenant:" + normalizeTenantID(principal.TenantID)
+	if principal.Scope == ScopePlatform {
+		base = "platform"
+	}
 
 	if usingSession {
 		return base + ":session_ip:" + requestClientIP(r)
@@ -949,6 +977,7 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 		return Principal{}, true, errUnauthorized
 	}
 	return Principal{
+		Scope:    ScopeTenant,
 		Role:     role,
 		TenantID: normalizeTenantID(tenantID),
 		APIKeyID: apiKeyID,
@@ -1091,6 +1120,24 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	}
 }
 
+func requiresPlatformScope(r *http.Request) bool {
+	path := strings.TrimSpace(r.URL.Path)
+	switch {
+	case path == "/internal/metrics":
+		return true
+	case path == "/internal/ready":
+		return true
+	case path == "/internal/tenants":
+		return true
+	case path == "/internal/tenants/audit":
+		return true
+	case strings.HasPrefix(path, "/internal/tenants/"):
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizeMetricsRoute(path string) string {
 	switch {
 	case path == "/health":
@@ -1187,6 +1234,9 @@ func requestTenantID(r *http.Request) string {
 	if !ok {
 		return defaultTenantID
 	}
+	if principal.Scope != ScopeTenant {
+		return ""
+	}
 	return normalizeTenantID(principal.TenantID)
 }
 
@@ -1248,7 +1298,7 @@ func (s *Server) isOperatorRequest(r *http.Request) bool {
 	if !ok {
 		return false
 	}
-	return principal.Role == RoleAdmin && normalizeTenantID(principal.TenantID) == defaultTenantID
+	return principal.Scope == ScopePlatform && principal.PlatformRole == PlatformRoleAdmin
 }
 
 func (s *Server) handleInternalTenants(w http.ResponseWriter, r *http.Request) {
@@ -1296,10 +1346,17 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/internal/tenants/")
-	id = strings.Trim(id, "/")
+	id, action := parseInternalTenantPath(r.URL.Path)
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	if action != "" && action != "bootstrap-admin-key" {
+		writeError(w, http.StatusBadRequest, "unsupported tenant subresource")
+		return
+	}
+	if action == "bootstrap-admin-key" {
+		s.handleInternalTenantBootstrapAdminKey(w, r, id)
 		return
 	}
 
@@ -1336,6 +1393,57 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 	default:
 		writeMethodNotAllowed(w)
 	}
+}
+
+type internalTenantBootstrapAdminKeyRequest struct {
+	Name                    string     `json:"name"`
+	ExpiresAt               *time.Time `json:"expires_at,omitempty"`
+	AllowExistingActiveKeys bool       `json:"allow_existing_active_keys,omitempty"`
+}
+
+func (s *Server) handleInternalTenantBootstrapAdminKey(w http.ResponseWriter, r *http.Request, tenantID string) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	var req internalTenantBootstrapAdminKeyRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		req.Name = "bootstrap-admin-" + normalizeTenantID(tenantID)
+	}
+
+	activeKeys, err := s.apiKeyService.ListAPIKeys(tenantID, service.ListAPIKeysRequest{
+		State: "active",
+		Limit: 1,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if activeKeys.Total > 0 && !req.AllowExistingActiveKeys {
+		writeError(w, http.StatusConflict, "tenant already has active keys")
+		return
+	}
+
+	created, err := s.apiKeyService.CreateAPIKey(tenantID, requestActorAPIKeyID(r), service.CreateAPIKeyRequest{
+		Name:      req.Name,
+		Role:      string(RoleAdmin),
+		ExpiresAt: req.ExpiresAt,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"api_key":              created.APIKey,
+		"secret":               created.Secret,
+		"existing_active_keys": activeKeys.Total,
+	})
 }
 
 func (s *Server) handleInternalTenantAudit(w http.ResponseWriter, r *http.Request) {
@@ -1410,6 +1518,10 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, err)
 		return
 	}
+	if principal.Scope != ScopeTenant {
+		writeError(w, http.StatusForbidden, "ui sessions require tenant api keys")
+		return
+	}
 
 	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to renew session")
@@ -1436,6 +1548,26 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		"csrf_token":    csrfToken,
 		"expires_at":    expiresAt,
 	})
+}
+
+func parseInternalTenantPath(path string) (tenantID string, action string) {
+	tail := strings.Trim(strings.TrimPrefix(path, "/internal/tenants/"), "/")
+	if tail == "" {
+		return "", ""
+	}
+	parts := strings.Split(tail, "/")
+	tenantID = strings.TrimSpace(parts[0])
+	if len(parts) > 1 {
+		action = strings.TrimSpace(parts[1])
+	}
+	return tenantID, action
+}
+
+func metricsTenantKey(principal Principal) string {
+	if principal.Scope == ScopePlatform {
+		return "platform"
+	}
+	return normalizeTenantID(principal.TenantID)
 }
 
 func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {

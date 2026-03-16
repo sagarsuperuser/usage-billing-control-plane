@@ -269,6 +269,18 @@ type APIKey struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 }
 
+type PlatformAPIKey struct {
+	ID         string     `json:"id"`
+	KeyPrefix  string     `json:"key_prefix"`
+	KeyHash    string     `json:"-"`
+	Name       string     `json:"name"`
+	Role       string     `json:"role"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+}
+
 type APIKeyAuditEvent struct {
 	ID            string         `json:"id"`
 	TenantID      string         `json:"tenant_id"`

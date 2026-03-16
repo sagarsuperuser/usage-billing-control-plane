@@ -17,11 +17,18 @@ import (
 )
 
 type Role string
+type Scope string
+type PlatformRole string
 
 const (
 	RoleReader Role = "reader"
 	RoleWriter Role = "writer"
 	RoleAdmin  Role = "admin"
+
+	ScopeTenant   Scope = "tenant"
+	ScopePlatform Scope = "platform"
+
+	PlatformRoleAdmin PlatformRole = "platform_admin"
 
 	apiKeyHeader       = "X-API-Key"
 	apiKeyPrefixLength = 16
@@ -45,9 +52,11 @@ func (e tenantBlockedError) Error() string {
 func (e tenantBlockedError) Unwrap() error { return errTenantBlocked }
 
 type Principal struct {
-	Role     Role
-	TenantID string
-	APIKeyID string
+	Scope        Scope
+	Role         Role
+	PlatformRole PlatformRole
+	TenantID     string
+	APIKeyID     string
 }
 
 type APIKeyAuthorizer interface {
@@ -60,6 +69,10 @@ type APIKeyStore interface {
 	GetAPIKeyByPrefix(prefix string) (domain.APIKey, error)
 	GetActiveAPIKeyByPrefix(prefix string, at time.Time) (domain.APIKey, error)
 	TouchAPIKeyLastUsed(id string, usedAt time.Time) error
+	CreatePlatformAPIKey(input domain.PlatformAPIKey) (domain.PlatformAPIKey, error)
+	GetPlatformAPIKeyByPrefix(prefix string) (domain.PlatformAPIKey, error)
+	GetActivePlatformAPIKeyByPrefix(prefix string, at time.Time) (domain.PlatformAPIKey, error)
+	TouchPlatformAPIKeyLastUsed(id string, usedAt time.Time) error
 }
 
 type BootstrapResult struct {
@@ -103,6 +116,7 @@ func (a *StaticAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 		return Principal{}, errUnauthorized
 	}
 	return Principal{
+		Scope:    ScopeTenant,
 		Role:     role,
 		TenantID: defaultTenantID,
 	}, nil
@@ -133,40 +147,61 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 	prefix := KeyPrefixFromHash(hashed)
 	record, err := a.store.GetActiveAPIKeyByPrefix(prefix, time.Now().UTC())
 	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			return Principal{}, fmt.Errorf("load active api key: %w", err)
+		}
+	} else {
+		if !hashMatches(record.KeyHash, hashed) {
+			return Principal{}, errUnauthorized
+		}
+
+		role, err := ParseRole(record.Role)
+		if err != nil {
+			return Principal{}, fmt.Errorf("invalid stored role for key prefix %q: %w", prefix, err)
+		}
+
+		tenant, err := a.store.GetTenant(record.TenantID)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return Principal{}, errUnauthorized
+			}
+			return Principal{}, fmt.Errorf("load tenant: %w", err)
+		}
+		if tenant.Status != domain.TenantStatusActive {
+			return Principal{}, tenantBlockedError{
+				TenantID: record.TenantID,
+				Status:   tenant.Status,
+			}
+		}
+
+		_ = a.store.TouchAPIKeyLastUsed(record.ID, time.Now().UTC())
+		return Principal{
+			Scope:    ScopeTenant,
+			Role:     role,
+			TenantID: normalizeTenantID(record.TenantID),
+			APIKeyID: record.ID,
+		}, nil
+	}
+
+	platformRecord, err := a.store.GetActivePlatformAPIKeyByPrefix(prefix, time.Now().UTC())
+	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return Principal{}, errUnauthorized
 		}
-		return Principal{}, fmt.Errorf("load active api key: %w", err)
+		return Principal{}, fmt.Errorf("load active platform api key: %w", err)
 	}
-
-	if !hashMatches(record.KeyHash, hashed) {
+	if !hashMatches(platformRecord.KeyHash, hashed) {
 		return Principal{}, errUnauthorized
 	}
-
-	role, err := ParseRole(record.Role)
+	platformRole, err := ParsePlatformRole(platformRecord.Role)
 	if err != nil {
-		return Principal{}, fmt.Errorf("invalid stored role for key prefix %q: %w", prefix, err)
+		return Principal{}, fmt.Errorf("invalid stored platform role for key prefix %q: %w", prefix, err)
 	}
-
-	tenant, err := a.store.GetTenant(record.TenantID)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return Principal{}, errUnauthorized
-		}
-		return Principal{}, fmt.Errorf("load tenant: %w", err)
-	}
-	if tenant.Status != domain.TenantStatusActive {
-		return Principal{}, tenantBlockedError{
-			TenantID: record.TenantID,
-			Status:   tenant.Status,
-		}
-	}
-
-	_ = a.store.TouchAPIKeyLastUsed(record.ID, time.Now().UTC())
+	_ = a.store.TouchPlatformAPIKeyLastUsed(platformRecord.ID, time.Now().UTC())
 	return Principal{
-		Role:     role,
-		TenantID: normalizeTenantID(record.TenantID),
-		APIKeyID: record.ID,
+		Scope:        ScopePlatform,
+		PlatformRole: platformRole,
+		APIKeyID:     platformRecord.ID,
 	}, nil
 }
 
@@ -307,6 +342,15 @@ func principalFromContext(ctx context.Context) (Principal, bool) {
 	v := ctx.Value(requestPrincipalContextKey)
 	principal, ok := v.(Principal)
 	return principal, ok
+}
+
+func ParsePlatformRole(raw string) (PlatformRole, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case string(PlatformRoleAdmin):
+		return PlatformRoleAdmin, nil
+	default:
+		return "", fmt.Errorf("unsupported platform role %q", raw)
+	}
 }
 
 func normalizeTenantID(v string) string {
