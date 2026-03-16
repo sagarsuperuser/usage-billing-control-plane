@@ -591,7 +591,7 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 
 func resetTables(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec(`TRUNCATE TABLE lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
+	_, err := db.Exec(`TRUNCATE TABLE tenant_audit_events, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate tables: %v", err)
 	}
@@ -1680,6 +1680,88 @@ func TestBlockedTenantCannotUseAPIKey(t *testing.T) {
 	}
 }
 
+func TestInternalTenantOperatorEndpoints(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "default-admin", api.RoleAdmin, "default")
+	mustCreateAPIKey(t, repo, "tenant-a-admin", api.RoleAdmin, "tenant_a")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoClient, lagoCleanup := newTestLagoClient(t)
+	defer lagoCleanup()
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	defer ts.Close()
+
+	created := postJSON(t, ts.URL+"/internal/tenants", map[string]any{
+		"id":   "tenant_ops",
+		"name": "Tenant Ops",
+	}, "default-admin", http.StatusCreated)
+	createdTenant, ok := created["tenant"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tenant object in create response")
+	}
+	if createdTenant["id"] != "tenant_ops" {
+		t.Fatalf("expected tenant_ops id, got %v", createdTenant["id"])
+	}
+
+	_ = postJSON(t, ts.URL+"/internal/tenants", map[string]any{
+		"id":   "tenant_denied",
+		"name": "Denied",
+	}, "tenant-a-admin", http.StatusForbidden)
+
+	list := getJSONArray(t, ts.URL+"/internal/tenants?status=active", "default-admin", http.StatusOK)
+	if len(list) == 0 {
+		t.Fatalf("expected active tenant list to include tenants")
+	}
+
+	got := getJSON(t, ts.URL+"/internal/tenants/tenant_ops", "default-admin", http.StatusOK)
+	if got["id"] != "tenant_ops" {
+		t.Fatalf("expected tenant_ops get response, got %v", got["id"])
+	}
+
+	updated := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
+		"status": "suspended",
+	}, "default-admin", http.StatusOK)
+	if updated["status"] != "suspended" {
+		t.Fatalf("expected suspended status, got %v", updated["status"])
+	}
+
+	auditPage := getJSON(t, ts.URL+"/internal/tenants/audit?tenant_id=tenant_ops&limit=10", "default-admin", http.StatusOK)
+	if got, _ := auditPage["total"].(float64); got < 2 {
+		t.Fatalf("expected at least 2 tenant audit events, got %v", got)
+	}
+	auditItems := listItemsFromResponse(t, auditPage)
+	if !containsTenantAuditAction(auditItems, "tenant_ops", "created") {
+		t.Fatalf("expected created tenant audit event")
+	}
+	if !containsTenantAuditAction(auditItems, "tenant_ops", "status_changed") {
+		t.Fatalf("expected status_changed tenant audit event")
+	}
+
+	_ = patchJSON(t, ts.URL+"/internal/tenants/default", map[string]any{
+		"status": "suspended",
+	}, "default-admin", http.StatusBadRequest)
+}
+
 func TestAuditExportToS3(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -2008,6 +2090,41 @@ func postJSON(t *testing.T, url string, body any, apiKey string, expectedStatus 
 	return out
 }
 
+func patchJSON(t *testing.T, url string, body any, apiKey string, expectedStatus int) map[string]any {
+	t.Helper()
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("patch request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unexpected status %d, expected %d, body=%s", resp.StatusCode, expectedStatus, string(b))
+	}
+
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return out
+}
+
 func postJSONWithHeaders(t *testing.T, url string, body any, headers map[string]string, apiKey string, expectedStatus int) map[string]any {
 	t.Helper()
 
@@ -2131,6 +2248,21 @@ func containsActionForKey(items []any, apiKeyID, action string) bool {
 		gotKeyID, _ := m["api_key_id"].(string)
 		gotAction, _ := m["action"].(string)
 		if gotKeyID == apiKeyID && gotAction == action {
+			return true
+		}
+	}
+	return false
+}
+
+func containsTenantAuditAction(items []any, tenantID, action string) bool {
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		gotTenantID, _ := m["tenant_id"].(string)
+		gotAction, _ := m["action"].(string)
+		if gotTenantID == tenantID && gotAction == action {
 			return true
 		}
 	}

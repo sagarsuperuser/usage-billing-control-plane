@@ -98,7 +98,7 @@ func main() {
 	tenant, tenantCreated, err := tenantService.EnsureTenant(service.EnsureTenantRequest{
 		ID:   tenantID,
 		Name: tenantName,
-	})
+	}, "")
 	if err != nil {
 		fatal(logger, "ensure tenant", "tenant_id", tenantID, "error", err)
 	}

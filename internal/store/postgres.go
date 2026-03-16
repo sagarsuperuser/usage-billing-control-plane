@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,6 +150,222 @@ func (s *PostgresStore) GetTenant(id string) (domain.Tenant, error) {
 		return domain.Tenant{}, err
 	}
 	return tenant, nil
+}
+
+func (s *PostgresStore) ListTenants(status string) ([]domain.Tenant, error) {
+	status = strings.ToLower(strings.TrimSpace(status))
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	query := `SELECT id, name, status, created_at, updated_at FROM tenants`
+	args := []any{}
+	if status != "" {
+		query += ` WHERE status = $1`
+		args = append(args, status)
+	}
+	query += ` ORDER BY created_at ASC, id ASC`
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.Tenant, 0)
+	for rows.Next() {
+		tenant, scanErr := scanTenant(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, tenant)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateTenantStatus(id string, status domain.TenantStatus, updatedAt time.Time) (domain.Tenant, error) {
+	id = normalizeTenantID(id)
+	status = normalizeTenantStatus(status)
+	if updatedAt.IsZero() {
+		updatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE tenants
+		SET status = $1, updated_at = $2
+		WHERE id = $3
+		RETURNING id, name, status, created_at, updated_at`,
+		string(status),
+		updatedAt,
+		id,
+	)
+	tenant, err := scanTenant(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Tenant{}, ErrNotFound
+		}
+		return domain.Tenant{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Tenant{}, err
+	}
+	return tenant, nil
+}
+
+func (s *PostgresStore) CreateTenantAuditEvent(input domain.TenantAuditEvent) (domain.TenantAuditEvent, error) {
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.ActorAPIKeyID = strings.TrimSpace(input.ActorAPIKeyID)
+	input.Action = strings.ToLower(strings.TrimSpace(input.Action))
+	if input.TenantID == "" || input.Action == "" {
+		return domain.TenantAuditEvent{}, fmt.Errorf("validation failed: tenant_id and action are required")
+	}
+	if input.ID == "" {
+		input.ID = newID("tae")
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = time.Now().UTC()
+	}
+	if input.Metadata == nil {
+		input.Metadata = map[string]any{}
+	}
+	metadata, err := json.Marshal(input.Metadata)
+	if err != nil {
+		return domain.TenantAuditEvent{}, err
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.TenantAuditEvent{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO tenant_audit_events (
+			id, tenant_id, actor_api_key_id, action, metadata, created_at
+		) VALUES ($1,$2,NULLIF($3,''),$4,$5::jsonb,$6)
+		RETURNING id, tenant_id, actor_api_key_id, action, metadata, created_at`,
+		input.ID,
+		input.TenantID,
+		input.ActorAPIKeyID,
+		input.Action,
+		string(metadata),
+		input.CreatedAt,
+	)
+	event, err := scanTenantAuditEvent(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.TenantAuditEvent{}, ErrAlreadyExists
+		}
+		return domain.TenantAuditEvent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.TenantAuditEvent{}, err
+	}
+	return event, nil
+}
+
+func (s *PostgresStore) ListTenantAuditEvents(filter TenantAuditFilter) (TenantAuditResult, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return TenantAuditResult{}, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"1=1"}
+	args := []any{}
+	add := func(format string, val any) {
+		args = append(args, val)
+		clauses = append(clauses, fmt.Sprintf(format, len(args)))
+	}
+	if strings.TrimSpace(filter.TenantID) != "" {
+		add("tenant_id = $%d", normalizeTenantID(filter.TenantID))
+	}
+	if strings.TrimSpace(filter.ActorAPIKeyID) != "" {
+		add("actor_api_key_id = $%d", strings.TrimSpace(filter.ActorAPIKeyID))
+	}
+	if strings.TrimSpace(filter.Action) != "" {
+		add("action = $%d", strings.TrimSpace(filter.Action))
+	}
+	where := strings.Join(clauses, " AND ")
+
+	var total int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM tenant_audit_events WHERE `+where, args...).Scan(&total); err != nil {
+		return TenantAuditResult{}, err
+	}
+
+	pagedArgs := append(append([]any{}, args...), limit, offset)
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT id, tenant_id, actor_api_key_id, action, metadata, created_at
+		FROM tenant_audit_events
+		WHERE `+where+`
+		ORDER BY created_at DESC, id DESC
+		LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
+		pagedArgs...,
+	)
+	if err != nil {
+		return TenantAuditResult{}, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.TenantAuditEvent, 0, limit)
+	for rows.Next() {
+		item, scanErr := scanTenantAuditEvent(rows)
+		if scanErr != nil {
+			return TenantAuditResult{}, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return TenantAuditResult{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return TenantAuditResult{}, err
+	}
+	return TenantAuditResult{
+		Items:  items,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	}, nil
 }
 
 func (s *PostgresStore) beginTxWithSession(ctx context.Context, mode txSessionMode, tenantID string) (*sql.Tx, error) {
@@ -3027,6 +3244,39 @@ func scanAPIKeyAuditEvent(s rowScanner) (domain.APIKeyAuditEvent, error) {
 	}
 	if err := json.Unmarshal(metadataRaw, &out.Metadata); err != nil {
 		return domain.APIKeyAuditEvent{}, err
+	}
+	if out.Metadata == nil {
+		out.Metadata = map[string]any{}
+	}
+	return out, nil
+}
+
+func scanTenantAuditEvent(s rowScanner) (domain.TenantAuditEvent, error) {
+	var out domain.TenantAuditEvent
+	var actorAPIKeyID sql.NullString
+	var metadataRaw []byte
+
+	if err := s.Scan(
+		&out.ID,
+		&out.TenantID,
+		&actorAPIKeyID,
+		&out.Action,
+		&metadataRaw,
+		&out.CreatedAt,
+	); err != nil {
+		return domain.TenantAuditEvent{}, err
+	}
+
+	out.TenantID = normalizeTenantID(out.TenantID)
+	if actorAPIKeyID.Valid {
+		out.ActorAPIKeyID = actorAPIKeyID.String
+	}
+	if len(metadataRaw) == 0 {
+		out.Metadata = map[string]any{}
+		return out, nil
+	}
+	if err := json.Unmarshal(metadataRaw, &out.Metadata); err != nil {
+		return domain.TenantAuditEvent{}, err
 	}
 	if out.Metadata == nil {
 		out.Metadata = map[string]any{}

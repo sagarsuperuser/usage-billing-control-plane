@@ -77,6 +77,21 @@ type APIKeyAuditResult struct {
 	NextCursorCreated *time.Time
 }
 
+type TenantAuditFilter struct {
+	TenantID      string
+	ActorAPIKeyID string
+	Action        string
+	Limit         int
+	Offset        int
+}
+
+type TenantAuditResult struct {
+	Items  []domain.TenantAuditEvent
+	Total  int
+	Limit  int
+	Offset int
+}
+
 type APIKeyAuditExportFilter struct {
 	TenantID            string
 	Status              string
@@ -175,6 +190,10 @@ type Repository interface {
 
 	CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	GetTenant(id string) (domain.Tenant, error)
+	ListTenants(status string) ([]domain.Tenant, error)
+	UpdateTenantStatus(id string, status domain.TenantStatus, updatedAt time.Time) (domain.Tenant, error)
+	CreateTenantAuditEvent(input domain.TenantAuditEvent) (domain.TenantAuditEvent, error)
+	ListTenantAuditEvents(filter TenantAuditFilter) (TenantAuditResult, error)
 
 	CreateRatingRuleVersion(input domain.RatingRuleVersion) (domain.RatingRuleVersion, error)
 	ListRatingRuleVersions(filter RatingRuleListFilter) ([]domain.RatingRuleVersion, error)

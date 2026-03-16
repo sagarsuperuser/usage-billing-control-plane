@@ -31,6 +31,7 @@ import (
 
 type Server struct {
 	ratingService             *service.RatingService
+	tenantService             *service.TenantService
 	meterService              *service.MeterService
 	usageService              *service.UsageService
 	apiKeyService             *service.APIKeyService
@@ -195,6 +196,7 @@ var httpRequestIDContextKey requestIDContextKey
 func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s := &Server{
 		ratingService:          service.NewRatingService(repo),
+		tenantService:          service.NewTenantService(repo),
 		meterService:           service.NewMeterService(repo),
 		usageService:           service.NewUsageService(repo),
 		apiKeyService:          service.NewAPIKeyService(repo),
@@ -854,6 +856,15 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/internal/lago/webhooks" {
 		return "", false
 	}
+	if path == "/internal/tenants/audit" {
+		return RoleAdmin, true
+	}
+	if path == "/internal/tenants" {
+		return RoleAdmin, true
+	}
+	if strings.HasPrefix(path, "/internal/tenants/") {
+		return RoleAdmin, true
+	}
 	if path == "/v1/ui/sessions/login" {
 		return "", false
 	}
@@ -944,6 +955,12 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/ready"
 	case path == "/internal/lago/webhooks":
 		return "/internal/lago/webhooks"
+	case path == "/internal/tenants/audit":
+		return "/internal/tenants/audit"
+	case path == "/internal/tenants":
+		return "/internal/tenants"
+	case strings.HasPrefix(path, "/internal/tenants/"):
+		return "/internal/tenants/{id}"
 	case path == "/v1/ui/sessions/login":
 		return "/v1/ui/sessions/login"
 	case path == "/v1/ui/sessions/me":
@@ -1042,6 +1059,9 @@ func isTenantMatch(resourceTenantID, requestTenantID string) bool {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/health", s.handleHealth)
 	s.mux.HandleFunc("/internal/lago/webhooks", s.handleLagoWebhooks)
+	s.mux.HandleFunc("/internal/tenants/audit", s.handleInternalTenantAudit)
+	s.mux.HandleFunc("/internal/tenants", s.handleInternalTenants)
+	s.mux.HandleFunc("/internal/tenants/", s.handleInternalTenantByID)
 	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
 	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
 	s.mux.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
@@ -1075,6 +1095,126 @@ func (s *Server) registerRoutes() {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) isOperatorRequest(r *http.Request) bool {
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		return false
+	}
+	return principal.Role == RoleAdmin && normalizeTenantID(principal.TenantID) == defaultTenantID
+}
+
+func (s *Server) handleInternalTenants(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPost:
+		var req service.EnsureTenantRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		tenant, created, err := s.tenantService.EnsureTenant(req, requestActorAPIKeyID(r))
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		status := http.StatusCreated
+		if !created {
+			status = http.StatusOK
+		}
+		writeJSON(w, status, map[string]any{
+			"tenant":  tenant,
+			"created": created,
+		})
+	case http.MethodGet:
+		tenants, err := s.tenantService.ListTenants(service.ListTenantsRequest{
+			Status: r.URL.Query().Get("status"),
+		})
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, tenants)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/internal/tenants/")
+	id = strings.Trim(id, "/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		tenant, err := s.tenantService.GetTenant(id)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, tenant)
+	case http.MethodPatch:
+		var req struct {
+			Status domain.TenantStatus `json:"status"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		tenant, err := s.tenantService.UpdateTenantStatusWithActor(id, req.Status, requestActorAPIKeyID(r))
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, tenant)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleInternalTenantAudit(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	events, err := s.tenantService.ListTenantAuditEvents(service.ListTenantAuditEventsRequest{
+		TenantID:      r.URL.Query().Get("tenant_id"),
+		ActorAPIKeyID: r.URL.Query().Get("actor_api_key_id"),
+		Action:        r.URL.Query().Get("action"),
+		Limit:         limit,
+		Offset:        offset,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, events)
 }
 
 type uiSessionLoginRequest struct {

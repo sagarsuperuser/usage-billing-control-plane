@@ -277,6 +277,15 @@ type APIKeyAuditEvent struct {
 	CreatedAt     time.Time      `json:"created_at"`
 }
 
+type TenantAuditEvent struct {
+	ID            string         `json:"id"`
+	TenantID      string         `json:"tenant_id"`
+	ActorAPIKeyID string         `json:"actor_api_key_id,omitempty"`
+	Action        string         `json:"action"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
 type APIKeyAuditExportStatus string
 
 const (
