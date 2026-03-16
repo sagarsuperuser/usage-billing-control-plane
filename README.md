@@ -616,6 +616,10 @@ Role-based scaling model (same backend image):
 
 Architecture and rollout docs:
 - `docs/production-architecture.md`
+- `docs/alpha-lago-boundary.md`
+- `docs/alpha-implementation-roadmap.md`
+- `docs/alpha-lago-adapter-plan.md`
+- `docs/alpha-customer-model.md`
 - `docs/infra-rollout-runbook.md`
 - `docs/staging-go-live-checklist.md`
 - `docs/real-payment-e2e-runbook.md`

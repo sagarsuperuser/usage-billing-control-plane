@@ -59,10 +59,10 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoClient, lagoCleanup := newTestLagoClient(t)
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
 	defer lagoCleanup()
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithMetricsProvider(replayMetricsProvider), api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(repo, api.WithMetricsProvider(replayMetricsProvider), api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	getJSON(t, ts.URL+"/v1/rating-rules", "", http.StatusUnauthorized)
@@ -883,13 +883,13 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	}))
 	defer lagoMock.Close()
 
-	lagoClient, err := service.NewLagoClient(service.LagoClientConfig{
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
 		BaseURL: lagoMock.URL,
 		APIKey:  "test-api-key",
 		Timeout: 2 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("new lago client: %v", err)
+		t.Fatalf("new lago transport: %v", err)
 	}
 	mustSetTenantMappings(t, repo, "tenant_a", "org_test_1", "stripe_test")
 	mustSetTenantMappings(t, repo, "tenant_b", "org_test_2", "stripe_test")
@@ -903,7 +903,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoClient(lagoClient),
+		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
 		api.WithLagoWebhookService(lagoWebhookSvc),
 	).Handler())
 	defer ts.Close()
@@ -1261,10 +1261,10 @@ func TestTenantIsolationAcrossAPIKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoClient, lagoCleanup := newTestLagoClient(t)
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
 	defer lagoCleanup()
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
@@ -1324,10 +1324,10 @@ func TestRatingRuleGovernanceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoClient, lagoCleanup := newTestLagoClient(t)
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
 	defer lagoCleanup()
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	v1 := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
@@ -1504,10 +1504,10 @@ func TestAPIKeyLifecycleEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoClient, lagoCleanup := newTestLagoClient(t)
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
 	defer lagoCleanup()
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	_ = postJSON(t, ts.URL+"/v1/api-keys", map[string]any{
@@ -1678,10 +1678,10 @@ func TestBlockedTenantCannotUseAPIKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("new authorizer: %v", err)
 		}
-		lagoClient, lagoCleanup := newTestLagoClient(t)
+		lagoTransport, lagoCleanup := newTestLagoTransport(t)
 		defer lagoCleanup()
 
-		ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+		ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 		resp := getJSON(t, ts.URL+"/v1/api-keys", "blocked-"+status+"-admin", http.StatusForbidden)
 		if got, _ := resp["error"].(string); got != "forbidden" {
 			t.Fatalf("expected forbidden error for status=%s, got %v", status, resp["error"])
@@ -1715,10 +1715,10 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoClient, lagoCleanup := newTestLagoClient(t)
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
 	defer lagoCleanup()
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	created := postJSON(t, ts.URL+"/internal/tenants", map[string]any{
@@ -1846,10 +1846,10 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoClient, lagoCleanup := newTestLagoClient(t)
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
 	defer lagoCleanup()
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	onboarded := postJSON(t, ts.URL+"/internal/onboarding/tenants", map[string]any{
@@ -1912,8 +1912,14 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected first_customer readiness object")
 	}
-	if got, _ := firstCustomerReadiness["status"].(string); got != "not_started" {
-		t.Fatalf("expected first_customer status not_started, got %q", got)
+	if got, _ := firstCustomerReadiness["status"].(string); got != "pending" {
+		t.Fatalf("expected first_customer status pending, got %q", got)
+	}
+	if got, _ := firstCustomerReadiness["managed"].(bool); !got {
+		t.Fatalf("expected first_customer managed=true")
+	}
+	if got, _ := firstCustomerReadiness["customer_exists"].(bool); got {
+		t.Fatalf("expected first_customer customer_exists=false before customer bootstrap")
 	}
 
 	initialReadiness := getJSON(t, ts.URL+"/internal/onboarding/tenants/tenant_onboard", "platform-admin", http.StatusOK)
@@ -1944,6 +1950,29 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 		"rating_rule_version_id": ruleID,
 	}, adminSecret, http.StatusCreated)
 
+	_ = postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id":  "cust_onboard",
+		"display_name": "Tenant Onboard Customer",
+		"email":        "billing@tenant-onboard.test",
+	}, adminSecret, http.StatusCreated)
+	_ = putJSON(t, ts.URL+"/v1/customers/cust_onboard/billing-profile", map[string]any{
+		"legal_name":            "Tenant Onboard Customer LLC",
+		"email":                 "billing@tenant-onboard.test",
+		"billing_address_line1": "1 Billing Street",
+		"billing_city":          "Bengaluru",
+		"billing_postal_code":   "560001",
+		"billing_country":       "IN",
+		"currency":              "USD",
+		"provider_code":         "stripe_onboard",
+	}, adminSecret, http.StatusOK)
+	_ = putJSON(t, ts.URL+"/v1/customers/cust_onboard/payment-setup", map[string]any{
+		"default_payment_method_present":    true,
+		"payment_method_type":               "card",
+		"provider_customer_reference":       "pcus_onboard",
+		"provider_payment_method_reference": "pm_onboard",
+		"last_verification_result":          "verified",
+	}, adminSecret, http.StatusOK)
+
 	finalReadiness := getJSON(t, ts.URL+"/internal/onboarding/tenants/tenant_onboard", "platform-admin", http.StatusOK)
 	finalReadinessData, ok := finalReadiness["readiness"].(map[string]any)
 	if !ok {
@@ -1961,6 +1990,16 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 	}
 	if got, _ := finalBillingReadiness["pricing_ready"].(bool); !got {
 		t.Fatalf("expected pricing_ready=true after pricing bootstrap")
+	}
+	finalFirstCustomerReadiness, ok := finalReadinessData["first_customer"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first_customer readiness object from onboarding status endpoint")
+	}
+	if got, _ := finalFirstCustomerReadiness["status"].(string); got != "ready" {
+		t.Fatalf("expected first_customer readiness ready after customer bootstrap, got %q", got)
+	}
+	if got, _ := finalFirstCustomerReadiness["customer_external_id"].(string); got != "cust_onboard" {
+		t.Fatalf("expected first_customer customer_external_id=cust_onboard, got %q", got)
 	}
 }
 
@@ -1999,7 +2038,7 @@ func TestAuditExportToS3(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoClient, lagoCleanup := newTestLagoClient(t)
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
 	defer lagoCleanup()
 
 	objectStore, err := service.NewS3ObjectStore(context.Background(), service.S3Config{
@@ -2027,7 +2066,7 @@ func TestAuditExportToS3(t *testing.T) {
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithAuditExportService(auditExportSvc),
-		api.WithLagoClient(lagoClient),
+		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
 	).Handler())
 	defer ts.Close()
 
@@ -2156,7 +2195,7 @@ func TestAuditExportToS3(t *testing.T) {
 	}
 }
 
-func newTestLagoClient(t *testing.T) (*service.LagoClient, func()) {
+func newTestLagoTransport(t *testing.T) (*service.LagoHTTPTransport, func()) {
 	t.Helper()
 
 	baseURL := strings.TrimSpace(os.Getenv("TEST_LAGO_API_URL"))
@@ -2165,16 +2204,16 @@ func newTestLagoClient(t *testing.T) (*service.LagoClient, func()) {
 		t.Skip("TEST_LAGO_API_URL and TEST_LAGO_API_KEY are required for Lago-backed API tests")
 	}
 
-	client, err := service.NewLagoClient(service.LagoClientConfig{
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
 		BaseURL: baseURL,
 		APIKey:  apiKey,
 		Timeout: 10 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("new lago client: %v", err)
+		t.Fatalf("new lago transport: %v", err)
 	}
 
-	return client, func() {}
+	return lagoTransport, func() {}
 }
 
 func startTemporalReplayRuntime(t *testing.T, repo *store.PostgresStore) (func() map[string]any, func()) {
@@ -2230,6 +2269,156 @@ func startTemporalReplayRuntime(t *testing.T, repo *store.PostgresStore) (func()
 		temporalClient.Close()
 	}
 	return metricsProvider, cleanup
+}
+
+func TestCustomerCRUDAndReadiness(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "customer-reader-key", api.RoleReader, "default")
+	mustCreateAPIKey(t, repo, "customer-writer-key", api.RoleWriter, "default")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+	).Handler())
+	defer ts.Close()
+
+	readerForbidden := postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id":  "cust_alpha",
+		"display_name": "Alpha Co",
+	}, "customer-reader-key", http.StatusForbidden)
+	if got, _ := readerForbidden["error"].(string); !strings.Contains(strings.ToLower(got), "forbidden") {
+		t.Fatalf("expected reader create forbidden, got %q", got)
+	}
+
+	customer := postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id":  "cust_alpha",
+		"display_name": "Alpha Co",
+		"email":        "billing@alpha.test",
+	}, "customer-writer-key", http.StatusCreated)
+	if got, _ := customer["external_id"].(string); got != "cust_alpha" {
+		t.Fatalf("expected external_id cust_alpha, got %q", got)
+	}
+	if got, _ := customer["status"].(string); got != "active" {
+		t.Fatalf("expected status active, got %q", got)
+	}
+
+	duplicate := postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id": "cust_alpha",
+	}, "customer-writer-key", http.StatusConflict)
+	if got, _ := duplicate["error"].(string); !strings.Contains(strings.ToLower(got), "already exists") {
+		t.Fatalf("expected duplicate customer conflict, got %q", got)
+	}
+
+	customers := getJSONArray(t, ts.URL+"/v1/customers?limit=10", "customer-reader-key", http.StatusOK)
+	if len(customers) != 1 {
+		t.Fatalf("expected customer list size 1, got %d", len(customers))
+	}
+
+	gotCustomer := getJSON(t, ts.URL+"/v1/customers/cust_alpha", "customer-reader-key", http.StatusOK)
+	if got, _ := gotCustomer["display_name"].(string); got != "Alpha Co" {
+		t.Fatalf("expected display_name Alpha Co, got %q", got)
+	}
+
+	profileMissing := getJSON(t, ts.URL+"/v1/customers/cust_alpha/billing-profile", "customer-reader-key", http.StatusOK)
+	if got, _ := profileMissing["profile_status"].(string); got != "missing" {
+		t.Fatalf("expected billing profile status missing, got %q", got)
+	}
+	setupMissing := getJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", "customer-reader-key", http.StatusOK)
+	if got, _ := setupMissing["setup_status"].(string); got != "missing" {
+		t.Fatalf("expected payment setup status missing, got %q", got)
+	}
+	readinessPending := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "customer-reader-key", http.StatusOK)
+	if got, _ := readinessPending["status"].(string); got != "pending" {
+		t.Fatalf("expected readiness pending, got %q", got)
+	}
+	assertStringArrayContains(t, readinessPending["missing_steps"], "billing_profile_ready")
+	assertStringArrayContains(t, readinessPending["missing_steps"], "payment_setup_ready")
+
+	updated := patchJSON(t, ts.URL+"/v1/customers/cust_alpha", map[string]any{
+		"display_name":     "Alpha Company",
+		"lago_customer_id": "lago_cust_alpha",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := updated["display_name"].(string); got != "Alpha Company" {
+		t.Fatalf("expected updated display_name Alpha Company, got %q", got)
+	}
+
+	profileIncomplete := putJSON(t, ts.URL+"/v1/customers/cust_alpha/billing-profile", map[string]any{
+		"legal_name": "Alpha Company Pvt Ltd",
+		"email":      "billing@alpha.test",
+		"currency":   "usd",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := profileIncomplete["profile_status"].(string); got != "incomplete" {
+		t.Fatalf("expected billing profile status incomplete, got %q", got)
+	}
+
+	setupPending := putJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", map[string]any{
+		"payment_method_type":         "card",
+		"provider_customer_reference": "pcus_123",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := setupPending["setup_status"].(string); got != "pending" {
+		t.Fatalf("expected payment setup status pending, got %q", got)
+	}
+
+	readinessStillPending := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "customer-reader-key", http.StatusOK)
+	if got, _ := readinessStillPending["status"].(string); got != "pending" {
+		t.Fatalf("expected readiness pending after partial setup, got %q", got)
+	}
+
+	profileReady := putJSON(t, ts.URL+"/v1/customers/cust_alpha/billing-profile", map[string]any{
+		"legal_name":            "Alpha Company Pvt Ltd",
+		"email":                 "billing@alpha.test",
+		"billing_address_line1": "1 Billing St",
+		"billing_city":          "Bengaluru",
+		"billing_postal_code":   "560001",
+		"billing_country":       "IN",
+		"currency":              "USD",
+		"provider_code":         "stripe_default",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := profileReady["profile_status"].(string); got != "ready" {
+		t.Fatalf("expected billing profile status ready, got %q", got)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	setupReady := putJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", map[string]any{
+		"default_payment_method_present":    true,
+		"payment_method_type":               "card",
+		"provider_customer_reference":       "pcus_123",
+		"provider_payment_method_reference": "pm_123",
+		"last_verified_at":                  now,
+		"last_verification_result":          "verified",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := setupReady["setup_status"].(string); got != "ready" {
+		t.Fatalf("expected payment setup status ready, got %q", got)
+	}
+
+	readinessReady := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "customer-reader-key", http.StatusOK)
+	if got, _ := readinessReady["status"].(string); got != "ready" {
+		t.Fatalf("expected readiness ready, got %q", got)
+	}
+	if missingRaw, ok := readinessReady["missing_steps"].([]any); !ok || len(missingRaw) != 0 {
+		t.Fatalf("expected readiness missing_steps empty, got %v", readinessReady["missing_steps"])
+	}
 }
 
 func mustCreateAPIKey(t *testing.T, repo *store.PostgresStore, rawKey string, role api.Role, tenantID string) {
@@ -2343,6 +2532,41 @@ func patchJSON(t *testing.T, url string, body any, apiKey string, expectedStatus
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("patch request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unexpected status %d, expected %d, body=%s", resp.StatusCode, expectedStatus, string(b))
+	}
+
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return out
+}
+
+func putJSON(t *testing.T, url string, body any, apiKey string, expectedStatus int) map[string]any {
+	t.Helper()
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("put request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -2541,6 +2765,20 @@ func getRaw(t *testing.T, url string, apiKey string, expectedStatus int) (string
 	}
 
 	return string(bodyBytes), resp.Header
+}
+
+func assertStringArrayContains(t *testing.T, raw any, want string) {
+	t.Helper()
+	items, ok := raw.([]any)
+	if !ok {
+		t.Fatalf("expected []any, got %T", raw)
+	}
+	for _, item := range items {
+		if got, _ := item.(string); got == want {
+			return
+		}
+	}
+	t.Fatalf("expected %q in %v", want, raw)
 }
 
 func envIntOrDefault(t *testing.T, key string, defaultValue int) int {

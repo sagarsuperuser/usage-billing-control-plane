@@ -57,8 +57,8 @@ type ReconcileActivities struct {
 	service *service.PaymentReconcileService
 }
 
-func NewReconcileActivities(repo store.Repository, lagoClient *service.LagoClient) (*ReconcileActivities, error) {
-	svc, err := service.NewPaymentReconcileService(repo, lagoClient)
+func NewReconcileActivities(repo store.Repository, invoiceAdapter service.InvoiceBillingAdapter) (*ReconcileActivities, error) {
+	svc, err := service.NewPaymentReconcileService(repo, invoiceAdapter)
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +75,8 @@ func (a *ReconcileActivities) RunPaymentReconcileBatch(ctx context.Context, inpu
 	})
 }
 
-func RegisterTemporalPaymentReconcileWorker(w worker.Worker, repo store.Repository, lagoClient *service.LagoClient) error {
-	activities, err := NewReconcileActivities(repo, lagoClient)
+func RegisterTemporalPaymentReconcileWorker(w worker.Worker, repo store.Repository, invoiceAdapter service.InvoiceBillingAdapter) error {
+	activities, err := NewReconcileActivities(repo, invoiceAdapter)
 	if err != nil {
 		return err
 	}

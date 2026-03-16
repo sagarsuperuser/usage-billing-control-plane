@@ -32,12 +32,14 @@ import (
 type Server struct {
 	ratingService             *service.RatingService
 	tenantService             *service.TenantService
+	customerService           *service.CustomerService
 	meterService              *service.MeterService
 	usageService              *service.UsageService
 	apiKeyService             *service.APIKeyService
 	onboardingService         *service.TenantOnboardingService
 	auditExportSvc            *service.AuditExportService
-	lagoClient                *service.LagoClient
+	meterSyncAdapter          service.MeterSyncAdapter
+	invoiceBillingAdapter     service.InvoiceBillingAdapter
 	lagoWebhookSvc            *service.LagoWebhookService
 	replayService             *replay.Service
 	recService                *reconcile.Service
@@ -280,9 +282,15 @@ func WithAuditExportService(auditExportSvc *service.AuditExportService) ServerOp
 	}
 }
 
-func WithLagoClient(lagoClient *service.LagoClient) ServerOption {
+func WithMeterSyncAdapter(adapter service.MeterSyncAdapter) ServerOption {
 	return func(s *Server) {
-		s.lagoClient = lagoClient
+		s.meterSyncAdapter = adapter
+	}
+}
+
+func WithInvoiceBillingAdapter(adapter service.InvoiceBillingAdapter) ServerOption {
+	return func(s *Server) {
+		s.invoiceBillingAdapter = adapter
 	}
 }
 
@@ -328,10 +336,11 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s := &Server{
 		ratingService:          service.NewRatingService(repo),
 		tenantService:          service.NewTenantService(repo),
+		customerService:        service.NewCustomerService(repo),
 		meterService:           service.NewMeterService(repo),
 		usageService:           service.NewUsageService(repo),
 		apiKeyService:          service.NewAPIKeyService(repo),
-		onboardingService:      service.NewTenantOnboardingService(service.NewTenantService(repo), service.NewAPIKeyService(repo), service.NewRatingService(repo), service.NewMeterService(repo)),
+		onboardingService:      service.NewTenantOnboardingService(service.NewTenantService(repo), service.NewCustomerService(repo), service.NewAPIKeyService(repo), service.NewRatingService(repo), service.NewMeterService(repo)),
 		replayService:          replay.NewService(repo),
 		recService:             reconcile.NewService(repo),
 		requestMetrics:         newRequestMetricsCollector(),
@@ -1059,6 +1068,23 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	}
 
 	switch {
+	case path == "/v1/customers":
+		if r.Method == http.MethodPost {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/customers/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
+		if strings.HasSuffix(tail, "/billing-profile") || strings.HasSuffix(tail, "/payment-setup") {
+			if r.Method == http.MethodPut {
+				return RoleWriter, true
+			}
+			return RoleReader, true
+		}
+		if r.Method == http.MethodPatch {
+			return RoleWriter, true
+		}
+		return RoleReader, true
 	case path == "/v1/rating-rules":
 		if r.Method == http.MethodPost {
 			return RoleWriter, true
@@ -1176,6 +1202,20 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/ui/sessions/me"
 	case path == "/v1/ui/sessions/logout":
 		return "/v1/ui/sessions/logout"
+	case path == "/v1/customers":
+		return "/v1/customers"
+	case strings.HasPrefix(path, "/v1/customers/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
+		if strings.HasSuffix(tail, "/billing-profile") {
+			return "/v1/customers/{id}/billing-profile"
+		}
+		if strings.HasSuffix(tail, "/payment-setup") {
+			return "/v1/customers/{id}/payment-setup"
+		}
+		if strings.HasSuffix(tail, "/readiness") {
+			return "/v1/customers/{id}/readiness"
+		}
+		return "/v1/customers/{id}"
 	case path == "/v1/rating-rules":
 		return "/v1/rating-rules"
 	case strings.HasPrefix(path, "/v1/rating-rules/"):
@@ -1279,6 +1319,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
 	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
 	s.mux.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
+
+	s.mux.HandleFunc("/v1/customers", s.handleCustomers)
+	s.mux.HandleFunc("/v1/customers/", s.handleCustomerByExternalID)
 
 	s.mux.HandleFunc("/v1/rating-rules", s.handleRatingRules)
 	s.mux.HandleFunc("/v1/rating-rules/", s.handleRatingRuleByID)
@@ -1635,6 +1678,19 @@ func parseInternalTenantPath(path string) (tenantID string, action string) {
 	return tenantID, action
 }
 
+func parseCustomerPath(path string) (externalID string, action string) {
+	tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
+	if tail == "" {
+		return "", ""
+	}
+	parts := strings.Split(tail, "/")
+	externalID = strings.TrimSpace(parts[0])
+	if len(parts) > 1 {
+		action = strings.TrimSpace(parts[1])
+	}
+	return externalID, action
+}
+
 func metricsTenantKey(principal Principal) string {
 	if principal.Scope == ScopePlatform {
 		return "platform"
@@ -1670,6 +1726,145 @@ func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
 		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
 		"csrf_token":    csrfToken,
 	})
+}
+
+func (s *Server) handleCustomers(w http.ResponseWriter, r *http.Request) {
+	tenantID := requestTenantID(r)
+	switch r.Method {
+	case http.MethodPost:
+		var req service.CreateCustomerRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		customer, err := s.customerService.CreateCustomer(tenantID, req)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, customer)
+	case http.MethodGet:
+		limit, err := parseQueryInt(r, "limit")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		offset, err := parseQueryInt(r, "offset")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		customers, err := s.customerService.ListCustomers(tenantID, service.ListCustomersRequest{
+			Status:     r.URL.Query().Get("status"),
+			ExternalID: r.URL.Query().Get("external_id"),
+			Limit:      limit,
+			Offset:     offset,
+		})
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, customers)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleCustomerByExternalID(w http.ResponseWriter, r *http.Request) {
+	tenantID := requestTenantID(r)
+	externalID, action := parseCustomerPath(r.URL.Path)
+	if externalID == "" {
+		writeError(w, http.StatusBadRequest, "customer external_id is required")
+		return
+	}
+
+	switch action {
+	case "":
+		switch r.Method {
+		case http.MethodGet:
+			customer, err := s.customerService.GetCustomerByExternalID(tenantID, externalID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, customer)
+		case http.MethodPatch:
+			var req service.UpdateCustomerRequest
+			if err := decodeJSON(r, &req); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			customer, err := s.customerService.UpdateCustomer(tenantID, externalID, req)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, customer)
+		default:
+			writeMethodNotAllowed(w)
+		}
+	case "billing-profile":
+		switch r.Method {
+		case http.MethodGet:
+			profile, err := s.customerService.GetCustomerBillingProfile(tenantID, externalID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, profile)
+		case http.MethodPut:
+			var req service.UpsertCustomerBillingProfileRequest
+			if err := decodeJSON(r, &req); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			profile, err := s.customerService.UpsertCustomerBillingProfile(tenantID, externalID, req)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, profile)
+		default:
+			writeMethodNotAllowed(w)
+		}
+	case "payment-setup":
+		switch r.Method {
+		case http.MethodGet:
+			setup, err := s.customerService.GetCustomerPaymentSetup(tenantID, externalID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, setup)
+		case http.MethodPut:
+			var req service.UpsertCustomerPaymentSetupRequest
+			if err := decodeJSON(r, &req); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			setup, err := s.customerService.UpsertCustomerPaymentSetup(tenantID, externalID, req)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, setup)
+		default:
+			writeMethodNotAllowed(w)
+		}
+	case "readiness":
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+		readiness, err := s.customerService.GetCustomerReadiness(tenantID, externalID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, readiness)
+	default:
+		writeError(w, http.StatusNotFound, "not found")
+	}
 }
 
 func (s *Server) handleUISessionLogout(w http.ResponseWriter, r *http.Request) {
@@ -1948,8 +2143,8 @@ func (s *Server) handleRatingRuleByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
-	if s.lagoClient == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago adapter is required")
+	if s.meterSyncAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "meter sync adapter is required")
 		return
 	}
 
@@ -1968,7 +2163,7 @@ func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
 			writeDomainError(w, err)
 			return
 		}
-		if err := s.lagoClient.SyncMeter(r.Context(), meter); err != nil {
+		if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
 			writeError(w, http.StatusBadGateway, "meter created but lago sync failed: "+err.Error())
 			return
 		}
@@ -1990,8 +2185,8 @@ func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMeterByID(w http.ResponseWriter, r *http.Request) {
-	if s.lagoClient == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago adapter is required")
+	if s.meterSyncAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "meter sync adapter is required")
 		return
 	}
 
@@ -2015,7 +2210,7 @@ func (s *Server) handleMeterByID(w http.ResponseWriter, r *http.Request) {
 			writeDomainError(w, err)
 			return
 		}
-		if err := s.lagoClient.SyncMeter(r.Context(), meter); err != nil {
+		if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
 			writeError(w, http.StatusBadGateway, "meter updated but lago sync failed: "+err.Error())
 			return
 		}
@@ -2037,8 +2232,8 @@ func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w)
 		return
 	}
-	if s.lagoClient == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago adapter is required")
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
 		return
 	}
 
@@ -2048,7 +2243,7 @@ func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	statusCode, body, err := s.lagoClient.ProxyInvoicePreview(r.Context(), rawBody)
+	statusCode, body, err := s.invoiceBillingAdapter.PreviewInvoice(r.Context(), rawBody)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "failed to proxy invoice preview to lago: "+err.Error())
 		return
@@ -2057,8 +2252,8 @@ func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
-	if s.lagoClient == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago adapter is required")
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
 		return
 	}
 
@@ -2085,7 +2280,7 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			rawBody = []byte("{}")
 		}
 
-		statusCode, body, err := s.lagoClient.ProxyInvoiceRetryPayment(r.Context(), invoiceID, rawBody)
+		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(r.Context(), invoiceID, rawBody)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to proxy retry payment to lago: "+err.Error())
 			return
@@ -2119,7 +2314,7 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		statusCode, body, err := s.lagoClient.ProxyInvoiceByID(r.Context(), invoiceID)
+		statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(r.Context(), invoiceID)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to fetch invoice from lago: "+err.Error())
 			return

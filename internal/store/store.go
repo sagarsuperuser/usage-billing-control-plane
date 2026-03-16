@@ -36,6 +36,14 @@ type RatingRuleListFilter struct {
 	LatestOnly     bool
 }
 
+type CustomerListFilter struct {
+	TenantID   string
+	Status     string
+	ExternalID string
+	Limit      int
+	Offset     int
+}
+
 type APIKeyListFilter struct {
 	TenantID      string
 	Role          string
@@ -196,6 +204,15 @@ type Repository interface {
 	UpdateTenantStatus(id string, status domain.TenantStatus, updatedAt time.Time) (domain.Tenant, error)
 	CreateTenantAuditEvent(input domain.TenantAuditEvent) (domain.TenantAuditEvent, error)
 	ListTenantAuditEvents(filter TenantAuditFilter) (TenantAuditResult, error)
+	CreateCustomer(input domain.Customer) (domain.Customer, error)
+	GetCustomer(tenantID, id string) (domain.Customer, error)
+	GetCustomerByExternalID(tenantID, externalID string) (domain.Customer, error)
+	ListCustomers(filter CustomerListFilter) ([]domain.Customer, error)
+	UpdateCustomer(input domain.Customer) (domain.Customer, error)
+	UpsertCustomerBillingProfile(input domain.CustomerBillingProfile) (domain.CustomerBillingProfile, error)
+	GetCustomerBillingProfile(tenantID, customerID string) (domain.CustomerBillingProfile, error)
+	UpsertCustomerPaymentSetup(input domain.CustomerPaymentSetup) (domain.CustomerPaymentSetup, error)
+	GetCustomerPaymentSetup(tenantID, customerID string) (domain.CustomerPaymentSetup, error)
 
 	CreateRatingRuleVersion(input domain.RatingRuleVersion) (domain.RatingRuleVersion, error)
 	ListRatingRuleVersions(filter RatingRuleListFilter) ([]domain.RatingRuleVersion, error)

@@ -3,7 +3,11 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,13 +29,28 @@ type LagoClientConfig struct {
 	Timeout time.Duration
 }
 
-type LagoClient struct {
+type MeterSyncAdapter interface {
+	SyncMeter(ctx context.Context, meter domain.Meter) error
+}
+
+type InvoiceBillingAdapter interface {
+	PreviewInvoice(ctx context.Context, payload []byte) (int, []byte, error)
+	RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error)
+	GetInvoice(ctx context.Context, invoiceID string) (int, []byte, error)
+}
+
+type WebhookPublicKeyProvider interface {
+	FetchWebhookPublicKey(ctx context.Context) (*rsa.PublicKey, error)
+	ExpectedIssuer() string
+}
+
+type LagoHTTPTransport struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
-func NewLagoClient(cfg LagoClientConfig) (*LagoClient, error) {
+func NewLagoHTTPTransport(cfg LagoClientConfig) (*LagoHTTPTransport, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	if baseURL == "" {
 		return nil, fmt.Errorf("%w: lago base url is required", ErrValidation)
@@ -46,16 +65,24 @@ func NewLagoClient(cfg LagoClientConfig) (*LagoClient, error) {
 		timeout = defaultLagoHTTPTimeout
 	}
 
-	return &LagoClient{
+	return &LagoHTTPTransport{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: timeout},
 	}, nil
 }
 
-func (c *LagoClient) SyncMeter(ctx context.Context, meter domain.Meter) error {
-	if c == nil {
-		return fmt.Errorf("%w: lago client is required", ErrValidation)
+type LagoMeterSyncAdapter struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoMeterSyncAdapter(transport *LagoHTTPTransport) *LagoMeterSyncAdapter {
+	return &LagoMeterSyncAdapter{transport: transport}
+}
+
+func (a *LagoMeterSyncAdapter) SyncMeter(ctx context.Context, meter domain.Meter) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago meter sync adapter is required", ErrValidation)
 	}
 
 	aggregationType, err := mapAggregationToLago(meter.Aggregation)
@@ -75,13 +102,13 @@ func (c *LagoClient) SyncMeter(ctx context.Context, meter domain.Meter) error {
 
 	payload := map[string]any{"billable_metric": billableMetric}
 
-	createStatus, createBody, err := c.doJSONRequest(ctx, http.MethodPost, "/api/v1/billable_metrics", payload)
+	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/billable_metrics", payload)
 	if err == nil {
 		return nil
 	}
 
 	updatePath := "/api/v1/billable_metrics/" + url.PathEscape(strings.TrimSpace(meter.Key))
-	updateStatus, updateBody, updateErr := c.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
 	if updateErr == nil {
 		return nil
 	}
@@ -94,15 +121,23 @@ func (c *LagoClient) SyncMeter(ctx context.Context, meter domain.Meter) error {
 	)
 }
 
-func (c *LagoClient) ProxyInvoicePreview(ctx context.Context, payload []byte) (int, []byte, error) {
-	if c == nil {
-		return 0, nil, fmt.Errorf("%w: lago client is required", ErrValidation)
+type LagoInvoiceAdapter struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoInvoiceAdapter(transport *LagoHTTPTransport) *LagoInvoiceAdapter {
+	return &LagoInvoiceAdapter{transport: transport}
+}
+
+func (a *LagoInvoiceAdapter) PreviewInvoice(ctx context.Context, payload []byte) (int, []byte, error) {
+	if a == nil || a.transport == nil {
+		return 0, nil, fmt.Errorf("%w: lago invoice adapter is required", ErrValidation)
 	}
 	if !json.Valid(payload) {
 		return 0, nil, fmt.Errorf("%w: request body must be valid json", ErrValidation)
 	}
 
-	status, body, err := c.doRawRequest(ctx, http.MethodPost, "/api/v1/invoices/preview", payload)
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodPost, "/api/v1/invoices/preview", payload)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -115,9 +150,9 @@ func (c *LagoClient) ProxyInvoicePreview(ctx context.Context, payload []byte) (i
 	return status, body, nil
 }
 
-func (c *LagoClient) ProxyInvoiceRetryPayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error) {
-	if c == nil {
-		return 0, nil, fmt.Errorf("%w: lago client is required", ErrValidation)
+func (a *LagoInvoiceAdapter) RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error) {
+	if a == nil || a.transport == nil {
+		return 0, nil, fmt.Errorf("%w: lago invoice adapter is required", ErrValidation)
 	}
 	invoiceID = strings.TrimSpace(invoiceID)
 	if invoiceID == "" {
@@ -131,7 +166,7 @@ func (c *LagoClient) ProxyInvoiceRetryPayment(ctx context.Context, invoiceID str
 	}
 
 	path := "/api/v1/invoices/" + url.PathEscape(invoiceID) + "/retry_payment"
-	status, body, err := c.doRawRequest(ctx, http.MethodPost, path, payload)
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodPost, path, payload)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -144,9 +179,9 @@ func (c *LagoClient) ProxyInvoiceRetryPayment(ctx context.Context, invoiceID str
 	return status, body, nil
 }
 
-func (c *LagoClient) ProxyInvoiceByID(ctx context.Context, invoiceID string) (int, []byte, error) {
-	if c == nil {
-		return 0, nil, fmt.Errorf("%w: lago client is required", ErrValidation)
+func (a *LagoInvoiceAdapter) GetInvoice(ctx context.Context, invoiceID string) (int, []byte, error) {
+	if a == nil || a.transport == nil {
+		return 0, nil, fmt.Errorf("%w: lago invoice adapter is required", ErrValidation)
 	}
 	invoiceID = strings.TrimSpace(invoiceID)
 	if invoiceID == "" {
@@ -154,7 +189,7 @@ func (c *LagoClient) ProxyInvoiceByID(ctx context.Context, invoiceID string) (in
 	}
 
 	path := "/api/v1/invoices/" + url.PathEscape(invoiceID)
-	status, body, err := c.doRawRequest(ctx, http.MethodGet, path, nil)
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -167,12 +202,73 @@ func (c *LagoClient) ProxyInvoiceByID(ctx context.Context, invoiceID string) (in
 	return status, body, nil
 }
 
-func (c *LagoClient) doJSONRequest(ctx context.Context, method, path string, payload any) (int, []byte, error) {
+type LagoWebhookKeyProvider struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoWebhookKeyProvider(transport *LagoHTTPTransport) *LagoWebhookKeyProvider {
+	return &LagoWebhookKeyProvider{transport: transport}
+}
+
+func (p *LagoWebhookKeyProvider) ExpectedIssuer() string {
+	if p == nil || p.transport == nil {
+		return ""
+	}
+	return p.transport.baseURL
+}
+
+func (p *LagoWebhookKeyProvider) FetchWebhookPublicKey(ctx context.Context) (*rsa.PublicKey, error) {
+	if p == nil || p.transport == nil {
+		return nil, fmt.Errorf("%w: lago webhook key provider is required", ErrValidation)
+	}
+	statusCode, body, err := p.transport.doRawRequest(ctx, http.MethodGet, "/api/v1/webhooks/json_public_key", nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch lago webhook public key: %w", err)
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return nil, fmt.Errorf("fetch lago webhook public key returned status=%d", statusCode)
+	}
+
+	var payload struct {
+		Webhook struct {
+			PublicKey string `json:"public_key"`
+		} `json:"webhook"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("decode lago webhook public key response: %w", err)
+	}
+	encoded := strings.TrimSpace(payload.Webhook.PublicKey)
+	if encoded == "" {
+		return nil, fmt.Errorf("lago webhook public key is empty")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode lago webhook public key: %w", err)
+	}
+
+	block, _ := pem.Decode(decoded)
+	if block == nil {
+		return nil, fmt.Errorf("parse lago webhook public key pem: no pem block")
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err == nil {
+		if key, ok := pub.(*rsa.PublicKey); ok {
+			return key, nil
+		}
+	}
+	if key, err := x509.ParsePKCS1PublicKey(block.Bytes); err == nil {
+		return key, nil
+	}
+	return nil, fmt.Errorf("parse lago webhook public key: unsupported key format")
+}
+
+func (t *LagoHTTPTransport) doJSONRequest(ctx context.Context, method, path string, payload any) (int, []byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return 0, nil, err
 	}
-	status, respBody, reqErr := c.doRawRequest(ctx, method, path, body)
+	status, respBody, reqErr := t.doRawRequest(ctx, method, path, body)
 	if reqErr != nil {
 		return status, respBody, reqErr
 	}
@@ -182,16 +278,16 @@ func (c *LagoClient) doJSONRequest(ctx context.Context, method, path string, pay
 	return status, respBody, nil
 }
 
-func (c *LagoClient) doRawRequest(ctx context.Context, method, path string, payload []byte) (int, []byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(payload))
+func (t *LagoHTTPTransport) doRawRequest(ctx context.Context, method, path string, payload []byte) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, t.baseURL+path, bytes.NewReader(payload))
 	if err != nil {
 		return 0, nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+t.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := t.httpClient.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}

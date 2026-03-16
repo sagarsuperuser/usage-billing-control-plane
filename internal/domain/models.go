@@ -28,6 +28,81 @@ type Tenant struct {
 	UpdatedAt               time.Time    `json:"updated_at"`
 }
 
+type CustomerStatus string
+
+const (
+	CustomerStatusActive    CustomerStatus = "active"
+	CustomerStatusSuspended CustomerStatus = "suspended"
+	CustomerStatusArchived  CustomerStatus = "archived"
+)
+
+type BillingProfileStatus string
+
+const (
+	BillingProfileStatusMissing    BillingProfileStatus = "missing"
+	BillingProfileStatusIncomplete BillingProfileStatus = "incomplete"
+	BillingProfileStatusReady      BillingProfileStatus = "ready"
+	BillingProfileStatusSyncError  BillingProfileStatus = "sync_error"
+)
+
+type PaymentSetupStatus string
+
+const (
+	PaymentSetupStatusMissing PaymentSetupStatus = "missing"
+	PaymentSetupStatusPending PaymentSetupStatus = "pending"
+	PaymentSetupStatusReady   PaymentSetupStatus = "ready"
+	PaymentSetupStatusError   PaymentSetupStatus = "error"
+)
+
+type Customer struct {
+	ID             string         `json:"id"`
+	TenantID       string         `json:"tenant_id,omitempty"`
+	ExternalID     string         `json:"external_id"`
+	DisplayName    string         `json:"display_name"`
+	Email          string         `json:"email,omitempty"`
+	Status         CustomerStatus `json:"status"`
+	LagoCustomerID string         `json:"lago_customer_id,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
+type CustomerBillingProfile struct {
+	CustomerID    string               `json:"customer_id"`
+	TenantID      string               `json:"tenant_id,omitempty"`
+	LegalName     string               `json:"legal_name,omitempty"`
+	Email         string               `json:"email,omitempty"`
+	Phone         string               `json:"phone,omitempty"`
+	AddressLine1  string               `json:"billing_address_line1,omitempty"`
+	AddressLine2  string               `json:"billing_address_line2,omitempty"`
+	City          string               `json:"billing_city,omitempty"`
+	State         string               `json:"billing_state,omitempty"`
+	PostalCode    string               `json:"billing_postal_code,omitempty"`
+	Country       string               `json:"billing_country,omitempty"`
+	Currency      string               `json:"currency,omitempty"`
+	TaxIdentifier string               `json:"tax_identifier,omitempty"`
+	ProviderCode  string               `json:"provider_code,omitempty"`
+	ProfileStatus BillingProfileStatus `json:"profile_status"`
+	LastSyncedAt  *time.Time           `json:"last_synced_at,omitempty"`
+	LastSyncError string               `json:"last_sync_error,omitempty"`
+	CreatedAt     time.Time            `json:"created_at"`
+	UpdatedAt     time.Time            `json:"updated_at"`
+}
+
+type CustomerPaymentSetup struct {
+	CustomerID                     string             `json:"customer_id"`
+	TenantID                       string             `json:"tenant_id,omitempty"`
+	SetupStatus                    PaymentSetupStatus `json:"setup_status"`
+	DefaultPaymentMethodPresent    bool               `json:"default_payment_method_present"`
+	PaymentMethodType              string             `json:"payment_method_type,omitempty"`
+	ProviderCustomerReference      string             `json:"provider_customer_reference,omitempty"`
+	ProviderPaymentMethodReference string             `json:"provider_payment_method_reference,omitempty"`
+	LastVerifiedAt                 *time.Time         `json:"last_verified_at,omitempty"`
+	LastVerificationResult         string             `json:"last_verification_result,omitempty"`
+	LastVerificationError          string             `json:"last_verification_error,omitempty"`
+	CreatedAt                      time.Time          `json:"created_at"`
+	UpdatedAt                      time.Time          `json:"updated_at"`
+}
+
 type RatingTier struct {
 	UpTo            int64 `json:"up_to"`
 	UnitAmountCents int64 `json:"unit_amount_cents"`

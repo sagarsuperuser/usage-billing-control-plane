@@ -54,16 +54,16 @@ func TestInvoiceExplainabilityEndpoint(t *testing.T) {
 	}))
 	defer lago.Close()
 
-	lagoClient, err := service.NewLagoClient(service.LagoClientConfig{
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
 		BaseURL: lago.URL,
 		APIKey:  "test",
 		Timeout: 2 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("new lago client: %v", err)
+		t.Fatalf("new lago transport: %v", err)
 	}
 
-	ts := httptest.NewServer(api.NewServer(nil, api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(nil, api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	resp := getJSON(t, ts.URL+"/v1/invoices/inv_123/explainability?fee_types=charge&line_item_sort=amount_cents_desc&limit=1&page=1", "", http.StatusOK)
@@ -98,16 +98,16 @@ func TestInvoiceExplainabilityEndpoint_InvalidSort(t *testing.T) {
 	}))
 	defer lago.Close()
 
-	lagoClient, err := service.NewLagoClient(service.LagoClientConfig{
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
 		BaseURL: lago.URL,
 		APIKey:  "test",
 		Timeout: 2 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("new lago client: %v", err)
+		t.Fatalf("new lago transport: %v", err)
 	}
 
-	ts := httptest.NewServer(api.NewServer(nil, api.WithLagoClient(lagoClient)).Handler())
+	ts := httptest.NewServer(api.NewServer(nil, api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
 	defer ts.Close()
 
 	resp := getJSON(t, ts.URL+"/v1/invoices/inv_123/explainability?line_item_sort=bad_sort", "", http.StatusBadRequest)

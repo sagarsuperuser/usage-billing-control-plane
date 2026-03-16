@@ -200,7 +200,7 @@ func main() {
 		serverOpts = append(serverOpts, api.WithRateLimiter(rateLimiter, cfg.RateLimit.FailOpen, cfg.RateLimit.LoginFailOpen))
 	}
 
-	lagoClient, err := service.NewLagoClient(service.LagoClientConfig{
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
 		BaseURL: cfg.Lago.APIURL,
 		APIKey:  cfg.Lago.APIKey,
 		Timeout: cfg.Lago.HTTPTimeout,
@@ -208,7 +208,7 @@ func main() {
 	if err != nil {
 		fatal(logger, "initialize lago client", "error", err)
 	}
-	serverOpts = append(serverOpts, api.WithLagoClient(lagoClient))
+	serverOpts = append(serverOpts, api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)))
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL)
 
 	if cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler {
@@ -218,7 +218,7 @@ func main() {
 
 		if cfg.Roles.RunPaymentReconcileWorker {
 			temporalPaymentWorker = temporalsdkworker.New(temporalClient, cfg.Payment.TaskQueue, temporalsdkworker.Options{})
-			if err := paymentsync.RegisterTemporalPaymentReconcileWorker(temporalPaymentWorker, repo, lagoClient); err != nil {
+			if err := paymentsync.RegisterTemporalPaymentReconcileWorker(temporalPaymentWorker, repo, service.NewLagoInvoiceAdapter(lagoTransport)); err != nil {
 				fatal(logger, "register payment reconcile worker", "error", err)
 			}
 			if err := temporalPaymentWorker.Start(); err != nil {
@@ -260,7 +260,7 @@ func main() {
 	}
 
 	webhookVerifier, err := service.NewLagoJWTWebhookVerifier(
-		lagoClient,
+		service.NewLagoWebhookKeyProvider(lagoTransport),
 		cfg.Lago.WebhookPublicKeyTTL,
 	)
 	if err != nil {

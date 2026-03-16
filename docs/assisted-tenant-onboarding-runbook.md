@@ -6,9 +6,15 @@ This is the recommended onboarding model for the current product state:
 - assisted tenant setup by the platform operator
 - tenant-scoped API keys for access control
 - browser sessions created from those API keys
-- operator-guided billing setup in Lago/Stripe
+- operator-guided billing setup through Alpha, with some Lago/Stripe steps still remaining behind the scenes today
 
-This is the right model now because the core operator features are real, but tenant bootstrap is not yet a full self-serve product flow.
+Current-state note:
+- this runbook describes the working operator-assisted path today
+- the long-term target is that Alpha remains the only normal entrypoint and Lago becomes an implementation detail behind Alpha
+- use [alpha-lago-boundary.md](./alpha-lago-boundary.md) for the target system boundary
+- use [alpha-implementation-roadmap.md](./alpha-implementation-roadmap.md) for the phased delivery plan
+
+This is the right model now because the core operator features are real, but tenant bootstrap and billing setup are not yet a full self-serve product flow.
 
 ## 1. What Users Can Meaningfully Do Today
 
@@ -58,8 +64,9 @@ Use a white-glove assisted flow for each tenant:
 4. let the tenant admin create reader and writer keys
 5. configure the tenant's Lago and Stripe billing path
 6. create or confirm the tenant pricing model
-7. prove payment, explainability, and replay paths
-8. hand off the UI and API usage to the tenant users
+7. create the first billing-ready customer in Alpha
+8. prove payment, explainability, and replay paths
+9. hand off the UI and API usage to the tenant users
 
 Do not start with open self-serve signup.
 
@@ -202,9 +209,11 @@ Under the hood the UI creates a session by calling:
 
 This is the practical onboarding experience today.
 
-### Step 4: Create or Map the Lago Billing Side
+### Step 4: Create or Map the Billing Side
 
-This is still operator-assisted.
+This is still operator-assisted today.
+In the target architecture, Alpha owns the operator workflow and Lago stays behind Alpha as the billing execution engine.
+Right now some Lago and Stripe setup still remains operationally visible during environment bring-up and tenant activation.
 
 You need:
 - a Lago organization for the tenant
@@ -233,7 +242,8 @@ curl -sS -X PATCH "$ALPHA_API_BASE_URL/internal/tenants/$TENANT_ID" \
 ```
 
 Why this matters:
-- Lago webhook routing now resolves `organization_id` through the canonical tenant record
+- Alpha owns the canonical tenant record and billing mapping
+- Lago webhook routing now resolves `organization_id` through the tenant record in Alpha
 - `LAGO_ORG_TENANT_MAP` is no longer the production mapping mechanism
 - unmapped Lago organizations fail closed instead of silently routing into `default`
 
@@ -300,23 +310,88 @@ Important current product truth:
 - pricing bootstrap is API/operator-driven
 - this is not yet exposed as a polished self-serve billing-config UI
 
-### Step 5: Seed the First Real Billing Objects
+### Step 6: Seed the First Real Billing Objects
 
 Create or confirm:
 - one or more customer external ids
 - one payment-capable customer if payment flows are in scope
 - one failure-path customer if you want to prove retry/recovery behavior
 
-For staging payment setup and fixture creation, use the existing runbook and scripts:
+Create the first customer in Alpha:
+
+```bash
+curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customers" \
+  -H "X-API-Key: $TENANT_WRITER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "external_id": "cust_acme_primary",
+    "display_name": "Acme Primary Customer",
+    "email": "billing@acme.test"
+  }'
+```
+
+Set the billing profile in Alpha:
+
+```bash
+curl -sS -X PUT "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/billing-profile" \
+  -H "X-API-Key: $TENANT_WRITER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "legal_name": "Acme Primary Customer LLC",
+    "email": "billing@acme.test",
+    "billing_address_line1": "1 Billing Street",
+    "billing_city": "Bengaluru",
+    "billing_postal_code": "560001",
+    "billing_country": "IN",
+    "currency": "USD",
+    "provider_code": "stripe_default"
+  }'
+```
+
+Set the payment readiness record in Alpha:
+
+```bash
+curl -sS -X PUT "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/payment-setup" \
+  -H "X-API-Key: $TENANT_WRITER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_payment_method_present": true,
+    "payment_method_type": "card",
+    "provider_customer_reference": "pcus_replace_me",
+    "provider_payment_method_reference": "pm_replace_me",
+    "last_verification_result": "verified"
+  }'
+```
+
+Inspect customer readiness:
+
+```bash
+curl -sS "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/readiness" \
+  -H "X-API-Key: $TENANT_READER_API_KEY"
+```
+
+Inspect overall tenant onboarding readiness:
+
+```bash
+curl -sS "$ALPHA_API_BASE_URL/internal/onboarding/tenants/tenant_acme" \
+  -H "X-API-Key: $PLATFORM_ADMIN_API_KEY"
+```
+
+Expected outcome:
+- `billing_integration.status = ready`
+- `first_customer.status = ready`
+- top-level onboarding `status = ready`
+
+For staging payment fixture creation and verification, use the existing runbook and scripts:
 - [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
 - `make lago-staging-bootstrap-payments`
 - `make verify-staging-acceptance`
 
-### Step 6: Prove the Tenant Can Actually Use the System
+### Step 7: Prove the Tenant Can Actually Use the System
 
 Do not hand off the tenant until these checks pass.
 
-#### 6a. Payment path
+#### 7a. Payment path
 
 Run the acceptance gate:
 
@@ -337,7 +412,7 @@ This proves:
 - success payment E2E
 - failure payment E2E
 
-#### 6b. Replay / recovery path
+#### 7b. Replay / recovery path
 
 Run the replay smoke:
 
@@ -402,6 +477,10 @@ Recommended first-session walkthrough:
 
 ## 5. What Is Still Manual Today
 
+Target-state note:
+- the items below are current operational realities, not the desired permanent boundary
+- the long-term goal is to absorb normal onboarding and billing setup flows into Alpha and keep Lago behind adapter and webhook boundaries
+
 Keep these expectations explicit.
 
 Still operator-assisted:
@@ -439,7 +518,7 @@ Do not leave this as tribal knowledge.
 
 ## 7. Recommended Operator Workflow
 
-Use this exact sequence for each new tenant:
+Use this exact sequence for each new tenant today:
 1. bootstrap or retrieve the platform admin key
 2. create the tenant through `/internal/tenants`
 3. write `lago_organization_id` and `lago_billing_provider_code` onto the tenant record
@@ -453,9 +532,13 @@ Use this exact sequence for each new tenant:
 
 This keeps onboarding reproducible and auditable.
 
+As Alpha absorbs more billing setup behind its own APIs, this workflow should get shorter rather than more complex.
+
 ## 8. Related Runbooks
 
 Use these together with this onboarding doc:
+- [alpha-lago-boundary.md](./alpha-lago-boundary.md)
+- [alpha-implementation-roadmap.md](./alpha-implementation-roadmap.md)
 - [staging-go-live-checklist.md](./staging-go-live-checklist.md)
 - [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
 - [replay-recovery-live-runbook.md](./replay-recovery-live-runbook.md)

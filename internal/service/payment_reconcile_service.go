@@ -21,8 +21,8 @@ const (
 )
 
 type PaymentReconcileService struct {
-	repo       store.Repository
-	lagoClient *LagoClient
+	repo           store.Repository
+	invoiceAdapter InvoiceBillingAdapter
 }
 
 type PaymentReconcileBatchRequest struct {
@@ -38,21 +38,21 @@ type PaymentReconcileBatchResult struct {
 	Failures         int `json:"failures"`
 }
 
-func NewPaymentReconcileService(repo store.Repository, lagoClient *LagoClient) (*PaymentReconcileService, error) {
+func NewPaymentReconcileService(repo store.Repository, invoiceAdapter InvoiceBillingAdapter) (*PaymentReconcileService, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("%w: repository is required", ErrValidation)
 	}
-	if lagoClient == nil {
-		return nil, fmt.Errorf("%w: lago client is required", ErrValidation)
+	if invoiceAdapter == nil {
+		return nil, fmt.Errorf("%w: invoice billing adapter is required", ErrValidation)
 	}
 	return &PaymentReconcileService{
-		repo:       repo,
-		lagoClient: lagoClient,
+		repo:           repo,
+		invoiceAdapter: invoiceAdapter,
 	}, nil
 }
 
 func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req PaymentReconcileBatchRequest) (PaymentReconcileBatchResult, error) {
-	if s == nil || s.repo == nil || s.lagoClient == nil {
+	if s == nil || s.repo == nil || s.invoiceAdapter == nil {
 		return PaymentReconcileBatchResult{}, fmt.Errorf("%w: payment reconcile service is not configured", ErrValidation)
 	}
 
@@ -85,7 +85,7 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 	for _, candidate := range candidates {
 		result.Scanned++
 
-		statusCode, body, err := s.lagoClient.ProxyInvoiceByID(ctx, candidate.InvoiceID)
+		statusCode, body, err := s.invoiceAdapter.GetInvoice(ctx, candidate.InvoiceID)
 		if err != nil {
 			result.Failures++
 			continue

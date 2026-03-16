@@ -12,15 +12,15 @@ import (
 	"usage-billing-control-plane/internal/domain"
 )
 
-func TestNewLagoClientRequiresConfig(t *testing.T) {
+func TestNewLagoHTTPTransportRequiresConfig(t *testing.T) {
 	t.Parallel()
 
-	if _, err := NewLagoClient(LagoClientConfig{}); err == nil {
+	if _, err := NewLagoHTTPTransport(LagoClientConfig{}); err == nil {
 		t.Fatalf("expected constructor error for missing config")
 	}
 }
 
-func TestLagoClientProxyInvoiceByID(t *testing.T) {
+func TestLagoInvoiceAdapterGetInvoice(t *testing.T) {
 	t.Parallel()
 
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,16 +33,16 @@ func TestLagoClientProxyInvoiceByID(t *testing.T) {
 	}))
 	defer lago.Close()
 
-	client, err := NewLagoClient(LagoClientConfig{
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
 		BaseURL: lago.URL,
 		APIKey:  "test",
 		Timeout: 2 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("new lago client: %v", err)
+		t.Fatalf("new lago transport: %v", err)
 	}
 
-	status, body, err := client.ProxyInvoiceByID(context.Background(), "inv_123")
+	status, body, err := NewLagoInvoiceAdapter(transport).GetInvoice(context.Background(), "inv_123")
 	if err != nil {
 		t.Fatalf("proxy invoice by id: %v", err)
 	}
@@ -54,22 +54,22 @@ func TestLagoClientProxyInvoiceByID(t *testing.T) {
 	}
 }
 
-func TestLagoClientWithRealLago(t *testing.T) {
+func TestLagoAdaptersWithRealLago(t *testing.T) {
 	baseURL := strings.TrimSpace(os.Getenv("TEST_LAGO_API_URL"))
 	apiKey := strings.TrimSpace(os.Getenv("TEST_LAGO_API_KEY"))
 	if baseURL == "" || apiKey == "" {
 		t.Skip("TEST_LAGO_API_URL and TEST_LAGO_API_KEY are required for real Lago tests")
 	}
-	client, err := NewLagoClient(LagoClientConfig{
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
 		BaseURL: baseURL,
 		APIKey:  apiKey,
 		Timeout: 10 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("new lago client: %v", err)
+		t.Fatalf("new lago transport: %v", err)
 	}
 
-	err = client.SyncMeter(context.Background(), domain.Meter{
+	err = NewLagoMeterSyncAdapter(transport).SyncMeter(context.Background(), domain.Meter{
 		Key:                 "alpha_test_meter",
 		Name:                "Alpha Test Meter",
 		Aggregation:         "count",
@@ -79,7 +79,7 @@ func TestLagoClientWithRealLago(t *testing.T) {
 		t.Fatalf("sync meter with real lago: %v", err)
 	}
 
-	status, body, err := client.ProxyInvoicePreview(context.Background(), []byte(`{}`))
+	status, body, err := NewLagoInvoiceAdapter(transport).PreviewInvoice(context.Background(), []byte(`{}`))
 	if err != nil {
 		t.Fatalf("proxy invoice preview with real lago: %v", err)
 	}
