@@ -104,6 +104,8 @@ export function TenantOnboardingScreen() {
     return { total: tenants.length, active, pending };
   }, [tenants]);
 
+  const nextActions = selectedReadiness?.missing_steps.map(describeTenantMissingStep) ?? [];
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1d4ed8_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
       <div className="pointer-events-none absolute inset-0 opacity-55">
@@ -151,53 +153,112 @@ export function TenantOnboardingScreen() {
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Create workspace</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                  Start with the workspace identity, add the billing connection, then decide whether to generate the first admin credential now.
+                </p>
               </div>
               <span className="inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-cyan-100">
                 <Building2 className="h-5 w-5" />
               </span>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              <InputField label="Tenant ID" value={tenantID} onChange={setTenantID} placeholder="tenant_acme" />
-              <InputField label="Tenant name" value={tenantName} onChange={setTenantName} placeholder="Acme Corp" />
-              <InputField
-                label="Lago organization ID"
-                value={lagoOrganizationID}
-                onChange={setLagoOrganizationID}
-                placeholder="org_acme"
+            <div className="mt-6 grid gap-3 lg:grid-cols-3">
+              <StepCard
+                index="1"
+                title="Name the workspace"
+                body="Use a stable workspace ID and a display name your team will recognize later."
               />
-              <InputField
-                label="Billing provider code"
-                value={billingProviderCode}
-                onChange={setBillingProviderCode}
-                placeholder="stripe_default"
+              <StepCard
+                index="2"
+                title="Connect billing"
+                body="Attach the billing engine mapping Alpha needs for invoice and payment flows."
               />
-              <InputField
-                label="Admin key name"
-                value={adminKeyName}
-                onChange={setAdminKeyName}
-                placeholder="bootstrap-admin-tenant_acme"
+              <StepCard
+                index="3"
+                title="Create admin access"
+                body="Generate the first admin credential now, or leave it for a controlled handoff later."
               />
-              <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Advanced controls</p>
-                <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={bootstrapAdminKey}
-                    onChange={(event) => setBootstrapAdminKey(event.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
-                  />
-                  Generate first admin credential
-                </label>
-                <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={allowExistingActiveKeys}
-                    onChange={(event) => setAllowExistingActiveKeys(event.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
-                  />
-                  Allow existing active credentials
-                </label>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 1</p>
+              <h3 className="mt-2 text-lg font-semibold text-white">Workspace identity</h3>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InputField label="Workspace ID" value={tenantID} onChange={setTenantID} placeholder="tenant_acme" />
+                <InputField label="Workspace name" value={tenantName} onChange={setTenantName} placeholder="Acme Corp" />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 2</p>
+              <h3 className="mt-2 text-lg font-semibold text-white">Billing connection</h3>
+              <p className="mt-2 text-sm text-slate-300">
+                These values stay operational. Keep them here until Alpha owns this setup end to end.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InputField
+                  label="Billing organization ID"
+                  value={lagoOrganizationID}
+                  onChange={setLagoOrganizationID}
+                  placeholder="org_acme"
+                />
+                <InputField
+                  label="Billing connection code"
+                  value={billingProviderCode}
+                  onChange={setBillingProviderCode}
+                  placeholder="stripe_default"
+                />
+              </div>
+            </div>
+
+            <details className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 3</p>
+                    <h3 className="mt-2 text-lg font-semibold text-white">Advanced admin access options</h3>
+                  </div>
+                  <span className="text-xs uppercase tracking-[0.14em] text-slate-400">Expand</span>
+                </div>
+              </summary>
+              <div className="mt-4 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+                <InputField
+                  label="Admin credential name"
+                  value={adminKeyName}
+                  onChange={setAdminKeyName}
+                  placeholder="bootstrap-admin-tenant_acme"
+                />
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Advanced controls</p>
+                  <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={bootstrapAdminKey}
+                      onChange={(event) => setBootstrapAdminKey(event.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
+                    />
+                    Generate first admin credential
+                  </label>
+                  <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={allowExistingActiveKeys}
+                      onChange={(event) => setAllowExistingActiveKeys(event.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
+                    />
+                    Allow existing active credentials
+                  </label>
+                </div>
+              </div>
+            </details>
+
+            <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Before you run</p>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <ChecklistLine done={tenantID.trim().length > 0} text="Workspace ID is set" />
+                <ChecklistLine done={tenantName.trim().length > 0} text="Workspace name is set" />
+                <ChecklistLine done={lagoOrganizationID.trim().length > 0} text="Billing organization is connected" />
+                <ChecklistLine done={billingProviderCode.trim().length > 0} text="Billing connection code is set" />
               </div>
             </div>
 
@@ -334,6 +395,17 @@ export function TenantOnboardingScreen() {
                       </span>
                     </div>
 
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                      <p className="text-sm font-semibold text-white">Next actions</p>
+                      <div className="mt-3 grid gap-2">
+                        {nextActions.length > 0 ? (
+                          nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />)
+                        ) : (
+                          <ChecklistLine done text="Workspace is fully ready for the next handoff step." />
+                        )}
+                      </div>
+                    </div>
+
                     <div className="mt-4 grid gap-3 md:grid-cols-3">
                       <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={selectedReadiness.tenant.missing_steps} />
                       <ReadinessCard
@@ -365,12 +437,20 @@ export function TenantOnboardingScreen() {
                       </div>
                     </div>
 
-                    <dl className="mt-4 grid gap-3 md:grid-cols-2">
-                      <MetaItem label="Lago organization" value={selectedTenant.lago_organization_id || "-"} mono />
-                      <MetaItem label="Billing provider" value={selectedTenant.lago_billing_provider_code || "-"} mono />
-                      <MetaItem label="Created" value={formatExactTimestamp(selectedTenant.created_at)} />
-                      <MetaItem label="Updated" value={formatExactTimestamp(selectedTenant.updated_at)} />
-                    </dl>
+                    <details className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-white">Advanced workspace details</p>
+                          <span className="text-xs uppercase tracking-[0.14em] text-slate-400">Expand</span>
+                        </div>
+                      </summary>
+                      <dl className="mt-4 grid gap-3 md:grid-cols-2">
+                        <MetaItem label="Billing organization" value={selectedTenant.lago_organization_id || "-"} mono />
+                        <MetaItem label="Billing connection" value={selectedTenant.lago_billing_provider_code || "-"} mono />
+                        <MetaItem label="Created" value={formatExactTimestamp(selectedTenant.created_at)} />
+                        <MetaItem label="Updated" value={formatExactTimestamp(selectedTenant.updated_at)} />
+                      </dl>
+                    </details>
                   </>
                 )}
               </div>
@@ -378,6 +458,16 @@ export function TenantOnboardingScreen() {
           </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function StepCard({ index, title, body }: { index: string; title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+      <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Step {index}</p>
+      <p className="mt-2 text-sm font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm text-slate-300">{body}</p>
     </div>
   );
 }
@@ -437,6 +527,21 @@ function ReadinessCard({ title, readiness, missing }: { title: string; readiness
       </div>
       <p className="mt-3 text-xs text-slate-300">{lead}</p>
       <p className="mt-2 text-xs text-slate-500">{missing.length === 0 ? "All set" : `${missing.length} action item(s) remaining`}</p>
+    </div>
+  );
+}
+
+function ChecklistLine({ done, text }: { done: boolean; text: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3">
+      <span
+        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
+          done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"
+        }`}
+      >
+        {done ? "OK" : "!"}
+      </span>
+      <p className="text-sm text-slate-200">{text}</p>
     </div>
   );
 }
