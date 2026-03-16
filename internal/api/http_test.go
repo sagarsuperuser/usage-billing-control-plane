@@ -2740,6 +2740,119 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 	}
 }
 
+func TestCustomerBillingProfileRetrySync(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "customer-reader-key", api.RoleReader, "default")
+	mustCreateAPIKey(t, repo, "customer-writer-key", api.RoleWriter, "default")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	syncHealthy := false
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			if !syncHealthy {
+				http.Error(w, `{"error":"temporary failure"}`, http.StatusBadGateway)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_retry","external_id":"cust_retry","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_retry","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_retry/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+	).Handler())
+	defer ts.Close()
+
+	_ = postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id":  "cust_retry",
+		"display_name": "Retry Co",
+		"email":        "billing@retry.test",
+	}, "customer-writer-key", http.StatusCreated)
+
+	failed := putJSON(t, ts.URL+"/v1/customers/cust_retry/billing-profile", map[string]any{
+		"legal_name":            "Retry Co Pvt Ltd",
+		"email":                 "billing@retry.test",
+		"billing_address_line1": "1 Retry Street",
+		"billing_city":          "Bengaluru",
+		"billing_postal_code":   "560001",
+		"billing_country":       "IN",
+		"currency":              "USD",
+		"provider_code":         "stripe_test",
+	}, "customer-writer-key", http.StatusInternalServerError)
+	if got, _ := failed["error"].(string); !strings.Contains(strings.ToLower(got), "temporary failure") {
+		t.Fatalf("expected sync failure response, got %q", got)
+	}
+
+	profile := getJSON(t, ts.URL+"/v1/customers/cust_retry/billing-profile", "customer-reader-key", http.StatusOK)
+	if got, _ := profile["profile_status"].(string); got != "sync_error" {
+		t.Fatalf("expected billing profile status sync_error after failed sync, got %q", got)
+	}
+	if got, _ := profile["last_sync_error"].(string); got == "" {
+		t.Fatalf("expected last_sync_error after failed sync")
+	}
+
+	syncHealthy = true
+	retried := postJSON(t, ts.URL+"/v1/customers/cust_retry/billing-profile/retry-sync", map[string]any{}, "customer-writer-key", http.StatusOK)
+	if got, _ := retried["external_id"].(string); got != "cust_retry" {
+		t.Fatalf("expected external_id cust_retry, got %q", got)
+	}
+	retriedProfile, ok := retried["billing_profile"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected billing_profile object in retry response")
+	}
+	if got, _ := retriedProfile["profile_status"].(string); got != "ready" {
+		t.Fatalf("expected billing profile status ready after retry, got %q", got)
+	}
+	if got, _ := retriedProfile["last_sync_error"].(string); got != "" {
+		t.Fatalf("expected last_sync_error cleared after retry, got %q", got)
+	}
+
+	customer := getJSON(t, ts.URL+"/v1/customers/cust_retry", "customer-reader-key", http.StatusOK)
+	if got, _ := customer["lago_customer_id"].(string); got != "lago_cust_retry" {
+		t.Fatalf("expected lago_customer_id lago_cust_retry after retry, got %q", got)
+	}
+}
+
 func mustCreateAPIKey(t *testing.T, repo *store.PostgresStore, rawKey string, role api.Role, tenantID string) {
 	t.Helper()
 

@@ -204,6 +204,7 @@ Recommended first endpoints:
 - `PATCH /v1/customers/{external_id}`
 - `PUT /v1/customers/{external_id}/billing-profile`
 - `GET /v1/customers/{external_id}/billing-profile`
+- `POST /v1/customers/{external_id}/billing-profile/retry-sync`
 - `GET /v1/customers/{external_id}/payment-setup`
 - `POST /v1/customers/{external_id}/payment-setup/checkout-url`
 - `POST /v1/customers/{external_id}/payment-setup/refresh`
@@ -228,6 +229,7 @@ This should feed Phase 3 onboarding work.
 
 Current implementation note:
 - Alpha now syncs customer billing configuration to Lago through a dedicated adapter when billing-profile data is complete
+- Alpha exposes an explicit billing-profile retry action for transient external sync failures
 - Alpha initiates provider setup through an Alpha-owned checkout action instead of asking callers to submit provider references manually
 - Alpha verifies customer payment-method readiness through an explicit refresh action, not a mutating GET
 - Alpha also refreshes customer payment setup automatically when Lago emits customer payment-provider lifecycle webhooks

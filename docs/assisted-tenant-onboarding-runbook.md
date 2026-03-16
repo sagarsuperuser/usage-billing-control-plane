@@ -353,6 +353,15 @@ What Alpha does now:
 - syncs the customer billing configuration into Lago behind the scenes when the profile is complete
 - records sync failures back onto the customer readiness state instead of requiring operators to work in Lago directly
 
+Retry billing-profile sync if Alpha recorded a transient `sync_error`:
+
+```bash
+curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/billing-profile/retry-sync" \
+  -H "X-API-Key: $TENANT_WRITER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
 Start payment-method setup in Alpha:
 
 ```bash

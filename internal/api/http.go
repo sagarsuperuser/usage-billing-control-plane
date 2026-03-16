@@ -1084,6 +1084,12 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/customers/"):
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
+		if strings.HasSuffix(tail, "/billing-profile/retry-sync") {
+			if r.Method == http.MethodPost {
+				return RoleWriter, true
+			}
+			return RoleReader, true
+		}
 		if strings.HasSuffix(tail, "/billing-profile") {
 			if r.Method == http.MethodPut {
 				return RoleWriter, true
@@ -1230,6 +1236,9 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/customers"
 	case strings.HasPrefix(path, "/v1/customers/"):
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
+		if strings.HasSuffix(tail, "/billing-profile/retry-sync") {
+			return "/v1/customers/{id}/billing-profile/retry-sync"
+		}
 		if strings.HasSuffix(tail, "/billing-profile") {
 			return "/v1/customers/{id}/billing-profile"
 		}
@@ -1837,6 +1846,19 @@ func (s *Server) handleCustomerByExternalID(w http.ResponseWriter, r *http.Reque
 			writeMethodNotAllowed(w)
 		}
 	case "billing-profile":
+		if subaction == "retry-sync" {
+			if r.Method != http.MethodPost {
+				writeMethodNotAllowed(w)
+				return
+			}
+			result, err := s.customerService.RetryCustomerBillingProfileSync(tenantID, externalID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, result)
+			return
+		}
 		switch r.Method {
 		case http.MethodGet:
 			profile, err := s.customerService.GetCustomerBillingProfile(tenantID, externalID)

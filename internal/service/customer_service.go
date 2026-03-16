@@ -63,6 +63,13 @@ type BeginCustomerPaymentSetupResult struct {
 	PaymentSetup domain.CustomerPaymentSetup `json:"payment_setup"`
 }
 
+type RetryCustomerBillingProfileSyncResult struct {
+	ExternalID        string                        `json:"external_id"`
+	BillingProfile    domain.CustomerBillingProfile `json:"billing_profile"`
+	PaymentSetup      domain.CustomerPaymentSetup   `json:"payment_setup"`
+	CustomerReadiness CustomerReadiness             `json:"readiness"`
+}
+
 type RefreshCustomerPaymentSetupResult struct {
 	ExternalID   string                      `json:"external_id"`
 	PaymentSetup domain.CustomerPaymentSetup `json:"payment_setup"`
@@ -262,6 +269,44 @@ func (s *CustomerService) GetCustomerBillingProfile(tenantID, externalID string)
 		return domain.CustomerBillingProfile{}, err
 	}
 	return profile, nil
+}
+
+func (s *CustomerService) RetryCustomerBillingProfileSync(tenantID, externalID string) (RetryCustomerBillingProfileSyncResult, error) {
+	if s == nil || s.store == nil {
+		return RetryCustomerBillingProfileSyncResult{}, fmt.Errorf("%w: customer repository is required", ErrValidation)
+	}
+	if s.billingAdapter == nil {
+		return RetryCustomerBillingProfileSyncResult{}, fmt.Errorf("%w: customer billing adapter is required", ErrValidation)
+	}
+	customer, err := s.GetCustomerByExternalID(tenantID, externalID)
+	if err != nil {
+		return RetryCustomerBillingProfileSyncResult{}, err
+	}
+	profile, err := s.GetCustomerBillingProfile(customer.TenantID, customer.ExternalID)
+	if err != nil {
+		return RetryCustomerBillingProfileSyncResult{}, err
+	}
+	if profile.ProfileStatus != domain.BillingProfileStatusReady && profile.ProfileStatus != domain.BillingProfileStatusSyncError {
+		return RetryCustomerBillingProfileSyncResult{}, fmt.Errorf("%w: billing profile must be ready before retrying sync", ErrValidation)
+	}
+	setup, err := s.GetCustomerPaymentSetup(customer.TenantID, customer.ExternalID)
+	if err != nil {
+		return RetryCustomerBillingProfileSyncResult{}, err
+	}
+	customer, profile, setup, err = s.syncAndVerifyCustomerBilling(tenantID, customer, profile, setup)
+	if err != nil {
+		return RetryCustomerBillingProfileSyncResult{}, err
+	}
+	tenant, err := s.store.GetTenant(normalizeTenantID(tenantID))
+	if err != nil {
+		return RetryCustomerBillingProfileSyncResult{}, err
+	}
+	return RetryCustomerBillingProfileSyncResult{
+		ExternalID:        customer.ExternalID,
+		BillingProfile:    profile,
+		PaymentSetup:      setup,
+		CustomerReadiness: buildCustomerReadiness(tenant, customer, profile, setup),
+	}, nil
 }
 
 func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string, req BeginCustomerPaymentSetupRequest) (BeginCustomerPaymentSetupResult, error) {
