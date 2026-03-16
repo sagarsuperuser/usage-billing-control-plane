@@ -91,9 +91,8 @@ export LAGO_API_URL=http://localhost:3000
 export LAGO_API_KEY=your_lago_api_key
 export LAGO_HTTP_TIMEOUT_MS=10000
 export LAGO_WEBHOOK_PUBLIC_KEY_TTL_SEC=300
-# optional mapping when one alpha control-plane serves multiple Lago organizations
-# format: <lago_organization_id>:<tenant_id>,<lago_organization_id>:<tenant_id>
-export LAGO_ORG_TENANT_MAP='org_1:tenant_a,org_2:tenant_b'
+# Lago webhook routing is tenant-backed
+# write lago_organization_id and lago_billing_provider_code onto each tenant via /internal/tenants
 export LAGO_REPO_PATH=../lago
 export VERIFY_LAGO_BACKEND_FOR_TESTS=0
 export LAGO_VERIFY_COMPOSE_FILE=docker-compose.dev.yml

@@ -123,7 +123,9 @@ Required keys:
 - `RATE_LIMIT_REDIS_URL`
 
 Optional:
-- `LAGO_ORG_TENANT_MAP`
+- none for Lago org routing; multi-tenant Lago mapping now lives on the tenant record via:
+  - `lago_organization_id`
+  - `lago_billing_provider_code`
 
 TLS / edge note:
 - when the staging hosts are proxied by Cloudflare, use the Cloudflare DNS-01 ClusterIssuer (`letsencrypt-cloudflare-prod`) instead of origin HTTP-01

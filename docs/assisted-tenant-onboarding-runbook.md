@@ -47,7 +47,7 @@ Current role model:
 
 Important current limitation:
 - this is not yet a self-serve signup and billing-configuration product
-- the first tenant admin, Lago org mapping, and Stripe/Lago billing bootstrap are still operator-assisted
+- the first tenant admin and Stripe/Lago billing bootstrap are still operator-assisted
 
 ## 2. Recommended Onboarding Model
 
@@ -175,8 +175,33 @@ This is still operator-assisted.
 You need:
 - a Lago organization for the tenant
 - a working Lago API key for that organization
+- the tenant record in alpha updated with:
+  - `lago_organization_id`
+  - `lago_billing_provider_code`
 - the alpha Lago webhook endpoint configured in Lago
 - if payments are enabled, a Stripe provider in Lago
+
+Recommended operator path:
+1. create or confirm the Lago organization
+2. create or confirm the tenant in alpha
+3. write the billing mapping fields onto the tenant record
+
+Example:
+
+```bash
+curl -sS -X PATCH "$ALPHA_API_BASE_URL/internal/tenants/$TENANT_ID" \
+  -H "X-API-Key: $DEFAULT_OPERATOR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lago_organization_id": "org_acme",
+    "lago_billing_provider_code": "stripe_test"
+  }'
+```
+
+Why this matters:
+- Lago webhook routing now resolves `organization_id` through the canonical tenant record
+- `LAGO_ORG_TENANT_MAP` is no longer the production mapping mechanism
+- unmapped Lago organizations fail closed instead of silently routing into `default`
 
 For staging, the proven bootstrap path is:
 
@@ -347,7 +372,7 @@ Keep these expectations explicit.
 
 Still operator-assisted:
 - first tenant admin key bootstrap
-- Lago organization mapping and billing-provider setup
+- tenant billing mapping setup (`lago_organization_id`, `lago_billing_provider_code`)
 - Stripe provider configuration in Lago
 - first customer and payment bootstrap when bringing up a new environment
 - pricing/rating bootstrap if the tenant is not using a prebuilt template
@@ -364,6 +389,7 @@ Already reproducible or automated:
 
 When onboarding a real tenant, record these in the tenant handoff doc:
 - tenant id
+- tenant display name
 - tenant admin key owner
 - Lago organization id
 - Lago billing provider code
@@ -380,13 +406,14 @@ Do not leave this as tribal knowledge.
 
 Use this exact sequence for each new tenant:
 1. create or map the tenant billing side
-2. bootstrap the tenant admin key
-3. let the tenant admin mint reader and writer keys
-4. seed one meter and one rating rule
-5. verify payment flows
-6. verify replay flows
-7. verify browser RBAC flows
-8. hand off the tenant with recorded evidence
+2. write `lago_organization_id` and `lago_billing_provider_code` onto the tenant record
+3. bootstrap the tenant admin key
+4. let the tenant admin mint reader and writer keys
+5. seed one meter and one rating rule
+6. verify payment flows
+7. verify replay flows
+8. verify browser RBAC flows
+9. hand off the tenant with recorded evidence
 
 This keeps onboarding reproducible and auditable.
 

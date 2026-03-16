@@ -69,7 +69,9 @@ Populate `runtime_secret_name` output with JSON keys:
 - `TEMPORAL_ADDRESS`
 - `AUDIT_EXPORT_S3_BUCKET`
 - `RATE_LIMIT_REDIS_URL`
-- optional `LAGO_ORG_TENANT_MAP`
+- no `LAGO_ORG_TENANT_MAP`; set multi-tenant Lago routing on each tenant record instead:
+  - `lago_organization_id`
+  - `lago_billing_provider_code`
 
 Then ensure External Secrets has access:
 
