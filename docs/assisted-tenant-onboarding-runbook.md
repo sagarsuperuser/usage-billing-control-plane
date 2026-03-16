@@ -47,18 +47,19 @@ Current role model:
 
 Important current limitation:
 - this is not yet a self-serve signup and billing-configuration product
-- the first tenant admin and Stripe/Lago billing bootstrap are still operator-assisted
+- platform-admin onboarding and Stripe/Lago billing bootstrap are still operator-assisted
 
 ## 2. Recommended Onboarding Model
 
 Use a white-glove assisted flow for each tenant:
 1. collect tenant inputs
-2. bootstrap the tenant's first admin key
-3. let the tenant admin create reader and writer keys
-4. configure the tenant's Lago and Stripe billing path
-5. create or confirm the tenant pricing model
-6. prove payment, explainability, and replay paths
-7. hand off the UI and API usage to the tenant users
+2. create or confirm the tenant record
+3. bootstrap the tenant's first admin key through the internal operator API
+4. let the tenant admin create reader and writer keys
+5. configure the tenant's Lago and Stripe billing path
+6. create or confirm the tenant pricing model
+7. prove payment, explainability, and replay paths
+8. hand off the UI and API usage to the tenant users
 
 Do not start with open self-serve signup.
 
@@ -82,40 +83,73 @@ Collect these before touching the system:
 
 ## 4. End-to-End Onboarding Flow
 
-### Step 1: Bootstrap the Tenant's First Admin Key
+### Step 1: Bootstrap the Platform Admin Key
 
-Today this first key is an operator step.
+This is the root bootstrap step.
 
 Why:
-- API key creation is tenant-scoped
-- once a tenant has an `admin` key, that tenant can self-manage additional keys
-- but the first tenant admin key still needs platform bootstrap
+- `/internal/*` operator routes now require `platform_admin`
+- tenant creation and tenant-admin bootstrap are now internal API flows
+- the system still needs one explicit root-of-trust credential to start from
 
 Current supported model:
-- use the dedicated operator bootstrap command below to mint the first tenant `admin` key
-- after that, keep all routine access management inside the tenant through the API key endpoints
+- use the dedicated operator bootstrap command below once to mint a `platform_admin` key
+- after that, use the internal operator APIs for tenant creation and tenant-admin bootstrap
 
 Operator bootstrap command:
 
 ```bash
 DATABASE_URL='postgres://...' \
-TENANT_ID='tenant_acme' \
-KEY_NAME='acme-platform-admin' \
-make bootstrap-tenant-admin-key
+PLATFORM_KEY_NAME='alpha-platform-root' \
+make bootstrap-platform-admin-key
 ```
 
 Behavior:
-- creates one `admin` API key for the requested tenant
-- prints the one-time `secret` so it can be handed to the tenant admin securely
-- refuses to run if the tenant already has active keys unless `ALLOW_EXISTING_ACTIVE_KEYS=1` is set
+- creates one `platform_admin` API key
+- prints the one-time `secret`
+- refuses to run if active platform keys already exist unless `ALLOW_EXISTING_ACTIVE_KEYS=1` is set
 - supports optional expiry with `EXPIRES_AT=<RFC3339 timestamp>`
 
 Recommended operator handling:
 - capture the JSON output once
-- hand the `secret` to the tenant's technical owner through a secure channel
+- store the `secret` in the operator secret manager
 - do not store the cleartext secret in docs or chat logs after handoff
 
-After the first admin key exists, that tenant admin can create more keys with:
+### Step 2: Create the Tenant and Bootstrap Its First Admin Key
+
+Use the platform key for both operations.
+
+Create or ensure the tenant:
+
+```bash
+curl -sS -X POST "$ALPHA_API_BASE_URL/internal/tenants" \
+  -H "X-API-Key: $PLATFORM_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "tenant_acme",
+    "name": "Acme"
+  }'
+```
+
+Bootstrap the first tenant admin:
+
+```bash
+curl -sS -X POST "$ALPHA_API_BASE_URL/internal/tenants/tenant_acme/bootstrap-admin-key" \
+  -H "X-API-Key: $PLATFORM_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "acme-platform-admin"
+  }'
+```
+
+Behavior:
+- returns a tenant-scoped `admin` key plus the one-time `secret`
+- refuses by default if the tenant already has active keys
+- supports:
+  - `expires_at`
+  - `allow_existing_active_keys`
+
+After the first tenant admin key exists, that tenant admin can create more keys with:
 
 ```bash
 curl -sS -X POST "$ALPHA_API_BASE_URL/v1/api-keys" \
@@ -144,7 +178,7 @@ Notes:
 - `writer` cannot create new keys
 - `admin` is the tenant role that manages tenant API keys
 
-### Step 2: First Browser Sign-In
+### Step 3: First Browser Sign-In
 
 The browser session model is API-key backed.
 
@@ -168,7 +202,7 @@ Under the hood the UI creates a session by calling:
 
 This is the practical onboarding experience today.
 
-### Step 3: Create or Map the Lago Billing Side
+### Step 4: Create or Map the Lago Billing Side
 
 This is still operator-assisted.
 
@@ -190,7 +224,7 @@ Example:
 
 ```bash
 curl -sS -X PATCH "$ALPHA_API_BASE_URL/internal/tenants/$TENANT_ID" \
-  -H "X-API-Key: $DEFAULT_OPERATOR_ADMIN_KEY" \
+  -H "X-API-Key: $PLATFORM_ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "lago_organization_id": "org_acme",
@@ -221,7 +255,7 @@ For environment-specific billing details, follow:
 - [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
 - [lago-staging-bootstrap.md](./lago-staging-bootstrap.md)
 
-### Step 4: Seed Tenant Pricing Metadata
+### Step 5: Seed Tenant Pricing Metadata
 
 At minimum, a tenant needs:
 - one rating rule
@@ -371,7 +405,7 @@ Recommended first-session walkthrough:
 Keep these expectations explicit.
 
 Still operator-assisted:
-- first tenant admin key bootstrap
+- first platform admin key bootstrap
 - tenant billing mapping setup (`lago_organization_id`, `lago_billing_provider_code`)
 - Stripe provider configuration in Lago
 - first customer and payment bootstrap when bringing up a new environment
@@ -390,6 +424,7 @@ Already reproducible or automated:
 When onboarding a real tenant, record these in the tenant handoff doc:
 - tenant id
 - tenant display name
+- platform admin key owner
 - tenant admin key owner
 - Lago organization id
 - Lago billing provider code
@@ -405,15 +440,16 @@ Do not leave this as tribal knowledge.
 ## 7. Recommended Operator Workflow
 
 Use this exact sequence for each new tenant:
-1. create or map the tenant billing side
-2. write `lago_organization_id` and `lago_billing_provider_code` onto the tenant record
-3. bootstrap the tenant admin key
-4. let the tenant admin mint reader and writer keys
-5. seed one meter and one rating rule
-6. verify payment flows
-7. verify replay flows
-8. verify browser RBAC flows
-9. hand off the tenant with recorded evidence
+1. bootstrap or retrieve the platform admin key
+2. create the tenant through `/internal/tenants`
+3. write `lago_organization_id` and `lago_billing_provider_code` onto the tenant record
+4. bootstrap the tenant admin key through `/internal/tenants/{id}/bootstrap-admin-key`
+5. let the tenant admin mint reader and writer keys
+6. seed one meter and one rating rule
+7. verify payment flows
+8. verify replay flows
+9. verify browser RBAC flows
+10. hand off the tenant with recorded evidence
 
 This keeps onboarding reproducible and auditable.
 

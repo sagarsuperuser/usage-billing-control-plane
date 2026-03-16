@@ -113,6 +113,7 @@ make tf-plan-staging
 make tf-apply-staging
 make tf-plan-prod
 make tf-apply-prod
+make bootstrap-platform-admin-key
 make run
 make test-real-env-smoke
 make test-integration
@@ -162,11 +163,12 @@ Auth is always enabled:
 - unsafe session-authenticated writes can enforce Origin/Referer policy (`UI_SESSION_REQUIRE_ORIGIN=true`)
 - `APP_ENV`/`ENVIRONMENT` in `staging|prod|production` enforces hard guard: `UI_SESSION_COOKIE_SECURE=true`
 - distributed rate limiting supports pre-auth/login, webhook, and authenticated read/write/admin buckets (Redis-backed)
-- `/internal/metrics` still requires an admin principal
+- `/internal/*` operator routes require a `platform_admin` key
 - API responses include `X-Request-ID`; send your own `X-Request-ID` header to preserve upstream correlation IDs
-API keys are validated against Postgres (`api_keys` table) using hashed key storage and revocation/expiration checks.
+API keys are validated against Postgres using hashed key storage and revocation/expiration checks.
 Each API key is tenant-scoped (`tenant_id`), and API reads/writes are isolated to that tenant.
 `API_KEYS` bootstrap entries are created for tenant `default`.
+Platform operator keys are stored separately in `platform_api_keys`.
 Tenant tables also have Postgres RLS policies (`app.tenant_id`) for DB-side isolation.
 Privileged worker/auth flows explicitly set `app.bypass_rls=on`; regular app paths always run with tenant-scoped sessions.
 `LAGO_API_URL` and `LAGO_API_KEY` are required; backend overlap is delegated to Lago with no local fallback:
@@ -251,6 +253,12 @@ UI routes:
 - `GET /v1/api-keys/audit/exports/{id}`
 - `GET /v1/reconciliation-report`
 - `GET /v1/reconciliation-report?format=csv`
+- `POST /internal/tenants`
+- `GET /internal/tenants`
+- `GET /internal/tenants/{id}`
+- `PATCH /internal/tenants/{id}`
+- `POST /internal/tenants/{id}/bootstrap-admin-key`
+- `GET /internal/tenants/audit`
 - `GET /internal/metrics`
 - `GET /internal/ready`
 
