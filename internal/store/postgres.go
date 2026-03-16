@@ -76,6 +76,8 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	input.ID = normalizeTenantID(input.ID)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Status = normalizeTenantStatus(input.Status)
+	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
+	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
 	if input.Name == "" {
 		input.Name = input.ID
 	}
@@ -98,12 +100,14 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 
 	row := tx.QueryRowContext(
 		ctx,
-		`INSERT INTO tenants (id, name, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, name, status, created_at, updated_at`,
+		`INSERT INTO tenants (id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), $6, $7)
+		RETURNING id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
 		input.ID,
 		input.Name,
 		string(input.Status),
+		input.LagoOrganizationID,
+		input.LagoBillingProviderCode,
 		input.CreatedAt,
 		input.UpdatedAt,
 	)
@@ -134,7 +138,7 @@ func (s *PostgresStore) GetTenant(id string) (domain.Tenant, error) {
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, name, status, created_at, updated_at
+		`SELECT id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at
 		FROM tenants
 		WHERE id = $1`,
 		id,
@@ -143,6 +147,96 @@ func (s *PostgresStore) GetTenant(id string) (domain.Tenant, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Tenant{}, ErrNotFound
+		}
+		return domain.Tenant{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Tenant{}, err
+	}
+	return tenant, nil
+}
+
+func (s *PostgresStore) GetTenantByLagoOrganizationID(organizationID string) (domain.Tenant, error) {
+	organizationID = normalizeOptionalText(organizationID)
+	if organizationID == "" {
+		return domain.Tenant{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at
+		FROM tenants
+		WHERE lago_organization_id = $1`,
+		organizationID,
+	)
+	tenant, err := scanTenant(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Tenant{}, ErrNotFound
+		}
+		return domain.Tenant{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Tenant{}, err
+	}
+	return tenant, nil
+}
+
+func (s *PostgresStore) UpdateTenant(input domain.Tenant) (domain.Tenant, error) {
+	input.ID = normalizeTenantID(input.ID)
+	input.Name = strings.TrimSpace(input.Name)
+	input.Status = normalizeTenantStatus(input.Status)
+	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
+	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
+	if input.Name == "" {
+		return domain.Tenant{}, fmt.Errorf("validation failed: tenant name is required")
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE tenants
+		SET name = $1,
+		    status = $2,
+		    lago_organization_id = NULLIF($3,''),
+		    lago_billing_provider_code = NULLIF($4,''),
+		    updated_at = $5
+		WHERE id = $6
+		RETURNING id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
+		input.Name,
+		string(input.Status),
+		input.LagoOrganizationID,
+		input.LagoBillingProviderCode,
+		input.UpdatedAt,
+		input.ID,
+	)
+	tenant, err := scanTenant(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Tenant{}, ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return domain.Tenant{}, ErrAlreadyExists
 		}
 		return domain.Tenant{}, err
 	}
@@ -164,7 +258,7 @@ func (s *PostgresStore) ListTenants(status string) ([]domain.Tenant, error) {
 	}
 	defer rollbackSilently(tx)
 
-	query := `SELECT id, name, status, created_at, updated_at FROM tenants`
+	query := `SELECT id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at FROM tenants`
 	args := []any{}
 	if status != "" {
 		query += ` WHERE status = $1`
@@ -216,7 +310,7 @@ func (s *PostgresStore) UpdateTenantStatus(id string, status domain.TenantStatus
 		`UPDATE tenants
 		SET status = $1, updated_at = $2
 		WHERE id = $3
-		RETURNING id, name, status, created_at, updated_at`,
+		RETURNING id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
 		string(status),
 		updatedAt,
 		id,
@@ -3166,11 +3260,19 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 func scanTenant(s rowScanner) (domain.Tenant, error) {
 	var out domain.Tenant
 	var status string
-	if err := s.Scan(&out.ID, &out.Name, &status, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	var lagoOrganizationID sql.NullString
+	var lagoBillingProviderCode sql.NullString
+	if err := s.Scan(&out.ID, &out.Name, &status, &lagoOrganizationID, &lagoBillingProviderCode, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.Tenant{}, err
 	}
 	out.ID = normalizeTenantID(out.ID)
 	out.Name = strings.TrimSpace(out.Name)
+	if lagoOrganizationID.Valid {
+		out.LagoOrganizationID = normalizeOptionalText(lagoOrganizationID.String)
+	}
+	if lagoBillingProviderCode.Valid {
+		out.LagoBillingProviderCode = normalizeOptionalText(lagoBillingProviderCode.String)
+	}
 	out.Status = normalizeTenantStatus(domain.TenantStatus(status))
 	return out, nil
 }
@@ -3706,4 +3808,8 @@ func isUniqueViolation(err error) bool {
 	}
 	text := strings.ToLower(err.Error())
 	return strings.Contains(text, "duplicate key value") || strings.Contains(text, "unique constraint")
+}
+
+func normalizeOptionalText(v string) string {
+	return strings.TrimSpace(v)
 }

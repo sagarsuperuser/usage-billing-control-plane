@@ -188,8 +188,10 @@ type InvoicePaymentSyncCandidate struct {
 type Repository interface {
 	Migrate() error
 
+	GetTenantByLagoOrganizationID(organizationID string) (domain.Tenant, error)
 	CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	GetTenant(id string) (domain.Tenant, error)
+	UpdateTenant(input domain.Tenant) (domain.Tenant, error)
 	ListTenants(status string) ([]domain.Tenant, error)
 	UpdateTenantStatus(id string, status domain.TenantStatus, updatedAt time.Time) (domain.Tenant, error)
 	CreateTenantAuditEvent(input domain.TenantAuditEvent) (domain.TenantAuditEvent, error)

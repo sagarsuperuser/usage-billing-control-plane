@@ -242,6 +242,25 @@ func (m *StaticLagoOrganizationTenantMapper) TenantIDForOrganization(organizatio
 	return m.defaultTenantID
 }
 
+type TenantBackedLagoOrganizationTenantMapper struct {
+	repo store.Repository
+}
+
+func NewTenantBackedLagoOrganizationTenantMapper(repo store.Repository) *TenantBackedLagoOrganizationTenantMapper {
+	return &TenantBackedLagoOrganizationTenantMapper{repo: repo}
+}
+
+func (m *TenantBackedLagoOrganizationTenantMapper) TenantIDForOrganization(organizationID string) string {
+	if m == nil || m.repo == nil {
+		return ""
+	}
+	tenant, err := m.repo.GetTenantByLagoOrganizationID(strings.TrimSpace(organizationID))
+	if err != nil {
+		return ""
+	}
+	return normalizeTenantID(tenant.ID)
+}
+
 func ParseLagoOrganizationTenantMap(raw string) (map[string]string, error) {
 	out := make(map[string]string)
 	for _, item := range strings.Split(raw, ",") {
@@ -274,7 +293,7 @@ func NewLagoWebhookService(repo store.Repository, verifier LagoWebhookVerifier, 
 		verifier = NoopLagoWebhookVerifier{}
 	}
 	if tenantMapper == nil {
-		tenantMapper = NewStaticLagoOrganizationTenantMapper(defaultTenantID, nil)
+		tenantMapper = NewTenantBackedLagoOrganizationTenantMapper(repo)
 	}
 	return &LagoWebhookService{
 		repo:         repo,
@@ -302,6 +321,9 @@ func (s *LagoWebhookService) Ingest(ctx context.Context, headers http.Header, bo
 	}
 	event.WebhookKey = strings.TrimSpace(headers.Get("X-Lago-Unique-Key"))
 	event.TenantID = s.tenantMapper.TenantIDForOrganization(event.OrganizationID)
+	if strings.TrimSpace(event.TenantID) == "" {
+		return IngestLagoWebhookResult{}, fmt.Errorf("%w: organization_id %q is not mapped to a tenant", ErrValidation, strings.TrimSpace(event.OrganizationID))
+	}
 	if event.WebhookKey == "" {
 		event.WebhookKey = buildWebhookKey(event)
 	}

@@ -33,6 +33,17 @@ var (
 	errTenantBlocked = errors.New("tenant blocked")
 )
 
+type tenantBlockedError struct {
+	TenantID string
+	Status   domain.TenantStatus
+}
+
+func (e tenantBlockedError) Error() string {
+	return fmt.Sprintf("%s: tenant %q status=%s", errTenantBlocked.Error(), normalizeTenantID(e.TenantID), e.Status)
+}
+
+func (e tenantBlockedError) Unwrap() error { return errTenantBlocked }
+
 type Principal struct {
 	Role     Role
 	TenantID string
@@ -145,7 +156,10 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 		return Principal{}, fmt.Errorf("load tenant: %w", err)
 	}
 	if tenant.Status != domain.TenantStatusActive {
-		return Principal{}, fmt.Errorf("%w: tenant %q status=%s", errTenantBlocked, normalizeTenantID(record.TenantID), tenant.Status)
+		return Principal{}, tenantBlockedError{
+			TenantID: record.TenantID,
+			Status:   tenant.Status,
+		}
 	}
 
 	_ = a.store.TouchAPIKeyLastUsed(record.ID, time.Now().UTC())

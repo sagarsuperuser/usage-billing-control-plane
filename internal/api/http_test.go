@@ -573,6 +573,15 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	if _, ok := metricsMap["http_requests_total"]; !ok {
 		t.Fatalf("expected http_requests_total in metrics payload")
 	}
+	if _, ok := metricsMap["tenant_http_requests_total"]; !ok {
+		t.Fatalf("expected tenant_http_requests_total in metrics payload")
+	}
+	if _, ok := metricsMap["tenant_http_auth_denied_total"]; !ok {
+		t.Fatalf("expected tenant_http_auth_denied_total in metrics payload")
+	}
+	if _, ok := metricsMap["tenant_http_rate_limited_total"]; !ok {
+		t.Fatalf("expected tenant_http_rate_limited_total in metrics payload")
+	}
 	getJSON(t, ts.URL+"/internal/ready", "test-writer-key", http.StatusForbidden)
 	ready := getJSON(t, ts.URL+"/internal/ready", "test-admin-key", http.StatusOK)
 	if ready["status"] != "ready" {
@@ -765,13 +774,12 @@ func TestLagoWebhookVisibilityFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
+	mustSetTenantMappings(t, repo, "tenant_a", "org_test_1", "stripe_test")
+	mustSetTenantMappings(t, repo, "tenant_b", "org_test_2", "stripe_test")
 	lagoWebhookSvc := service.NewLagoWebhookService(
 		repo,
 		service.NoopLagoWebhookVerifier{},
-		service.NewStaticLagoOrganizationTenantMapper("default", map[string]string{
-			"org_test_1": "tenant_a",
-			"org_test_2": "tenant_a",
-		}),
+		nil,
 	)
 
 	ts := httptest.NewServer(api.NewServer(
@@ -880,14 +888,13 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new lago client: %v", err)
 	}
+	mustSetTenantMappings(t, repo, "tenant_a", "org_test_1", "stripe_test")
+	mustSetTenantMappings(t, repo, "tenant_b", "org_test_2", "stripe_test")
 
 	lagoWebhookSvc := service.NewLagoWebhookService(
 		repo,
 		service.NoopLagoWebhookVerifier{},
-		service.NewStaticLagoOrganizationTenantMapper("default", map[string]string{
-			"org_test_1": "tenant_a",
-			"org_test_2": "tenant_a",
-		}),
+		nil,
 	)
 
 	ts := httptest.NewServer(api.NewServer(
@@ -1712,8 +1719,10 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	defer ts.Close()
 
 	created := postJSON(t, ts.URL+"/internal/tenants", map[string]any{
-		"id":   "tenant_ops",
-		"name": "Tenant Ops",
+		"id":                         "tenant_ops",
+		"name":                       "Tenant Ops",
+		"lago_organization_id":       "org_ops",
+		"lago_billing_provider_code": "stripe_ops",
 	}, "default-admin", http.StatusCreated)
 	createdTenant, ok := created["tenant"].(map[string]any)
 	if !ok {
@@ -1721,6 +1730,12 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	}
 	if createdTenant["id"] != "tenant_ops" {
 		t.Fatalf("expected tenant_ops id, got %v", createdTenant["id"])
+	}
+	if createdTenant["lago_organization_id"] != "org_ops" {
+		t.Fatalf("expected org_ops lago org id, got %v", createdTenant["lago_organization_id"])
+	}
+	if createdTenant["lago_billing_provider_code"] != "stripe_ops" {
+		t.Fatalf("expected stripe_ops provider code, got %v", createdTenant["lago_billing_provider_code"])
 	}
 
 	_ = postJSON(t, ts.URL+"/internal/tenants", map[string]any{
@@ -1737,6 +1752,9 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	if got["id"] != "tenant_ops" {
 		t.Fatalf("expected tenant_ops get response, got %v", got["id"])
 	}
+	if got["lago_organization_id"] != "org_ops" {
+		t.Fatalf("expected get response to include lago org id, got %v", got["lago_organization_id"])
+	}
 
 	updated := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
 		"status": "suspended",
@@ -1744,10 +1762,16 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	if updated["status"] != "suspended" {
 		t.Fatalf("expected suspended status, got %v", updated["status"])
 	}
+	updated2 := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
+		"lago_billing_provider_code": "stripe_v2",
+	}, "default-admin", http.StatusOK)
+	if updated2["lago_billing_provider_code"] != "stripe_v2" {
+		t.Fatalf("expected updated provider code, got %v", updated2["lago_billing_provider_code"])
+	}
 
 	auditPage := getJSON(t, ts.URL+"/internal/tenants/audit?tenant_id=tenant_ops&limit=10", "default-admin", http.StatusOK)
-	if got, _ := auditPage["total"].(float64); got < 2 {
-		t.Fatalf("expected at least 2 tenant audit events, got %v", got)
+	if got, _ := auditPage["total"].(float64); got < 3 {
+		t.Fatalf("expected at least 3 tenant audit events, got %v", got)
 	}
 	auditItems := listItemsFromResponse(t, auditPage)
 	if !containsTenantAuditAction(auditItems, "tenant_ops", "created") {
@@ -1755,6 +1779,9 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	}
 	if !containsTenantAuditAction(auditItems, "tenant_ops", "status_changed") {
 		t.Fatalf("expected status_changed tenant audit event")
+	}
+	if !containsTenantAuditAction(auditItems, "tenant_ops", "updated") {
+		t.Fatalf("expected updated tenant audit event")
 	}
 
 	_ = patchJSON(t, ts.URL+"/internal/tenants/default", map[string]any{
@@ -2052,6 +2079,21 @@ func mustCreateAPIKey(t *testing.T, repo *store.PostgresStore, rawKey string, ro
 	})
 	if err != nil {
 		t.Fatalf("create api key %q: %v", rawKey, err)
+	}
+}
+
+func mustSetTenantMappings(t *testing.T, repo *store.PostgresStore, tenantID, lagoOrganizationID, lagoBillingProviderCode string) {
+	t.Helper()
+
+	tenant, err := repo.GetTenant(tenantID)
+	if err != nil {
+		t.Fatalf("get tenant %q: %v", tenantID, err)
+	}
+	tenant.LagoOrganizationID = lagoOrganizationID
+	tenant.LagoBillingProviderCode = lagoBillingProviderCode
+	tenant.UpdatedAt = time.Now().UTC()
+	if _, err := repo.UpdateTenant(tenant); err != nil {
+		t.Fatalf("update tenant %q mappings: %v", tenantID, err)
 	}
 }
 

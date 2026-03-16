@@ -129,6 +129,9 @@ func TestRateLimitBlocksProtectedRouteAfterAuth(t *testing.T) {
 	if got := strings.TrimSpace(resp.Header.Get("X-RateLimit-Limit")); got != "1200" {
 		t.Fatalf("expected X-RateLimit-Limit=1200, got %q", got)
 	}
+	if len(limiter.calls) == 0 || !strings.Contains(limiter.calls[len(limiter.calls)-1].Identifier, "tenant:default:") {
+		t.Fatalf("expected tenant-scoped rate limit identifier, got %#v", limiter.calls)
+	}
 }
 
 func TestRateLimitFailOpenOnProtectedRoutes(t *testing.T) {

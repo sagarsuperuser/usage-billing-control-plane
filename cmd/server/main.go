@@ -269,10 +269,10 @@ func main() {
 	lagoWebhookSvc := service.NewLagoWebhookService(
 		repo,
 		webhookVerifier,
-		service.NewStaticLagoOrganizationTenantMapper("default", cfg.Lago.OrgTenantMap),
+		service.NewTenantBackedLagoOrganizationTenantMapper(repo),
 	)
 	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
-	logger.Info("lago webhook sync enabled", "component", "server", "mapper_entries", len(cfg.Lago.OrgTenantMap))
+	logger.Info("lago webhook sync enabled", "component", "server", "mapper_backend", "tenant_store")
 
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
 	if err != nil {

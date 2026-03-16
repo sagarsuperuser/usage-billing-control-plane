@@ -19,11 +19,13 @@ const (
 )
 
 type Tenant struct {
-	ID        string       `json:"id"`
-	Name      string       `json:"name"`
-	Status    TenantStatus `json:"status"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	ID                      string       `json:"id"`
+	Name                    string       `json:"name"`
+	Status                  TenantStatus `json:"status"`
+	LagoOrganizationID      string       `json:"lago_organization_id,omitempty"`
+	LagoBillingProviderCode string       `json:"lago_billing_provider_code,omitempty"`
+	CreatedAt               time.Time    `json:"created_at"`
+	UpdatedAt               time.Time    `json:"updated_at"`
 }
 
 type RatingTier struct {

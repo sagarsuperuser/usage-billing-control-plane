@@ -79,7 +79,6 @@ type LagoConfig struct {
 	APIURL              string
 	APIKey              string
 	HTTPTimeout         time.Duration
-	OrgTenantMap        map[string]string
 	WebhookPublicKeyTTL time.Duration
 }
 
@@ -160,11 +159,6 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	if lagoAPIKey == "" {
 		return ServerConfig{}, fmt.Errorf("LAGO_API_KEY is required")
 	}
-	orgTenantMap, err := service.ParseLagoOrganizationTenantMap(strings.TrimSpace(os.Getenv("LAGO_ORG_TENANT_MAP")))
-	if err != nil {
-		return ServerConfig{}, fmt.Errorf("failed to parse LAGO_ORG_TENANT_MAP: %w", err)
-	}
-
 	accessKeyID := strings.TrimSpace(os.Getenv("AUDIT_EXPORT_S3_ACCESS_KEY_ID"))
 	if accessKeyID == "" {
 		accessKeyID = strings.TrimSpace(os.Getenv("AWS_ACCESS_KEY_ID"))
@@ -210,7 +204,6 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			APIURL:              lagoAPIURL,
 			APIKey:              lagoAPIKey,
 			HTTPTimeout:         time.Duration(getIntEnv("LAGO_HTTP_TIMEOUT_MS", 10000)) * time.Millisecond,
-			OrgTenantMap:        orgTenantMap,
 			WebhookPublicKeyTTL: time.Duration(getIntEnv("LAGO_WEBHOOK_PUBLIC_KEY_TTL_SEC", 300)) * time.Second,
 		},
 		Payment: PaymentReconcileConfig{
