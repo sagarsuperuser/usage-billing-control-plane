@@ -783,6 +783,7 @@ func TestLagoWebhookVisibilityFlow(t *testing.T) {
 		repo,
 		service.NoopLagoWebhookVerifier{},
 		nil,
+		nil,
 	)
 
 	ts := httptest.NewServer(api.NewServer(
@@ -844,6 +845,139 @@ func TestLagoWebhookVisibilityFlow(t *testing.T) {
 	_ = getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_123", "tenant-b-reader", http.StatusNotFound)
 }
 
+func TestCustomerPaymentSetupAutoRefreshFromWebhook(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "tenant_a")
+	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "tenant_a")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	paymentMethodReady := false
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_alpha","external_id":"cust_alpha","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_123","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_alpha/checkout_url":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_alpha","checkout_url":"https://checkout.example.test/cust_alpha"}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_alpha/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			if paymentMethodReady {
+				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_alpha","is_default":true,"provider_method_id":"pm_123"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	customerBillingAdapter := service.NewLagoCustomerBillingAdapter(lagoTransport)
+	mustSetTenantMappings(t, repo, "tenant_a", "org_test_1", "stripe_test")
+
+	lagoWebhookSvc := service.NewLagoWebhookService(
+		repo,
+		service.NoopLagoWebhookVerifier{},
+		nil,
+		service.NewCustomerService(repo, customerBillingAdapter),
+	)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithCustomerBillingAdapter(customerBillingAdapter),
+		api.WithLagoWebhookService(lagoWebhookSvc),
+	).Handler())
+	defer ts.Close()
+
+	_ = postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id":  "cust_alpha",
+		"display_name": "Alpha Co",
+		"email":        "billing@alpha.test",
+	}, "tenant-a-writer", http.StatusCreated)
+	_ = putJSON(t, ts.URL+"/v1/customers/cust_alpha/billing-profile", map[string]any{
+		"legal_name":            "Alpha Company Pvt Ltd",
+		"email":                 "billing@alpha.test",
+		"billing_address_line1": "1 Billing St",
+		"billing_city":          "Bengaluru",
+		"billing_postal_code":   "560001",
+		"billing_country":       "IN",
+		"currency":              "USD",
+		"provider_code":         "stripe_test",
+	}, "tenant-a-writer", http.StatusOK)
+	_ = postJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup/checkout-url", map[string]any{
+		"payment_method_type": "card",
+	}, "tenant-a-writer", http.StatusOK)
+
+	pendingReadiness := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "tenant-a-reader", http.StatusOK)
+	if got, _ := pendingReadiness["status"].(string); got != "pending" {
+		t.Fatalf("expected readiness pending before webhook refresh, got %q", got)
+	}
+
+	paymentMethodReady = true
+	webhookPayload := map[string]any{
+		"webhook_type":    "customer.payment_provider_created",
+		"object_type":     "customer",
+		"organization_id": "org_test_1",
+		"customer": map[string]any{
+			"external_id": "cust_alpha",
+			"updated_at":  time.Now().UTC().Format(time.RFC3339),
+		},
+	}
+	result := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", webhookPayload, map[string]string{
+		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature":           "test-signature",
+		"X-Lago-Unique-Key":          "whk_customer_created_1",
+	}, "", http.StatusAccepted)
+	if idem, _ := result["idempotent"].(bool); idem {
+		t.Fatalf("expected first webhook delivery to be non-idempotent")
+	}
+
+	setup := getJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", "tenant-a-reader", http.StatusOK)
+	if got, _ := setup["setup_status"].(string); got != "ready" {
+		t.Fatalf("expected payment setup ready after webhook refresh, got %q", got)
+	}
+	readiness := getJSON(t, ts.URL+"/v1/customers/cust_alpha/readiness", "tenant-a-reader", http.StatusOK)
+	if got, _ := readiness["status"].(string); got != "ready" {
+		t.Fatalf("expected readiness ready after webhook refresh, got %q", got)
+	}
+	if got, _ := readiness["default_payment_method_verified"].(bool); !got {
+		t.Fatalf("expected default_payment_method_verified=true after webhook refresh")
+	}
+}
+
 func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -897,6 +1031,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	lagoWebhookSvc := service.NewLagoWebhookService(
 		repo,
 		service.NoopLagoWebhookVerifier{},
+		nil,
 		nil,
 	)
 

@@ -277,6 +277,19 @@ func populateLagoWebhookDerivedFields(event *domain.LagoWebhookEvent, objectPayl
 		}
 		event.OccurredAt = event.ReceivedAt
 
+	case "customer.payment_provider_created":
+		event.CustomerExternalID = stringValue(objectPayload["external_id"])
+		event.OccurredAt = firstTimestamp(objectPayload["updated_at"], objectPayload["created_at"], event.ReceivedAt)
+
+	case "customer.payment_provider_error":
+		event.CustomerExternalID = stringValue(objectPayload["external_customer_id"])
+		event.LastPaymentError = stringValue(objectPayload["provider_error"])
+		event.OccurredAt = event.ReceivedAt
+
+	case "customer.checkout_url_generated":
+		event.CustomerExternalID = stringValue(objectPayload["external_customer_id"])
+		event.OccurredAt = event.ReceivedAt
+
 	default:
 		event.OccurredAt = event.ReceivedAt
 	}

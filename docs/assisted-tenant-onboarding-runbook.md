@@ -368,6 +368,7 @@ What Alpha does now:
 - requests a provider checkout URL from Lago behind the scenes
 - marks local payment setup as pending in Alpha
 - does not mutate readiness state through `GET` calls
+- automatically refreshes payment setup when Lago later emits `customer.payment_provider_created`
 
 Refresh payment setup after the customer completes checkout:
 
@@ -381,6 +382,7 @@ curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/payment-set
 What Alpha does now:
 - syncs and verifies payment-method state against Lago explicitly
 - updates the local readiness record with the verified default payment method state
+- this remains the manual fallback if webhook-driven refresh has not completed yet
 
 Inspect customer readiness:
 

@@ -208,11 +208,12 @@ func main() {
 	if err != nil {
 		fatal(logger, "initialize lago client", "error", err)
 	}
+	customerBillingAdapter := service.NewLagoCustomerBillingAdapter(lagoTransport)
 	serverOpts = append(
 		serverOpts,
 		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
 		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
-		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+		api.WithCustomerBillingAdapter(customerBillingAdapter),
 	)
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL)
 
@@ -275,6 +276,7 @@ func main() {
 		repo,
 		webhookVerifier,
 		service.NewTenantBackedLagoOrganizationTenantMapper(repo),
+		service.NewCustomerService(repo, customerBillingAdapter),
 	)
 	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
 	logger.Info("lago webhook sync enabled", "component", "server", "mapper_backend", "tenant_store")

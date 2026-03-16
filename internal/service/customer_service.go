@@ -420,6 +420,37 @@ func (s *CustomerService) RefreshCustomerPaymentSetup(tenantID, externalID strin
 	}, nil
 }
 
+func (s *CustomerService) RecordCustomerPaymentProviderError(tenantID, externalID, errMessage string) (RefreshCustomerPaymentSetupResult, error) {
+	if s == nil || s.store == nil {
+		return RefreshCustomerPaymentSetupResult{}, fmt.Errorf("%w: customer repository is required", ErrValidation)
+	}
+	customer, err := s.GetCustomerByExternalID(tenantID, externalID)
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
+	}
+	profile, err := s.GetCustomerBillingProfile(customer.TenantID, customer.ExternalID)
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
+	}
+	setup, err := s.GetCustomerPaymentSetup(customer.TenantID, customer.ExternalID)
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
+	}
+	customer, profile, setup, err = s.recordCustomerSyncFailure(customer, profile, setup, errMessage)
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
+	}
+	tenant, err := s.store.GetTenant(normalizeTenantID(tenantID))
+	if err != nil {
+		return RefreshCustomerPaymentSetupResult{}, err
+	}
+	return RefreshCustomerPaymentSetupResult{
+		ExternalID:   customer.ExternalID,
+		PaymentSetup: setup,
+		Readiness:    buildCustomerReadiness(tenant, customer, profile, setup),
+	}, nil
+}
+
 func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) (domain.Customer, domain.CustomerBillingProfile, domain.CustomerPaymentSetup, error) {
 	if s == nil || s.store == nil || s.billingAdapter == nil {
 		return customer, profile, setup, nil

@@ -15,9 +15,10 @@ type LagoWebhookService struct {
 	repo         store.Repository
 	verifier     LagoWebhookVerifier
 	tenantMapper LagoOrganizationTenantMapper
+	customerSvc  *CustomerService
 }
 
-func NewLagoWebhookService(repo store.Repository, verifier LagoWebhookVerifier, tenantMapper LagoOrganizationTenantMapper) *LagoWebhookService {
+func NewLagoWebhookService(repo store.Repository, verifier LagoWebhookVerifier, tenantMapper LagoOrganizationTenantMapper, customerSvc *CustomerService) *LagoWebhookService {
 	if verifier == nil {
 		verifier = NoopLagoWebhookVerifier{}
 	}
@@ -28,6 +29,7 @@ func NewLagoWebhookService(repo store.Repository, verifier LagoWebhookVerifier, 
 		repo:         repo,
 		verifier:     verifier,
 		tenantMapper: tenantMapper,
+		customerSvc:  customerSvc,
 	}
 }
 
@@ -61,10 +63,38 @@ func (s *LagoWebhookService) Ingest(ctx context.Context, headers http.Header, bo
 	if err != nil {
 		return IngestLagoWebhookResult{}, err
 	}
+	if err := s.applyCustomerWebhookEffects(stored); err != nil {
+		return IngestLagoWebhookResult{}, err
+	}
 	return IngestLagoWebhookResult{
 		Event:      stored,
 		Idempotent: !created,
 	}, nil
+}
+
+func (s *LagoWebhookService) applyCustomerWebhookEffects(event domain.LagoWebhookEvent) error {
+	if s == nil || s.customerSvc == nil {
+		return nil
+	}
+	tenantID := normalizeTenantID(event.TenantID)
+	customerExternalID := strings.TrimSpace(event.CustomerExternalID)
+	if tenantID == "" || customerExternalID == "" {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(event.WebhookType)) {
+	case "customer.payment_provider_created":
+		_, err := s.customerSvc.RefreshCustomerPaymentSetup(tenantID, customerExternalID)
+		return err
+	case "customer.payment_provider_error":
+		errMessage := strings.TrimSpace(event.LastPaymentError)
+		if errMessage == "" {
+			errMessage = "payment provider error"
+		}
+		_, err := s.customerSvc.RecordCustomerPaymentProviderError(tenantID, customerExternalID, errMessage)
+		return err
+	default:
+		return nil
+	}
 }
 
 type ListInvoicePaymentStatusViewsRequest struct {

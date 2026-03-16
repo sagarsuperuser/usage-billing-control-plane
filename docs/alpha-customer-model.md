@@ -230,6 +230,7 @@ Current implementation note:
 - Alpha now syncs customer billing configuration to Lago through a dedicated adapter when billing-profile data is complete
 - Alpha initiates provider setup through an Alpha-owned checkout action instead of asking callers to submit provider references manually
 - Alpha verifies customer payment-method readiness through an explicit refresh action, not a mutating GET
+- Alpha also refreshes customer payment setup automatically when Lago emits customer payment-provider lifecycle webhooks
 - Alpha persists sync and verification results back into:
   - `customers.lago_customer_id`
   - `customer_billing_profiles.last_synced_at`
