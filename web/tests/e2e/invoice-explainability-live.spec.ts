@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 const liveBaseURL = process.env.PLAYWRIGHT_LIVE_BASE_URL || "";
 const liveAPIBaseURL = process.env.PLAYWRIGHT_LIVE_API_BASE_URL || "";
-const liveReaderAPIKey = process.env.PLAYWRIGHT_LIVE_READER_API_KEY || process.env.PLAYWRIGHT_LIVE_API_KEY || "";
+const liveReaderAPIKey = process.env.PLAYWRIGHT_LIVE_READER_API_KEY || "";
 const liveInvoiceID = process.env.PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID || "";
 
 async function loginWithAPIKey(page: Page, apiKey: string) {

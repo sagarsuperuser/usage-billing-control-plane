@@ -502,6 +502,7 @@ Run the live browser smoke:
 ```bash
 PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
 PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_PLATFORM_API_KEY='replace_me' \
 PLAYWRIGHT_LIVE_WRITER_API_KEY='replace_me' \
 PLAYWRIGHT_LIVE_READER_API_KEY='replace_me' \
 PLAYWRIGHT_LIVE_REPLAY_JOB_ID='replace_me' \
@@ -511,6 +512,7 @@ make web-e2e-live
 ```
 
 This proves:
+- platform overview loads with live workspace attention data
 - writer session can use payment and replay operations
 - reader session is correctly read-only
 - explainability and replay diagnostics open in the real UI

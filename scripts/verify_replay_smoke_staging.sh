@@ -300,7 +300,7 @@ summary_json="$(jq -n \
       playwright_live_replay_job_id: $replay_job.id,
       playwright_live_replay_customer_id: $customer_id,
       playwright_live_replay_meter_id: $meter.id,
-      note: "Use these env vars with make web-e2e-live to inspect replay diagnostics or queue a fresh replay job from the UI."
+      note: "Use these env vars with make web-e2e-live to inspect overview and replay diagnostics or queue a fresh replay job from the UI."
     }
   }')"
 

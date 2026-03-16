@@ -3,8 +3,8 @@ import { expect, test } from "@playwright/test";
 
 const liveBaseURL = process.env.PLAYWRIGHT_LIVE_BASE_URL || "";
 const liveAPIBaseURL = process.env.PLAYWRIGHT_LIVE_API_BASE_URL || "";
-const liveWriterAPIKey = process.env.PLAYWRIGHT_LIVE_WRITER_API_KEY || process.env.PLAYWRIGHT_LIVE_API_KEY || "";
-const liveReaderAPIKey = process.env.PLAYWRIGHT_LIVE_READER_API_KEY || process.env.PLAYWRIGHT_LIVE_API_KEY || "";
+const liveWriterAPIKey = process.env.PLAYWRIGHT_LIVE_WRITER_API_KEY || "";
+const liveReaderAPIKey = process.env.PLAYWRIGHT_LIVE_READER_API_KEY || "";
 const liveReplayJobID = process.env.PLAYWRIGHT_LIVE_REPLAY_JOB_ID || "";
 const liveReplayCustomerID = process.env.PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID || "";
 const liveReplayMeterID = process.env.PLAYWRIGHT_LIVE_REPLAY_METER_ID || "";

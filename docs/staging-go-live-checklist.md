@@ -254,6 +254,7 @@ Browser UI smoke for the payment operations console:
 ```bash
 PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org' \
 PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+PLAYWRIGHT_LIVE_PLATFORM_API_KEY='replace_me_platform_key' \
 PLAYWRIGHT_LIVE_WRITER_API_KEY='replace_me_writer_key' \
 PLAYWRIGHT_LIVE_READER_API_KEY='replace_me_reader_key' \
 make web-e2e-live
@@ -272,6 +273,7 @@ make verify-replay-smoke-staging
 Use `/tmp/replay-smoke.json` to feed `PLAYWRIGHT_LIVE_REPLAY_JOB_ID`, `PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID`, and `PLAYWRIGHT_LIVE_REPLAY_METER_ID` into the live replay browser smoke.
 
 Pass criteria:
+- platform overview loads with live workspace attention cards
 - writer UI session login succeeds
 - failed-payment list renders
 - timeline drawer opens

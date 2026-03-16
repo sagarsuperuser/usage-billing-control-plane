@@ -56,6 +56,7 @@ export PLAYWRIGHT_LIVE_BASE_URL='https://staging.sagarwaidande.org'
 export PLAYWRIGHT_LIVE_API_BASE_URL='https://api-staging.sagarwaidande.org'
 export PLAYWRIGHT_LIVE_WRITER_API_KEY='replace_me_writer_key'
 export PLAYWRIGHT_LIVE_READER_API_KEY='replace_me_reader_key'
+export PLAYWRIGHT_LIVE_PLATFORM_API_KEY='replace_me_platform_key'
 export PLAYWRIGHT_LIVE_REPLAY_JOB_ID="$(jq -r '.live_browser_smoke.playwright_live_replay_job_id' /tmp/replay-smoke.json)"
 export PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID="$(jq -r '.live_browser_smoke.playwright_live_replay_customer_id' /tmp/replay-smoke.json)"
 export PLAYWRIGHT_LIVE_REPLAY_METER_ID="$(jq -r '.live_browser_smoke.playwright_live_replay_meter_id' /tmp/replay-smoke.json)"
@@ -64,6 +65,7 @@ make web-e2e-live
 ```
 
 What the replay browser smoke verifies:
+- platform overview loads in the real UI
 - reader session can filter down to the live replay fixture and open diagnostics
 - diagnostics drawer shows the known replay job and artifact links
 - writer session can queue a fresh replay job from the real staging UI using the same customer and meter
@@ -109,4 +111,3 @@ Validated on `2026-03-15`:
 - post-replay delta: `0` cents
 
 Browser replay smoke also passed against the live staging UI after deploying image tag `staging-20260315-replay-ui`.
-
