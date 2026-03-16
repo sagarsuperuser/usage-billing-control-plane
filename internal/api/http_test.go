@@ -1885,14 +1885,35 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 	if got, _ := readiness["status"].(string); got != "pending" {
 		t.Fatalf("expected onboarding status pending before pricing, got %q", got)
 	}
-	if got, _ := readiness["billing_mapping_ready"].(bool); !got {
-		t.Fatalf("expected billing_mapping_ready=true")
+	tenantReadiness, ok := readiness["tenant"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tenant readiness object")
 	}
-	if got, _ := readiness["tenant_admin_ready"].(bool); !got {
+	if got, _ := tenantReadiness["status"].(string); got != "ready" {
+		t.Fatalf("expected tenant readiness ready, got %q", got)
+	}
+	if got, _ := tenantReadiness["tenant_admin_ready"].(bool); !got {
 		t.Fatalf("expected tenant_admin_ready=true")
 	}
-	if got, _ := readiness["pricing_ready"].(bool); got {
+	billingReadiness, ok := readiness["billing_integration"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected billing integration readiness object")
+	}
+	if got, _ := billingReadiness["status"].(string); got != "pending" {
+		t.Fatalf("expected billing integration readiness pending before pricing, got %q", got)
+	}
+	if got, _ := billingReadiness["billing_mapping_ready"].(bool); !got {
+		t.Fatalf("expected billing_mapping_ready=true")
+	}
+	if got, _ := billingReadiness["pricing_ready"].(bool); got {
 		t.Fatalf("expected pricing_ready=false before pricing bootstrap")
+	}
+	firstCustomerReadiness, ok := readiness["first_customer"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first_customer readiness object")
+	}
+	if got, _ := firstCustomerReadiness["status"].(string); got != "not_started" {
+		t.Fatalf("expected first_customer status not_started, got %q", got)
 	}
 
 	initialReadiness := getJSON(t, ts.URL+"/internal/onboarding/tenants/tenant_onboard", "platform-admin", http.StatusOK)
@@ -1931,7 +1952,14 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 	if got, _ := finalReadinessData["status"].(string); got != "ready" {
 		t.Fatalf("expected onboarding status ready after pricing bootstrap, got %q", got)
 	}
-	if got, _ := finalReadinessData["pricing_ready"].(bool); !got {
+	finalBillingReadiness, ok := finalReadinessData["billing_integration"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected billing integration readiness object from onboarding status endpoint")
+	}
+	if got, _ := finalBillingReadiness["status"].(string); got != "ready" {
+		t.Fatalf("expected billing integration readiness ready after pricing bootstrap, got %q", got)
+	}
+	if got, _ := finalBillingReadiness["pricing_ready"].(bool); !got {
 		t.Fatalf("expected pricing_ready=true after pricing bootstrap")
 	}
 }

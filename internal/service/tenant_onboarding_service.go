@@ -26,13 +26,32 @@ type TenantOnboardingRequest struct {
 }
 
 type TenantOnboardingReadiness struct {
+	Status             string                        `json:"status"`
+	MissingSteps       []string                      `json:"missing_steps"`
+	Tenant             TenantCoreReadiness           `json:"tenant"`
+	BillingIntegration BillingIntegrationReadiness   `json:"billing_integration"`
+	FirstCustomer      FirstCustomerBillingReadiness `json:"first_customer"`
+}
+
+type TenantCoreReadiness struct {
+	Status           string   `json:"status"`
+	TenantExists     bool     `json:"tenant_exists"`
+	TenantActive     bool     `json:"tenant_active"`
+	TenantAdminReady bool     `json:"tenant_admin_ready"`
+	MissingSteps     []string `json:"missing_steps"`
+}
+
+type BillingIntegrationReadiness struct {
 	Status              string   `json:"status"`
-	TenantExists        bool     `json:"tenant_exists"`
-	TenantActive        bool     `json:"tenant_active"`
 	BillingMappingReady bool     `json:"billing_mapping_ready"`
-	TenantAdminReady    bool     `json:"tenant_admin_ready"`
 	PricingReady        bool     `json:"pricing_ready"`
 	MissingSteps        []string `json:"missing_steps"`
+}
+
+type FirstCustomerBillingReadiness struct {
+	Status  string `json:"status"`
+	Managed bool   `json:"managed"`
+	Note    string `json:"note,omitempty"`
 }
 
 type TenantAdminBootstrapResult struct {
@@ -148,29 +167,57 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 		return TenantOnboardingReadiness{}, err
 	}
 
-	readiness := TenantOnboardingReadiness{
-		Status:              "pending",
-		TenantExists:        true,
-		TenantActive:        tenant.Status == domain.TenantStatusActive,
-		BillingMappingReady: strings.TrimSpace(tenant.LagoOrganizationID) != "" && strings.TrimSpace(tenant.LagoBillingProviderCode) != "",
-		TenantAdminReady:    activeKeys.Total > 0,
-		PricingReady:        len(rules) > 0 && len(meters) > 0,
-		MissingSteps:        make([]string, 0, 4),
+	tenantReadiness := TenantCoreReadiness{
+		Status:           "pending",
+		TenantExists:     true,
+		TenantActive:     tenant.Status == domain.TenantStatusActive,
+		TenantAdminReady: activeKeys.Total > 0,
+		MissingSteps:     make([]string, 0, 2),
+	}
+	if !tenantReadiness.TenantActive {
+		tenantReadiness.MissingSteps = append(tenantReadiness.MissingSteps, "tenant_active")
+	}
+	if !tenantReadiness.TenantAdminReady {
+		tenantReadiness.MissingSteps = append(tenantReadiness.MissingSteps, "tenant_admin_key")
+	}
+	if len(tenantReadiness.MissingSteps) == 0 {
+		tenantReadiness.Status = "ready"
 	}
 
-	if !readiness.TenantActive {
-		readiness.MissingSteps = append(readiness.MissingSteps, "tenant_active")
+	billingIntegrationReadiness := BillingIntegrationReadiness{
+		Status:              "pending",
+		BillingMappingReady: strings.TrimSpace(tenant.LagoOrganizationID) != "" && strings.TrimSpace(tenant.LagoBillingProviderCode) != "",
+		PricingReady:        len(rules) > 0 && len(meters) > 0,
+		MissingSteps:        make([]string, 0, 2),
 	}
-	if !readiness.BillingMappingReady {
-		readiness.MissingSteps = append(readiness.MissingSteps, "billing_mapping")
+	if !billingIntegrationReadiness.BillingMappingReady {
+		billingIntegrationReadiness.MissingSteps = append(billingIntegrationReadiness.MissingSteps, "billing_mapping")
 	}
-	if !readiness.TenantAdminReady {
-		readiness.MissingSteps = append(readiness.MissingSteps, "tenant_admin_key")
+	if !billingIntegrationReadiness.PricingReady {
+		billingIntegrationReadiness.MissingSteps = append(billingIntegrationReadiness.MissingSteps, "pricing")
 	}
-	if !readiness.PricingReady {
-		readiness.MissingSteps = append(readiness.MissingSteps, "pricing")
+	if len(billingIntegrationReadiness.MissingSteps) == 0 {
+		billingIntegrationReadiness.Status = "ready"
 	}
-	if len(readiness.MissingSteps) == 0 {
+
+	readiness := TenantOnboardingReadiness{
+		Status:             "pending",
+		MissingSteps:       make([]string, 0, len(tenantReadiness.MissingSteps)+len(billingIntegrationReadiness.MissingSteps)),
+		Tenant:             tenantReadiness,
+		BillingIntegration: billingIntegrationReadiness,
+		FirstCustomer: FirstCustomerBillingReadiness{
+			Status:  "not_started",
+			Managed: false,
+			Note:    "first-customer billing onboarding is intentionally a separate phase",
+		},
+	}
+	for _, step := range tenantReadiness.MissingSteps {
+		readiness.MissingSteps = append(readiness.MissingSteps, "tenant."+step)
+	}
+	for _, step := range billingIntegrationReadiness.MissingSteps {
+		readiness.MissingSteps = append(readiness.MissingSteps, "billing_integration."+step)
+	}
+	if tenantReadiness.Status == "ready" && billingIntegrationReadiness.Status == "ready" {
 		readiness.Status = "ready"
 	}
 
