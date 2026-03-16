@@ -203,12 +203,12 @@ test.beforeEach(async ({ page }) => {
 test("platform admin can onboard a tenant from the UI", async ({ page }) => {
   await page.goto("/tenant-onboarding");
 
-  await expect(page.getByRole("heading", { name: "Tenant Onboarding" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace Setup" })).toBeVisible();
   await page.getByLabel("Tenant ID").fill("tenant_acme");
   await page.getByLabel("Tenant name").fill("Acme Corp");
   await page.getByLabel("Lago organization ID").fill("org_acme");
   await page.getByLabel("Billing provider code").fill("stripe_default");
-  await page.getByRole("button", { name: "Run tenant onboarding" }).click();
+  await page.getByRole("button", { name: "Run workspace setup" }).click();
 
   await expect.poll(async () =>
     page.evaluate(() => (window as TenantOnboardingMockWindow).__tenantOnboardingMock.csrf)

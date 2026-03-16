@@ -8,6 +8,7 @@ import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchTenantOnboardingStatus, fetchTenants, onboardTenant } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
+import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus } from "@/lib/readiness";
 import { type Tenant, type TenantOnboardingResult } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -116,10 +117,10 @@ export function TenantOnboardingScreen() {
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Platform Operator Console</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Tenant Onboarding</h1>
+              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Platform Setup</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Workspace Setup</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Create or reconcile tenants, bootstrap the first tenant admin key, and inspect readiness without leaving Alpha.
+                Create a workspace, connect billing, generate the first admin credential, and review what still needs attention.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
@@ -148,8 +149,8 @@ export function TenantOnboardingScreen() {
           <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Create or Reconcile</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Tenant bootstrap workflow</h2>
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Create workspace</h2>
               </div>
               <span className="inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-cyan-100">
                 <Building2 className="h-5 w-5" />
@@ -178,7 +179,7 @@ export function TenantOnboardingScreen() {
                 placeholder="bootstrap-admin-tenant_acme"
               />
               <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Bootstrap policy</p>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Advanced controls</p>
                 <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
                   <input
                     type="checkbox"
@@ -186,7 +187,7 @@ export function TenantOnboardingScreen() {
                     onChange={(event) => setBootstrapAdminKey(event.target.checked)}
                     className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
                   />
-                  Bootstrap tenant admin key
+                  Generate first admin credential
                 </label>
                 <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
                   <input
@@ -195,7 +196,7 @@ export function TenantOnboardingScreen() {
                     onChange={(event) => setAllowExistingActiveKeys(event.target.checked)}
                     className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
                   />
-                  Allow existing active tenant keys
+                  Allow existing active credentials
                 </label>
               </div>
             </div>
@@ -211,7 +212,7 @@ export function TenantOnboardingScreen() {
                 className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {onboardMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                Run tenant onboarding
+                Run workspace setup
               </button>
               <button
                 type="button"
@@ -236,12 +237,12 @@ export function TenantOnboardingScreen() {
               <div className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-100">
                 <div className="flex items-center gap-2 font-semibold text-amber-50">
                   <KeyRound className="h-4 w-4" />
-                  Bootstrap admin secret
+                  First admin credential
                 </div>
                 <p className="mt-2 break-all rounded-xl border border-white/10 bg-slate-950/60 px-3 py-3 font-mono text-xs text-amber-50">
                   {createdSecret}
                 </p>
-                <p className="mt-2 text-xs text-amber-200">This value is shown once. Capture it in the handoff flow now.</p>
+                <p className="mt-2 text-xs text-amber-200">This value is shown once. Capture it now and hand it off securely.</p>
               </div>
             ) : null}
           </section>
@@ -249,8 +250,8 @@ export function TenantOnboardingScreen() {
           <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Readiness + Inventory</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Operator view</h2>
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Progress + Inventory</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Workspace status</h2>
               </div>
               <button
                 type="button"
@@ -318,23 +319,23 @@ export function TenantOnboardingScreen() {
               <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
                 {!selectedTenant || !selectedReadiness ? (
                   <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-                    Select a tenant to inspect readiness and bootstrap output.
+                    Select a workspace to review progress and billing setup details.
                   </div>
                 ) : (
                   <>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Selected tenant</p>
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Selected workspace</p>
                         <h3 className="mt-1 text-lg font-semibold text-white">{selectedTenant.name}</h3>
                         <p className="font-mono text-xs text-slate-400">{selectedTenant.id}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
-                        {selectedReadiness.status}
+                        {formatReadinessStatus(selectedReadiness.status)}
                       </span>
                     </div>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <ReadinessCard title="Tenant" readiness={selectedReadiness.tenant.status} missing={selectedReadiness.tenant.missing_steps} />
+                      <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={selectedReadiness.tenant.missing_steps} />
                       <ReadinessCard
                         title="Billing integration"
                         readiness={selectedReadiness.billing_integration.status}
@@ -348,12 +349,12 @@ export function TenantOnboardingScreen() {
                     </div>
 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-200">
-                      <p className="font-semibold text-white">Missing steps</p>
+                      <p className="font-semibold text-white">What still needs action</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {selectedReadiness.missing_steps.length > 0 ? (
                           selectedReadiness.missing_steps.map((step) => (
                             <span key={step} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                              {step}
+                              {describeTenantMissingStep(step)}
                             </span>
                           ))
                         ) : (
@@ -425,15 +426,17 @@ function InputField({
 }
 
 function ReadinessCard({ title, readiness, missing }: { title: string; readiness: string; missing: string[] }) {
+  const lead = missing[0] ? describeTenantSectionStep(missing[0]) : "No action needed";
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-white">{title}</p>
         <span className={`rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${readinessTone(readiness)}`}>
-          {readiness}
+          {formatReadinessStatus(readiness)}
         </span>
       </div>
-      <p className="mt-3 text-xs text-slate-400">{missing.length} missing step(s)</p>
+      <p className="mt-3 text-xs text-slate-300">{lead}</p>
+      <p className="mt-2 text-xs text-slate-500">{missing.length === 0 ? "All set" : `${missing.length} action item(s) remaining`}</p>
     </div>
   );
 }

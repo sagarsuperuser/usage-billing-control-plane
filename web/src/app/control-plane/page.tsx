@@ -16,42 +16,79 @@ export default function ControlPlanePage() {
         <ControlPlaneNav />
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Lago Alpha Control Plane</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Alpha Admin</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            Usage Billing Operations
+            Billing operations that feel product-first
           </h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-            Keep Lago as billing engine, and run product-specific operations from this control plane:
-            payment failure triage, invoice explainability, replay, and reconciliation workflows.
+            Run workspace setup, customer onboarding, payment recovery, and billing diagnostics from Alpha.
+            Lago stays behind the scenes as the billing engine.
           </p>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Get Started</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Primary onboarding journeys</h2>
+            <p className="mt-3 max-w-2xl text-sm text-slate-300">
+              Use guided setup first. Advanced recovery and diagnostics stay available, but they should not be
+              the starting point for normal onboarding.
+            </p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <Card
+                href="/tenant-onboarding"
+                title="Create workspace"
+                description="Create a tenant workspace, connect billing, and hand off the first admin credential."
+                icon={<Building2 className="h-5 w-5 text-sky-200" />}
+                accent="border-sky-400/40 bg-sky-500/10"
+              />
+              <Card
+                href="/customer-onboarding"
+                title="Onboard customer"
+                description="Create the first billable customer, sync the billing profile, and start payment setup."
+                icon={<UserRoundPlus className="h-5 w-5 text-teal-200" />}
+                accent="border-teal-400/40 bg-teal-500/10"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Needs Attention</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Operational focus</h2>
+            <div className="mt-5 grid gap-3">
+              <FocusLine title="Workspaces missing pricing" body="Use workspace setup to finish pricing before billing starts." />
+              <FocusLine title="Customers waiting on payment setup" body="Use customer onboarding and payment refresh to reach verified readiness." />
+              <FocusLine title="Billing recovery" body="Use Payments and Recovery when onboarding is complete but runtime issues need action." />
+            </div>
+          </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Card
             href="/tenant-onboarding"
-            title="Tenant Onboarding"
-            description="Platform-admin workflow for tenant create/reconcile, bootstrap-admin, and layered readiness inspection."
+            title="Workspace Setup"
+            description="Guided platform flow for workspace creation, billing connection, admin access, and readiness review."
             icon={<Building2 className="h-5 w-5 text-sky-200" />}
             accent="border-sky-400/40 bg-sky-500/10"
           />
           <Card
             href="/customer-onboarding"
-            title="Customer Onboarding"
-            description="Tenant workflow for first-customer setup, billing-profile sync, checkout start, and readiness recovery."
+            title="Customers"
+            description="Guided customer onboarding plus advanced billing sync and payment setup recovery when needed."
             icon={<UserRoundPlus className="h-5 w-5 text-teal-200" />}
             accent="border-teal-400/40 bg-teal-500/10"
           />
           <Card
             href="/payment-operations"
-            title="Payment Operations"
-            description="Monitor invoice payment failures, inspect webhook timeline, and trigger retry-payment."
+            title="Payments"
+            description="Monitor invoice payment failures, inspect webhook history, and trigger payment retries."
             icon={<Activity className="h-5 w-5 text-cyan-200" />}
             accent="border-cyan-400/40 bg-cyan-500/10"
           />
           <Card
             href="/replay-operations"
-            title="Replay Recovery"
-            description="Queue replay jobs, inspect Temporal-style diagnostics, and recover failed reprocessing runs."
+            title="Recovery"
+            description="Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs."
             icon={<Workflow className="h-5 w-5 text-amber-200" />}
             accent="border-amber-400/40 bg-amber-500/10"
           />
@@ -64,6 +101,15 @@ export default function ControlPlanePage() {
           />
         </section>
       </main>
+    </div>
+  );
+}
+
+function FocusLine({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4">
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <p className="mt-1 text-sm text-slate-300">{body}</p>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   retryCustomerBillingSync,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
+import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
 import { type Customer, type CustomerOnboardingResult } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -159,10 +160,10 @@ export function CustomerOnboardingScreen() {
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Tenant Admin Console</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Customer Setup</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Customer Onboarding</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Create or reconcile a customer, apply the billing profile, start payment setup, and verify readiness from a single Alpha workflow.
+                Create a billable customer, apply the billing profile, start payment setup, and verify readiness from one guided Alpha flow.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
@@ -197,8 +198,8 @@ export function CustomerOnboardingScreen() {
           <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workflow</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">First-customer happy path</h2>
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">First customer</h2>
               </div>
               <span className="inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-cyan-100">
                 <UserRoundPlus className="h-5 w-5" />
@@ -234,7 +235,7 @@ export function CustomerOnboardingScreen() {
                     onChange={(event) => setStartPaymentSetup(event.target.checked)}
                     className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
                   />
-                  Start payment setup checkout
+                  Start payment setup
                 </label>
               </div>
             </div>
@@ -250,7 +251,7 @@ export function CustomerOnboardingScreen() {
                 className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {onboardingMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                Run customer onboarding
+                Run customer setup
               </button>
               <button
                 type="button"
@@ -278,7 +279,7 @@ export function CustomerOnboardingScreen() {
 
             {result?.checkout_url ? (
               <div className="mt-6 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-                <p className="font-semibold text-emerald-50">Checkout URL</p>
+                <p className="font-semibold text-emerald-50">Payment setup link</p>
                 <a
                   href={result.checkout_url}
                   target="_blank"
@@ -294,7 +295,7 @@ export function CustomerOnboardingScreen() {
           <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Inventory + Recovery</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Status + Recovery</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Existing customers</h2>
               </div>
               <button
@@ -363,7 +364,7 @@ export function CustomerOnboardingScreen() {
               <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
                 {!selectedCustomer || !selectedReadiness ? (
                   <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-                    Select a customer to inspect readiness and run recovery actions.
+                    Select a customer to review readiness and use advanced recovery actions.
                   </div>
                 ) : (
                   <>
@@ -374,7 +375,7 @@ export function CustomerOnboardingScreen() {
                         <p className="font-mono text-xs text-slate-400">{selectedCustomer.external_id}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
-                        {selectedReadiness.status}
+                        {formatReadinessStatus(selectedReadiness.status)}
                       </span>
                     </div>
 
@@ -384,12 +385,12 @@ export function CustomerOnboardingScreen() {
                     </div>
 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-200">
-                      <p className="font-semibold text-white">Missing steps</p>
+                      <p className="font-semibold text-white">What still needs action</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {selectedReadiness.missing_steps.length > 0 ? (
                           selectedReadiness.missing_steps.map((step) => (
                             <span key={step} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                              {step}
+                              {describeCustomerMissingStep(step)}
                             </span>
                           ))
                         ) : (
@@ -401,8 +402,8 @@ export function CustomerOnboardingScreen() {
                     </div>
 
                     <dl className="mt-4 grid gap-3 md:grid-cols-2">
-                      <MetaItem label="Lago customer ID" value={selectedCustomer.lago_customer_id || "-"} mono />
-                      <MetaItem label="Billing sync error" value={selectedReadiness.billing_profile.last_sync_error || "-"} />
+                      <MetaItem label="Billing customer ID" value={selectedCustomer.lago_customer_id || "-"} mono />
+                      <MetaItem label="Last billing sync error" value={selectedReadiness.billing_profile.last_sync_error || "-"} />
                       <MetaItem label="Last synced" value={formatExactTimestamp(selectedReadiness.billing_profile.last_synced_at)} />
                       <MetaItem label="Last verified" value={formatExactTimestamp(selectedReadiness.payment_setup.last_verified_at)} />
                     </dl>
@@ -486,7 +487,7 @@ function StatusCard({ title, value }: { title: string; value: string }) {
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       <p className="text-sm font-semibold text-white">{title}</p>
       <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${profileTone(value)}`}>
-        {value}
+        {formatReadinessStatus(value)}
       </span>
     </div>
   );

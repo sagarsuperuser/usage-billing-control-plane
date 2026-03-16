@@ -233,7 +233,7 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
   await page.getByLabel("Billing country").fill("IN");
   await page.getByLabel("Currency").fill("USD");
   await page.getByLabel("Provider code").fill("stripe_default");
-  await page.getByRole("button", { name: "Run customer onboarding" }).click();
+  await page.getByRole("button", { name: "Run customer setup" }).click();
 
   await expect.poll(async () =>
     page.evaluate(() => (window as CustomerOnboardingMockWindow).__customerOnboardingMock.csrf)

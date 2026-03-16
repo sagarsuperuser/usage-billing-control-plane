@@ -8,11 +8,11 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 const links = [
   { href: "/control-plane", label: "Overview" },
-  { href: "/tenant-onboarding", label: "Tenant Onboarding", scope: "platform" as const },
-  { href: "/customer-onboarding", label: "Customer Onboarding", scope: "tenant" as const },
-  { href: "/payment-operations", label: "Payment Ops" },
-  { href: "/replay-operations", label: "Replay Ops" },
-  { href: "/invoice-explainability", label: "Invoice Explainability" },
+  { href: "/tenant-onboarding", label: "Workspace Setup", scope: "platform" as const },
+  { href: "/customer-onboarding", label: "Customers", scope: "tenant" as const },
+  { href: "/payment-operations", label: "Payments" },
+  { href: "/replay-operations", label: "Recovery" },
+  { href: "/invoice-explainability", label: "Explainability" },
 ];
 
 export function ControlPlaneNav() {
@@ -29,8 +29,12 @@ export function ControlPlaneNav() {
   });
 
   return (
-    <nav className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <nav className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 p-2">
+      <div className="flex items-center gap-3">
+        <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100">Alpha</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
         {visibleLinks.map((link) => {
           const active = pathname === link.href;
           return (
@@ -47,6 +51,7 @@ export function ControlPlaneNav() {
             </Link>
           );
         })}
+        </div>
       </div>
       {isAuthenticated ? (
         <div className="flex items-center gap-2">
