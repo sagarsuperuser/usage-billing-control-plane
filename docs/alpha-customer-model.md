@@ -198,6 +198,7 @@ These are Alpha workflow services, not billing-engine services.
 Do not overbuild this first slice.
 
 Recommended first endpoints:
+- `POST /v1/customer-onboarding`
 - `POST /v1/customers`
 - `GET /v1/customers`
 - `GET /v1/customers/{external_id}`
@@ -228,6 +229,7 @@ Recommended readiness sections:
 This should feed Phase 3 onboarding work.
 
 Current implementation note:
+- Alpha now exposes `POST /v1/customer-onboarding` as the preferred create-or-reconcile workflow for first-customer setup
 - Alpha now syncs customer billing configuration to Lago through a dedicated adapter when billing-profile data is complete
 - Alpha exposes an explicit billing-profile retry action for transient external sync failures
 - Alpha initiates provider setup through an Alpha-owned checkout action instead of asking callers to submit provider references manually

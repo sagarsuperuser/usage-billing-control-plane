@@ -2740,6 +2740,146 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 	}
 }
 
+func TestCustomerOnboardingWorkflow(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "customer-reader-key", api.RoleReader, "default")
+	mustCreateAPIKey(t, repo, "customer-writer-key", api.RoleWriter, "default")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	customerPaymentMethodReady := false
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_flow","external_id":"cust_flow","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_flow","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_flow/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			if customerPaymentMethodReady {
+				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_flow","is_default":true,"provider_method_id":"pm_flow"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_flow/checkout_url":
+			customerPaymentMethodReady = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_flow","checkout_url":"https://checkout.example.test/cust_flow"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+	).Handler())
+	defer ts.Close()
+
+	created := postJSON(t, ts.URL+"/v1/customer-onboarding", map[string]any{
+		"external_id":         "cust_flow",
+		"display_name":        "Flow Co",
+		"email":               "billing@flow.test",
+		"start_payment_setup": true,
+		"payment_method_type": "card",
+		"billing_profile": map[string]any{
+			"legal_name":            "Flow Co Pvt Ltd",
+			"email":                 "billing@flow.test",
+			"billing_address_line1": "1 Flow Street",
+			"billing_city":          "Bengaluru",
+			"billing_postal_code":   "560001",
+			"billing_country":       "IN",
+			"currency":              "USD",
+			"provider_code":         "stripe_test",
+		},
+	}, "customer-writer-key", http.StatusCreated)
+	if got, _ := created["customer_created"].(bool); !got {
+		t.Fatalf("expected customer_created=true")
+	}
+	if got, _ := created["billing_profile_applied"].(bool); !got {
+		t.Fatalf("expected billing_profile_applied=true")
+	}
+	if got, _ := created["payment_setup_started"].(bool); !got {
+		t.Fatalf("expected payment_setup_started=true")
+	}
+	if got, _ := created["checkout_url"].(string); got != "https://checkout.example.test/cust_flow" {
+		t.Fatalf("expected checkout_url, got %q", got)
+	}
+	createdCustomer, ok := created["customer"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected customer object in onboarding response")
+	}
+	if got, _ := createdCustomer["lago_customer_id"].(string); got != "lago_cust_flow" {
+		t.Fatalf("expected lago_customer_id lago_cust_flow, got %q", got)
+	}
+	createdReadiness, ok := created["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected readiness object in onboarding response")
+	}
+	if got, _ := createdReadiness["status"].(string); got != "pending" {
+		t.Fatalf("expected onboarding readiness pending before refresh, got %q", got)
+	}
+
+	reconciled := postJSON(t, ts.URL+"/v1/customer-onboarding", map[string]any{
+		"external_id":  "cust_flow",
+		"display_name": "Flow Company",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := reconciled["customer_created"].(bool); got {
+		t.Fatalf("expected customer_created=false on reconcile")
+	}
+	reconciledCustomer, ok := reconciled["customer"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected reconciled customer object")
+	}
+	if got, _ := reconciledCustomer["display_name"].(string); got != "Flow Company" {
+		t.Fatalf("expected reconciled display_name Flow Company, got %q", got)
+	}
+	if got, _ := reconciledCustomer["email"].(string); got != "billing.test" {
+		t.Fatalf("expected reconciled email to be preserved, got %q", got)
+	}
+
+	refresh := postJSON(t, ts.URL+"/v1/customers/cust_flow/payment-setup/refresh", map[string]any{}, "customer-writer-key", http.StatusOK)
+	refreshReadiness, ok := refresh["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected readiness in refresh response")
+	}
+	if got, _ := refreshReadiness["status"].(string); got != "ready" {
+		t.Fatalf("expected refresh readiness ready, got %q", got)
+	}
+}
+
 func TestCustomerBillingProfileRetrySync(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {

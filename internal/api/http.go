@@ -34,6 +34,7 @@ type Server struct {
 	ratingService             *service.RatingService
 	tenantService             *service.TenantService
 	customerService           *service.CustomerService
+	customerOnboardingService *service.CustomerOnboardingService
 	meterService              *service.MeterService
 	usageService              *service.UsageService
 	apiKeyService             *service.APIKeyService
@@ -358,6 +359,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.ratingService = service.NewRatingService(repo)
 	s.tenantService = service.NewTenantService(repo)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter)
+	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)
 	s.usageService = service.NewUsageService(repo)
 	s.apiKeyService = service.NewAPIKeyService(repo)
@@ -1075,6 +1077,9 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/v1/ui/sessions/logout" {
 		return RoleReader, true
 	}
+	if path == "/v1/customer-onboarding" {
+		return RoleWriter, true
+	}
 
 	switch {
 	case path == "/v1/customers":
@@ -1232,6 +1237,8 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/ui/sessions/me"
 	case path == "/v1/ui/sessions/logout":
 		return "/v1/ui/sessions/logout"
+	case path == "/v1/customer-onboarding":
+		return "/v1/customer-onboarding"
 	case path == "/v1/customers":
 		return "/v1/customers"
 	case strings.HasPrefix(path, "/v1/customers/"):
@@ -1358,6 +1365,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
 	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
 	s.mux.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
+	s.mux.HandleFunc("/v1/customer-onboarding", s.handleCustomerOnboarding)
 
 	s.mux.HandleFunc("/v1/customers", s.handleCustomers)
 	s.mux.HandleFunc("/v1/customers/", s.handleCustomerByExternalID)
@@ -1768,6 +1776,29 @@ func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
 		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
 		"csrf_token":    csrfToken,
 	})
+}
+
+func (s *Server) handleCustomerOnboarding(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	tenantID := requestTenantID(r)
+	var req service.CustomerOnboardingRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := s.customerOnboardingService.OnboardCustomer(tenantID, req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if result.CustomerCreated {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, result)
 }
 
 func (s *Server) handleCustomers(w http.ResponseWriter, r *http.Request) {

@@ -317,7 +317,40 @@ Create or confirm:
 - one payment-capable customer if payment flows are in scope
 - one failure-path customer if you want to prove retry/recovery behavior
 
-Create the first customer in Alpha:
+Preferred happy-path flow: use the customer onboarding workflow endpoint.
+
+```bash
+curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customer-onboarding" \
+  -H "X-API-Key: $TENANT_WRITER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "external_id": "cust_acme_primary",
+    "display_name": "Acme Primary Customer",
+    "email": "billing@acme.test",
+    "start_payment_setup": true,
+    "payment_method_type": "card",
+    "billing_profile": {
+      "legal_name": "Acme Primary Customer LLC",
+      "email": "billing@acme.test",
+      "billing_address_line1": "1 Billing Street",
+      "billing_city": "Bengaluru",
+      "billing_postal_code": "560001",
+      "billing_country": "IN",
+      "currency": "USD",
+      "provider_code": "stripe_default"
+    }
+  }'
+```
+
+What Alpha does now:
+- creates or reconciles the customer in Alpha
+- applies the billing profile and syncs it to Lago behind the scenes when it is complete
+- optionally starts payment-method setup and returns the checkout URL in the same response
+- records sync and verification failures back onto Alpha readiness state instead of requiring operators to work in Lago directly
+
+Low-level customer primitives remain available when you need to resume or debug a partially completed flow.
+
+Create the first customer in Alpha directly:
 
 ```bash
 curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customers" \
@@ -330,7 +363,7 @@ curl -sS -X POST "$ALPHA_API_BASE_URL/v1/customers" \
   }'
 ```
 
-Set the billing profile in Alpha:
+Set the billing profile in Alpha directly:
 
 ```bash
 curl -sS -X PUT "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/billing-profile" \
@@ -347,11 +380,6 @@ curl -sS -X PUT "$ALPHA_API_BASE_URL/v1/customers/cust_acme_primary/billing-prof
     "provider_code": "stripe_default"
   }'
 ```
-
-What Alpha does now:
-- stores the canonical billing-profile readiness state locally
-- syncs the customer billing configuration into Lago behind the scenes when the profile is complete
-- records sync failures back onto the customer readiness state instead of requiring operators to work in Lago directly
 
 Retry billing-profile sync if Alpha recorded a transient `sync_error`:
 
