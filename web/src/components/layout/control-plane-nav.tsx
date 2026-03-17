@@ -8,12 +8,23 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 const links = [
   { href: "/control-plane", label: "Overview" },
-  { href: "/tenant-onboarding", label: "Workspace Setup", scope: "platform" as const },
+  { href: "/workspaces", label: "Workspaces", scope: "platform" as const },
+  { href: "/workspaces/new", label: "Workspace Setup", scope: "platform" as const },
   { href: "/customer-onboarding", label: "Customers", scope: "tenant" as const },
   { href: "/payment-operations", label: "Payments", scope: "tenant" as const },
   { href: "/replay-operations", label: "Recovery", scope: "tenant" as const },
   { href: "/invoice-explainability", label: "Explainability", scope: "tenant" as const },
 ];
+
+function isActivePath(pathname: string, href: string): boolean {
+  if (href === "/workspaces") {
+    return pathname === "/workspaces" || (pathname.startsWith("/workspaces/") && pathname !== "/workspaces/new");
+  }
+  if (href === "/customers") {
+    return pathname === "/customers" || (pathname.startsWith("/customers/") && pathname !== "/customers/new");
+  }
+  return pathname === href;
+}
 
 export function ControlPlaneNav() {
   const pathname = usePathname();
@@ -42,7 +53,7 @@ export function ControlPlaneNav() {
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {visibleLinks.map((link) => {
-            const active = pathname === link.href;
+            const active = isActivePath(pathname, link.href);
             return (
               <Link
                 key={link.href}

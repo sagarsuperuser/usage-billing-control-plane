@@ -314,6 +314,7 @@ test("platform overview shows live workspace attention counts", async ({ page })
 
   const nav = page.locator("nav");
   await expect(page.getByRole("heading", { name: "Primary onboarding journeys" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toHaveCount(0);
@@ -353,6 +354,7 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toHaveCount(0);
   await expect(page.getByText("Create the first billable customer, sync the billing profile, and start payment setup.")).toBeVisible();
   await expect(page.getByText("Guided customer onboarding plus advanced billing sync and payment setup recovery when needed.")).toBeVisible();

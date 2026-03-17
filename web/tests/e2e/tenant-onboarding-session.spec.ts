@@ -38,18 +38,11 @@ type TenantOnboardingReadiness = {
     status: string;
     managed: boolean;
     customer_exists: boolean;
-    customer_external_id?: string;
     customer_active: boolean;
     billing_profile_status: string;
     payment_setup_status: string;
     missing_steps: string[];
     note?: string;
-  };
-};
-
-type TenantOnboardingMockWindow = Window & typeof globalThis & {
-  __tenantOnboardingMock: {
-    csrf: string;
   };
 };
 
@@ -92,116 +85,114 @@ function buildReadiness(tenantID: string): TenantOnboardingReadiness {
 }
 
 async function installTenantOnboardingMock(page: Page, session: PlatformSessionPayload) {
-  await page.addInitScript(({ session }: { session: PlatformSessionPayload }) => {
-    let loggedIn = true;
-    let tenants: TenantRecord[] = [];
-    const readinessByTenant: Record<string, TenantOnboardingReadiness> = {};
-    const w = window as TenantOnboardingMockWindow;
-    w.__tenantOnboardingMock = { csrf: "" };
+  let loggedIn = false;
+  let tenants: TenantRecord[] = [];
+  const readinessByTenant: Record<string, TenantOnboardingReadiness> = {};
+  let capturedCSRF = "";
 
-    const json = (status: number, payload: unknown) =>
-      new Response(JSON.stringify(payload), {
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    const method = request.method().toUpperCase();
+
+    const json = async (status: number, payload: unknown) => {
+      await route.fulfill({
         status,
-        headers: { "Content-Type": "application/json" },
+        contentType: "application/json",
+        body: JSON.stringify(payload),
       });
-
-    const originalFetch = window.fetch.bind(window);
-
-    window.fetch = async (input, init) => {
-      const request = input instanceof Request ? input : null;
-      const method = (init?.method || request?.method || "GET").toUpperCase();
-      const rawURL =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
-      const url = new URL(rawURL, window.location.origin);
-      const path = url.pathname;
-      const headers = new Headers(init?.headers || request?.headers);
-
-      if (path === "/v1/ui/sessions/me" && method === "GET") {
-        return loggedIn ? json(200, session) : json(401, { error: "unauthorized" });
-      }
-
-      if (path === "/v1/ui/sessions/login" && method === "POST") {
-        loggedIn = true;
-        return json(201, session);
-      }
-
-      if (path === "/v1/ui/sessions/logout" && method === "POST") {
-        const csrf = headers.get("X-CSRF-Token") || "";
-        if (csrf !== session.csrf_token) {
-          return json(403, { error: "forbidden" });
-        }
-        loggedIn = false;
-        return json(200, { logged_out: true });
-      }
-
-      if (path === "/internal/tenants" && method === "GET") {
-        return loggedIn ? json(200, tenants) : json(401, { error: "unauthorized" });
-      }
-
-      if (path === "/internal/onboarding/tenants" && method === "POST") {
-        const csrf = headers.get("X-CSRF-Token") || "";
-        w.__tenantOnboardingMock.csrf = csrf;
-        const body = JSON.parse(String(init?.body || "{}"));
-        const now = new Date().toISOString();
-        const tenant: TenantRecord = {
-          id: body.id,
-          name: body.name || body.id,
-          status: "active",
-          lago_organization_id: body.lago_organization_id,
-          lago_billing_provider_code: body.lago_billing_provider_code,
-          created_at: now,
-          updated_at: now,
-        };
-        tenants = [tenant, ...tenants.filter((item) => item.id !== tenant.id)];
-        readinessByTenant[tenant.id] = buildReadiness(tenant.id);
-        return json(201, {
-          tenant,
-          tenant_created: true,
-          tenant_admin_bootstrap: {
-            created: true,
-            existing_active_keys: 0,
-            api_key: {
-              id: "key_tenant_acme",
-              key_prefix: "pref_tenant_acme",
-              name: "bootstrap-admin-tenant_acme",
-              role: "admin",
-              tenant_id: tenant.id,
-              created_at: now,
-            },
-            secret: "tenant-admin-secret-123",
-          },
-          readiness: readinessByTenant[tenant.id],
-        });
-      }
-
-      if (path.startsWith("/internal/onboarding/tenants/") && method === "GET") {
-        const tenantID = decodeURIComponent(path.split("/").pop() || "");
-        const tenant = tenants.find((item) => item.id === tenantID);
-        if (!tenant) {
-          return json(404, { error: "not found" });
-        }
-        return json(200, {
-          tenant,
-          readiness: readinessByTenant[tenantID],
-          tenant_id: tenantID,
-        });
-      }
-
-      return originalFetch(input, init);
     };
-  }, { session });
+
+    if (path === "/v1/ui/sessions/me" && method === "GET") {
+      return json(loggedIn ? 200 : 401, loggedIn ? session : { error: "unauthorized" });
+    }
+
+    if (path === "/v1/ui/sessions/login" && method === "POST") {
+      loggedIn = true;
+      return json(201, session);
+    }
+
+    if (path === "/v1/ui/sessions/logout" && method === "POST") {
+      const csrf = request.headers()["x-csrf-token"] || "";
+      if (csrf !== session.csrf_token) {
+        return json(403, { error: "forbidden" });
+      }
+      loggedIn = false;
+      return json(200, { logged_out: true });
+    }
+
+    if (path === "/internal/tenants" && method === "GET") {
+      return json(loggedIn ? 200 : 401, loggedIn ? tenants : { error: "unauthorized" });
+    }
+
+    if (path === "/internal/onboarding/tenants" && method === "POST") {
+      capturedCSRF = request.headers()["x-csrf-token"] || "";
+      const body = request.postDataJSON() as Record<string, string>;
+      const now = new Date().toISOString();
+      const tenant: TenantRecord = {
+        id: body.id,
+        name: body.name || body.id,
+        status: "active",
+        lago_organization_id: body.lago_organization_id,
+        lago_billing_provider_code: body.lago_billing_provider_code,
+        created_at: now,
+        updated_at: now,
+      };
+      tenants = [tenant, ...tenants.filter((item) => item.id !== tenant.id)];
+      readinessByTenant[tenant.id] = buildReadiness(tenant.id);
+      return json(201, {
+        tenant,
+        tenant_created: true,
+        tenant_admin_bootstrap: {
+          created: true,
+          existing_active_keys: 0,
+          api_key: {
+            id: "key_tenant_acme",
+            key_prefix: "pref_tenant_acme",
+            name: "bootstrap-admin-tenant_acme",
+            role: "admin",
+            tenant_id: tenant.id,
+            created_at: now,
+          },
+          secret: "tenant-admin-secret-123",
+        },
+        readiness: readinessByTenant[tenant.id],
+      });
+    }
+
+    if (path.startsWith("/internal/onboarding/tenants/") && method === "GET") {
+      const tenantID = decodeURIComponent(path.split("/").pop() || "");
+      const tenant = tenants.find((item) => item.id === tenantID);
+      if (!tenant) {
+        return json(404, { error: "not found" });
+      }
+      return json(200, {
+        tenant,
+        readiness: readinessByTenant[tenantID],
+        tenant_id: tenantID,
+      });
+    }
+
+    if (path === "/runtime-config" && method === "GET") {
+      return json(200, { apiBaseURL: "" });
+    }
+
+    return route.continue();
+  });
+
+  return {
+    getCapturedCSRF: () => capturedCSRF,
+  };
 }
 
-test.beforeEach(async ({ page }) => {
-  await installTenantOnboardingMock(page, sessionPayload);
-});
-
 test("platform admin can onboard a tenant from the UI", async ({ page }) => {
+  const mock = await installTenantOnboardingMock(page, sessionPayload);
+
   await page.goto("/tenant-onboarding");
+
+  await page.getByTestId("session-login-api-key").fill("platform-key");
+  await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Workspace Setup" })).toBeVisible();
   await page.getByLabel("Workspace ID").fill("tenant_acme");
@@ -210,13 +201,9 @@ test("platform admin can onboard a tenant from the UI", async ({ page }) => {
   await page.getByLabel("Billing connection code").fill("stripe_default");
   await page.getByRole("button", { name: "Run workspace setup" }).click();
 
-  await expect.poll(async () =>
-    page.evaluate(() => (window as TenantOnboardingMockWindow).__tenantOnboardingMock.csrf)
-  ).toBe("csrf-platform-123");
+  await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
 
-  await page.getByRole("button", { name: "Refresh" }).click();
-  await expect(page.getByRole("button", { name: /Acme Corp/i })).toBeVisible();
-  await page.getByRole("button", { name: /Acme Corp/i }).click();
-  await expect(page.getByText("Acme Corp")).toBeVisible();
-  await expect(page.getByText("tenant_acme")).toBeVisible();
+  await page.goto("/workspaces/tenant_acme");
+  await expect(page.getByRole("heading", { name: "Acme Corp" })).toBeVisible();
+  await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
 });

@@ -112,7 +112,7 @@ export function ControlPlaneOverviewScreen() {
 
   const guidedJourneys = [
     {
-      href: "/tenant-onboarding",
+      href: "/workspaces/new",
       title: "Create workspace",
       description: "Create a tenant workspace, connect billing, and hand off the first admin credential.",
       icon: <Building2 className="h-5 w-5 text-sky-200" />,
@@ -131,9 +131,9 @@ export function ControlPlaneOverviewScreen() {
 
   const workspaceModules = [
     {
-      href: "/tenant-onboarding",
-      title: "Workspace Setup",
-      description: "Guided platform flow for workspace creation, billing connection, admin access, and readiness review.",
+      href: "/workspaces",
+      title: "Workspaces",
+      description: "Browse workspace health, billing connection state, and onboarding readiness from one platform directory.",
       icon: <Building2 className="h-5 w-5 text-sky-200" />,
       accent: "border-sky-400/40 bg-sky-500/10",
       scope: "platform" as const,
