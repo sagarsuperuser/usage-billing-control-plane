@@ -16,6 +16,7 @@ Read together with:
 - [Alpha Import Matrix](./alpha_import_matrix.md)
 - [Slice 1 Spec: Billing Connections Hardening](./alpha_slice1_billing_connections_spec.md)
 - [Slice 2 Spec: Pricing Foundation](./alpha_slice2_pricing_spec.md)
+- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
 
 ---
 
@@ -216,6 +217,10 @@ Outcome:
 
 - Alpha owns a core subscription lifecycle without relying on Lago UI
 - payment-method linking is payer-completed, not operator-driven
+
+Detailed implementation spec:
+
+- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
 
 Priority note:
 
