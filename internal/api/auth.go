@@ -120,9 +120,9 @@ func (a *StaticAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 	}
 	return Principal{
 		SubjectType: "api_key",
-		Scope:    ScopeTenant,
-		Role:     role,
-		TenantID: defaultTenantID,
+		Scope:       ScopeTenant,
+		Role:        role,
+		TenantID:    defaultTenantID,
 	}, nil
 }
 
@@ -182,10 +182,10 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 		return Principal{
 			SubjectType: "api_key",
 			SubjectID:   record.ID,
-			Scope:    ScopeTenant,
-			Role:     role,
-			TenantID: normalizeTenantID(record.TenantID),
-			APIKeyID: record.ID,
+			Scope:       ScopeTenant,
+			Role:        role,
+			TenantID:    normalizeTenantID(record.TenantID),
+			APIKeyID:    record.ID,
 		}, nil
 	}
 
@@ -367,6 +367,10 @@ func normalizeTenantID(v string) string {
 		return defaultTenantID
 	}
 	return v
+}
+
+func normalizeOptionalTenantID(v string) string {
+	return strings.TrimSpace(v)
 }
 
 func ParseRole(raw string) (Role, error) {

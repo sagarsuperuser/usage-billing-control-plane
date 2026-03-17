@@ -1961,7 +1961,7 @@ func (s *Server) handleUISSOStart(w http.ResponseWriter, r *http.Request, provid
 	s.sessionManager.Put(r.Context(), sessionSSONonceKey, nonce)
 	s.sessionManager.Put(r.Context(), sessionSSOPKCEKey, codeVerifier)
 	s.sessionManager.Put(r.Context(), sessionSSONextKey, normalizeUINextPath(strings.TrimSpace(r.URL.Query().Get("next"))))
-	s.sessionManager.Put(r.Context(), sessionSSOTenantIDKey, normalizeTenantID(strings.TrimSpace(r.URL.Query().Get("tenant_id"))))
+	s.sessionManager.Put(r.Context(), sessionSSOTenantIDKey, normalizeOptionalTenantID(strings.TrimSpace(r.URL.Query().Get("tenant_id"))))
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
@@ -1991,7 +1991,7 @@ func (s *Server) handleUISSOCallback(w http.ResponseWriter, r *http.Request, pro
 	expectedProvider := strings.ToLower(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOProviderKey)))
 	nonce := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSONonceKey))
 	codeVerifier := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOPKCEKey))
-	tenantID := normalizeTenantID(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOTenantIDKey)))
+	tenantID := normalizeOptionalTenantID(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOTenantIDKey)))
 	nextPath := normalizeUINextPath(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSONextKey)))
 	if expectedState == "" || !subtleConstantTimeMatch(expectedState, state) || expectedProvider != strings.ToLower(strings.TrimSpace(providerKey)) || codeVerifier == "" {
 		s.clearSSOSessionState(r.Context())

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 
 type fakeHTTPSSOProvider struct {
 	definition service.BrowserSSOProviderDefinition
+	claims     service.BrowserSSOClaims
 }
 
 func (p fakeHTTPSSOProvider) Definition() service.BrowserSSOProviderDefinition {
@@ -36,7 +38,7 @@ func (p fakeHTTPSSOProvider) BuildAuthCodeURL(state, nonce, codeChallenge, redir
 }
 
 func (p fakeHTTPSSOProvider) Exchange(ctx context.Context, redirectURI, code, codeVerifier, nonce string) (service.BrowserSSOClaims, error) {
-	return service.BrowserSSOClaims{}, nil
+	return p.claims, nil
 }
 
 func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
@@ -378,6 +380,129 @@ func TestUIAuthProvidersListsConfiguredSSOProviders(t *testing.T) {
 	}
 }
 
+func TestUISSOCallbackWithoutTenantContextAllowsPlatformUser(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	now := time.Now().UTC()
+	user, err := repo.CreateUser(domain.User{
+		Email:        "platform-admin@alpha.test",
+		DisplayName:  "Platform Admin",
+		Status:       domain.UserStatusActive,
+		PlatformRole: domain.UserPlatformRoleAdmin,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	authSvc, err := service.NewBrowserUserAuthService(repo)
+	if err != nil {
+		t.Fatalf("new browser auth service: %v", err)
+	}
+	ssoSvc, err := service.NewBrowserSSOService(
+		repo,
+		authSvc,
+		[]service.BrowserSSOProvider{
+			fakeHTTPSSOProvider{
+				definition: service.BrowserSSOProviderDefinition{
+					Key:         "google",
+					DisplayName: "Google",
+					Type:        domain.BrowserSSOProviderTypeOIDC,
+				},
+				claims: service.BrowserSSOClaims{
+					Subject:       "google-subject-platform",
+					Email:         user.Email,
+					EmailVerified: true,
+					DisplayName:   user.DisplayName,
+				},
+			},
+		},
+		service.BrowserSSOServiceConfig{},
+	)
+	if err != nil {
+		t.Fatalf("new browser sso service: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_sso_platform_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+		api.WithBrowserUserAuthService(authSvc),
+		api.WithBrowserSSOService(ssoSvc),
+		api.WithUIPublicBaseURL("http://app.example.test"),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+
+	startResp, err := client.Get(ts.URL + "/v1/ui/auth/sso/google/start")
+	if err != nil {
+		t.Fatalf("sso start request: %v", err)
+	}
+	if startResp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(startResp.Body)
+		startResp.Body.Close()
+		t.Fatalf("expected 302 from start, got %d: %s", startResp.StatusCode, string(body))
+	}
+	startLocation := startResp.Header.Get("Location")
+	startResp.Body.Close()
+	startURL := mustParseURL(t, startLocation)
+	state := startURL.Query().Get("state")
+	if state == "" {
+		t.Fatalf("expected state in sso start redirect")
+	}
+
+	callbackResp, err := client.Get(ts.URL + "/v1/ui/auth/sso/google/callback?code=fake-code&state=" + state)
+	if err != nil {
+		t.Fatalf("sso callback request: %v", err)
+	}
+	if callbackResp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(callbackResp.Body)
+		callbackResp.Body.Close()
+		t.Fatalf("expected 302 from callback, got %d: %s", callbackResp.StatusCode, string(body))
+	}
+	if got := callbackResp.Header.Get("Location"); got != "http://app.example.test/" {
+		callbackResp.Body.Close()
+		t.Fatalf("expected redirect to app root, got %q", got)
+	}
+	callbackResp.Body.Close()
+
+	meResp := sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusOK)
+	if got, _ := meResp["scope"].(string); got != "platform" {
+		t.Fatalf("expected platform scope after sso callback, got %q", got)
+	}
+	if got, _ := meResp["platform_role"].(string); got != string(api.PlatformRoleAdmin) {
+		t.Fatalf("expected platform_role platform_admin, got %q", got)
+	}
+}
+
 func newSessionClient(t *testing.T) *http.Client {
 	t.Helper()
 
@@ -521,4 +646,14 @@ func sessionGetJSON(t *testing.T, client *http.Client, url string, expectedStatu
 		t.Fatalf("decode response: %v", err)
 	}
 	return out
+}
+
+func mustParseURL(t *testing.T, raw string) *url.URL {
+	t.Helper()
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse url %q: %v", raw, err)
+	}
+	return parsed
 }
