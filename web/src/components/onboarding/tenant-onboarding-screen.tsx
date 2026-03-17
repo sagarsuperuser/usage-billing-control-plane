@@ -148,9 +148,9 @@ export function TenantOnboardingScreen() {
           </section>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
           <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Create workspace</h2>
@@ -315,7 +315,7 @@ export function TenantOnboardingScreen() {
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Progress + Inventory</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Review workspace progress</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                  Pick a workspace to review readiness, next actions, and billing setup. Keep inventory on the left and the active workspace review on the right.
+                  Pick a workspace to review readiness, next actions, and billing setup. Inventory stays visible, and the active review panel expands cleanly instead of compressing the details.
                 </p>
               </div>
               <button
@@ -334,7 +334,7 @@ export function TenantOnboardingScreen() {
               </button>
             </div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+            <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]">
               <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -391,18 +391,18 @@ export function TenantOnboardingScreen() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex min-w-0 items-start justify-between gap-3">
-                      <div>
+                    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
                         <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Selected workspace</p>
-                        <h3 className="mt-1 truncate text-lg font-semibold text-white">{selectedTenant.name}</h3>
-                        <p className="font-mono text-xs text-slate-400">{selectedTenant.id}</p>
+                        <h3 className="mt-1 break-words text-lg font-semibold leading-tight text-white">{selectedTenant.name}</h3>
+                        <p className="mt-1 break-all font-mono text-xs text-slate-400">{selectedTenant.id}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
                         {formatReadinessStatus(selectedReadiness.status)}
                       </span>
                     </div>
 
-                    <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <SummaryStat
                         label="Workspace"
                         value={selectedReadiness.tenant.status}
@@ -432,7 +432,7 @@ export function TenantOnboardingScreen() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    <div className="mt-4 grid gap-3 xl:grid-cols-3">
                       <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={selectedReadiness.tenant.missing_steps} />
                       <ReadinessCard
                         title="Billing integration"
@@ -510,10 +510,10 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
 
 function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
       <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-white">{formatReadinessStatus(value)}</p>
-      <p className="mt-1 text-xs text-slate-400">{helper}</p>
+      <p className="mt-2 break-words text-base font-semibold leading-tight text-white">{formatReadinessStatus(value)}</p>
+      <p className="mt-2 text-xs leading-relaxed text-slate-400">{helper}</p>
     </div>
   );
 }

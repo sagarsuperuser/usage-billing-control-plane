@@ -34,13 +34,13 @@ export function ControlPlaneNav() {
   });
 
   return (
-    <nav className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 p-2">
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2">
+    <nav className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/60 p-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="shrink-0 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100">Alpha</p>
           <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-cyan-200/80">Control Plane</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {visibleLinks.map((link) => {
             const active = pathname === link.href;
             return (
@@ -60,7 +60,7 @@ export function ControlPlaneNav() {
         </div>
       </div>
       {isAuthenticated ? (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-right">
             <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{scopeLabel}</p>
             <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100">

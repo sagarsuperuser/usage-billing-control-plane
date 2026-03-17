@@ -29,7 +29,9 @@ const tenantSectionStepLabels: Record<string, string> = {
   tenant_exists: "Workspace record has not been created yet",
   tenant_active: "Workspace is not active yet",
   tenant_admin_ready: "Admin access has not been created yet",
+  tenant_admin_key: "Admin access has not been created yet",
   billing_mapping_ready: "Billing connection is not configured yet",
+  billing_mapping: "Billing connection is not configured yet",
   pricing: "Pricing rules still need to be configured",
   customer_created: "No billing-ready customer has been created yet",
 };
@@ -38,7 +40,9 @@ const tenantStepLabels: Record<string, string> = {
   "tenant.tenant_exists": tenantSectionStepLabels.tenant_exists,
   "tenant.tenant_active": tenantSectionStepLabels.tenant_active,
   "tenant.tenant_admin_ready": tenantSectionStepLabels.tenant_admin_ready,
+  "tenant.tenant_admin_key": tenantSectionStepLabels.tenant_admin_key,
   "billing_integration.billing_mapping_ready": tenantSectionStepLabels.billing_mapping_ready,
+  "billing_integration.billing_mapping": tenantSectionStepLabels.billing_mapping,
   "billing_integration.pricing": tenantSectionStepLabels.pricing,
   "first_customer.customer_created": tenantSectionStepLabels.customer_created,
 };
