@@ -2,7 +2,6 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
 const liveBaseURL = process.env.PLAYWRIGHT_LIVE_BASE_URL || "";
-const liveAPIBaseURL = process.env.PLAYWRIGHT_LIVE_API_BASE_URL || "";
 const liveWriterAPIKey = process.env.PLAYWRIGHT_LIVE_WRITER_API_KEY || "";
 const liveReaderAPIKey = process.env.PLAYWRIGHT_LIVE_READER_API_KEY || "";
 const liveReplayJobID = process.env.PLAYWRIGHT_LIVE_REPLAY_JOB_ID || "";
@@ -16,9 +15,6 @@ async function loginWithAPIKey(page: Page, apiKey: string) {
   await expect(page.getByTestId("session-login-submit")).toBeVisible();
 
   await page.getByTestId("session-login-api-key").fill(apiKey);
-  if (liveAPIBaseURL) {
-    await page.getByTestId("session-login-api-base-url").fill(liveAPIBaseURL);
-  }
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByTestId("session-logout")).toBeVisible();
@@ -26,7 +22,6 @@ async function loginWithAPIKey(page: Page, apiKey: string) {
 
 test.describe("replay operations live staging", () => {
   test.skip(!liveBaseURL, "PLAYWRIGHT_LIVE_BASE_URL is required for live staging replay smoke");
-  test.skip(!liveAPIBaseURL, "PLAYWRIGHT_LIVE_API_BASE_URL is required for live staging replay smoke");
 
   test("reader session can inspect a known live replay fixture", async ({ page }) => {
     test.skip(!liveReaderAPIKey, "PLAYWRIGHT_LIVE_READER_API_KEY is required for live replay diagnostics smoke");

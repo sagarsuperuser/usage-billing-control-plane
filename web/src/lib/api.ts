@@ -23,9 +23,12 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+export function getConfiguredAPIBaseURL(): string {
+  return trimTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "");
+}
+
 function resolveBaseURL(runtimeBaseURL?: string): string {
-  const envBase = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "";
-  const candidate = runtimeBaseURL?.trim() || envBase;
+  const candidate = runtimeBaseURL?.trim() || getConfiguredAPIBaseURL();
   return trimTrailingSlash(candidate);
 }
 

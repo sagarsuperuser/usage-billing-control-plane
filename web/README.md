@@ -15,7 +15,7 @@ Open:
 - `http://localhost:3000/replay-operations`
 - `http://localhost:3000/invoice-explainability`
 
-Optional API base override:
+Optional local API base override during development:
 
 ```bash
 export NEXT_PUBLIC_API_BASE_URL='http://localhost:8080'

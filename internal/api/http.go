@@ -590,6 +590,30 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				writeError(w, http.StatusForbidden, "forbidden")
 				return
 			}
+		} else if isUISessionSelfRoute(r.URL.Path) {
+			switch principal.Scope {
+			case ScopePlatform:
+				if principal.PlatformRole != PlatformRoleAdmin {
+					s.logAuthFailure(r, http.StatusForbidden, "insufficient_platform_role", nil)
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
+			case ScopeTenant:
+				if roleRank(principal.Role) == 0 {
+					s.logAuthFailure(r, http.StatusUnauthorized, "invalid_role", nil)
+					writeError(w, http.StatusUnauthorized, "unauthorized")
+					return
+				}
+				if !roleAllows(principal.Role, requiredRole) {
+					s.logAuthFailure(r, http.StatusForbidden, "insufficient_role", nil)
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
+			default:
+				s.logAuthFailure(r, http.StatusForbidden, "session_scope_required", nil)
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
 		} else {
 			if principal.Scope != ScopeTenant {
 				s.logAuthFailure(r, http.StatusForbidden, "tenant_scope_required", nil)
@@ -1231,6 +1255,15 @@ func requiresPlatformScope(r *http.Request) bool {
 	case path == "/internal/tenants/audit":
 		return true
 	case strings.HasPrefix(path, "/internal/tenants/"):
+		return true
+	default:
+		return false
+	}
+}
+
+func isUISessionSelfRoute(path string) bool {
+	switch strings.TrimSpace(path) {
+	case "/v1/ui/sessions/me", "/v1/ui/sessions/logout":
 		return true
 	default:
 		return false

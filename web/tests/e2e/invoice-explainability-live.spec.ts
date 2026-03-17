@@ -2,7 +2,6 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
 const liveBaseURL = process.env.PLAYWRIGHT_LIVE_BASE_URL || "";
-const liveAPIBaseURL = process.env.PLAYWRIGHT_LIVE_API_BASE_URL || "";
 const liveReaderAPIKey = process.env.PLAYWRIGHT_LIVE_READER_API_KEY || "";
 const liveInvoiceID = process.env.PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID || "";
 
@@ -13,9 +12,6 @@ async function loginWithAPIKey(page: Page, apiKey: string) {
   await expect(page.getByTestId("session-login-submit")).toBeVisible();
 
   await page.getByTestId("session-login-api-key").fill(apiKey);
-  if (liveAPIBaseURL) {
-    await page.getByTestId("session-login-api-base-url").fill(liveAPIBaseURL);
-  }
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByTestId("session-logout")).toBeVisible();
@@ -23,7 +19,6 @@ async function loginWithAPIKey(page: Page, apiKey: string) {
 
 test.describe("invoice explainability live staging", () => {
   test.skip(!liveBaseURL, "PLAYWRIGHT_LIVE_BASE_URL is required for live explainability smoke");
-  test.skip(!liveAPIBaseURL, "PLAYWRIGHT_LIVE_API_BASE_URL is required for live explainability smoke");
   test.skip(!liveReaderAPIKey, "PLAYWRIGHT_LIVE_READER_API_KEY is required for live explainability smoke");
   test.skip(!liveInvoiceID, "PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID is required for live explainability smoke");
 

@@ -6,7 +6,7 @@ import { LoaderCircle, LogIn } from "lucide-react";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function SessionLoginCard() {
-  const { apiBaseURL, setAPIBaseURL, login, loggingIn, loginError } = useUISession();
+  const { login, loggingIn, loginError } = useUISession();
   const [apiKey, setAPIKey] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -25,9 +25,9 @@ export function SessionLoginCard() {
   return (
     <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
       <p className="mb-3 text-sm font-medium text-amber-100">
-        Sign in with a tenant or platform control-plane API key to start this session.
+        Sign in with a tenant or platform control-plane API key. This deployment is already wired to its API origin.
       </p>
-      <form className="grid gap-3 md:grid-cols-3" onSubmit={onSubmit}>
+      <form className="grid gap-3 md:grid-cols-[1fr_auto]" onSubmit={onSubmit}>
         <div className="grid gap-2">
           <label className="text-xs font-medium uppercase tracking-wider text-amber-200">API Key</label>
           <input
@@ -36,17 +36,6 @@ export function SessionLoginCard() {
             value={apiKey}
             onChange={(event) => setAPIKey(event.target.value)}
             placeholder="tenant or platform key"
-            className="h-10 rounded-xl border border-white/20 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
-          />
-        </div>
-        <div className="grid gap-2">
-          <label className="text-xs font-medium uppercase tracking-wider text-amber-200">API Base URL</label>
-          <input
-            type="text"
-            data-testid="session-login-api-base-url"
-            value={apiBaseURL}
-            onChange={(event) => setAPIBaseURL(event.target.value)}
-            placeholder="Optional, default same-origin"
             className="h-10 rounded-xl border border-white/20 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
           />
         </div>

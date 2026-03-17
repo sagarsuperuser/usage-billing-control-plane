@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchUISession, loginUISession, logoutUISession } from "@/lib/api";
+import { fetchUISession, getConfiguredAPIBaseURL, loginUISession, logoutUISession } from "@/lib/api";
 import { useSessionStore } from "@/store/use-session-store";
 
 export function useUISession() {
   const queryClient = useQueryClient();
-  const { apiBaseURL, setAPIBaseURL, session, setSession } = useSessionStore();
+  const { session, setSession } = useSessionStore();
+  const apiBaseURL = getConfiguredAPIBaseURL();
 
   const sessionQuery = useQuery({
     queryKey: ["ui-session", apiBaseURL],
@@ -64,7 +65,6 @@ export function useUISession() {
   const isPlatformAdmin = platformRole === "platform_admin";
   return {
     apiBaseURL,
-    setAPIBaseURL,
     session,
     scope,
     role,
