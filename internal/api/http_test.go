@@ -2268,6 +2268,123 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 	}
 }
 
+func TestInternalTenantOnboardingStatusPagesCustomers(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoTransport, lagoCleanup := newTestLagoTransport(t)
+	defer lagoCleanup()
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer), api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
+	defer ts.Close()
+
+	onboarded := postJSON(t, ts.URL+"/internal/onboarding/tenants", map[string]any{
+		"id":                         "tenant_onboard_paged",
+		"name":                       "Tenant Onboard Paged",
+		"lago_organization_id":       "org_onboard_paged",
+		"lago_billing_provider_code": "stripe_onboard_paged",
+		"admin_key_name":             "tenant-onboard-paged-admin",
+	}, "platform-admin", http.StatusCreated)
+	bootstrap, ok := onboarded["tenant_admin_bootstrap"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tenant_admin_bootstrap object")
+	}
+	adminSecret, _ := bootstrap["secret"].(string)
+	if strings.TrimSpace(adminSecret) == "" {
+		t.Fatalf("expected tenant admin secret in onboarding response")
+	}
+
+	rule := postJSON(t, ts.URL+"/v1/rating-rules", map[string]any{
+		"rule_key":          "tenant_onboard_paged_api_calls",
+		"name":              "Tenant Onboard Paged API Calls",
+		"version":           1,
+		"lifecycle_state":   "active",
+		"mode":              "flat",
+		"currency":          "USD",
+		"flat_amount_cents": 100,
+	}, adminSecret, http.StatusCreated)
+	ruleID := rule["id"].(string)
+
+	_ = postJSON(t, ts.URL+"/v1/meters", map[string]any{
+		"key":                    "tenant_onboard_paged_api_calls",
+		"name":                   "Tenant Onboard Paged API Calls",
+		"unit":                   "call",
+		"aggregation":            "sum",
+		"rating_rule_version_id": ruleID,
+	}, adminSecret, http.StatusCreated)
+
+	for i := 0; i < 100; i++ {
+		externalID := fmt.Sprintf("cust_paged_%03d", i)
+		_ = postJSON(t, ts.URL+"/v1/customers", map[string]any{
+			"external_id":  externalID,
+			"display_name": fmt.Sprintf("Paged Customer %03d", i),
+			"email":        fmt.Sprintf("billing+%03d@tenant-onboard-paged.test", i),
+		}, adminSecret, http.StatusCreated)
+	}
+
+	_ = postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id":  "cust_paged_ready",
+		"display_name": "Paged Ready Customer",
+		"email":        "billing@tenant-onboard-paged.test",
+	}, adminSecret, http.StatusCreated)
+	_ = putJSON(t, ts.URL+"/v1/customers/cust_paged_ready/billing-profile", map[string]any{
+		"legal_name":            "Paged Ready Customer LLC",
+		"email":                 "billing@tenant-onboard-paged.test",
+		"billing_address_line1": "1 Billing Street",
+		"billing_city":          "Bengaluru",
+		"billing_postal_code":   "560001",
+		"billing_country":       "IN",
+		"currency":              "USD",
+		"provider_code":         "stripe_onboard_paged",
+	}, adminSecret, http.StatusOK)
+	checkout := postJSON(t, ts.URL+"/v1/customers/cust_paged_ready/payment-setup/checkout-url", map[string]any{
+		"payment_method_type": "card",
+	}, adminSecret, http.StatusOK)
+	if got, _ := checkout["checkout_url"].(string); got == "" {
+		t.Fatalf("expected checkout_url from customer payment setup")
+	}
+	_ = postJSON(t, ts.URL+"/v1/customers/cust_paged_ready/payment-setup/refresh", map[string]any{}, adminSecret, http.StatusOK)
+
+	status := getJSON(t, ts.URL+"/internal/onboarding/tenants/tenant_onboard_paged", "platform-admin", http.StatusOK)
+	readiness, ok := status["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected readiness object from onboarding status endpoint")
+	}
+	if got, _ := readiness["status"].(string); got != "ready" {
+		t.Fatalf("expected onboarding readiness ready with billing-ready customer after first page, got %q", got)
+	}
+	firstCustomer, ok := readiness["first_customer"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first_customer readiness object")
+	}
+	if got, _ := firstCustomer["status"].(string); got != "ready" {
+		t.Fatalf("expected first_customer readiness ready, got %q", got)
+	}
+	if got, _ := firstCustomer["customer_external_id"].(string); got != "cust_paged_ready" {
+		t.Fatalf("expected first_customer customer_external_id=cust_paged_ready, got %q", got)
+	}
+}
+
 func TestAuditExportToS3(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {

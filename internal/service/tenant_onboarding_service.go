@@ -174,7 +174,7 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 	if err != nil {
 		return TenantOnboardingReadiness{}, err
 	}
-	customers, err := s.customerService.ListCustomers(tenant.ID, ListCustomersRequest{Limit: 500})
+	firstCustomerReadiness, err := s.getFirstCustomerReadiness(tenant.ID)
 	if err != nil {
 		return TenantOnboardingReadiness{}, err
 	}
@@ -212,11 +212,6 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 		billingIntegrationReadiness.Status = "ready"
 	}
 
-	firstCustomerReadiness, err := s.buildFirstCustomerReadiness(tenant.ID, customers)
-	if err != nil {
-		return TenantOnboardingReadiness{}, err
-	}
-
 	readiness := TenantOnboardingReadiness{
 		Status:             "pending",
 		MissingSteps:       make([]string, 0, len(tenantReadiness.MissingSteps)+len(billingIntegrationReadiness.MissingSteps)+len(firstCustomerReadiness.MissingSteps)),
@@ -238,6 +233,35 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 	}
 
 	return readiness, nil
+}
+
+const tenantOnboardingCustomerPageSize = 100
+
+func (s *TenantOnboardingService) getFirstCustomerReadiness(tenantID string) (FirstCustomerBillingReadiness, error) {
+	customers := make([]domain.Customer, 0, tenantOnboardingCustomerPageSize)
+	for offset := 0; ; offset += tenantOnboardingCustomerPageSize {
+		batch, err := s.customerService.ListCustomers(tenantID, ListCustomersRequest{Limit: tenantOnboardingCustomerPageSize, Offset: offset})
+		if err != nil {
+			return FirstCustomerBillingReadiness{}, err
+		}
+		if len(batch) == 0 {
+			break
+		}
+		customers = append(customers, batch...)
+		for _, customer := range batch {
+			readiness, err := s.customerService.GetCustomerReadiness(tenantID, customer.ExternalID)
+			if err != nil {
+				return FirstCustomerBillingReadiness{}, err
+			}
+			if readiness.Status == "ready" {
+				return s.buildFirstCustomerReadiness(tenantID, []domain.Customer{customer})
+			}
+		}
+		if len(batch) < tenantOnboardingCustomerPageSize {
+			break
+		}
+	}
+	return s.buildFirstCustomerReadiness(tenantID, customers)
 }
 
 func (s *TenantOnboardingService) buildFirstCustomerReadiness(tenantID string, customers []domain.Customer) (FirstCustomerBillingReadiness, error) {
