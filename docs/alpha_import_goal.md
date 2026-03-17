@@ -104,12 +104,12 @@ The current Lago frontend includes these major product surfaces.
 
 Relevant route files:
 
-- [front/src/core/router/index.tsx](../front/src/core/router/index.tsx)
-- [front/src/core/router/AuthRoutes.tsx](../front/src/core/router/AuthRoutes.tsx)
-- [front/src/core/router/CustomerRoutes.tsx](../front/src/core/router/CustomerRoutes.tsx)
-- [front/src/core/router/ObjectsRoutes.tsx](../front/src/core/router/ObjectsRoutes.tsx)
-- [front/src/core/router/SettingRoutes.tsx](../front/src/core/router/SettingRoutes.tsx)
-- [front/src/core/router/CustomerPortalRoutes.tsx](../front/src/core/router/CustomerPortalRoutes.tsx)
+- [front/src/core/router/index.tsx](https://github.com/getlago/lago/blob/main/front/src/core/router/index.tsx)
+- [front/src/core/router/AuthRoutes.tsx](https://github.com/getlago/lago/blob/main/front/src/core/router/AuthRoutes.tsx)
+- [front/src/core/router/CustomerRoutes.tsx](https://github.com/getlago/lago/blob/main/front/src/core/router/CustomerRoutes.tsx)
+- [front/src/core/router/ObjectsRoutes.tsx](https://github.com/getlago/lago/blob/main/front/src/core/router/ObjectsRoutes.tsx)
+- [front/src/core/router/SettingRoutes.tsx](https://github.com/getlago/lago/blob/main/front/src/core/router/SettingRoutes.tsx)
+- [front/src/core/router/CustomerPortalRoutes.tsx](https://github.com/getlago/lago/blob/main/front/src/core/router/CustomerPortalRoutes.tsx)
 
 ### 1. Auth and access
 
