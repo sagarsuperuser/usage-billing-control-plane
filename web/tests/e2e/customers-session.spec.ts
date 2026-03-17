@@ -142,7 +142,8 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   });
 
   await page.goto("/customers");
-  await page.getByTestId("session-login-api-key").fill("tenant-key");
+  await page.getByTestId("session-login-email").fill("tenant-writer@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();

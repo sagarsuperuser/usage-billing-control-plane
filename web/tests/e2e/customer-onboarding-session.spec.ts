@@ -159,7 +159,8 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
   const mock = await installCustomerOnboardingMock(page, sessionPayload);
 
   await page.goto("/customer-onboarding");
-  await page.getByTestId("session-login-api-key").fill("tenant-key");
+  await page.getByTestId("session-login-email").fill("tenant-writer@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Customer Setup" })).toBeVisible();

@@ -36,6 +36,7 @@ type Server struct {
 	customerService                  *service.CustomerService
 	customerOnboardingService        *service.CustomerOnboardingService
 	billingProviderConnectionService *service.BillingProviderConnectionService
+	browserUserAuthService           *service.BrowserUserAuthService
 	meterService                     *service.MeterService
 	usageService                     *service.UsageService
 	apiKeyService                    *service.APIKeyService
@@ -62,6 +63,9 @@ type Server struct {
 }
 
 const (
+	sessionSubjectTypeKey  = "principal_subject_type"
+	sessionSubjectIDKey    = "principal_subject_id"
+	sessionUserEmailKey    = "principal_user_email"
 	sessionScopeKey        = "principal_scope"
 	sessionRoleKey         = "principal_role"
 	sessionPlatformRoleKey = "principal_platform_role"
@@ -312,6 +316,12 @@ func WithBillingProviderConnectionService(svc *service.BillingProviderConnection
 	}
 }
 
+func WithBrowserUserAuthService(svc *service.BrowserUserAuthService) ServerOption {
+	return func(s *Server) {
+		s.browserUserAuthService = svc
+	}
+}
+
 func WithLagoWebhookService(lagoWebhookSvc *service.LagoWebhookService) ServerOption {
 	return func(s *Server) {
 		s.lagoWebhookSvc = lagoWebhookSvc
@@ -372,6 +382,9 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.meterService = service.NewMeterService(repo)
 	s.usageService = service.NewUsageService(repo)
 	s.apiKeyService = service.NewAPIKeyService(repo)
+	if s.browserUserAuthService == nil {
+		s.browserUserAuthService, _ = service.NewBrowserUserAuthService(repo)
+	}
 	s.onboardingService = service.NewTenantOnboardingService(s.tenantService, s.customerService, s.apiKeyService, s.ratingService, s.meterService)
 	s.registerRoutes()
 	return s
@@ -1025,6 +1038,9 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 		return Principal{}, false, errUnauthorized
 	}
 
+	subjectType := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSubjectTypeKey))
+	subjectID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSubjectIDKey))
+	userEmail := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionUserEmailKey))
 	scopeRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionScopeKey))
 	roleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionRoleKey))
 	platformRoleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionPlatformRoleKey))
@@ -1037,6 +1053,9 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 			return Principal{}, true, errUnauthorized
 		}
 		return Principal{
+			SubjectType:  subjectType,
+			SubjectID:    subjectID,
+			UserEmail:    userEmail,
 			Scope:        ScopePlatform,
 			PlatformRole: platformRole,
 			APIKeyID:     apiKeyID,
@@ -1050,6 +1069,9 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 			return Principal{}, true, errUnauthorized
 		}
 		return Principal{
+			SubjectType: subjectType,
+			SubjectID:   subjectID,
+			UserEmail:   userEmail,
 			Scope:    ScopeTenant,
 			Role:     role,
 			TenantID: normalizeTenantID(tenantID),
@@ -1729,7 +1751,9 @@ func (s *Server) handleInternalOnboardingTenantByID(w http.ResponseWriter, r *ht
 }
 
 type uiSessionLoginRequest struct {
-	APIKey string `json:"api_key"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	TenantID string `json:"tenant_id"`
 }
 
 func (s *Server) handleUIPreAuthRateLimitProbe(w http.ResponseWriter, r *http.Request) {
@@ -1755,7 +1779,7 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if s.sessionManager == nil || s.authorizer == nil {
+	if s.sessionManager == nil {
 		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
 		return
 	}
@@ -1765,20 +1789,49 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	req.APIKey = strings.TrimSpace(req.APIKey)
-	if req.APIKey == "" {
-		writeError(w, http.StatusBadRequest, "api_key is required")
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.Password = strings.TrimSpace(req.Password)
+	req.TenantID = strings.TrimSpace(req.TenantID)
+	if req.Email == "" || req.Password == "" {
+		writeError(w, http.StatusBadRequest, "email and password are required")
 		return
 	}
 
-	authReq := r.Clone(r.Context())
-	authReq.Header = r.Header.Clone()
-	authReq.Header.Set(apiKeyHeader, req.APIKey)
-
-	principal, err := s.authorizer.Authorize(authReq)
-	if err != nil {
-		writeAuthError(w, err)
+	if s.browserUserAuthService == nil {
+		writeError(w, http.StatusServiceUnavailable, "browser user auth is not configured")
 		return
+	}
+	authResult, err := s.browserUserAuthService.Authenticate(service.BrowserUserLoginRequest{
+		Email:    req.Email,
+		Password: req.Password,
+		TenantID: req.TenantID,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidBrowserCredentials), errors.Is(err, service.ErrBrowserPasswordUnavailable):
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
+		case errors.Is(err, service.ErrBrowserUserDisabled):
+			writeError(w, http.StatusForbidden, "user disabled")
+		case errors.Is(err, service.ErrBrowserTenantSelection):
+			writeError(w, http.StatusConflict, "tenant selection required")
+		case errors.Is(err, service.ErrBrowserTenantAccessDenied):
+			writeError(w, http.StatusForbidden, "tenant access denied")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to authenticate browser user")
+		}
+		return
+	}
+	principal := Principal{
+		SubjectType: "user",
+		SubjectID:   authResult.User.ID,
+		UserEmail:   authResult.User.Email,
+		Scope:       Scope(authResult.Scope),
+	}
+	if principal.Scope == ScopePlatform {
+		principal.PlatformRole = PlatformRole(authResult.PlatformRole)
+	} else {
+		principal.Role = Role(authResult.Role)
+		principal.TenantID = normalizeTenantID(authResult.TenantID)
 	}
 
 	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
@@ -1792,6 +1845,9 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.sessionManager.Put(r.Context(), sessionSubjectTypeKey, strings.TrimSpace(principal.SubjectType))
+	s.sessionManager.Put(r.Context(), sessionSubjectIDKey, strings.TrimSpace(principal.SubjectID))
+	s.sessionManager.Put(r.Context(), sessionUserEmailKey, strings.TrimSpace(principal.UserEmail))
 	s.sessionManager.Put(r.Context(), sessionScopeKey, string(principal.Scope))
 	if principal.Scope == ScopePlatform {
 		s.sessionManager.Remove(r.Context(), sessionRoleKey)
@@ -1805,13 +1861,21 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	s.sessionManager.Put(r.Context(), sessionAPIKeyIDKey, strings.TrimSpace(principal.APIKeyID))
 	s.sessionManager.Put(r.Context(), sessionCSRFKey, csrfToken)
 
-	expiresAt := time.Now().UTC().Add(s.sessionManager.Lifetime)
+	writeJSON(w, http.StatusCreated, buildUISessionResponse(principal, csrfToken, time.Now().UTC().Add(s.sessionManager.Lifetime)))
+}
+
+func buildUISessionResponse(principal Principal, csrfToken string, expiresAt time.Time) map[string]any {
 	resp := map[string]any{
 		"authenticated": true,
+		"subject_type":  strings.TrimSpace(principal.SubjectType),
+		"subject_id":    strings.TrimSpace(principal.SubjectID),
+		"user_email":    strings.TrimSpace(principal.UserEmail),
 		"scope":         principal.Scope,
 		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
 		"csrf_token":    csrfToken,
-		"expires_at":    expiresAt,
+	}
+	if !expiresAt.IsZero() {
+		resp["expires_at"] = expiresAt
 	}
 	if principal.Scope == ScopePlatform {
 		resp["platform_role"] = principal.PlatformRole
@@ -1819,7 +1883,7 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		resp["role"] = principal.Role
 		resp["tenant_id"] = normalizeTenantID(principal.TenantID)
 	}
-	writeJSON(w, http.StatusCreated, resp)
+	return resp
 }
 
 func parseInternalTenantPath(path string) (tenantID string, action string) {
@@ -1879,20 +1943,7 @@ func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]any{
-		"authenticated": true,
-		"scope":         principal.Scope,
-		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
-		"csrf_token":    csrfToken,
-	}
-	if principal.Scope == ScopePlatform {
-		resp["platform_role"] = principal.PlatformRole
-	} else {
-		resp["role"] = principal.Role
-		resp["tenant_id"] = normalizeTenantID(principal.TenantID)
-	}
-
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, buildUISessionResponse(principal, csrfToken, time.Time{}))
 }
 
 func (s *Server) handleCustomerOnboarding(w http.ResponseWriter, r *http.Request) {

@@ -40,6 +40,26 @@ const (
 	BillingProviderConnectionScopeTenant   BillingProviderConnectionScope = "tenant"
 )
 
+type UserStatus string
+
+const (
+	UserStatusActive   UserStatus = "active"
+	UserStatusDisabled UserStatus = "disabled"
+)
+
+type UserPlatformRole string
+
+const (
+	UserPlatformRoleAdmin UserPlatformRole = "platform_admin"
+)
+
+type UserTenantMembershipStatus string
+
+const (
+	UserTenantMembershipStatusActive   UserTenantMembershipStatus = "active"
+	UserTenantMembershipStatusDisabled UserTenantMembershipStatus = "disabled"
+)
+
 type Tenant struct {
 	ID                          string       `json:"id"`
 	Name                        string       `json:"name"`
@@ -70,6 +90,33 @@ type BillingProviderConnection struct {
 	CreatedByID        string                          `json:"created_by_id,omitempty"`
 	CreatedAt          time.Time                       `json:"created_at"`
 	UpdatedAt          time.Time                       `json:"updated_at"`
+}
+
+type User struct {
+	ID           string           `json:"id"`
+	Email        string           `json:"email"`
+	DisplayName  string           `json:"display_name"`
+	Status       UserStatus       `json:"status"`
+	PlatformRole UserPlatformRole `json:"platform_role,omitempty"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+}
+
+type UserPasswordCredential struct {
+	UserID            string    `json:"user_id"`
+	PasswordHash      string    `json:"-"`
+	PasswordUpdatedAt time.Time `json:"password_updated_at"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type UserTenantMembership struct {
+	UserID    string                     `json:"user_id"`
+	TenantID  string                     `json:"tenant_id"`
+	Role      string                     `json:"role"`
+	Status    UserTenantMembershipStatus `json:"status"`
+	CreatedAt time.Time                  `json:"created_at"`
+	UpdatedAt time.Time                  `json:"updated_at"`
 }
 
 type CustomerStatus string

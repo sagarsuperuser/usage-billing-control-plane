@@ -63,7 +63,7 @@ func TestRateLimitBlocksLoginWhenExceeded(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(nil, api.WithAPIKeyAuthorizer(authorizer), api.WithRateLimiter(limiter, true, false)).Handler())
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/ui/sessions/login", bytes.NewBufferString(`{"api_key":"x"}`))
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/ui/sessions/login", bytes.NewBufferString(`{"email":"reader@example.com","password":"correct horse battery"}`))
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestRateLimitProbeDoesNotShareLoginBucket(t *testing.T) {
 		t.Fatalf("expected probe 429, got %d", probeResp.StatusCode)
 	}
 
-	loginReq, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/ui/sessions/login", bytes.NewBufferString(`{"api_key":"missing"}`))
+	loginReq, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/ui/sessions/login", bytes.NewBufferString(`{"email":"reader@example.com","password":"correct horse battery"}`))
 	if err != nil {
 		t.Fatalf("new login request: %v", err)
 	}

@@ -329,7 +329,8 @@ test("platform overview shows live workspace attention counts", async ({ page })
 
   await page.goto("/control-plane");
 
-  await page.getByTestId("session-login-api-key").fill("platform-key");
+  await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
   const nav = page.locator("nav");
@@ -365,7 +366,8 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
 
   await page.goto("/control-plane");
 
-  await page.getByTestId("session-login-api-key").fill("tenant-key");
+  await page.getByTestId("session-login-email").fill("tenant-writer@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
   const nav = page.locator("nav");

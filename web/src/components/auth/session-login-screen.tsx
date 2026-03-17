@@ -52,7 +52,7 @@ export function SessionLoginScreen() {
             Role-aware billing operations without exposing the engine behind it
           </h1>
           <p className="mt-4 max-w-2xl text-base text-slate-300">
-            Sign in with a scoped access key to open the correct control surface. Platform access covers billing connections and workspaces. Tenant access covers customers, payments, recovery, and explainability inside one workspace.
+            Sign in with your account credentials to open the correct control surface. Platform accounts cover billing connections and workspaces. Tenant accounts cover customers, payments, recovery, and explainability inside assigned workspaces.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -62,7 +62,7 @@ export function SessionLoginScreen() {
           </div>
 
           <p className="mt-6 text-xs uppercase tracking-[0.14em] text-slate-400">
-            Browser sign-in is currently access-key based for operator environments. Human user auth and SSO should replace this in a broader end-user SaaS surface.
+            API keys remain for API and integration traffic only. Browser sessions are now derived from human account credentials.
           </p>
           <Link
             href="/control-plane"

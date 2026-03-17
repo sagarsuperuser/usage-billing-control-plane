@@ -52,6 +52,9 @@ func (e tenantBlockedError) Error() string {
 func (e tenantBlockedError) Unwrap() error { return errTenantBlocked }
 
 type Principal struct {
+	SubjectType  string
+	SubjectID    string
+	UserEmail    string
 	Scope        Scope
 	Role         Role
 	PlatformRole PlatformRole
@@ -116,6 +119,7 @@ func (a *StaticAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 		return Principal{}, errUnauthorized
 	}
 	return Principal{
+		SubjectType: "api_key",
 		Scope:    ScopeTenant,
 		Role:     role,
 		TenantID: defaultTenantID,
@@ -176,6 +180,8 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 
 		_ = a.store.TouchAPIKeyLastUsed(record.ID, time.Now().UTC())
 		return Principal{
+			SubjectType: "api_key",
+			SubjectID:   record.ID,
 			Scope:    ScopeTenant,
 			Role:     role,
 			TenantID: normalizeTenantID(record.TenantID),
@@ -199,6 +205,8 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 	}
 	_ = a.store.TouchPlatformAPIKeyLastUsed(platformRecord.ID, time.Now().UTC())
 	return Principal{
+		SubjectType:  "api_key",
+		SubjectID:    platformRecord.ID,
 		Scope:        ScopePlatform,
 		PlatformRole: platformRole,
 		APIKeyID:     platformRecord.ID,

@@ -20,11 +20,14 @@ export interface InvoicePaymentStatusView {
 
 export interface UISession {
   authenticated: boolean;
+  subject_type?: "user" | "api_key";
+  subject_id?: string;
+  user_email?: string;
   scope?: "tenant" | "platform";
   role?: "reader" | "writer" | "admin";
   platform_role?: "platform_admin";
   tenant_id?: string;
-  api_key_id: string;
+  api_key_id?: string;
   csrf_token: string;
   expires_at?: string;
 }

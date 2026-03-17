@@ -14,6 +14,7 @@ export function SessionMenu() {
 
   const accessLabel = scope === "platform" ? platformRole ?? "platform" : session.role ?? "reader";
   const contextLabel = scope === "platform" ? "Cross-workspace control" : session.tenant_id || "Tenant workspace";
+  const identityLabel = session.user_email || contextLabel;
   const homeHref = scope === "platform" ? "/billing-connections" : "/customers";
   const secondaryHref = scope === "platform" ? "/workspaces" : "/payment-operations";
   const secondaryLabel = scope === "platform" ? "Open workspaces" : "Open payments";
@@ -27,14 +28,14 @@ export function SessionMenu() {
         <span className="min-w-0">
           <span className="block text-[10px] uppercase tracking-[0.16em] text-slate-400">Current access</span>
           <span className="block truncate text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100">{accessLabel}</span>
-          <span className="block truncate text-[11px] text-slate-300">{contextLabel}</span>
+          <span className="block truncate text-[11px] text-slate-300">{identityLabel}</span>
         </span>
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-[280px] rounded-2xl border border-white/10 bg-slate-950/95 p-3 shadow-2xl backdrop-blur-xl">
         <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-3">
           <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Signed in surface</p>
           <p className="mt-1 text-sm font-semibold text-white">{scope === "platform" ? "Platform administration" : "Tenant operations"}</p>
-          <p className="mt-1 text-xs text-slate-300">{contextLabel}</p>
+          <p className="mt-1 text-xs text-slate-300">{identityLabel}</p>
         </div>
         <div className="mt-3 grid gap-2">
           <Link href={homeHref} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-100 transition hover:bg-white/10">

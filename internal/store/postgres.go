@@ -781,6 +781,306 @@ func (s *PostgresStore) UpdateBillingProviderConnection(input domain.BillingProv
 	return out, nil
 }
 
+func (s *PostgresStore) CreateUser(input domain.User) (domain.User, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	input.Status = domain.UserStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.PlatformRole = domain.UserPlatformRole(strings.ToLower(strings.TrimSpace(string(input.PlatformRole))))
+	if input.Email == "" || input.DisplayName == "" || input.Status == "" {
+		return domain.User{}, fmt.Errorf("validation failed: email, display_name, and status are required")
+	}
+	if input.ID == "" {
+		input.ID = newID("usr")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `INSERT INTO users (id, email, display_name, status, platform_role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, email, display_name, status, platform_role, created_at, updated_at`,
+		input.ID, input.Email, input.DisplayName, string(input.Status), string(input.PlatformRole), input.CreatedAt, input.UpdatedAt)
+	out, err := scanUser(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.User{}, ErrAlreadyExists
+		}
+		return domain.User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetUser(id string) (domain.User, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.User{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, email, display_name, status, platform_role, created_at, updated_at FROM users WHERE id = $1`, id)
+	out, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.User{}, ErrNotFound
+		}
+		return domain.User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetUserByEmail(email string) (domain.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return domain.User{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, email, display_name, status, platform_role, created_at, updated_at FROM users WHERE lower(email) = lower($1)`, email)
+	out, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.User{}, ErrNotFound
+		}
+		return domain.User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateUser(input domain.User) (domain.User, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	input.Status = domain.UserStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.PlatformRole = domain.UserPlatformRole(strings.ToLower(strings.TrimSpace(string(input.PlatformRole))))
+	if input.ID == "" || input.Email == "" || input.DisplayName == "" || input.Status == "" {
+		return domain.User{}, fmt.Errorf("validation failed: id, email, display_name, and status are required")
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `UPDATE users SET email = $1, display_name = $2, status = $3, platform_role = $4, updated_at = $5
+		WHERE id = $6
+		RETURNING id, email, display_name, status, platform_role, created_at, updated_at`,
+		input.Email, input.DisplayName, string(input.Status), string(input.PlatformRole), input.UpdatedAt, input.ID)
+	out, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.User{}, ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return domain.User{}, ErrAlreadyExists
+		}
+		return domain.User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpsertUserPasswordCredential(input domain.UserPasswordCredential) (domain.UserPasswordCredential, error) {
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.PasswordHash = strings.TrimSpace(input.PasswordHash)
+	if input.UserID == "" || input.PasswordHash == "" {
+		return domain.UserPasswordCredential{}, fmt.Errorf("validation failed: user_id and password_hash are required")
+	}
+	now := time.Now().UTC()
+	if input.PasswordUpdatedAt.IsZero() {
+		input.PasswordUpdatedAt = now
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.UserPasswordCredential{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `INSERT INTO user_password_credentials (user_id, password_hash, password_updated_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (user_id) DO UPDATE
+		SET password_hash = EXCLUDED.password_hash,
+		    password_updated_at = EXCLUDED.password_updated_at,
+		    updated_at = EXCLUDED.updated_at
+		RETURNING user_id, password_hash, password_updated_at, created_at, updated_at`,
+		input.UserID, input.PasswordHash, input.PasswordUpdatedAt, input.CreatedAt, input.UpdatedAt)
+	out, err := scanUserPasswordCredential(row)
+	if err != nil {
+		return domain.UserPasswordCredential{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.UserPasswordCredential{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetUserPasswordCredential(userID string) (domain.UserPasswordCredential, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return domain.UserPasswordCredential{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.UserPasswordCredential{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT user_id, password_hash, password_updated_at, created_at, updated_at FROM user_password_credentials WHERE user_id = $1`, userID)
+	out, err := scanUserPasswordCredential(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.UserPasswordCredential{}, ErrNotFound
+		}
+		return domain.UserPasswordCredential{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.UserPasswordCredential{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpsertUserTenantMembership(input domain.UserTenantMembership) (domain.UserTenantMembership, error) {
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.Role = strings.ToLower(strings.TrimSpace(input.Role))
+	input.Status = domain.UserTenantMembershipStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	if input.UserID == "" || input.TenantID == "" || input.Role == "" || input.Status == "" {
+		return domain.UserTenantMembership{}, fmt.Errorf("validation failed: user_id, tenant_id, role, and status are required")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.UserTenantMembership{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `INSERT INTO user_tenant_memberships (user_id, tenant_id, role, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (user_id, tenant_id) DO UPDATE
+		SET role = EXCLUDED.role,
+		    status = EXCLUDED.status,
+		    updated_at = EXCLUDED.updated_at
+		RETURNING user_id, tenant_id, role, status, created_at, updated_at`,
+		input.UserID, input.TenantID, input.Role, string(input.Status), input.CreatedAt, input.UpdatedAt)
+	out, err := scanUserTenantMembership(row)
+	if err != nil {
+		return domain.UserTenantMembership{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.UserTenantMembership{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListUserTenantMemberships(userID string) ([]domain.UserTenantMembership, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, nil
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT user_id, tenant_id, role, status, created_at, updated_at FROM user_tenant_memberships WHERE user_id = $1 ORDER BY created_at ASC, tenant_id ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.UserTenantMembership, 0)
+	for rows.Next() {
+		item, scanErr := scanUserTenantMembership(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) CreateCustomer(input domain.Customer) (domain.Customer, error) {
 	input.TenantID = normalizeTenantID(input.TenantID)
 	input.ExternalID = strings.TrimSpace(input.ExternalID)
@@ -4375,6 +4675,44 @@ func scanBillingProviderConnection(s rowScanner) (domain.BillingProviderConnecti
 	if createdByID.Valid {
 		out.CreatedByID = normalizeOptionalText(createdByID.String)
 	}
+	return out, nil
+}
+
+func scanUser(s rowScanner) (domain.User, error) {
+	var out domain.User
+	var status string
+	var platformRole string
+	if err := s.Scan(&out.ID, &out.Email, &out.DisplayName, &status, &platformRole, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.User{}, err
+	}
+	out.ID = strings.TrimSpace(out.ID)
+	out.Email = strings.ToLower(strings.TrimSpace(out.Email))
+	out.DisplayName = strings.TrimSpace(out.DisplayName)
+	out.Status = domain.UserStatus(strings.ToLower(strings.TrimSpace(status)))
+	out.PlatformRole = domain.UserPlatformRole(strings.ToLower(strings.TrimSpace(platformRole)))
+	return out, nil
+}
+
+func scanUserPasswordCredential(s rowScanner) (domain.UserPasswordCredential, error) {
+	var out domain.UserPasswordCredential
+	if err := s.Scan(&out.UserID, &out.PasswordHash, &out.PasswordUpdatedAt, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.UserPasswordCredential{}, err
+	}
+	out.UserID = strings.TrimSpace(out.UserID)
+	out.PasswordHash = strings.TrimSpace(out.PasswordHash)
+	return out, nil
+}
+
+func scanUserTenantMembership(s rowScanner) (domain.UserTenantMembership, error) {
+	var out domain.UserTenantMembership
+	var status string
+	if err := s.Scan(&out.UserID, &out.TenantID, &out.Role, &status, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.UserTenantMembership{}, err
+	}
+	out.UserID = strings.TrimSpace(out.UserID)
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.Role = strings.ToLower(strings.TrimSpace(out.Role))
+	out.Status = domain.UserTenantMembershipStatus(strings.ToLower(strings.TrimSpace(status)))
 	return out, nil
 }
 

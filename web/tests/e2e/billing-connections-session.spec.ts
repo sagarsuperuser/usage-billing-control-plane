@@ -118,7 +118,8 @@ test("platform admin can create and sync a billing connection", async ({ page })
   const mock = await installBillingConnectionMock(page, session);
 
   await page.goto("/billing-connections/new");
-  await page.getByTestId("session-login-api-key").fill("platform-key");
+  await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
   await page.getByLabel("Connection name").fill("Stripe Sandbox");

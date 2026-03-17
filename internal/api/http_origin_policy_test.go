@@ -13,7 +13,37 @@ import (
 	"github.com/alexedwards/scs/v2"
 
 	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/service"
+	"usage-billing-control-plane/internal/store"
 )
+
+type browserOriginAuthStore struct {
+	user        domain.User
+	credential  domain.UserPasswordCredential
+	memberships []domain.UserTenantMembership
+}
+
+func (s browserOriginAuthStore) GetUserByEmail(email string) (domain.User, error) {
+	if s.user.Email != email {
+		return domain.User{}, store.ErrNotFound
+	}
+	return s.user, nil
+}
+
+func (s browserOriginAuthStore) GetUserPasswordCredential(userID string) (domain.UserPasswordCredential, error) {
+	if s.credential.UserID != userID {
+		return domain.UserPasswordCredential{}, store.ErrNotFound
+	}
+	return s.credential, nil
+}
+
+func (s browserOriginAuthStore) ListUserTenantMemberships(userID string) ([]domain.UserTenantMembership, error) {
+	if s.user.ID != userID {
+		return nil, store.ErrNotFound
+	}
+	return s.memberships, nil
+}
 
 func TestParseAllowedOrigins(t *testing.T) {
 	got, err := api.ParseAllowedOrigins(" https://control.example.com ,https://control.example.com,https://api.example.com ")
@@ -30,11 +60,27 @@ func TestParseAllowedOrigins(t *testing.T) {
 }
 
 func TestSessionOriginPolicyForUnsafeMethods(t *testing.T) {
-	authorizer, err := api.NewStaticAPIKeyAuthorizer(map[string]api.Role{
-		"reader-key": api.RoleReader,
+	hash, err := service.HashPassword("reader password 123")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	browserAuth, err := service.NewBrowserUserAuthService(browserOriginAuthStore{
+		user: domain.User{
+			ID:          "usr_reader",
+			Email:       "reader@example.com",
+			DisplayName: "Reader",
+			Status:      domain.UserStatusActive,
+		},
+		credential: domain.UserPasswordCredential{
+			UserID:       "usr_reader",
+			PasswordHash: hash,
+		},
+		memberships: []domain.UserTenantMembership{
+			{UserID: "usr_reader", TenantID: "default", Role: string(api.RoleReader), Status: domain.UserTenantMembershipStatusActive},
+		},
 	})
 	if err != nil {
-		t.Fatalf("new static authorizer: %v", err)
+		t.Fatalf("new browser auth: %v", err)
 	}
 
 	sessionManager := scs.New()
@@ -45,7 +91,7 @@ func TestSessionOriginPolicyForUnsafeMethods(t *testing.T) {
 
 	handler := api.NewServer(
 		nil,
-		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithBrowserUserAuthService(browserAuth),
 		api.WithSessionManager(sessionManager),
 		api.WithSessionOriginPolicy(true, []string{"https://control.example.com"}),
 	).Handler()
@@ -59,7 +105,8 @@ func TestSessionOriginPolicyForUnsafeMethods(t *testing.T) {
 	client := &http.Client{Jar: jar, Timeout: 5 * time.Second}
 
 	loginResp := postJSONWithHeadersAndStatus(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
-		"api_key": "reader-key",
+		"email":    "reader@example.com",
+		"password": "reader password 123",
 	}, nil, http.StatusCreated)
 	csrfToken, _ := loginResp["csrf_token"].(string)
 	if csrfToken == "" {
@@ -80,11 +127,27 @@ func TestSessionOriginPolicyForUnsafeMethods(t *testing.T) {
 }
 
 func TestAllowedOriginCORSPreflightAndRequest(t *testing.T) {
-	authorizer, err := api.NewStaticAPIKeyAuthorizer(map[string]api.Role{
-		"reader-key": api.RoleReader,
+	hash, err := service.HashPassword("reader password 123")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	browserAuth, err := service.NewBrowserUserAuthService(browserOriginAuthStore{
+		user: domain.User{
+			ID:          "usr_reader",
+			Email:       "reader@example.com",
+			DisplayName: "Reader",
+			Status:      domain.UserStatusActive,
+		},
+		credential: domain.UserPasswordCredential{
+			UserID:       "usr_reader",
+			PasswordHash: hash,
+		},
+		memberships: []domain.UserTenantMembership{
+			{UserID: "usr_reader", TenantID: "default", Role: string(api.RoleReader), Status: domain.UserTenantMembershipStatusActive},
+		},
 	})
 	if err != nil {
-		t.Fatalf("new static authorizer: %v", err)
+		t.Fatalf("new browser auth: %v", err)
 	}
 
 	sessionManager := scs.New()
@@ -95,7 +158,7 @@ func TestAllowedOriginCORSPreflightAndRequest(t *testing.T) {
 
 	handler := api.NewServer(
 		nil,
-		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithBrowserUserAuthService(browserAuth),
 		api.WithSessionManager(sessionManager),
 		api.WithSessionOriginPolicy(true, []string{"https://control.example.com"}),
 	).Handler()
@@ -127,7 +190,8 @@ func TestAllowedOriginCORSPreflightAndRequest(t *testing.T) {
 	}
 
 	loginResp := postJSONWithHeadersAndStatus(t, http.DefaultClient, ts.URL+"/v1/ui/sessions/login", map[string]any{
-		"api_key": "reader-key",
+		"email":    "reader@example.com",
+		"password": "reader password 123",
 	}, map[string]string{
 		"Origin": "https://control.example.com",
 	}, http.StatusCreated)

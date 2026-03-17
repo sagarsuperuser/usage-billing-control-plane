@@ -17,6 +17,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/service"
 	"usage-billing-control-plane/internal/store"
 )
 
@@ -41,11 +43,12 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 		t.Fatalf("truncate sessions: %v", err)
 	}
 
-	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "tenant_a")
-	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
-	if err != nil {
-		t.Fatalf("new authorizer: %v", err)
-	}
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:    "reader@tenant-a.test",
+		password: "reader password 123",
+		role:     "reader",
+		tenantID: "tenant_a",
+	})
 
 	sessionManager := scs.New()
 	sessionManager.Store = postgresstore.New(db)
@@ -57,7 +60,6 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 
 	handler := api.NewServer(
 		repo,
-		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithSessionManager(sessionManager),
 	).Handler()
 	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
@@ -66,7 +68,8 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 	client := newSessionClient(t)
 
 	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
-		"api_key": "tenant-a-reader",
+		"email":    "reader@tenant-a.test",
+		"password": "reader password 123",
 	}, "", http.StatusCreated)
 	csrfToken, _ := loginResp["csrf_token"].(string)
 	if csrfToken == "" {
@@ -74,6 +77,9 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 	}
 	if got, _ := loginResp["tenant_id"].(string); got != "tenant_a" {
 		t.Fatalf("expected tenant_id tenant_a, got %q", got)
+	}
+	if got, _ := loginResp["subject_type"].(string); got != "user" {
+		t.Fatalf("expected subject_type user, got %q", got)
 	}
 
 	_ = sessionGetJSON(t, client, ts.URL+"/v1/rating-rules", http.StatusOK)
@@ -85,6 +91,48 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, "", http.StatusForbidden)
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, csrfToken, http.StatusOK)
 	_ = sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusUnauthorized)
+}
+
+func TestUISessionLoginRejectsAccessKeyPayload(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_session_reject_key"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"api_key": "legacy-browser-login-key",
+	}, "", http.StatusBadRequest)
 }
 
 func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
@@ -108,11 +156,11 @@ func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
 		t.Fatalf("truncate sessions: %v", err)
 	}
 
-	mustCreatePlatformAPIKey(t, repo, "platform-admin-ui")
-	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
-	if err != nil {
-		t.Fatalf("new authorizer: %v", err)
-	}
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:        "platform-admin@alpha.test",
+		password:     "platform password 123",
+		platformRole: "platform_admin",
+	})
 
 	sessionManager := scs.New()
 	sessionManager.Store = postgresstore.New(db)
@@ -124,7 +172,6 @@ func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
 
 	handler := api.NewServer(
 		repo,
-		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithSessionManager(sessionManager),
 	).Handler()
 	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
@@ -133,7 +180,8 @@ func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
 	client := newSessionClient(t)
 
 	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
-		"api_key": "platform-admin-ui",
+		"email":    "platform-admin@alpha.test",
+		"password": "platform password 123",
 	}, "", http.StatusCreated)
 	csrfToken, _ := loginResp["csrf_token"].(string)
 	if csrfToken == "" {
@@ -144,6 +192,9 @@ func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
 	}
 	if got, _ := loginResp["platform_role"].(string); got != string(api.PlatformRoleAdmin) {
 		t.Fatalf("expected platform_role platform_admin, got %q", got)
+	}
+	if got, _ := loginResp["subject_type"].(string); got != "user" {
+		t.Fatalf("expected subject_type user, got %q", got)
 	}
 
 	_ = sessionGetJSON(t, client, ts.URL+"/internal/metrics", http.StatusOK)
@@ -181,11 +232,12 @@ func TestUISessionCSRFProtectionForUnsafeMethods(t *testing.T) {
 		t.Fatalf("truncate sessions: %v", err)
 	}
 
-	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "tenant_a")
-	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
-	if err != nil {
-		t.Fatalf("new authorizer: %v", err)
-	}
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:    "writer@tenant-a.test",
+		password: "writer password 123",
+		role:     "writer",
+		tenantID: "tenant_a",
+	})
 
 	sessionManager := scs.New()
 	sessionManager.Store = postgresstore.New(db)
@@ -197,7 +249,6 @@ func TestUISessionCSRFProtectionForUnsafeMethods(t *testing.T) {
 
 	handler := api.NewServer(
 		repo,
-		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithSessionManager(sessionManager),
 	).Handler()
 	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
@@ -206,7 +257,8 @@ func TestUISessionCSRFProtectionForUnsafeMethods(t *testing.T) {
 	client := newSessionClient(t)
 
 	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
-		"api_key": "tenant-a-writer",
+		"email":    "writer@tenant-a.test",
+		"password": "writer password 123",
 	}, "", http.StatusCreated)
 	csrfToken, _ := loginResp["csrf_token"].(string)
 	if csrfToken == "" {
@@ -238,6 +290,65 @@ func newSessionClient(t *testing.T) *http.Client {
 	return &http.Client{
 		Jar:     jar,
 		Timeout: 5 * time.Second,
+	}
+}
+
+type browserUserFixture struct {
+	email        string
+	password     string
+	role         string
+	tenantID     string
+	platformRole string
+}
+
+func mustCreateBrowserUser(t *testing.T, repo *store.PostgresStore, fixture browserUserFixture) {
+	t.Helper()
+
+	now := time.Now().UTC()
+	user, err := repo.CreateUser(domain.User{
+		Email:        fixture.email,
+		DisplayName:  fixture.email,
+		Status:       domain.UserStatusActive,
+		PlatformRole: domain.UserPlatformRole(fixture.platformRole),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	if err != nil {
+		t.Fatalf("create user %q: %v", fixture.email, err)
+	}
+
+	hash, err := service.HashPassword(fixture.password)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if _, err := repo.UpsertUserPasswordCredential(domain.UserPasswordCredential{
+		UserID:            user.ID,
+		PasswordHash:      hash,
+		PasswordUpdatedAt: now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}); err != nil {
+		t.Fatalf("upsert user password credential: %v", err)
+	}
+
+	if fixture.tenantID != "" {
+		if _, err := repo.CreateTenant(domain.Tenant{
+			ID:     fixture.tenantID,
+			Name:   fixture.tenantID,
+			Status: domain.TenantStatusActive,
+		}); err != nil && err != store.ErrAlreadyExists && err != store.ErrDuplicateKey {
+			t.Fatalf("create tenant %q: %v", fixture.tenantID, err)
+		}
+		if _, err := repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+			UserID:    user.ID,
+			TenantID:  fixture.tenantID,
+			Role:      fixture.role,
+			Status:    domain.UserTenantMembershipStatusActive,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("upsert user tenant membership: %v", err)
+		}
 	}
 }
 

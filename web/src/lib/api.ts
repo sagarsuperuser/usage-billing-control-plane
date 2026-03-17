@@ -113,13 +113,19 @@ async function apiRequest<T>(
 }
 
 export async function loginUISession(input: {
-  apiKey: string;
+  email: string;
+  password: string;
+  tenantID?: string;
   runtimeBaseURL?: string;
 }): Promise<UISession> {
   const payload = await apiRequest<UISession>("/v1/ui/sessions/login", {
     method: "POST",
     runtimeBaseURL: input.runtimeBaseURL,
-    body: { api_key: input.apiKey },
+    body: {
+      email: input.email,
+      password: input.password,
+      tenant_id: input.tenantID,
+    },
   });
   if (!payload) {
     throw new Error("login failed");

@@ -189,7 +189,8 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
 
   await page.goto("/workspaces");
 
-  await page.getByTestId("session-login-api-key").fill("platform-key");
+  await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
