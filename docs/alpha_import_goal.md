@@ -162,6 +162,7 @@ Relevant route files:
 - payment creation
 - payment detail
 - credit notes list/detail
+- customer-completed payment method setup and collection flows
 
 ### 7. Wallets and prepaid credits
 
@@ -307,6 +308,7 @@ These are the most important missing surfaces.
 
 - subscriptions list/detail
 - create/update/upgrade-downgrade flows
+- customer-owned payment method setup initiated from subscription flows
 - alerts
 - entitlements
 
@@ -439,14 +441,15 @@ Highest priority:
 
 - billable metrics
 - plans
+- subscriptions
+- customer-owned payment method setup initiated from subscription flows
 - add-ons
 - coupons
 - taxes
-- subscriptions
 
 Reason:
 
-- Alpha cannot become the true product entrypoint for billing without owning pricing and subscription workflows.
+- Alpha cannot become the true product entrypoint for billing without owning pricing, subscription, and payer-collection workflows.
 
 ### 2. Financial operations
 
@@ -540,6 +543,12 @@ Avoid:
 - dense admin dashboards as the default
 - too many top-level nav items
 - advanced operational metadata in the main workflow
+
+### Payment-method setup should be customer-owned
+
+The operator should initiate and track payment setup from Alpha, but the payer should complete card or bank linking through a secure customer-facing flow.
+
+Avoid treating payment-method attachment as a normal internal operator task.
 
 ---
 

@@ -109,6 +109,7 @@ These are valuable once Alpha already feels complete as the primary control plan
 | Pricing | Taxes | Missing | Expose as `Taxes` under billing config or pricing | Tax model/service/API | List/create/detail screens | P1 | Needed once invoices mature |
 | Subscriptions | Subscription list and detail | Missing | `Subscriptions` domain | Subscription service and read APIs | List/detail surfaces | P0 | Core revenue-operating surface |
 | Subscriptions | Create/update subscription | Missing | Guided subscription flow | Write APIs and validation | Setup/edit flows | P0 | Core revenue-operating surface |
+| Subscriptions | Customer-owned payment method setup | Missing | Subscription-led payer setup flow with operator request/resend/status tracking | Hosted setup orchestration, status model, webhook reconciliation | Request/resend/status UI on subscription and customer detail | P0 | Payment method linking should be customer-completed, not operator-driven |
 | Subscriptions | Upgrade/downgrade | Missing | Secondary action on subscription detail | Change-plan workflow | Detail action flow | P1 | Important but after create/detail |
 | Subscriptions | Alerts | Missing | Secondary surface under subscription detail | Alert model/service/API | Alert forms on detail | P2 | Keep out of top-level nav initially |
 | Subscriptions | Entitlements | Missing | Secondary surface under subscription detail | Entitlement model/service/API | Detail action/forms | P2 | Keep out of top-level nav initially |
@@ -160,6 +161,7 @@ These waves already reflect the market-signal lens:
 - billable metrics
 - plans
 - subscriptions
+- customer-owned payment method setup and status tracking
 - invoices list/detail
 - payments list/detail
 - members

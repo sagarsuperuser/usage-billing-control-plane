@@ -50,8 +50,9 @@ Alpha should support the following end-to-end stories:
 1. A platform admin can sign in, configure a billing connection, and manage workspace access.
 2. A tenant operator can define pricing primitives and plans inside Alpha.
 3. A tenant operator can create and manage subscriptions inside Alpha.
-4. A tenant operator can browse invoices and payments inside Alpha without needing Lago UI.
-5. An organization admin can invite users, manage roles, and enforce browser-auth ownership through Alpha.
+4. A tenant operator can request payment setup from Alpha, and the payer can complete payment-method linking without exposing Lago UI.
+5. A tenant operator can browse invoices and payments inside Alpha without needing Lago UI.
+6. An organization admin can invite users, manage roles, and enforce browser-auth ownership through Alpha.
 
 If any of those still require Lago UI, Wave 1 is not complete.
 
@@ -184,6 +185,9 @@ Wave 1 scope:
 - subscription detail
 - create subscription
 - update subscription
+- request payment setup from the subscription flow
+- resend payment setup request
+- track payer-completed payment method status from subscription and customer detail
 
 Not in this slice:
 
@@ -195,6 +199,8 @@ Backend:
 
 - subscription read/write APIs
 - customer-plan linkage
+- hosted payment-setup request orchestration
+- payment-method status model and webhook/state reconciliation
 - basic lifecycle validation
 - status and effective-period handling
 
@@ -204,10 +210,18 @@ UI:
 - create subscription flow
 - subscription detail
 - edit flow from detail
+- payment setup request/resend/status actions on subscription and customer detail
 
 Outcome:
 
 - Alpha owns a core subscription lifecycle without relying on Lago UI
+- payment-method linking is payer-completed, not operator-driven
+
+Priority note:
+
+- customer-owned payment-method setup belongs with `Subscriptions`, before normal payments visibility
+- operators should initiate and track payment setup, but the payer should complete card or bank linking
+- `Payments` remains a visibility and operations surface after payer setup exists
 
 ### Slice 4. Invoices visibility
 
