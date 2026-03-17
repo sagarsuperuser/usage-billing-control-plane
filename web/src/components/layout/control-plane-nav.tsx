@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LoaderCircle, LogOut } from "lucide-react";
-
 import { useUISession } from "@/hooks/use-ui-session";
+import { SessionMenu } from "@/components/layout/session-menu";
 
 const links = [
   { href: "/control-plane", label: "Overview" },
@@ -33,12 +32,8 @@ function isActivePath(pathname: string, href: string): boolean {
 
 export function ControlPlaneNav() {
   const pathname = usePathname();
-  const { isAuthenticated, session, scope, platformRole, csrfToken, logout, loggingOut } = useUISession();
-  const sessionLabel =
-    scope === "platform"
-      ? "Platform admin"
-      : `${session?.role ?? "reader"}${session?.tenant_id ? ` · ${session.tenant_id}` : ""}`;
-  const scopeLabel = scope === "platform" ? "Cross-workspace control" : "Tenant workspace tools";
+  const { isAuthenticated, session, scope } = useUISession();
+  const scopeLabel = scope === "platform" ? "Platform shell" : session?.tenant_id ? `Workspace ${session.tenant_id}` : "Tenant shell";
   const visibleLinks = links.filter((link) => {
     if (!("scope" in link) || !link.scope) {
       return true;
@@ -78,23 +73,10 @@ export function ControlPlaneNav() {
       {isAuthenticated ? (
         <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-right">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{scopeLabel}</p>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100">
-              {scope === "platform" ? platformRole ?? "platform" : sessionLabel}
-            </p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Current context</p>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100">{scopeLabel}</p>
           </div>
-          <button
-            type="button"
-            data-testid="session-logout"
-            disabled={loggingOut || !csrfToken}
-            onClick={() => {
-              void logout(csrfToken);
-            }}
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 text-xs uppercase tracking-[0.12em] text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loggingOut ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
-            Logout
-          </button>
+          <SessionMenu />
         </div>
       ) : null}
     </nav>

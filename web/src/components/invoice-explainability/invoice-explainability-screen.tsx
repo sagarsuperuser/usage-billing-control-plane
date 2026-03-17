@@ -192,6 +192,8 @@ export function InvoiceExplainabilityScreen() {
           <ScopeNotice
             title="Tenant session required"
             body="Explainability is tenant-scoped. Sign in with a tenant reader, writer, or admin API key to inspect invoice computation traces."
+            actionHref="/billing-connections"
+            actionLabel="Open platform home"
           />
         ) : null}
 

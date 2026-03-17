@@ -8,6 +8,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
 import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
 import { type Customer, type CustomerReadiness } from "@/lib/types";
@@ -88,6 +89,7 @@ export function CustomerListScreen() {
 
       <main className="relative mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
+        <AppBreadcrumbs items={[{ href: "/customers", label: "Tenant" }, { label: "Customers" }]} />
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -113,6 +115,8 @@ export function CustomerListScreen() {
           <ScopeNotice
             title="Tenant session required"
             body="Customer directory is a tenant-scoped view. Sign in with a tenant reader, writer, or admin API key to browse customer readiness."
+            actionHref="/billing-connections"
+            actionLabel="Open platform home"
           />
         ) : null}
 
@@ -227,8 +231,12 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-      No customers match the current filters.
+    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/40 px-5 py-8 text-sm text-slate-300">
+      <p className="font-semibold text-white">No customers match the current filters.</p>
+      <p className="mt-2 text-slate-400">Clear filters or create a new customer to start the tenant billing journey.</p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link href="/customers/new" className="inline-flex h-10 items-center rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/20">Create customer</Link>
+      </div>
     </div>
   );
 }

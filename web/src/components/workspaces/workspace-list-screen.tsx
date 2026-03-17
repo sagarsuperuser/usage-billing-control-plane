@@ -8,6 +8,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
 import { type Tenant, type TenantOnboardingReadiness } from "@/lib/types";
@@ -83,6 +84,7 @@ export function WorkspaceListScreen() {
 
       <main className="relative mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
+        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { label: "Workspaces" }]} />
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -116,6 +118,8 @@ export function WorkspaceListScreen() {
           <ScopeNotice
             title="Platform session required"
             body="Workspace directory is a platform-admin view. Sign in with a platform_admin API key to browse cross-workspace readiness."
+            actionHref="/customers"
+            actionLabel="Open tenant home"
           />
         ) : null}
 
@@ -230,8 +234,12 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-      No workspaces match the current filters.
+    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/40 px-5 py-8 text-sm text-slate-300">
+      <p className="font-semibold text-white">No workspaces match the current filters.</p>
+      <p className="mt-2 text-slate-400">Clear filters or create a new workspace if you are bootstrapping a fresh tenant.</p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link href="/workspaces/new" className="inline-flex h-10 items-center rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/20">Create workspace</Link>
+      </div>
     </div>
   );
 }

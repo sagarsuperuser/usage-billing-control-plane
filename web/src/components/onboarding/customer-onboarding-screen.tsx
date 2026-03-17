@@ -8,6 +8,7 @@ import { useState } from "react";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { onboardCustomer } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
 import { type CustomerOnboardingResult } from "@/lib/types";
@@ -82,6 +83,7 @@ export function CustomerOnboardingScreen() {
 
       <main className="relative mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
+        <AppBreadcrumbs items={[{ href: "/customers", label: "Tenant" }, { href: "/customers", label: "Customers" }, { label: "Customer Setup" }]} />
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -108,12 +110,16 @@ export function CustomerOnboardingScreen() {
           <ScopeNotice
             title="Tenant session required"
             body="This screen drives tenant-scoped customer and payment APIs. Sign in with a tenant reader, writer, or admin API key."
+            actionHref="/billing-connections"
+            actionLabel="Open platform home"
           />
         ) : null}
         {isAuthenticated && scope === "tenant" && !canWrite ? (
           <ScopeNotice
             title="Read-only session"
             body={`Current session role ${role ?? "reader"} can inspect customer detail pages, but a writer or admin key is required to run setup.`}
+            actionHref="/customers"
+            actionLabel="Open customer directory"
           />
         ) : null}
 
@@ -273,7 +279,7 @@ export function CustomerOnboardingScreen() {
             </section>
 
             {result?.customer ? (
-              <section className="rounded-3xl border border-cyan-400/20 bg-cyan-500/5 p-6 backdrop-blur-xl">
+              <section className="rounded-3xl border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(6,182,212,0.12),rgba(15,23,42,0.9))] p-6 backdrop-blur-xl">
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Customer created</p>
                 <h2 className="mt-2 break-words text-xl font-semibold text-white">{result.customer.display_name}</h2>
                 <p className="mt-1 break-all font-mono text-xs text-slate-400">{result.customer.external_id}</p>

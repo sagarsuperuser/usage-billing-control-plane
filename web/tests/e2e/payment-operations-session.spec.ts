@@ -152,8 +152,9 @@ test("supports session logout in payment operations UI", async ({ page }) => {
   await installPaymentOpsMock(page, sessionPayload);
   await page.goto("/payment-operations");
 
-  await expect(page.getByTestId("session-logout")).toBeVisible();
   await expect(page.getByText("INV-123")).toBeVisible();
+  await page.getByTestId("session-menu-toggle").click();
+  await expect(page.getByTestId("session-logout")).toBeVisible();
 
   await page.getByTestId("session-logout").click();
   await expect(page.getByTestId("session-login-submit")).toBeVisible();
@@ -197,6 +198,7 @@ test("platform session is blocked from tenant payment operations without hitting
 
   await expect(page.getByText("Tenant session required")).toBeVisible();
   await expect(page.getByText("Payment operations are tenant-scoped.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open platform home" })).toBeVisible();
   await expect(page.getByText("INV-123")).toHaveCount(0);
   await expect
     .poll(async () =>

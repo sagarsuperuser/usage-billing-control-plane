@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchCustomerReadiness, fetchCustomers, refreshCustomerPaymentSetup, retryCustomerBillingSync } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
@@ -69,12 +70,15 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
       <main className="relative mx-auto flex max-w-[1240px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
+        <AppBreadcrumbs items={[{ href: "/customers", label: "Tenant" }, { href: "/customers", label: "Customers" }, { label: customer?.display_name || externalID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
             body="Customer detail is a tenant-scoped view. Sign in with a tenant reader, writer, or admin API key to inspect readiness and run recovery actions."
+            actionHref="/billing-connections"
+            actionLabel="Open platform home"
           />
         ) : null}
 

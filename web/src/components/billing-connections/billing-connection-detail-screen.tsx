@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { disableBillingProviderConnection, fetchBillingProviderConnection, syncBillingProviderConnection } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { formatReadinessStatus } from "@/lib/readiness";
@@ -66,12 +67,15 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
 
       <main className="relative mx-auto flex max-w-[1240px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
+        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/billing-connections", label: "Billing Connections" }, { label: connection?.display_name || connectionID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"
             body="Billing connections are managed at the platform layer. Sign in with a platform_admin API key to inspect them."
+            actionHref="/customers"
+            actionLabel="Open tenant home"
           />
         ) : null}
 

@@ -82,6 +82,8 @@ export function BillingConnectionNewScreen() {
           <ScopeNotice
             title="Platform session required"
             body="Billing connections are managed at the platform layer. Sign in with a platform_admin API key to create them."
+            actionHref="/customers"
+            actionLabel="Open tenant home"
           />
         ) : null}
 

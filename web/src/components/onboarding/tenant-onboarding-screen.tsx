@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchBillingProviderConnections, onboardTenant } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
 import { type BillingProviderConnection, type TenantOnboardingResult } from "@/lib/types";
@@ -85,6 +86,7 @@ export function TenantOnboardingScreen() {
 
       <main className="relative mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
+        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: "Workspace Setup" }]} />
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -117,6 +119,8 @@ export function TenantOnboardingScreen() {
           <ScopeNotice
             title="Platform session required"
             body="This screen drives /internal onboarding APIs. Sign in with a platform_admin API key to create workspaces."
+            actionHref="/customers"
+            actionLabel="Open tenant home"
           />
         ) : null}
 
@@ -304,15 +308,15 @@ export function TenantOnboardingScreen() {
             </div>
 
             {createdSecret ? (
-              <div className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+              <div className="mt-6 rounded-3xl border border-amber-400/40 bg-[linear-gradient(135deg,rgba(245,158,11,0.14),rgba(15,23,42,0.72))] p-5 text-sm text-amber-100">
                 <div className="flex items-center gap-2 font-semibold text-amber-50">
                   <KeyRound className="h-4 w-4" />
                   First admin credential
                 </div>
-                <p className="mt-2 break-all rounded-xl border border-white/10 bg-slate-950/60 px-3 py-3 font-mono text-xs text-amber-50">
+                <p className="mt-2 text-sm text-amber-100/90">Capture this one-time credential now and hand it off through your secure admin bootstrap path.</p>
+                <p className="mt-3 break-all rounded-xl border border-white/10 bg-slate-950/60 px-3 py-3 font-mono text-xs text-amber-50">
                   {createdSecret}
                 </p>
-                <p className="mt-2 text-xs text-amber-200">This value is shown once. Capture it now and hand it off securely.</p>
               </div>
             ) : null}
           </section>
@@ -329,7 +333,7 @@ export function TenantOnboardingScreen() {
             </section>
 
             {result?.tenant ? (
-              <section className="rounded-3xl border border-cyan-400/20 bg-cyan-500/5 p-6 backdrop-blur-xl">
+              <section className="rounded-3xl border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(6,182,212,0.12),rgba(15,23,42,0.9))] p-6 backdrop-blur-xl">
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workspace created</p>
                 <h2 className="mt-2 break-words text-xl font-semibold text-white">{result.tenant.name}</h2>
                 <p className="mt-1 break-all font-mono text-xs text-slate-400">{result.tenant.id}</p>

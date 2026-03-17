@@ -451,6 +451,8 @@ export function ReplayOperationsScreen() {
           <ScopeNotice
             title="Tenant session required"
             body="Recovery tools are tenant-scoped. Sign in with a tenant reader, writer, or admin API key to inspect replay jobs or queue recovery work."
+            actionHref="/billing-connections"
+            actionLabel="Open platform home"
           />
         ) : null}
 
