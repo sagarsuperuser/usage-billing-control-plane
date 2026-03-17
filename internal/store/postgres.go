@@ -1876,6 +1876,150 @@ func (s *PostgresStore) GetMeter(tenantID, id string) (domain.Meter, error) {
 	return meter, nil
 }
 
+func (s *PostgresStore) CreatePlan(input domain.Plan) (domain.Plan, error) {
+	if input.ID == "" {
+		input.ID = newID("pln")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.UpdatedAt = now
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(ctx, `INSERT INTO plans (id, tenant_id, plan_code, name, description, currency, billing_interval, status, base_amount_cents, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		input.ID, input.TenantID, input.Code, input.Name, input.Description, input.Currency, input.BillingInterval, input.Status, input.BaseAmountCents, input.CreatedAt, input.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.Plan{}, ErrDuplicateKey
+		}
+		return domain.Plan{}, err
+	}
+	for idx, meterID := range input.MeterIDs {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO plan_metrics (tenant_id, plan_id, meter_id, position, created_at) VALUES ($1,$2,$3,$4,$5)`, input.TenantID, input.ID, meterID, idx, now); err != nil {
+			if isUniqueViolation(err) {
+				return domain.Plan{}, ErrDuplicateKey
+			}
+			return domain.Plan{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Plan{}, err
+	}
+	return input, nil
+}
+
+func (s *PostgresStore) ListPlans(tenantID string) ([]domain.Plan, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, plan_code, name, description, currency, billing_interval, status, base_amount_cents, created_at, updated_at FROM plans WHERE tenant_id = $1 ORDER BY created_at ASC, id ASC`, normalizeTenantID(tenantID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.Plan, 0)
+	ids := make([]string, 0)
+	for rows.Next() {
+		plan, scanErr := scanPlan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, plan)
+		ids = append(ids, plan.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	metricIDsByPlan, err := loadPlanMetricIDs(ctx, tx, normalizeTenantID(tenantID), ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].MeterIDs = metricIDsByPlan[out[i].ID]
+		if out[i].MeterIDs == nil {
+			out[i].MeterIDs = []string{}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetPlan(tenantID, id string) (domain.Plan, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, plan_code, name, description, currency, billing_interval, status, base_amount_cents, created_at, updated_at FROM plans WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
+	plan, err := scanPlan(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Plan{}, ErrNotFound
+		}
+		return domain.Plan{}, err
+	}
+	metricIDsByPlan, err := loadPlanMetricIDs(ctx, tx, normalizeTenantID(tenantID), []string{id})
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	plan.MeterIDs = metricIDsByPlan[id]
+	if plan.MeterIDs == nil {
+		plan.MeterIDs = []string{}
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Plan{}, err
+	}
+	return plan, nil
+}
+
+func loadPlanMetricIDs(ctx context.Context, tx *sql.Tx, tenantID string, planIDs []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(planIDs))
+	if len(planIDs) == 0 {
+		return out, nil
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT plan_id, meter_id FROM plan_metrics WHERE tenant_id = $1 AND plan_id = ANY($2) ORDER BY position ASC, meter_id ASC`, tenantID, pq.Array(planIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var planID string
+		var meterID string
+		if err := rows.Scan(&planID, &meterID); err != nil {
+			return nil, err
+		}
+		out[planID] = append(out[planID], meterID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) UpdateMeter(input domain.Meter) (domain.Meter, error) {
 	input.UpdatedAt = time.Now().UTC()
 
@@ -4520,6 +4664,23 @@ func scanRatingRule(s rowScanner) (domain.RatingRuleVersion, error) {
 	}
 	if err := json.Unmarshal(tiersRaw, &out.GraduatedTiers); err != nil {
 		return domain.RatingRuleVersion{}, err
+	}
+	return out, nil
+}
+
+func scanPlan(s rowScanner) (domain.Plan, error) {
+	var out domain.Plan
+	var description sql.NullString
+	var billingInterval string
+	var status string
+	if err := s.Scan(&out.ID, &out.TenantID, &out.Code, &out.Name, &description, &out.Currency, &billingInterval, &status, &out.BaseAmountCents, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.Plan{}, err
+	}
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.BillingInterval = domain.BillingInterval(strings.TrimSpace(billingInterval))
+	out.Status = domain.PlanStatus(strings.TrimSpace(status))
+	if description.Valid {
+		out.Description = normalizeOptionalText(description.String)
 	}
 	return out, nil
 }

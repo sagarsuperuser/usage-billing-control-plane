@@ -247,6 +247,9 @@ type Repository interface {
 	ListMeters(tenantID string) ([]domain.Meter, error)
 	GetMeter(tenantID, id string) (domain.Meter, error)
 	UpdateMeter(input domain.Meter) (domain.Meter, error)
+	CreatePlan(input domain.Plan) (domain.Plan, error)
+	ListPlans(tenantID string) ([]domain.Plan, error)
+	GetPlan(tenantID, id string) (domain.Plan, error)
 
 	CreateUsageEvent(input domain.UsageEvent) (domain.UsageEvent, error)
 	GetUsageEventByIdempotencyKey(tenantID, idempotencyKey string) (domain.UsageEvent, error)

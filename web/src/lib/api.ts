@@ -1,6 +1,8 @@
 import {
   BillingProviderConnection,
   Customer,
+  Plan,
+  PricingMetric,
   CustomerOnboardingResult,
   CustomerReadiness,
   InvoiceExplainability,
@@ -167,6 +169,94 @@ export async function logoutUISession(input: {
     csrfToken: input.csrfToken,
     body: {},
   });
+}
+
+export async function fetchPricingMetrics(input: {
+  runtimeBaseURL?: string;
+}): Promise<PricingMetric[]> {
+  const payload = await apiRequest<PricingMetric[]>("/v1/pricing/metrics", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createPricingMetric(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<PricingMetric> {
+  const payload = await apiRequest<PricingMetric>("/v1/pricing/metrics", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchPricingMetric(input: {
+  runtimeBaseURL?: string;
+  metricID: string;
+}): Promise<PricingMetric> {
+  const payload = await apiRequest<PricingMetric>(`/v1/pricing/metrics/${encodeURIComponent(input.metricID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchPlans(input: {
+  runtimeBaseURL?: string;
+}): Promise<Plan[]> {
+  const payload = await apiRequest<Plan[]>("/v1/plans", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createPlan(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<Plan> {
+  const payload = await apiRequest<Plan>("/v1/plans", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchPlan(input: {
+  runtimeBaseURL?: string;
+  planID: string;
+}): Promise<Plan> {
+  const payload = await apiRequest<Plan>(`/v1/plans/${encodeURIComponent(input.planID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }
 
 export async function fetchTenants(input: {

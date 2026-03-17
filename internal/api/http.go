@@ -39,6 +39,8 @@ type Server struct {
 	billingProviderConnectionService *service.BillingProviderConnectionService
 	browserUserAuthService           *service.BrowserUserAuthService
 	browserSSOService                *service.BrowserSSOService
+	pricingMetricService             *service.PricingMetricService
+	planService                      *service.PlanService
 	meterService                     *service.MeterService
 	usageService                     *service.UsageService
 	apiKeyService                    *service.APIKeyService
@@ -401,6 +403,8 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter)
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)
+	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)
+	s.planService = service.NewPlanService(repo)
 	s.usageService = service.NewUsageService(repo)
 	s.apiKeyService = service.NewAPIKeyService(repo)
 	if s.browserUserAuthService == nil {
@@ -1249,6 +1253,20 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 			return RoleWriter, true
 		}
 		return RoleReader, true
+	case path == "/v1/pricing/metrics":
+		if r.Method == http.MethodPost {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/pricing/metrics/"):
+		return RoleReader, true
+	case path == "/v1/plans":
+		if r.Method == http.MethodPost {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/plans/"):
+		return RoleReader, true
 	case path == "/v1/invoices/preview":
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/invoices/"):
@@ -1412,6 +1430,14 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/meters"
 	case strings.HasPrefix(path, "/v1/meters/"):
 		return "/v1/meters/{id}"
+	case path == "/v1/pricing/metrics":
+		return "/v1/pricing/metrics"
+	case strings.HasPrefix(path, "/v1/pricing/metrics/"):
+		return "/v1/pricing/metrics/{id}"
+	case path == "/v1/plans":
+		return "/v1/plans"
+	case strings.HasPrefix(path, "/v1/plans/"):
+		return "/v1/plans/{id}"
 	case path == "/v1/invoices/preview":
 		return "/v1/invoices/preview"
 	case strings.HasPrefix(path, "/v1/invoices/"):
@@ -1522,6 +1548,10 @@ func (s *Server) registerRoutes() {
 
 	s.mux.HandleFunc("/v1/meters", s.handleMeters)
 	s.mux.HandleFunc("/v1/meters/", s.handleMeterByID)
+	s.mux.HandleFunc("/v1/pricing/metrics", s.handlePricingMetrics)
+	s.mux.HandleFunc("/v1/pricing/metrics/", s.handlePricingMetricByID)
+	s.mux.HandleFunc("/v1/plans", s.handlePlans)
+	s.mux.HandleFunc("/v1/plans/", s.handlePlanByID)
 
 	s.mux.HandleFunc("/v1/invoices/preview", s.handleInvoicePreview)
 	s.mux.HandleFunc("/v1/invoices/", s.handleInvoiceByID)

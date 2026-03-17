@@ -255,6 +255,36 @@ type Meter struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
+type BillingInterval string
+
+const (
+	BillingIntervalMonthly BillingInterval = "monthly"
+	BillingIntervalYearly  BillingInterval = "yearly"
+)
+
+type PlanStatus string
+
+const (
+	PlanStatusDraft    PlanStatus = "draft"
+	PlanStatusActive   PlanStatus = "active"
+	PlanStatusArchived PlanStatus = "archived"
+)
+
+type Plan struct {
+	ID              string          `json:"id"`
+	TenantID        string          `json:"tenant_id,omitempty"`
+	Code            string          `json:"code"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description,omitempty"`
+	Currency        string          `json:"currency"`
+	BillingInterval BillingInterval `json:"billing_interval"`
+	Status          PlanStatus      `json:"status"`
+	BaseAmountCents int64           `json:"base_amount_cents"`
+	MeterIDs        []string        `json:"meter_ids"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
 type UsageEvent struct {
 	ID             string    `json:"id"`
 	TenantID       string    `json:"tenant_id,omitempty"`

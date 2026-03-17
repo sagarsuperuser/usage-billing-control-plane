@@ -79,6 +79,33 @@ export interface BillingProviderConnection {
   updated_at: string;
 }
 
+export interface PricingMetric {
+  id: string;
+  tenant_id?: string;
+  key: string;
+  name: string;
+  unit: string;
+  aggregation: string;
+  rating_rule_version_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Plan {
+  id: string;
+  tenant_id?: string;
+  code: string;
+  name: string;
+  description?: string;
+  currency: string;
+  billing_interval: "monthly" | "yearly";
+  status: "draft" | "active" | "archived";
+  base_amount_cents: number;
+  meter_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface APIKey {
   id: string;
   key_prefix: string;
