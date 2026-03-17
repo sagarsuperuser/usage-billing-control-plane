@@ -15,17 +15,19 @@ type TenantService struct {
 }
 
 type EnsureTenantRequest struct {
-	ID                      string `json:"id"`
-	Name                    string `json:"name"`
-	LagoOrganizationID      string `json:"lago_organization_id,omitempty"`
-	LagoBillingProviderCode string `json:"lago_billing_provider_code,omitempty"`
+	ID                          string `json:"id"`
+	Name                        string `json:"name"`
+	BillingProviderConnectionID string `json:"billing_provider_connection_id,omitempty"`
+	LagoOrganizationID          string `json:"lago_organization_id,omitempty"`
+	LagoBillingProviderCode     string `json:"lago_billing_provider_code,omitempty"`
 }
 
 type UpdateTenantRequest struct {
-	Name                    *string              `json:"name,omitempty"`
-	Status                  *domain.TenantStatus `json:"status,omitempty"`
-	LagoOrganizationID      *string              `json:"lago_organization_id,omitempty"`
-	LagoBillingProviderCode *string              `json:"lago_billing_provider_code,omitempty"`
+	Name                        *string              `json:"name,omitempty"`
+	Status                      *domain.TenantStatus `json:"status,omitempty"`
+	BillingProviderConnectionID *string              `json:"billing_provider_connection_id,omitempty"`
+	LagoOrganizationID          *string              `json:"lago_organization_id,omitempty"`
+	LagoBillingProviderCode     *string              `json:"lago_billing_provider_code,omitempty"`
 }
 
 type ListTenantsRequest struct {
@@ -58,21 +60,28 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 
 	id := normalizeTenantID(req.ID)
 	name := strings.TrimSpace(req.Name)
-	lagoOrganizationID := strings.TrimSpace(req.LagoOrganizationID)
-	lagoBillingProviderCode := strings.TrimSpace(req.LagoBillingProviderCode)
+	billingProviderConnectionID, lagoOrganizationID, lagoBillingProviderCode, err := s.resolveTenantBillingConfiguration(
+		req.BillingProviderConnectionID,
+		req.LagoOrganizationID,
+		req.LagoBillingProviderCode,
+	)
+	if err != nil {
+		return domain.Tenant{}, err
+	}
 	if name == "" {
 		name = id
 	}
 
 	now := time.Now().UTC()
 	created, err := s.store.CreateTenant(domain.Tenant{
-		ID:                      id,
-		Name:                    name,
-		Status:                  domain.TenantStatusActive,
-		LagoOrganizationID:      lagoOrganizationID,
-		LagoBillingProviderCode: lagoBillingProviderCode,
-		CreatedAt:               now,
-		UpdatedAt:               now,
+		ID:                          id,
+		Name:                        name,
+		Status:                      domain.TenantStatusActive,
+		BillingProviderConnectionID: billingProviderConnectionID,
+		LagoOrganizationID:          lagoOrganizationID,
+		LagoBillingProviderCode:     lagoBillingProviderCode,
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
 	})
 	if err != nil {
 		if err == store.ErrAlreadyExists || err == store.ErrDuplicateKey {
@@ -86,10 +95,11 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		ActorAPIKeyID: strings.TrimSpace(actorAPIKeyID),
 		Action:        "created",
 		Metadata: map[string]any{
-			"name":                       created.Name,
-			"status":                     created.Status,
-			"lago_organization_id":       created.LagoOrganizationID,
-			"lago_billing_provider_code": created.LagoBillingProviderCode,
+			"name":                           created.Name,
+			"status":                         created.Status,
+			"billing_provider_connection_id": created.BillingProviderConnectionID,
+			"lago_organization_id":           created.LagoOrganizationID,
+			"lago_billing_provider_code":     created.LagoBillingProviderCode,
 		},
 		CreatedAt: now,
 	}); auditErr != nil {
@@ -105,8 +115,14 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 
 	id := normalizeTenantID(req.ID)
 	name := strings.TrimSpace(req.Name)
-	lagoOrganizationID := strings.TrimSpace(req.LagoOrganizationID)
-	lagoBillingProviderCode := strings.TrimSpace(req.LagoBillingProviderCode)
+	billingProviderConnectionID, lagoOrganizationID, lagoBillingProviderCode, err := s.resolveTenantBillingConfiguration(
+		req.BillingProviderConnectionID,
+		req.LagoOrganizationID,
+		req.LagoBillingProviderCode,
+	)
+	if err != nil {
+		return domain.Tenant{}, false, err
+	}
 	if name == "" {
 		name = id
 	}
@@ -132,6 +148,12 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		updated.Name = name
 		metadata["previous_name"] = existing.Name
 		metadata["new_name"] = name
+		changed = true
+	}
+	if billingProviderConnectionID != existing.BillingProviderConnectionID {
+		updated.BillingProviderConnectionID = billingProviderConnectionID
+		metadata["previous_billing_provider_connection_id"] = existing.BillingProviderConnectionID
+		metadata["new_billing_provider_connection_id"] = billingProviderConnectionID
 		changed = true
 	}
 	if lagoOrganizationID != existing.LagoOrganizationID {
@@ -230,6 +252,34 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 			statusChanged = true
 		}
 	}
+	if req.BillingProviderConnectionID != nil {
+		resolvedConnectionID, resolvedOrg, resolvedCode, err := s.resolveTenantBillingConfiguration(
+			*req.BillingProviderConnectionID,
+			valueOrDefault(req.LagoOrganizationID, ""),
+			valueOrDefault(req.LagoBillingProviderCode, ""),
+		)
+		if err != nil {
+			return domain.Tenant{}, err
+		}
+		if resolvedConnectionID != current.BillingProviderConnectionID {
+			updated.BillingProviderConnectionID = resolvedConnectionID
+			metadata["previous_billing_provider_connection_id"] = current.BillingProviderConnectionID
+			metadata["new_billing_provider_connection_id"] = resolvedConnectionID
+			changed = true
+		}
+		if req.LagoOrganizationID == nil && resolvedOrg != current.LagoOrganizationID {
+			updated.LagoOrganizationID = resolvedOrg
+			metadata["previous_lago_organization_id"] = current.LagoOrganizationID
+			metadata["new_lago_organization_id"] = resolvedOrg
+			changed = true
+		}
+		if req.LagoBillingProviderCode == nil && resolvedCode != current.LagoBillingProviderCode {
+			updated.LagoBillingProviderCode = resolvedCode
+			metadata["previous_lago_billing_provider_code"] = current.LagoBillingProviderCode
+			metadata["new_lago_billing_provider_code"] = resolvedCode
+			changed = true
+		}
+	}
 	if req.LagoOrganizationID != nil {
 		value := strings.TrimSpace(*req.LagoOrganizationID)
 		if value != current.LagoOrganizationID {
@@ -274,11 +324,41 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 	return out, nil
 }
 
+func (s *TenantService) resolveTenantBillingConfiguration(connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode string) (string, string, string, error) {
+	connectionID = strings.TrimSpace(connectionID)
+	lagoOrganizationID := strings.TrimSpace(rawLagoOrganizationID)
+	lagoBillingProviderCode := strings.TrimSpace(rawLagoBillingProviderCode)
+	if connectionID == "" {
+		return "", lagoOrganizationID, lagoBillingProviderCode, nil
+	}
+	connection, err := s.store.GetBillingProviderConnection(connectionID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			return "", "", "", fmt.Errorf("%w: billing provider connection not found", ErrValidation)
+		}
+		return "", "", "", err
+	}
+	if connection.Status != domain.BillingProviderConnectionStatusConnected {
+		return "", "", "", fmt.Errorf("%w: billing provider connection must be connected before workspace assignment", ErrValidation)
+	}
+	if strings.TrimSpace(connection.LagoOrganizationID) == "" || strings.TrimSpace(connection.LagoProviderCode) == "" {
+		return "", "", "", fmt.Errorf("%w: billing provider connection is missing lago mapping", ErrValidation)
+	}
+	return connectionID, strings.TrimSpace(connection.LagoOrganizationID), strings.TrimSpace(connection.LagoProviderCode), nil
+}
+
+func valueOrDefault(input *string, fallback string) string {
+	if input == nil {
+		return fallback
+	}
+	return *input
+}
+
 func (s *TenantService) UpdateTenantStatus(id string, status domain.TenantStatus) (domain.Tenant, error) {
 	return s.UpdateTenant(id, UpdateTenantRequest{Status: &status}, "")
 }
 
-func (s *TenantService) UpdateTenantStatusWithActor(id string, status domain.TenantStatus, actorAPIKeyID string) (domain.Tenant, error) {
+func (s *TenantService) SetTenantStatus(id string, status domain.TenantStatus, actorAPIKeyID string) (domain.Tenant, error) {
 	return s.UpdateTenant(id, UpdateTenantRequest{Status: &status}, actorAPIKeyID)
 }
 

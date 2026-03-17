@@ -1,4 +1,5 @@
 import {
+  BillingProviderConnection,
   Customer,
   CustomerOnboardingResult,
   CustomerReadiness,
@@ -197,6 +198,115 @@ export async function fetchTenantOnboardingStatus(input: {
     throw new Error("unauthorized");
   }
   return payload;
+}
+
+export async function fetchBillingProviderConnections(input: {
+  runtimeBaseURL?: string;
+  providerType?: string;
+  environment?: string;
+  status?: string;
+  scope?: string;
+  ownerTenantID?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<BillingProviderConnection[]> {
+  const query = toQuery({
+    provider_type: input.providerType,
+    environment: input.environment,
+    status: input.status,
+    scope: input.scope,
+    owner_tenant_id: input.ownerTenantID,
+    limit: input.limit,
+    offset: input.offset,
+  });
+  const payload = await apiRequest<ListResponse<BillingProviderConnection>>(
+    `/internal/billing-provider-connections${query}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.items;
+}
+
+export async function fetchBillingProviderConnection(input: {
+  runtimeBaseURL?: string;
+  connectionID: string;
+}): Promise<BillingProviderConnection> {
+  const payload = await apiRequest<{ connection: BillingProviderConnection }>(
+    `/internal/billing-provider-connections/${encodeURIComponent(input.connectionID)}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.connection;
+}
+
+export async function createBillingProviderConnection(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<BillingProviderConnection> {
+  const payload = await apiRequest<{ connection: BillingProviderConnection }>(
+    "/internal/billing-provider-connections",
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: input.body,
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.connection;
+}
+
+export async function syncBillingProviderConnection(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  connectionID: string;
+}): Promise<BillingProviderConnection> {
+  const payload = await apiRequest<{ connection: BillingProviderConnection }>(
+    `/internal/billing-provider-connections/${encodeURIComponent(input.connectionID)}/sync`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.connection;
+}
+
+export async function disableBillingProviderConnection(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  connectionID: string;
+}): Promise<BillingProviderConnection> {
+  const payload = await apiRequest<{ connection: BillingProviderConnection }>(
+    `/internal/billing-provider-connections/${encodeURIComponent(input.connectionID)}/disable`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.connection;
 }
 
 export async function onboardCustomer(input: {

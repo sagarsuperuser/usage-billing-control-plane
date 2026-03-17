@@ -12,8 +12,24 @@ type TenantRecord = {
   id: string;
   name: string;
   status: "active" | "suspended" | "deleted";
+  billing_provider_connection_id?: string;
   lago_organization_id?: string;
   lago_billing_provider_code?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type BillingProviderConnection = {
+  id: string;
+  provider_type: "stripe";
+  environment: "test" | "live";
+  display_name: string;
+  scope: "platform";
+  status: "connected" | "pending" | "sync_error" | "disabled";
+  lago_organization_id?: string;
+  lago_provider_code?: string;
+  secret_configured: boolean;
+  created_by_type: string;
   created_at: string;
   updated_at: string;
 };
@@ -89,6 +105,20 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
   let tenants: TenantRecord[] = [];
   const readinessByTenant: Record<string, TenantOnboardingReadiness> = {};
   let capturedCSRF = "";
+  const connection: BillingProviderConnection = {
+    id: "bpc_alpha",
+    provider_type: "stripe",
+    environment: "test",
+    display_name: "Stripe Sandbox",
+    scope: "platform",
+    status: "connected",
+    lago_organization_id: "org_acme",
+    lago_provider_code: "alpha_stripe_test_bpc_alpha",
+    secret_configured: true,
+    created_by_type: "platform_api_key",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
   await page.route("**/*", async (route) => {
     const request = route.request();
@@ -126,6 +156,10 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
       return json(loggedIn ? 200 : 401, loggedIn ? tenants : { error: "unauthorized" });
     }
 
+    if (path === "/internal/billing-provider-connections" && method === "GET") {
+      return json(200, { items: [connection] });
+    }
+
     if (path === "/internal/onboarding/tenants" && method === "POST") {
       capturedCSRF = request.headers()["x-csrf-token"] || "";
       const body = request.postDataJSON() as Record<string, string>;
@@ -134,8 +168,9 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
         id: body.id,
         name: body.name || body.id,
         status: "active",
-        lago_organization_id: body.lago_organization_id,
-        lago_billing_provider_code: body.lago_billing_provider_code,
+        billing_provider_connection_id: body.billing_provider_connection_id,
+        lago_organization_id: connection.lago_organization_id,
+        lago_billing_provider_code: connection.lago_provider_code,
         created_at: now,
         updated_at: now,
       };
@@ -174,6 +209,10 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
       });
     }
 
+    if (path.startsWith("/internal/billing-provider-connections/") && method === "GET") {
+      return json(200, { connection });
+    }
+
     if (path === "/runtime-config" && method === "GET") {
       return json(200, { apiBaseURL: "" });
     }
@@ -197,8 +236,7 @@ test("platform admin can onboard a tenant from the UI", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Workspace Setup" })).toBeVisible();
   await page.getByLabel("Workspace ID").fill("tenant_acme");
   await page.getByLabel("Workspace name").fill("Acme Corp");
-  await page.getByLabel("Billing organization ID").fill("org_acme");
-  await page.getByLabel("Billing connection code").fill("stripe_default");
+  await page.getByLabel("Billing connection").selectOption("bpc_alpha");
   await page.getByRole("button", { name: "Run workspace setup" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
@@ -206,4 +244,5 @@ test("platform admin can onboard a tenant from the UI", async ({ page }) => {
   await page.goto("/workspaces/tenant_acme");
   await expect(page.getByRole("heading", { name: "Acme Corp" })).toBeVisible();
   await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();
 });

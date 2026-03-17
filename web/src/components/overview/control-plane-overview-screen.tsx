@@ -3,11 +3,17 @@
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Activity, Building2, LoaderCircle, ReceiptText, UserRoundPlus, Workflow } from "lucide-react";
+import { Activity, Building2, CreditCard, LoaderCircle, ReceiptText, UserRoundPlus, Workflow } from "lucide-react";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchCustomerReadiness, fetchCustomers, fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
+import {
+  fetchBillingProviderConnections,
+  fetchCustomerReadiness,
+  fetchCustomers,
+  fetchTenantOnboardingStatus,
+  fetchTenants,
+} from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function ControlPlaneOverviewScreen() {
@@ -17,6 +23,12 @@ export function ControlPlaneOverviewScreen() {
   const tenantsQuery = useQuery({
     queryKey: ["overview-tenants", apiBaseURL],
     queryFn: () => fetchTenants({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "platform" && isPlatformAdmin,
+  });
+
+  const billingConnectionsQuery = useQuery({
+    queryKey: ["overview-billing-provider-connections", apiBaseURL],
+    queryFn: () => fetchBillingProviderConnections({ runtimeBaseURL: apiBaseURL, limit: 100 }),
     enabled: isAuthenticated && scope === "platform" && isPlatformAdmin,
   });
 
@@ -45,16 +57,18 @@ export function ControlPlaneOverviewScreen() {
   const platformMetrics = useMemo(() => {
     const tenants = tenantsQuery.data ?? [];
     const readiness = tenantReadinessQueries.flatMap((query) => (query.data ? [query.data.readiness] : []));
+    const connections = billingConnectionsQuery.data ?? [];
     return {
       total: tenants.length,
-      nonActive: tenants.filter((tenant) => tenant.status !== "active").length,
       missingBilling: tenants.filter(
-        (tenant) => !tenant.lago_organization_id || !tenant.lago_billing_provider_code
+        (tenant) => !tenant.billing_provider_connection_id && (!tenant.lago_organization_id || !tenant.lago_billing_provider_code)
       ).length,
       missingPricing: readiness.filter((item) => !item.billing_integration.pricing_ready).length,
       missingFirstCustomer: readiness.filter((item) => !item.first_customer.customer_exists).length,
+      connectedProviders: connections.filter((item) => item.status === "connected").length,
+      providerErrors: connections.filter((item) => item.status === "sync_error").length,
     };
-  }, [tenantReadinessQueries, tenantsQuery.data]);
+  }, [billingConnectionsQuery.data, tenantReadinessQueries, tenantsQuery.data]);
 
   const tenantMetrics = useMemo(() => {
     const customers = customersQuery.data ?? [];
@@ -70,11 +84,17 @@ export function ControlPlaneOverviewScreen() {
 
   const attentionLoading =
     tenantsQuery.isLoading ||
+    billingConnectionsQuery.isLoading ||
     customersQuery.isLoading ||
     tenantReadinessQueries.some((query) => query.isLoading) ||
     customerReadinessQueries.some((query) => query.isLoading);
 
   const platformAttention = [
+    {
+      title: "Billing connections in error",
+      value: platformMetrics.providerErrors,
+      body: "Resolve provider sync errors before assigning those connections to workspaces.",
+    },
     {
       title: "Workspaces missing pricing",
       value: platformMetrics.missingPricing,
@@ -84,11 +104,6 @@ export function ControlPlaneOverviewScreen() {
       title: "Workspaces missing first customer",
       value: platformMetrics.missingFirstCustomer,
       body: "Create the first billing-ready customer to complete onboarding.",
-    },
-    {
-      title: "Workspaces missing billing connection",
-      value: platformMetrics.missingBilling,
-      body: "Add the billing organization and connection code before payment flows can work.",
     },
   ];
 
@@ -112,9 +127,17 @@ export function ControlPlaneOverviewScreen() {
 
   const guidedJourneys = [
     {
+      href: "/billing-connections/new",
+      title: "Create billing connection",
+      description: "Store the Stripe secret in Alpha, sync the provider into Lago, and keep the connection state under one platform-owned record.",
+      icon: <CreditCard className="h-5 w-5 text-fuchsia-200" />,
+      accent: "border-fuchsia-400/40 bg-fuchsia-500/10",
+      scope: "platform" as const,
+    },
+    {
       href: "/workspaces/new",
       title: "Create workspace",
-      description: "Create a tenant workspace, connect billing, and hand off the first admin credential.",
+      description: "Create a tenant workspace, attach a connected billing provider, and hand off the first admin credential.",
       icon: <Building2 className="h-5 w-5 text-sky-200" />,
       accent: "border-sky-400/40 bg-sky-500/10",
       scope: "platform" as const,
@@ -130,6 +153,14 @@ export function ControlPlaneOverviewScreen() {
   ].filter((item) => item.scope === scopeKey);
 
   const workspaceModules = [
+    {
+      href: "/billing-connections",
+      title: "Billing Connections",
+      description: "Browse Stripe connection health, sync status, and operational mapping owned by Alpha.",
+      icon: <CreditCard className="h-5 w-5 text-fuchsia-200" />,
+      accent: "border-fuchsia-400/40 bg-fuchsia-500/10",
+      scope: "platform" as const,
+    },
     {
       href: "/workspaces",
       title: "Workspaces",
@@ -178,7 +209,7 @@ export function ControlPlaneOverviewScreen() {
       : `Tenant workspace view${session?.tenant_id ? ` · ${session.tenant_id}` : ""}`;
   const sessionSubcopy =
     scope === "platform"
-      ? "Use this view to create workspaces, review onboarding across tenants, and spot environments that still need billing setup."
+      ? "Create billing connections first, then assign them to workspaces and complete tenant onboarding with clean ownership boundaries."
       : "Use this view to onboard customers, verify payment readiness, and keep billing operations healthy inside one workspace.";
   const primaryAction = guidedJourneys[0] ?? workspaceModules[0] ?? null;
 
@@ -199,7 +230,7 @@ export function ControlPlaneOverviewScreen() {
               Billing operations that feel product-first
             </h1>
             <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-              Run workspace setup, customer onboarding, payment recovery, and billing diagnostics from Alpha.
+              Run billing connections, workspace setup, customer onboarding, payment recovery, and diagnostics from Alpha.
               Lago stays behind the scenes as the billing engine.
             </p>
           </div>
@@ -258,49 +289,41 @@ export function ControlPlaneOverviewScreen() {
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading live attention data
               </div>
-            ) : !isAuthenticated ? (
-              <div className="mt-5 rounded-2xl border border-dashed border-white/10 px-4 py-6 text-sm text-slate-400">
-                Sign in with a tenant or platform key to load live onboarding and readiness counts.
-              </div>
             ) : (
               <div className="mt-5 grid gap-3">
                 {(scope === "platform" ? platformAttention : tenantAttention).map((item) => (
-                  <FocusLine key={item.title} title={item.title} value={item.value} body={item.body} />
+                  <div key={item.title} className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{item.title}</p>
+                        <p className="mt-2 text-3xl font-semibold text-white">{item.value}</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-300">{item.body}</p>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {workspaceModules.map((item) => (
-            <Card
-              key={item.href}
-              href={item.href}
-              title={item.title}
-              description={item.description}
-              icon={item.icon}
-              accent={item.accent}
-            />
-          ))}
+        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Modules</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Role-aware product surfaces</h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {workspaceModules.map((item) => (
+              <Card
+                key={item.href}
+                href={item.href}
+                title={item.title}
+                description={item.description}
+                icon={item.icon}
+                accent={item.accent}
+              />
+            ))}
+          </div>
         </section>
       </main>
-    </div>
-  );
-}
-
-function FocusLine({ title, value, body }: { title: string; value: number; body: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-white">{title}</p>
-          <p className="mt-1 text-sm text-slate-300">{body}</p>
-        </div>
-        <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-lg font-semibold text-cyan-100">
-          {value}
-        </div>
-      </div>
     </div>
   );
 }
@@ -321,14 +344,11 @@ function Card({
   return (
     <Link
       href={href}
-      className={`group rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:bg-slate-900/90 ${accent}`}
+      className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-white/20 ${accent}`}
     >
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
-        <span className="inline-flex rounded-lg border border-white/20 bg-white/5 p-2">{icon}</span>
-      </div>
-      <p className="mt-3 text-sm leading-6 text-slate-200">{description}</p>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300 group-hover:text-white">Open</p>
+      <span className="inline-flex rounded-xl border border-white/10 bg-slate-950/60 p-3">{icon}</span>
+      <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
+      <p className="mt-2 text-sm text-slate-300">{description}</p>
     </Link>
   );
 }

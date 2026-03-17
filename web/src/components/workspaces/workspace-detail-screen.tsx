@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Building2, LoaderCircle } from "lucide-react";
+import { ArrowLeft, Building2, CreditCard, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchTenantOnboardingStatus } from "@/lib/api";
+import { fetchBillingProviderConnection, fetchTenantOnboardingStatus } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -29,6 +29,15 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
 
   const selectedTenant = tenantStatusQuery.data?.tenant ?? null;
   const selectedReadiness = tenantStatusQuery.data?.readiness ?? null;
+  const billingConnectionQuery = useQuery({
+    queryKey: ["billing-provider-connection", apiBaseURL, selectedTenant?.billing_provider_connection_id],
+    queryFn: () =>
+      fetchBillingProviderConnection({
+        runtimeBaseURL: apiBaseURL,
+        connectionID: selectedTenant?.billing_provider_connection_id ?? "",
+      }),
+    enabled: isAuthenticated && isPlatformAdmin && Boolean(selectedTenant?.billing_provider_connection_id),
+  });
   const nextActions = selectedReadiness?.missing_steps.map(describeTenantMissingStep) ?? [];
 
   return (
@@ -133,10 +142,29 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
               <aside className="flex flex-col gap-4">
                 <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
                   <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Billing connection</p>
-                  <dl className="mt-4 grid gap-3">
-                    <MetaItem label="Billing organization" value={selectedTenant.lago_organization_id || "-"} mono />
-                    <MetaItem label="Billing connection" value={selectedTenant.lago_billing_provider_code || "-"} mono />
-                  </dl>
+                  {selectedTenant.billing_provider_connection_id ? (
+                    <>
+                      <dl className="mt-4 grid gap-3">
+                        <MetaItem label="Connection ID" value={selectedTenant.billing_provider_connection_id} mono />
+                        <MetaItem label="Connection status" value={billingConnectionQuery.data ? formatReadinessStatus(billingConnectionQuery.data.status) : billingConnectionQuery.isLoading ? "Loading" : "Unavailable"} />
+                        <MetaItem label="Display name" value={billingConnectionQuery.data?.display_name || "-"} />
+                        <MetaItem label="Billing organization" value={selectedTenant.lago_organization_id || "-"} mono />
+                        <MetaItem label="Lago provider code" value={selectedTenant.lago_billing_provider_code || "-"} mono />
+                      </dl>
+                      <Link
+                        href={`/billing-connections/${encodeURIComponent(selectedTenant.billing_provider_connection_id)}`}
+                        className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        Open billing connection
+                      </Link>
+                    </>
+                  ) : (
+                    <dl className="mt-4 grid gap-3">
+                      <MetaItem label="Billing organization" value={selectedTenant.lago_organization_id || "-"} mono />
+                      <MetaItem label="Lago provider code" value={selectedTenant.lago_billing_provider_code || "-"} mono />
+                    </dl>
+                  )}
                 </section>
 
                 <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">

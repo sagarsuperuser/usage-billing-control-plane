@@ -8,6 +8,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 const links = [
   { href: "/control-plane", label: "Overview" },
+  { href: "/billing-connections", label: "Billing Connections", scope: "platform" as const },
   { href: "/workspaces", label: "Workspaces", scope: "platform" as const },
   { href: "/workspaces/new", label: "Workspace Setup", scope: "platform" as const },
   { href: "/customers", label: "Customers", scope: "tenant" as const },
@@ -18,6 +19,9 @@ const links = [
 ];
 
 function isActivePath(pathname: string, href: string): boolean {
+  if (href === "/billing-connections") {
+    return pathname === "/billing-connections" || (pathname.startsWith("/billing-connections/") && pathname !== "/billing-connections/new");
+  }
   if (href === "/workspaces") {
     return pathname === "/workspaces" || (pathname.startsWith("/workspaces/") && pathname !== "/workspaces/new");
   }

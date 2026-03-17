@@ -33,8 +33,30 @@ export interface Tenant {
   id: string;
   name: string;
   status: "active" | "suspended" | "deleted";
+  billing_provider_connection_id?: string;
   lago_organization_id?: string;
   lago_billing_provider_code?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BillingProviderConnection {
+  id: string;
+  provider_type: "stripe";
+  environment: "test" | "live";
+  display_name: string;
+  scope: "platform" | "tenant";
+  owner_tenant_id?: string;
+  status: "pending" | "connected" | "sync_error" | "disabled";
+  lago_organization_id?: string;
+  lago_provider_code?: string;
+  secret_configured: boolean;
+  last_synced_at?: string;
+  last_sync_error?: string;
+  connected_at?: string;
+  disabled_at?: string;
+  created_by_type: string;
+  created_by_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -319,27 +341,29 @@ export interface ReplayJobWorkflowTelemetry {
 export interface ReplayJobArtifactLinks {
   report_json?: string;
   report_csv?: string;
+  error_json?: string;
   dataset_digest?: string;
 }
 
 export interface ReplayJob {
   id: string;
   tenant_id?: string;
-  customer_id?: string;
+  customer_id: string;
   meter_id?: string;
   from?: string;
   to?: string;
-  idempotency_key: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: string;
   attempt_count: number;
   last_attempt_at?: string;
   processed_records: number;
   error?: string;
-  created_at: string;
   started_at?: string;
   completed_at?: string;
-  workflow_telemetry?: ReplayJobWorkflowTelemetry;
+  idempotency_key?: string;
+  created_at: string;
+  updated_at: string;
   artifact_links?: ReplayJobArtifactLinks;
+  workflow_telemetry?: ReplayJobWorkflowTelemetry;
 }
 
 export interface ReplayJobDiagnostics {
@@ -348,4 +372,5 @@ export interface ReplayJobDiagnostics {
   usage_quantity: number;
   billed_entries_count: number;
   billed_amount_cents: number;
+  events: Array<Record<string, unknown>>;
 }

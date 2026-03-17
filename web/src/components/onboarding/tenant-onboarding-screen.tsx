@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ArrowRight, Building2, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { ArrowRight, Building2, CreditCard, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { onboardTenant } from "@/lib/api";
+import { fetchBillingProviderConnections, onboardTenant } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
-import { type TenantOnboardingResult } from "@/lib/types";
+import { type BillingProviderConnection, type TenantOnboardingResult } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
+
+function connectionLabel(connection: BillingProviderConnection): string {
+  return `${connection.display_name} · ${connection.environment} · ${connection.status}`;
+}
 
 export function TenantOnboardingScreen() {
   const queryClient = useQueryClient();
@@ -19,13 +23,25 @@ export function TenantOnboardingScreen() {
 
   const [tenantID, setTenantID] = useState("");
   const [tenantName, setTenantName] = useState("");
-  const [lagoOrganizationID, setLagoOrganizationID] = useState("");
-  const [billingProviderCode, setBillingProviderCode] = useState("");
+  const [billingProviderConnectionID, setBillingProviderConnectionID] = useState("");
   const [bootstrapAdminKey, setBootstrapAdminKey] = useState(true);
   const [adminKeyName, setAdminKeyName] = useState("");
   const [allowExistingActiveKeys, setAllowExistingActiveKeys] = useState(false);
   const [result, setResult] = useState<TenantOnboardingResult | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+
+  const billingConnectionsQuery = useQuery({
+    queryKey: ["billing-provider-connections", apiBaseURL],
+    queryFn: () => fetchBillingProviderConnections({ runtimeBaseURL: apiBaseURL, limit: 100 }),
+    enabled: isAuthenticated && isPlatformAdmin,
+  });
+
+  const connectedBillingConnections = useMemo(
+    () => (billingConnectionsQuery.data ?? []).filter((item) => item.status === "connected" && item.scope === "platform"),
+    [billingConnectionsQuery.data]
+  );
+
+  const selectedBillingConnection = connectedBillingConnections.find((item) => item.id === billingProviderConnectionID) ?? null;
 
   const onboardMutation = useMutation({
     mutationFn: () =>
@@ -35,8 +51,7 @@ export function TenantOnboardingScreen() {
         body: {
           id: tenantID.trim(),
           name: tenantName.trim(),
-          lago_organization_id: lagoOrganizationID.trim() || undefined,
-          lago_billing_provider_code: billingProviderCode.trim() || undefined,
+          billing_provider_connection_id: billingProviderConnectionID || undefined,
           bootstrap_admin_key: bootstrapAdminKey,
           admin_key_name: adminKeyName.trim() || undefined,
           allow_existing_active_keys: allowExistingActiveKeys,
@@ -77,10 +92,16 @@ export function TenantOnboardingScreen() {
               <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Platform Setup</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Workspace Setup</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Create a workspace, connect billing, and generate the first admin credential. Review and operational follow-up now live in dedicated workspace pages.
+                Create a workspace, attach a connected billing provider, and generate the first admin credential. Create billing connections first so workspace setup stays focused on tenant provisioning.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <Link
+                href="/billing-connections"
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+              >
+                Open billing connections
+              </Link>
               <Link
                 href="/workspaces"
                 className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
@@ -112,7 +133,7 @@ export function TenantOnboardingScreen() {
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Create workspace</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                  This page is only for creating or reconciling a workspace. Browse existing workspaces and inspect readiness from the dedicated directory and detail pages.
+                  This page only creates or reconciles the workspace. Billing connection lifecycle now lives on dedicated billing connection pages.
                 </p>
               </div>
               <span className="inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-cyan-100">
@@ -121,21 +142,9 @@ export function TenantOnboardingScreen() {
             </div>
 
             <div className="mt-6 grid gap-3 lg:grid-cols-3">
-              <StepCard
-                index="1"
-                title="Name the workspace"
-                body="Use a stable workspace ID and a display name your team will recognize later."
-              />
-              <StepCard
-                index="2"
-                title="Connect billing"
-                body="Attach the billing engine mapping Alpha needs for invoice and payment flows."
-              />
-              <StepCard
-                index="3"
-                title="Create admin access"
-                body="Generate the first admin credential now, or leave it for a controlled handoff later."
-              />
+              <StepCard index="1" title="Name the workspace" body="Use a stable workspace ID and a display name your team will recognize later." />
+              <StepCard index="2" title="Select billing connection" body="Choose a connected billing provider owned by Alpha instead of entering raw billing engine mappings here." />
+              <StepCard index="3" title="Create admin access" body="Generate the first admin credential now, or leave it for a controlled handoff later." />
             </div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
@@ -151,22 +160,58 @@ export function TenantOnboardingScreen() {
               <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 2</p>
               <h3 className="mt-2 text-lg font-semibold text-white">Billing connection</h3>
               <p className="mt-2 text-sm text-slate-300">
-                These values stay operational until Alpha fully owns this setup end to end.
+                Billing connections are created separately so Stripe secrets and Lago sync stay managed at the platform layer.
               </p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <InputField
-                  label="Billing organization ID"
-                  value={lagoOrganizationID}
-                  onChange={setLagoOrganizationID}
-                  placeholder="org_acme"
-                />
-                <InputField
-                  label="Billing connection code"
-                  value={billingProviderCode}
-                  onChange={setBillingProviderCode}
-                  placeholder="stripe_default"
-                />
-              </div>
+              {billingConnectionsQuery.isLoading ? (
+                <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Loading billing connections
+                </div>
+              ) : connectedBillingConnections.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                  No connected billing providers are available yet.
+                  <div className="mt-3">
+                    <Link
+                      href="/billing-connections/new"
+                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-300/30 bg-white/10 px-3 text-sm font-medium text-amber-50 transition hover:bg-white/15"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Create billing connection
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-4">
+                  <label className="grid gap-2 text-sm text-slate-200">
+                    <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Billing connection</span>
+                    <select
+                      aria-label="Billing connection"
+                      value={billingProviderConnectionID}
+                      onChange={(event) => setBillingProviderConnectionID(event.target.value)}
+                      className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                    >
+                      <option value="">Select a connected billing provider</option>
+                      {connectedBillingConnections.map((connection) => (
+                        <option key={connection.id} value={connection.id}>
+                          {connectionLabel(connection)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedBillingConnection ? (
+                    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Selected connection</p>
+                      <h4 className="mt-2 text-base font-semibold text-white">{selectedBillingConnection.display_name}</h4>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <MetaItem label="Connection ID" value={selectedBillingConnection.id} mono />
+                        <MetaItem label="Environment" value={selectedBillingConnection.environment} />
+                        <MetaItem label="Billing organization" value={selectedBillingConnection.lago_organization_id || "-"} mono />
+                        <MetaItem label="Lago provider code" value={selectedBillingConnection.lago_provider_code || "-"} mono />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             <details className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
@@ -215,8 +260,8 @@ export function TenantOnboardingScreen() {
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ChecklistLine done={tenantID.trim().length > 0} text="Workspace ID is set" />
                 <ChecklistLine done={tenantName.trim().length > 0} text="Workspace name is set" />
-                <ChecklistLine done={lagoOrganizationID.trim().length > 0} text="Billing organization is connected" />
-                <ChecklistLine done={billingProviderCode.trim().length > 0} text="Billing connection code is set" />
+                <ChecklistLine done={Boolean(billingProviderConnectionID)} text="Billing connection is selected" />
+                <ChecklistLine done={connectedBillingConnections.length > 0} text="At least one connected billing provider exists" />
               </div>
             </div>
 
@@ -227,7 +272,14 @@ export function TenantOnboardingScreen() {
                   setFlash(null);
                   onboardMutation.mutate();
                 }}
-                disabled={!isPlatformAdmin || !csrfToken || onboardMutation.isPending || !tenantID.trim() || !tenantName.trim()}
+                disabled={
+                  !isPlatformAdmin ||
+                  !csrfToken ||
+                  onboardMutation.isPending ||
+                  !tenantID.trim() ||
+                  !tenantName.trim() ||
+                  !billingProviderConnectionID
+                }
                 className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {onboardMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
@@ -238,8 +290,7 @@ export function TenantOnboardingScreen() {
                 onClick={() => {
                   setTenantID("");
                   setTenantName("");
-                  setLagoOrganizationID("");
-                  setBillingProviderCode("");
+                  setBillingProviderConnectionID("");
                   setAdminKeyName("");
                   setBootstrapAdminKey(true);
                   setAllowExistingActiveKeys(false);
@@ -273,7 +324,7 @@ export function TenantOnboardingScreen() {
               <div className="mt-4 grid gap-3">
                 <ChecklistLine done text="Create or reconcile the workspace here" />
                 <ChecklistLine done text="Open the workspace detail page to review readiness" />
-                <ChecklistLine done text="Use the workspace directory to browse all tenants" />
+                <ChecklistLine done text="Manage Stripe and Lago sync from Billing Connections" />
               </div>
             </section>
 
@@ -294,6 +345,12 @@ export function TenantOnboardingScreen() {
                     helper={`${result.readiness.missing_steps.length} checklist items remain`}
                   />
                 </div>
+                {result.tenant.billing_provider_connection_id ? (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-200">
+                    Linked billing connection
+                    <p className="mt-2 break-all font-mono text-xs text-slate-400">{result.tenant.billing_provider_connection_id}</p>
+                  </div>
+                ) : null}
                 <div className="mt-5 flex flex-col gap-3">
                   <Link
                     href={`/workspaces/${encodeURIComponent(result.tenant.id)}`}
@@ -314,9 +371,9 @@ export function TenantOnboardingScreen() {
               <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">What changes now</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-300">
-                  <p>Workspace setup is now a focused form instead of a combined setup and directory screen.</p>
-                  <p>Use <span className="font-semibold text-white">Workspaces</span> to browse and inspect readiness across tenants.</p>
-                  <p>Use workspace detail pages for readiness review, next actions, and advanced operational metadata.</p>
+                  <p>Billing connections now own Stripe secret storage and Lago sync.</p>
+                  <p>Workspace setup only links a prepared billing connection to the tenant.</p>
+                  <p>Use workspace detail pages for readiness review and next actions.</p>
                 </div>
               </section>
             )}
@@ -359,9 +416,10 @@ function InputField({
   placeholder: string;
 }) {
   return (
-    <label className="grid gap-2">
-      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300">{label}</span>
+    <label className="grid gap-2 text-sm text-slate-200">
+      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{label}</span>
       <input
+        aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -375,13 +433,20 @@ function ChecklistLine({ done, text }: { done: boolean; text: string }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3">
       <span
-        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
-          done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"
-        }`}
+        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"}`}
       >
         {done ? "OK" : "!"}
       </span>
       <p className="text-sm text-slate-200">{text}</p>
+    </div>
+  );
+}
+
+function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</p>
+      <p className={`mt-2 break-all text-sm text-slate-100 ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }

@@ -116,9 +116,9 @@ async function installCustomerOnboardingMock(page: Page, session: TenantSessionP
       const now = new Date().toISOString();
       const customer: CustomerRecord = {
         id: "cust_row_1",
-        external_id: body.external_id,
-        display_name: body.display_name,
-        email: body.email,
+        external_id: String(body.external_id ?? ""),
+        display_name: String(body.display_name ?? ""),
+        email: typeof body.email === "string" ? body.email : undefined,
         status: "active",
         lago_customer_id: "lago_cust_1",
         created_at: now,

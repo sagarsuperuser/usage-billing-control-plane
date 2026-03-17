@@ -68,7 +68,9 @@ export function WorkspaceListScreen() {
       total: filteredTenants.length,
       ready: readiness.filter((item) => item.status === "ready").length,
       needsAttention: readiness.filter((item) => item.status !== "ready").length,
-      missingBilling: filteredTenants.filter((tenant) => !tenant.lago_organization_id || !tenant.lago_billing_provider_code).length,
+      missingBilling: filteredTenants.filter(
+        (tenant) => !tenant.billing_provider_connection_id && (!tenant.lago_organization_id || !tenant.lago_billing_provider_code)
+      ).length,
     };
   }, [filteredTenants, readinessByTenant]);
 
@@ -88,16 +90,24 @@ export function WorkspaceListScreen() {
               <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Platform Directory</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Workspaces</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Browse workspace health, billing readiness, and next actions. Creation now lives in a dedicated setup flow.
+                Browse workspace health, linked billing connections, and next actions. Creation now lives in a dedicated setup flow.
               </p>
             </div>
-            <Link
-              href="/workspaces/new"
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
-            >
-              <Plus className="h-4 w-4" />
-              New workspace
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/billing-connections"
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+              >
+                Billing connections
+              </Link>
+              <Link
+                href="/workspaces/new"
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
+              >
+                <Plus className="h-4 w-4" />
+                New workspace
+              </Link>
+            </div>
           </div>
         </section>
 
@@ -179,7 +189,7 @@ function WorkspaceRow({ tenant, readiness }: { tenant: Tenant; readiness?: Tenan
         </p>
       </div>
       <StatusCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
-      <StatusCell label="Billing" value={readiness?.billing_integration.billing_mapping_ready ? "Connected" : "Missing"} />
+      <StatusCell label="Billing" value={tenant.billing_provider_connection_id ? "Linked" : readiness?.billing_integration.billing_mapping_ready ? "Mapped" : "Missing"} />
       <StatusCell label="First customer" value={readiness?.first_customer.customer_exists ? "Created" : "Missing"} />
       <StatusCell label="Pricing" value={readiness?.billing_integration.pricing_ready ? "Ready" : "Missing"} />
       <span className="inline-flex items-center gap-2 text-sm font-medium text-cyan-100">

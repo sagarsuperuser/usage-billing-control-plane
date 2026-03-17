@@ -21,6 +21,7 @@ type TenantRecord = {
   id: string;
   name: string;
   status: "active" | "suspended" | "deleted";
+  billing_provider_connection_id?: string;
   lago_organization_id?: string;
   lago_billing_provider_code?: string;
   created_at: string;
@@ -163,6 +164,10 @@ function focusLine(page: Page, title: string) {
   return page.locator("div.rounded-2xl").filter({ has: page.getByText(title, { exact: true }) }).first();
 }
 
+function focusValue(page: Page, title: string) {
+  return focusLine(page, title).locator("p.text-3xl");
+}
+
 async function installPlatformOverviewMock(page: Page, session: PlatformSessionPayload) {
   let loggedIn = false;
   const tenants: TenantRecord[] = [
@@ -170,6 +175,7 @@ async function installPlatformOverviewMock(page: Page, session: PlatformSessionP
       id: "tenant_alpha",
       name: "Tenant Alpha",
       status: "active",
+      billing_provider_connection_id: "bpc_alpha",
       lago_organization_id: "org_alpha",
       lago_billing_provider_code: "stripe_default",
       created_at: new Date().toISOString(),
@@ -179,8 +185,6 @@ async function installPlatformOverviewMock(page: Page, session: PlatformSessionP
       id: "tenant_beta",
       name: "Tenant Beta",
       status: "active",
-      lago_organization_id: "",
-      lago_billing_provider_code: "",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -190,6 +194,19 @@ async function installPlatformOverviewMock(page: Page, session: PlatformSessionP
     tenant_alpha: buildPlatformReadiness(false, false),
     tenant_beta: buildPlatformReadiness(true, false),
   };
+
+  const billingConnections = [
+    {
+      id: "bpc_alpha",
+      status: "connected",
+      display_name: "Stripe Alpha",
+    },
+    {
+      id: "bpc_error",
+      status: "sync_error",
+      display_name: "Stripe Broken",
+    },
+  ];
 
   await page.route("**/*", async (route) => {
     const request = route.request();
@@ -210,6 +227,9 @@ async function installPlatformOverviewMock(page: Page, session: PlatformSessionP
     }
     if (path === "/internal/tenants" && method === "GET") {
       return fulfillJSON(route, 200, tenants);
+    }
+    if (path === "/internal/billing-provider-connections" && method === "GET") {
+      return fulfillJSON(route, 200, { items: billingConnections });
     }
     if (path.startsWith("/internal/onboarding/tenants/") && method === "GET") {
       const tenantID = decodeURIComponent(path.split("/").pop() || "");
@@ -319,18 +339,18 @@ test("platform overview shows live workspace attention counts", async ({ page })
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Create a tenant workspace, connect billing, and hand off the first admin credential.")).toBeVisible();
+  await expect(page.getByText("Create a tenant workspace, attach a connected billing provider, and hand off the first admin credential.")).toBeVisible();
   await expect(page.getByText("Create the first billable customer, sync the billing profile, and start payment setup.")).toHaveCount(0);
   await expect(page.getByText("Monitor invoice payment failures, inspect webhook history, and trigger payment retries.")).toHaveCount(0);
   await expect(page.getByText("Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.")).toHaveCount(0);
   await expect(page.getByText("Show deterministic line-item computation trace and digest for financial correctness workflows.")).toHaveCount(0);
   await expect(page.getByText("Workspaces missing pricing")).toBeVisible();
   await expect(page.getByText("Workspaces missing first customer")).toBeVisible();
-  await expect(page.getByText("Workspaces missing billing connection")).toBeVisible();
+  await expect(page.getByText("Billing connections in error")).toBeVisible();
 
-  await expect(focusLine(page, "Workspaces missing pricing").locator("div.text-lg")).toHaveText("1");
-  await expect(focusLine(page, "Workspaces missing first customer").locator("div.text-lg")).toHaveText("2");
-  await expect(focusLine(page, "Workspaces missing billing connection").locator("div.text-lg")).toHaveText("1");
+  await expect(focusValue(page, "Billing connections in error")).toHaveText("1");
+  await expect(focusValue(page, "Workspaces missing pricing")).toHaveText("1");
+  await expect(focusValue(page, "Workspaces missing first customer")).toHaveText("2");
 });
 
 test("tenant overview shows live customer attention counts", async ({ page }) => {
@@ -362,12 +382,12 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   await expect(page.getByText("Monitor invoice payment failures, inspect webhook history, and trigger payment retries.")).toBeVisible();
   await expect(page.getByText("Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.")).toBeVisible();
   await expect(page.getByText("Show deterministic line-item computation trace and digest for financial correctness workflows.")).toBeVisible();
-  await expect(page.getByText("Create a tenant workspace, connect billing, and hand off the first admin credential.")).toHaveCount(0);
+  await expect(page.getByText("Create a tenant workspace, attach a connected billing provider, and hand off the first admin credential.")).toHaveCount(0);
   await expect(page.getByText("Customers waiting on payment setup")).toBeVisible();
   await expect(page.getByText("Customers with billing sync errors")).toBeVisible();
   await expect(page.getByText("Billing-ready customers")).toBeVisible();
 
-  await expect(focusLine(page, "Customers waiting on payment setup").locator("div.text-lg")).toHaveText("1");
-  await expect(focusLine(page, "Customers with billing sync errors").locator("div.text-lg")).toHaveText("1");
-  await expect(focusLine(page, "Billing-ready customers").locator("div.text-lg")).toHaveText("1");
+  await expect(focusValue(page, "Customers waiting on payment setup")).toHaveText("1");
+  await expect(focusValue(page, "Customers with billing sync errors")).toHaveText("1");
+  await expect(focusValue(page, "Billing-ready customers")).toHaveText("1");
 });

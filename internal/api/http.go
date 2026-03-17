@@ -1559,20 +1559,22 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusOK, tenant)
 	case http.MethodPatch:
 		var req struct {
-			Name                    *string              `json:"name,omitempty"`
-			Status                  *domain.TenantStatus `json:"status,omitempty"`
-			LagoOrganizationID      *string              `json:"lago_organization_id,omitempty"`
-			LagoBillingProviderCode *string              `json:"lago_billing_provider_code,omitempty"`
+			Name                        *string              `json:"name,omitempty"`
+			Status                      *domain.TenantStatus `json:"status,omitempty"`
+			BillingProviderConnectionID *string              `json:"billing_provider_connection_id,omitempty"`
+			LagoOrganizationID          *string              `json:"lago_organization_id,omitempty"`
+			LagoBillingProviderCode     *string              `json:"lago_billing_provider_code,omitempty"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		tenant, err := s.tenantService.UpdateTenant(id, service.UpdateTenantRequest{
-			Name:                    req.Name,
-			Status:                  req.Status,
-			LagoOrganizationID:      req.LagoOrganizationID,
-			LagoBillingProviderCode: req.LagoBillingProviderCode,
+			Name:                        req.Name,
+			Status:                      req.Status,
+			BillingProviderConnectionID: req.BillingProviderConnectionID,
+			LagoOrganizationID:          req.LagoOrganizationID,
+			LagoBillingProviderCode:     req.LagoBillingProviderCode,
 		}, requestActorAPIKeyID(r))
 		if err != nil {
 			writeDomainError(w, err)

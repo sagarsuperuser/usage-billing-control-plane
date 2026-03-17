@@ -16,14 +16,15 @@ type TenantOnboardingService struct {
 }
 
 type TenantOnboardingRequest struct {
-	ID                      string     `json:"id"`
-	Name                    string     `json:"name"`
-	LagoOrganizationID      string     `json:"lago_organization_id,omitempty"`
-	LagoBillingProviderCode string     `json:"lago_billing_provider_code,omitempty"`
-	AdminKeyName            string     `json:"admin_key_name,omitempty"`
-	AdminKeyExpiresAt       *time.Time `json:"admin_key_expires_at,omitempty"`
-	AllowExistingActiveKeys bool       `json:"allow_existing_active_keys,omitempty"`
-	BootstrapAdminKey       *bool      `json:"bootstrap_admin_key,omitempty"`
+	ID                          string     `json:"id"`
+	Name                        string     `json:"name"`
+	BillingProviderConnectionID string     `json:"billing_provider_connection_id,omitempty"`
+	LagoOrganizationID          string     `json:"lago_organization_id,omitempty"`
+	LagoBillingProviderCode     string     `json:"lago_billing_provider_code,omitempty"`
+	AdminKeyName                string     `json:"admin_key_name,omitempty"`
+	AdminKeyExpiresAt           *time.Time `json:"admin_key_expires_at,omitempty"`
+	AllowExistingActiveKeys     bool       `json:"allow_existing_active_keys,omitempty"`
+	BootstrapAdminKey           *bool      `json:"bootstrap_admin_key,omitempty"`
 }
 
 type TenantOnboardingReadiness struct {
@@ -96,10 +97,11 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 	}
 
 	tenant, tenantCreated, err := s.tenantService.EnsureTenant(EnsureTenantRequest{
-		ID:                      req.ID,
-		Name:                    req.Name,
-		LagoOrganizationID:      req.LagoOrganizationID,
-		LagoBillingProviderCode: req.LagoBillingProviderCode,
+		ID:                          req.ID,
+		Name:                        req.Name,
+		BillingProviderConnectionID: req.BillingProviderConnectionID,
+		LagoOrganizationID:          req.LagoOrganizationID,
+		LagoBillingProviderCode:     req.LagoBillingProviderCode,
 	}, actorAPIKeyID)
 	if err != nil {
 		return TenantOnboardingResult{}, err

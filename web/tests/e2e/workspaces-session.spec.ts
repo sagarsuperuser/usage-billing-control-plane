@@ -12,6 +12,7 @@ type TenantRecord = {
   id: string;
   name: string;
   status: "active" | "suspended" | "deleted";
+  billing_provider_connection_id?: string;
   lago_organization_id?: string;
   lago_billing_provider_code?: string;
   created_at: string;
@@ -43,6 +44,14 @@ type TenantOnboardingReadiness = {
     payment_setup_status: string;
     missing_steps: string[];
   };
+};
+
+type BillingProviderConnection = {
+  id: string;
+  display_name: string;
+  status: string;
+  lago_organization_id?: string;
+  lago_provider_code?: string;
 };
 
 function buildReadiness(pricingReady: boolean, customerExists: boolean): TenantOnboardingReadiness {
@@ -79,11 +88,28 @@ function buildReadiness(pricingReady: boolean, customerExists: boolean): TenantO
 
 async function installWorkspaceMock(page: Page, session: PlatformSessionPayload) {
   let loggedIn = false;
+  const connections: Record<string, BillingProviderConnection> = {
+    bpc_alpha: {
+      id: "bpc_alpha",
+      display_name: "Stripe Alpha",
+      status: "connected",
+      lago_organization_id: "org_alpha",
+      lago_provider_code: "stripe_default",
+    },
+    bpc_beta: {
+      id: "bpc_beta",
+      display_name: "Stripe Beta",
+      status: "connected",
+      lago_organization_id: "org_beta",
+      lago_provider_code: "stripe_default",
+    },
+  };
   const tenants: TenantRecord[] = [
     {
       id: "tenant_alpha",
       name: "Tenant Alpha",
       status: "active",
+      billing_provider_connection_id: "bpc_alpha",
       lago_organization_id: "org_alpha",
       lago_billing_provider_code: "stripe_default",
       created_at: new Date().toISOString(),
@@ -93,6 +119,7 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       id: "tenant_beta",
       name: "Tenant Beta",
       status: "active",
+      billing_provider_connection_id: "bpc_beta",
       lago_organization_id: "org_beta",
       lago_billing_provider_code: "stripe_default",
       created_at: new Date().toISOString(),
@@ -141,6 +168,11 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
         tenant_id: tenantID,
       });
     }
+    if (path.startsWith("/internal/billing-provider-connections/") && method === "GET") {
+      const connectionID = decodeURIComponent(path.split("/").pop() || "");
+      const connection = connections[connectionID];
+      return json(connection ? 200 : 404, connection ? { connection } : { error: "not found" });
+    }
 
     return route.continue();
   });
@@ -170,4 +202,5 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await expect(page.getByRole("heading", { name: "Tenant Alpha" })).toBeVisible();
   await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
   await expect(page.getByText("No billing-ready customer has been created yet").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();
 });
