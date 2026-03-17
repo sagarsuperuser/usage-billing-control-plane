@@ -197,8 +197,8 @@ export function CustomerOnboardingScreen() {
           </section>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+          <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
@@ -357,11 +357,14 @@ export function CustomerOnboardingScreen() {
             ) : null}
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+          <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Status + Recovery</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Existing customers</h2>
+                <h2 className="mt-2 text-xl font-semibold text-white">Review customer progress</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                  Select a customer to review readiness, payment setup, and recovery actions without losing the inventory view.
+                </p>
               </div>
               <button
                 type="button"
@@ -379,10 +382,13 @@ export function CustomerOnboardingScreen() {
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+              <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-white">Customers</p>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Customer inventory</p>
+                    <p className="mt-1 text-xs text-slate-400">{customers.length} visible in this filter</p>
+                  </div>
                   <select
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value)}
@@ -408,8 +414,8 @@ export function CustomerOnboardingScreen() {
                             : "border-white/10 bg-white/5 hover:bg-white/10"
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-semibold text-white">{customer.display_name}</p>
+                        <div className="flex min-w-0 items-center justify-between gap-3">
+                          <p className="truncate font-semibold text-white">{customer.display_name}</p>
                           <span className={`rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${profileTone(customer.status === "active" ? "ready" : "sync_error")}`}>
                             {customer.status}
                           </span>
@@ -426,22 +432,41 @@ export function CustomerOnboardingScreen() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+              <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
                 {!selectedCustomer || !selectedReadiness ? (
                   <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
                     Select a customer to review readiness and use advanced recovery actions.
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-start justify-between gap-3">
                       <div>
                         <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Selected customer</p>
-                        <h3 className="mt-1 text-lg font-semibold text-white">{selectedCustomer.display_name}</h3>
+                        <h3 className="mt-1 truncate text-lg font-semibold text-white">{selectedCustomer.display_name}</h3>
                         <p className="font-mono text-xs text-slate-400">{selectedCustomer.external_id}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
                         {formatReadinessStatus(selectedReadiness.status)}
                       </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                      <SummaryStat
+                        label="Customer"
+                        value={selectedReadiness.customer_active ? "ready" : "pending"}
+                        helper={selectedReadiness.customer_active ? "Active" : "Needs attention"}
+                      />
+                      <SummaryStat
+                        label="Profile"
+                        value={selectedReadiness.billing_profile_status}
+                        helper={selectedReadiness.lago_customer_synced ? "Synced to billing" : "Needs sync"}
+                      />
+                      <SummaryStat
+                        label="Payments"
+                        value={selectedReadiness.payment_setup_status}
+                        helper={selectedReadiness.default_payment_method_verified ? "Verified" : "Awaiting setup"}
+                      />
+                      <SummaryStat label="Open actions" value={String(selectedReadiness.missing_steps.length)} helper="Remaining checklist items" />
                     </div>
 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
@@ -455,19 +480,20 @@ export function CustomerOnboardingScreen() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
                       <StatusCard title="Billing profile" value={selectedReadiness.billing_profile_status} />
                       <StatusCard title="Payment setup" value={selectedReadiness.payment_setup_status} />
+                      <StatusCard title="Overall readiness" value={selectedReadiness.status} />
                     </div>
 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-200">
                       <p className="font-semibold text-white">What still needs action</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         {selectedReadiness.missing_steps.length > 0 ? (
                           selectedReadiness.missing_steps.map((step) => (
-                            <span key={step} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                            <div key={step} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs text-slate-300">
                               {describeCustomerMissingStep(step)}
-                            </span>
+                            </div>
                           ))
                         ) : (
                           <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-100">
@@ -543,6 +569,16 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
   );
 }
 
+function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-white">{formatReadinessStatus(value)}</p>
+      <p className="mt-1 text-xs text-slate-400">{helper}</p>
+    </div>
+  );
+}
+
 function InputField({
   label,
   value,
@@ -597,7 +633,7 @@ function MetaItem({ label, value, mono }: { label: string; value: string; mono?:
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
       <dt className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</dt>
-      <dd className={`mt-2 text-sm text-slate-100 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
+      <dd className={`mt-2 break-all text-sm text-slate-100 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
     </div>
   );
 }

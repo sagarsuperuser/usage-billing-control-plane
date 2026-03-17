@@ -11,7 +11,7 @@ import { fetchCustomerReadiness, fetchCustomers, fetchTenantOnboardingStatus, fe
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function ControlPlaneOverviewScreen() {
-  const { apiBaseURL, isAuthenticated, isLoading, scope, isPlatformAdmin } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading, scope, isPlatformAdmin, session, platformRole } = useUISession();
   const scopeKey = scope === "platform" ? "platform" : "tenant";
 
   const tenantsQuery = useQuery({
@@ -172,6 +172,16 @@ export function ControlPlaneOverviewScreen() {
     },
   ].filter((item) => item.scope === scopeKey);
 
+  const sessionHeadline =
+    scope === "platform"
+      ? "Platform control view"
+      : `Tenant workspace view${session?.tenant_id ? ` · ${session.tenant_id}` : ""}`;
+  const sessionSubcopy =
+    scope === "platform"
+      ? "Use this view to create workspaces, review onboarding across tenants, and spot environments that still need billing setup."
+      : "Use this view to onboard customers, verify payment readiness, and keep billing operations healthy inside one workspace.";
+  const primaryAction = guidedJourneys[0] ?? workspaceModules[0] ?? null;
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#172554_0%,_#0f172a_38%,_#090d16_78%)] text-slate-100">
       <div className="pointer-events-none absolute inset-0 opacity-60">
@@ -182,15 +192,38 @@ export function ControlPlaneOverviewScreen() {
       <main className="relative mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Alpha Admin</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            Billing operations that feel product-first
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-            Run workspace setup, customer onboarding, payment recovery, and billing diagnostics from Alpha.
-            Lago stays behind the scenes as the billing engine.
-          </p>
+        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Alpha Admin</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">
+              Billing operations that feel product-first
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
+              Run workspace setup, customer onboarding, payment recovery, and billing diagnostics from Alpha.
+              Lago stays behind the scenes as the billing engine.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.72),rgba(15,23,42,0.9))] p-6 backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Current session</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{sessionHeadline}</h2>
+            <p className="mt-3 text-sm text-slate-300">{sessionSubcopy}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em]">
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-cyan-100">
+                {scope === "platform" ? platformRole ?? "platform" : session?.role ?? "reader"}
+              </span>
+              {session?.tenant_id ? (
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">{session.tenant_id}</span>
+              ) : null}
+            </div>
+            {primaryAction ? (
+              <Link
+                href={primaryAction.href}
+                className="mt-5 inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
+              >
+                Open {primaryAction.title}
+              </Link>
+            ) : null}
+          </div>
         </section>
 
         {!isAuthenticated ? <SessionLoginCard /> : null}
@@ -200,8 +233,8 @@ export function ControlPlaneOverviewScreen() {
             <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Get Started</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">Primary onboarding journeys</h2>
             <p className="mt-3 max-w-2xl text-sm text-slate-300">
-              Use guided setup first. Advanced recovery and diagnostics stay available, but they should not be
-              the starting point for normal onboarding.
+              Start with the guided flow for this session. Recovery and diagnostics stay available, but they should not be the
+              first stop for normal onboarding.
             </p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               {guidedJourneys.map((item) => (
@@ -295,9 +328,7 @@ function Card({
         <span className="inline-flex rounded-lg border border-white/20 bg-white/5 p-2">{icon}</span>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-200">{description}</p>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300 group-hover:text-white">
-        Open
-      </p>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300 group-hover:text-white">Open</p>
     </Link>
   );
 }
