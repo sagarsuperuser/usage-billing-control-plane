@@ -351,13 +351,14 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   const nav = page.locator("nav");
   await expect(page.getByRole("heading", { name: "Primary onboarding journeys" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Customer Setup", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toHaveCount(0);
   await expect(page.getByText("Create the first billable customer, sync the billing profile, and start payment setup.")).toBeVisible();
-  await expect(page.getByText("Guided customer onboarding plus advanced billing sync and payment setup recovery when needed.")).toBeVisible();
+  await expect(page.getByText("Browse customer billing readiness, payment setup state, and recovery needs from one tenant directory.")).toBeVisible();
   await expect(page.getByText("Monitor invoice payment failures, inspect webhook history, and trigger payment retries.")).toBeVisible();
   await expect(page.getByText("Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.")).toBeVisible();
   await expect(page.getByText("Show deterministic line-item computation trace and digest for financial correctness workflows.")).toBeVisible();

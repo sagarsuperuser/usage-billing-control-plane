@@ -1,51 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CreditCard, LoaderCircle, RefreshCw, RotateCcw, UserRoundPlus } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { CreditCard, ArrowRight, LoaderCircle, UserRoundPlus } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import {
-  fetchCustomerReadiness,
-  fetchCustomers,
-  onboardCustomer,
-  refreshCustomerPaymentSetup,
-  retryCustomerBillingSync,
-} from "@/lib/api";
-import { formatExactTimestamp } from "@/lib/format";
-import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
-import { type Customer, type CustomerOnboardingResult } from "@/lib/types";
+import { onboardCustomer } from "@/lib/api";
+import { formatReadinessStatus } from "@/lib/readiness";
+import { type CustomerOnboardingResult } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
-
-const EMPTY_CUSTOMERS: Customer[] = [];
-
-function readinessTone(status?: string): string {
-  return status === "ready"
-    ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-    : "border-amber-400/40 bg-amber-500/10 text-amber-100";
-}
-
-function profileTone(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "ready":
-      return "border-emerald-400/40 bg-emerald-500/10 text-emerald-100";
-    case "sync_error":
-      return "border-rose-400/40 bg-rose-500/10 text-rose-100";
-    case "incomplete":
-      return "border-amber-400/40 bg-amber-500/10 text-amber-100";
-    default:
-      return "border-slate-500/40 bg-slate-700/30 text-slate-100";
-  }
-}
 
 export function CustomerOnboardingScreen() {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, role, scope } = useUISession();
 
-  const [statusFilter, setStatusFilter] = useState("");
-  const [selectedExternalID, setSelectedExternalID] = useState("");
   const [externalID, setExternalID] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -60,18 +31,6 @@ export function CustomerOnboardingScreen() {
   const [paymentMethodType, setPaymentMethodType] = useState("card");
   const [flash, setFlash] = useState<string | null>(null);
   const [result, setResult] = useState<CustomerOnboardingResult | null>(null);
-
-  const customersQuery = useQuery({
-    queryKey: ["customers", apiBaseURL, statusFilter],
-    queryFn: () => fetchCustomers({ runtimeBaseURL: apiBaseURL, status: statusFilter || undefined, limit: 100 }),
-    enabled: isAuthenticated && scope === "tenant",
-  });
-
-  const readinessQuery = useQuery({
-    queryKey: ["customer-readiness", apiBaseURL, selectedExternalID],
-    queryFn: () => fetchCustomerReadiness({ runtimeBaseURL: apiBaseURL, externalID: selectedExternalID }),
-    enabled: isAuthenticated && scope === "tenant" && selectedExternalID.trim().length > 0,
-  });
 
   const onboardingMutation = useMutation({
     mutationFn: () =>
@@ -98,57 +57,21 @@ export function CustomerOnboardingScreen() {
       }),
     onSuccess: async (payload) => {
       setResult(payload);
-      setSelectedExternalID(payload.customer.external_id);
       setExternalID(payload.customer.external_id);
       setDisplayName(payload.customer.display_name);
       setEmail(payload.customer.email ?? "");
       setFlash(
         payload.payment_setup_started
-          ? `Customer ${payload.customer.external_id} is onboarded and checkout is ready.`
-          : `Customer ${payload.customer.external_id} is onboarded and readiness has been refreshed.`
+          ? `Customer ${payload.customer.external_id} created and payment setup is ready to continue.`
+          : `Customer ${payload.customer.external_id} created and readiness has been refreshed.`
       );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["overview-customers"] }),
         queryClient.invalidateQueries({ queryKey: ["customer-readiness", apiBaseURL, payload.customer.external_id] }),
       ]);
     },
   });
-
-  const retryMutation = useMutation({
-    mutationFn: (customerID: string) => retryCustomerBillingSync({ runtimeBaseURL: apiBaseURL, csrfToken, externalID: customerID }),
-    onSuccess: async (payload) => {
-      setSelectedExternalID(payload.external_id);
-      setFlash(`Billing sync retried for ${payload.external_id}.`);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["customers"] }),
-        queryClient.invalidateQueries({ queryKey: ["customer-readiness", apiBaseURL, payload.external_id] }),
-      ]);
-    },
-  });
-
-  const refreshMutation = useMutation({
-    mutationFn: (customerID: string) => refreshCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID: customerID }),
-    onSuccess: async (payload) => {
-      setSelectedExternalID(payload.external_id);
-      setFlash(`Payment setup refreshed for ${payload.external_id}.`);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["customers"] }),
-        queryClient.invalidateQueries({ queryKey: ["customer-readiness", apiBaseURL, payload.external_id] }),
-      ]);
-    },
-  });
-
-  const customers = customersQuery.data ?? EMPTY_CUSTOMERS;
-  const selectedCustomer = customers.find((customer) => customer.external_id === selectedExternalID) ?? result?.customer ?? null;
-  const selectedReadiness = readinessQuery.data ?? result?.readiness ?? null;
-
-  const topMetrics = useMemo(() => {
-    const active = customers.filter((customer) => customer.status === "active").length;
-    const withLago = customers.filter((customer) => Boolean(customer.lago_customer_id)).length;
-    return { total: customers.length, active, withLago };
-  }, [customers]);
-
-  const nextActions = selectedReadiness?.missing_steps.map(describeCustomerMissingStep) ?? [];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#164e63_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
@@ -157,22 +80,25 @@ export function CustomerOnboardingScreen() {
         <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
       </div>
 
-      <main className="relative mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+      <main className="relative mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Customer Setup</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Customer Onboarding</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Customer Setup</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Create a billable customer, apply the billing profile, start payment setup, and verify readiness from one guided Alpha flow.
+                Create a billable customer, apply the billing profile, and optionally start payment setup. Ongoing review and recovery now live in dedicated customer pages.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <MetricCard label="Customers" value={topMetrics.total} />
-              <MetricCard label="Active" value={topMetrics.active} tone="success" />
-              <MetricCard label="Synced" value={topMetrics.withLago} tone="info" />
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/customers"
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+              >
+                Open customers
+              </Link>
             </div>
           </div>
         </section>
@@ -187,7 +113,7 @@ export function CustomerOnboardingScreen() {
         {isAuthenticated && scope === "tenant" && !canWrite ? (
           <ScopeNotice
             title="Read-only session"
-            body={`Current session role ${role ?? "reader"} can inspect customer readiness, but a writer or admin key is required to run the onboarding workflow.`}
+            body={`Current session role ${role ?? "reader"} can inspect customer detail pages, but a writer or admin key is required to run setup.`}
           />
         ) : null}
 
@@ -197,14 +123,14 @@ export function CustomerOnboardingScreen() {
           </section>
         ) : null}
 
-        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
+        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">First customer</h2>
+                <h2 className="mt-2 text-xl font-semibold text-white">Create customer</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                  Start with customer identity, complete the billing profile, and then decide whether to launch payment setup immediately.
+                  This page is only for creating or reconciling a customer. Browse customer health and run recovery actions from the dedicated directory and detail pages.
                 </p>
               </div>
               <span className="inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-cyan-100">
@@ -213,21 +139,9 @@ export function CustomerOnboardingScreen() {
             </div>
 
             <div className="mt-6 grid gap-3 lg:grid-cols-3">
-              <StepCard
-                index="1"
-                title="Create the customer"
-                body="Capture the customer identity you want teams to search for and manage later."
-              />
-              <StepCard
-                index="2"
-                title="Complete billing profile"
-                body="Add the legal and billing details Alpha needs before it can sync billing state."
-              />
-              <StepCard
-                index="3"
-                title="Start payment setup"
-                body="Launch payment setup now, or leave it for a controlled follow-up after the customer record is ready."
-              />
+              <StepCard index="1" title="Create the customer" body="Capture the customer identity you want teams to search for and manage later." />
+              <StepCard index="2" title="Complete billing profile" body="Add the legal and billing details Alpha needs before it can sync billing state." />
+              <StepCard index="3" title="Start payment setup" body="Launch payment setup now, or leave it for a controlled follow-up after the customer record is ready." />
             </div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
@@ -265,18 +179,8 @@ export function CustomerOnboardingScreen() {
               </summary>
               <div className="mt-4 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
                 <div className="grid gap-3">
-                  <InputField
-                    label="Billing connection code"
-                    value={providerCode}
-                    onChange={setProviderCode}
-                    placeholder="stripe_default"
-                  />
-                  <InputField
-                    label="Payment method type"
-                    value={paymentMethodType}
-                    onChange={setPaymentMethodType}
-                    placeholder="card"
-                  />
+                  <InputField label="Billing connection code" value={providerCode} onChange={setProviderCode} placeholder="stripe_default" />
+                  <InputField label="Payment method type" value={paymentMethodType} onChange={setPaymentMethodType} placeholder="card" />
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Advanced controls</p>
@@ -357,192 +261,53 @@ export function CustomerOnboardingScreen() {
             ) : null}
           </section>
 
-          <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Status + Recovery</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Review customer progress</h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                  Select a customer to review readiness, payment setup, and recovery actions without collapsing the diagnostics into unreadable cards.
-                </p>
+          <aside className="flex flex-col gap-4">
+            <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">After setup</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Use dedicated customer pages</h2>
+              <div className="mt-4 grid gap-3">
+                <ChecklistLine done text="Create or reconcile the customer here" />
+                <ChecklistLine done text="Open the customer detail page to review readiness" />
+                <ChecklistLine done text="Use the customer directory to browse the tenant customer base" />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  void Promise.all([
-                    customersQuery.refetch(),
-                    selectedExternalID ? readinessQuery.refetch() : Promise.resolve(),
-                  ]);
-                }}
-                disabled={!isAuthenticated || customersQuery.isFetching || readinessQuery.isFetching}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 ${(customersQuery.isFetching || readinessQuery.isFetching) ? "animate-spin" : ""}`} />
-                Refresh
-              </button>
-            </div>
+            </section>
 
-            <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]">
-              <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Customer inventory</p>
-                    <p className="mt-1 text-xs text-slate-400">{customers.length} visible in this filter</p>
-                  </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
-                    className="h-9 rounded-lg border border-white/15 bg-slate-950/70 px-3 text-xs text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+            {result?.customer ? (
+              <section className="rounded-3xl border border-cyan-400/20 bg-cyan-500/5 p-6 backdrop-blur-xl">
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Customer created</p>
+                <h2 className="mt-2 break-words text-xl font-semibold text-white">{result.customer.display_name}</h2>
+                <p className="mt-1 break-all font-mono text-xs text-slate-400">{result.customer.external_id}</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <SummaryStat label="Customer" value={result.readiness.customer_active ? "ready" : "pending"} helper={result.readiness.customer_active ? "Active" : "Needs attention"} />
+                  <SummaryStat label="Overall" value={result.readiness.status} helper={`${result.readiness.missing_steps.length} checklist items remain`} />
+                </div>
+                <div className="mt-5 flex flex-col gap-3">
+                  <Link
+                    href={`/customers/${encodeURIComponent(result.customer.external_id)}`}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
                   >
-                    <option value="">All</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                    <option value="archived">Archived</option>
-                  </select>
+                    View customer detail
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    href="/customers"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+                  >
+                    Open customer directory
+                  </Link>
                 </div>
-                <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
-                  {customers.map((customer) => {
-                    const active = customer.external_id === selectedExternalID;
-                    return (
-                      <button
-                        key={customer.external_id}
-                        type="button"
-                        onClick={() => setSelectedExternalID(customer.external_id)}
-                        className={`w-full rounded-2xl border p-3 text-left transition ${
-                          active
-                            ? "border-cyan-400/50 bg-cyan-500/10"
-                            : "border-white/10 bg-white/5 hover:bg-white/10"
-                        }`}
-                      >
-                        <div className="flex min-w-0 items-center justify-between gap-3">
-                          <p className="truncate font-semibold text-white">{customer.display_name}</p>
-                          <span className={`rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${profileTone(customer.status === "active" ? "ready" : "sync_error")}`}>
-                            {customer.status}
-                          </span>
-                        </div>
-                        <p className="mt-1 font-mono text-xs text-slate-400">{customer.external_id}</p>
-                      </button>
-                    );
-                  })}
-                  {!customersQuery.isFetching && customers.length === 0 ? (
-                    <p className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-sm text-slate-400">
-                      No customers loaded for the selected filter.
-                    </p>
-                  ) : null}
+              </section>
+            ) : (
+              <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">What changes now</p>
+                <div className="mt-4 space-y-3 text-sm text-slate-300">
+                  <p>Customer setup is now a focused form instead of a combined setup and diagnostics screen.</p>
+                  <p>Use <span className="font-semibold text-white">Customers</span> to browse and inspect readiness across the tenant.</p>
+                  <p>Use customer detail pages for billing sync status, payment readiness, and recovery actions.</p>
                 </div>
-              </div>
-
-              <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                {!selectedCustomer || !selectedReadiness ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-                    Select a customer to review readiness and use advanced recovery actions.
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Selected customer</p>
-                        <h3 className="mt-1 break-words text-lg font-semibold leading-tight text-white">{selectedCustomer.display_name}</h3>
-                        <p className="mt-1 break-all font-mono text-xs text-slate-400">{selectedCustomer.external_id}</p>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
-                        {formatReadinessStatus(selectedReadiness.status)}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <SummaryStat
-                        label="Customer"
-                        value={selectedReadiness.customer_active ? "ready" : "pending"}
-                        helper={selectedReadiness.customer_active ? "Active" : "Needs attention"}
-                      />
-                      <SummaryStat
-                        label="Profile"
-                        value={selectedReadiness.billing_profile_status}
-                        helper={selectedReadiness.lago_customer_synced ? "Synced to billing" : "Needs sync"}
-                      />
-                      <SummaryStat
-                        label="Payments"
-                        value={selectedReadiness.payment_setup_status}
-                        helper={selectedReadiness.default_payment_method_verified ? "Verified" : "Awaiting setup"}
-                      />
-                      <SummaryStat label="Open actions" value={String(selectedReadiness.missing_steps.length)} helper="Remaining checklist items" />
-                    </div>
-
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                      <p className="text-sm font-semibold text-white">Next actions</p>
-                      <div className="mt-3 grid gap-2">
-                        {nextActions.length > 0 ? (
-                          nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />)
-                        ) : (
-                          <ChecklistLine done text="Customer is fully ready for payment operations." />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 xl:grid-cols-3">
-                      <StatusCard title="Billing profile" value={selectedReadiness.billing_profile_status} />
-                      <StatusCard title="Payment setup" value={selectedReadiness.payment_setup_status} />
-                      <StatusCard title="Overall readiness" value={selectedReadiness.status} />
-                    </div>
-
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-200">
-                      <p className="font-semibold text-white">What still needs action</p>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {selectedReadiness.missing_steps.length > 0 ? (
-                          selectedReadiness.missing_steps.map((step) => (
-                            <div key={step} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs text-slate-300">
-                              {describeCustomerMissingStep(step)}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-100">
-                            No missing steps
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <details className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <summary className="cursor-pointer list-none">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-white">Advanced diagnostics and recovery</p>
-                          <span className="text-xs uppercase tracking-[0.14em] text-slate-400">Expand</span>
-                        </div>
-                      </summary>
-                      <dl className="mt-4 grid gap-3 md:grid-cols-2">
-                        <MetaItem label="Billing customer ID" value={selectedCustomer.lago_customer_id || "-"} mono />
-                        <MetaItem label="Last billing sync error" value={selectedReadiness.billing_profile.last_sync_error || "-"} />
-                        <MetaItem label="Last synced" value={formatExactTimestamp(selectedReadiness.billing_profile.last_synced_at)} />
-                        <MetaItem label="Last verified" value={formatExactTimestamp(selectedReadiness.payment_setup.last_verified_at)} />
-                      </dl>
-
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={() => retryMutation.mutate(selectedCustomer.external_id)}
-                          disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 px-3 text-sm text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                          Retry billing sync
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => refreshMutation.mutate(selectedCustomer.external_id)}
-                          disabled={!canWrite || !csrfToken || refreshMutation.isPending}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {refreshMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                          Refresh payment setup
-                        </button>
-                      </div>
-                    </details>
-                  </>
-                )}
-              </div>
-            </div>
-          </section>
+              </section>
+            )}
+          </aside>
         </div>
       </main>
     </div>
@@ -559,16 +324,6 @@ function StepCard({ index, title, body }: { index: string; title: string; body: 
   );
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: number; tone?: "success" | "info" }) {
-  const toneClass = tone === "success" ? "text-emerald-100" : tone === "info" ? "text-cyan-100" : "text-white";
-  return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3">
-      <p className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
 function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
     <div className="min-w-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
@@ -579,17 +334,7 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
   );
 }
 
-function InputField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
+function InputField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
   return (
     <label className="grid gap-2">
       <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300">{label}</span>
@@ -603,37 +348,13 @@ function InputField({
   );
 }
 
-function StatusCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${profileTone(value)}`}>
-        {formatReadinessStatus(value)}
-      </span>
-    </div>
-  );
-}
-
 function ChecklistLine({ done, text }: { done: boolean; text: string }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3">
-      <span
-        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
-          done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"
-        }`}
-      >
+      <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"}`}>
         {done ? "OK" : "!"}
       </span>
       <p className="text-sm text-slate-200">{text}</p>
-    </div>
-  );
-}
-
-function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-      <dt className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</dt>
-      <dd className={`mt-2 break-all text-sm text-slate-100 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
     </div>
   );
 }

@@ -120,7 +120,7 @@ export function ControlPlaneOverviewScreen() {
       scope: "platform" as const,
     },
     {
-      href: "/customer-onboarding",
+      href: "/customers/new",
       title: "Onboard customer",
       description: "Create the first billable customer, sync the billing profile, and start payment setup.",
       icon: <UserRoundPlus className="h-5 w-5 text-teal-200" />,
@@ -139,9 +139,9 @@ export function ControlPlaneOverviewScreen() {
       scope: "platform" as const,
     },
     {
-      href: "/customer-onboarding",
+      href: "/customers",
       title: "Customers",
-      description: "Guided customer onboarding plus advanced billing sync and payment setup recovery when needed.",
+      description: "Browse customer billing readiness, payment setup state, and recovery needs from one tenant directory.",
       icon: <UserRoundPlus className="h-5 w-5 text-teal-200" />,
       accent: "border-teal-400/40 bg-teal-500/10",
       scope: "tenant" as const,
