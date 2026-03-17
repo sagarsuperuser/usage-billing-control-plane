@@ -318,6 +318,11 @@ test("platform overview shows live workspace attention counts", async ({ page })
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Create a tenant workspace, connect billing, and hand off the first admin credential.")).toBeVisible();
+  await expect(page.getByText("Create the first billable customer, sync the billing profile, and start payment setup.")).toHaveCount(0);
+  await expect(page.getByText("Monitor invoice payment failures, inspect webhook history, and trigger payment retries.")).toHaveCount(0);
+  await expect(page.getByText("Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.")).toHaveCount(0);
+  await expect(page.getByText("Show deterministic line-item computation trace and digest for financial correctness workflows.")).toHaveCount(0);
   await expect(page.getByText("Workspaces missing pricing")).toBeVisible();
   await expect(page.getByText("Workspaces missing first customer")).toBeVisible();
   await expect(page.getByText("Workspaces missing billing connection")).toBeVisible();
@@ -349,6 +354,12 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Create the first billable customer, sync the billing profile, and start payment setup.")).toBeVisible();
+  await expect(page.getByText("Guided customer onboarding plus advanced billing sync and payment setup recovery when needed.")).toBeVisible();
+  await expect(page.getByText("Monitor invoice payment failures, inspect webhook history, and trigger payment retries.")).toBeVisible();
+  await expect(page.getByText("Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.")).toBeVisible();
+  await expect(page.getByText("Show deterministic line-item computation trace and digest for financial correctness workflows.")).toBeVisible();
+  await expect(page.getByText("Create a tenant workspace, connect billing, and hand off the first admin credential.")).toHaveCount(0);
   await expect(page.getByText("Customers waiting on payment setup")).toBeVisible();
   await expect(page.getByText("Customers with billing sync errors")).toBeVisible();
   await expect(page.getByText("Billing-ready customers")).toBeVisible();

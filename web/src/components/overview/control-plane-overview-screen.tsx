@@ -12,6 +12,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function ControlPlaneOverviewScreen() {
   const { apiBaseURL, isAuthenticated, isLoading, scope, isPlatformAdmin } = useUISession();
+  const scopeKey = scope === "platform" ? "platform" : "tenant";
 
   const tenantsQuery = useQuery({
     queryKey: ["overview-tenants", apiBaseURL],
@@ -109,6 +110,68 @@ export function ControlPlaneOverviewScreen() {
     },
   ];
 
+  const guidedJourneys = [
+    {
+      href: "/tenant-onboarding",
+      title: "Create workspace",
+      description: "Create a tenant workspace, connect billing, and hand off the first admin credential.",
+      icon: <Building2 className="h-5 w-5 text-sky-200" />,
+      accent: "border-sky-400/40 bg-sky-500/10",
+      scope: "platform" as const,
+    },
+    {
+      href: "/customer-onboarding",
+      title: "Onboard customer",
+      description: "Create the first billable customer, sync the billing profile, and start payment setup.",
+      icon: <UserRoundPlus className="h-5 w-5 text-teal-200" />,
+      accent: "border-teal-400/40 bg-teal-500/10",
+      scope: "tenant" as const,
+    },
+  ].filter((item) => item.scope === scopeKey);
+
+  const workspaceModules = [
+    {
+      href: "/tenant-onboarding",
+      title: "Workspace Setup",
+      description: "Guided platform flow for workspace creation, billing connection, admin access, and readiness review.",
+      icon: <Building2 className="h-5 w-5 text-sky-200" />,
+      accent: "border-sky-400/40 bg-sky-500/10",
+      scope: "platform" as const,
+    },
+    {
+      href: "/customer-onboarding",
+      title: "Customers",
+      description: "Guided customer onboarding plus advanced billing sync and payment setup recovery when needed.",
+      icon: <UserRoundPlus className="h-5 w-5 text-teal-200" />,
+      accent: "border-teal-400/40 bg-teal-500/10",
+      scope: "tenant" as const,
+    },
+    {
+      href: "/payment-operations",
+      title: "Payments",
+      description: "Monitor invoice payment failures, inspect webhook history, and trigger payment retries.",
+      icon: <Activity className="h-5 w-5 text-cyan-200" />,
+      accent: "border-cyan-400/40 bg-cyan-500/10",
+      scope: "tenant" as const,
+    },
+    {
+      href: "/replay-operations",
+      title: "Recovery",
+      description: "Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.",
+      icon: <Workflow className="h-5 w-5 text-amber-200" />,
+      accent: "border-amber-400/40 bg-amber-500/10",
+      scope: "tenant" as const,
+    },
+    {
+      href: "/invoice-explainability",
+      title: "Invoice Explainability",
+      description: "Show deterministic line-item computation trace and digest for financial correctness workflows.",
+      icon: <ReceiptText className="h-5 w-5 text-emerald-200" />,
+      accent: "border-emerald-400/40 bg-emerald-500/10",
+      scope: "tenant" as const,
+    },
+  ].filter((item) => item.scope === scopeKey);
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#172554_0%,_#0f172a_38%,_#090d16_78%)] text-slate-100">
       <div className="pointer-events-none absolute inset-0 opacity-60">
@@ -141,20 +204,16 @@ export function ControlPlaneOverviewScreen() {
               the starting point for normal onboarding.
             </p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <Card
-                href="/tenant-onboarding"
-                title="Create workspace"
-                description="Create a tenant workspace, connect billing, and hand off the first admin credential."
-                icon={<Building2 className="h-5 w-5 text-sky-200" />}
-                accent="border-sky-400/40 bg-sky-500/10"
-              />
-              <Card
-                href="/customer-onboarding"
-                title="Onboard customer"
-                description="Create the first billable customer, sync the billing profile, and start payment setup."
-                icon={<UserRoundPlus className="h-5 w-5 text-teal-200" />}
-                accent="border-teal-400/40 bg-teal-500/10"
-              />
+              {guidedJourneys.map((item) => (
+                <Card
+                  key={item.href}
+                  href={item.href}
+                  title={item.title}
+                  description={item.description}
+                  icon={item.icon}
+                  accent={item.accent}
+                />
+              ))}
             </div>
           </div>
 
@@ -181,41 +240,16 @@ export function ControlPlaneOverviewScreen() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Card
-            href="/tenant-onboarding"
-            title="Workspace Setup"
-            description="Guided platform flow for workspace creation, billing connection, admin access, and readiness review."
-            icon={<Building2 className="h-5 w-5 text-sky-200" />}
-            accent="border-sky-400/40 bg-sky-500/10"
-          />
-          <Card
-            href="/customer-onboarding"
-            title="Customers"
-            description="Guided customer onboarding plus advanced billing sync and payment setup recovery when needed."
-            icon={<UserRoundPlus className="h-5 w-5 text-teal-200" />}
-            accent="border-teal-400/40 bg-teal-500/10"
-          />
-          <Card
-            href="/payment-operations"
-            title="Payments"
-            description="Monitor invoice payment failures, inspect webhook history, and trigger payment retries."
-            icon={<Activity className="h-5 w-5 text-cyan-200" />}
-            accent="border-cyan-400/40 bg-cyan-500/10"
-          />
-          <Card
-            href="/replay-operations"
-            title="Recovery"
-            description="Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs."
-            icon={<Workflow className="h-5 w-5 text-amber-200" />}
-            accent="border-amber-400/40 bg-amber-500/10"
-          />
-          <Card
-            href="/invoice-explainability"
-            title="Invoice Explainability"
-            description="Show deterministic line-item computation trace and digest for financial correctness workflows."
-            icon={<ReceiptText className="h-5 w-5 text-emerald-200" />}
-            accent="border-emerald-400/40 bg-emerald-500/10"
-          />
+          {workspaceModules.map((item) => (
+            <Card
+              key={item.href}
+              href={item.href}
+              title={item.title}
+              description={item.description}
+              icon={item.icon}
+              accent={item.accent}
+            />
+          ))}
         </section>
       </main>
     </div>
