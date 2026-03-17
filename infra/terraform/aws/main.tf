@@ -359,14 +359,48 @@ data "aws_iam_policy_document" "api_s3_policy" {
   }
 }
 
+data "aws_iam_policy_document" "api_billing_provider_secrets_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:CreateSecret",
+      "secretsmanager:DeleteSecret",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:PutSecretValue",
+      "secretsmanager:DeleteSecret",
+    ]
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${local.aws_account_id}:secret:${local.name_prefix}/billing-provider-connections/*",
+    ]
+  }
+}
+
 resource "aws_iam_policy" "api_s3" {
   name   = "${local.name_prefix}-api-s3"
   policy = data.aws_iam_policy_document.api_s3_policy.json
 }
 
+resource "aws_iam_policy" "api_billing_provider_secrets" {
+  name   = "${local.name_prefix}-api-billing-provider-secrets"
+  policy = data.aws_iam_policy_document.api_billing_provider_secrets_policy.json
+}
+
 resource "aws_iam_role_policy_attachment" "api_s3" {
   role       = aws_iam_role.api_irsa.name
   policy_arn = aws_iam_policy.api_s3.arn
+}
+
+resource "aws_iam_role_policy_attachment" "api_billing_provider_secrets" {
+  role       = aws_iam_role.api_irsa.name
+  policy_arn = aws_iam_policy.api_billing_provider_secrets.arn
 }
 
 data "aws_s3_bucket" "lago_uploads" {

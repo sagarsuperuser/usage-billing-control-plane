@@ -293,6 +293,9 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	if err != nil {
 		return domain.BillingProviderConnection{}, err
 	}
+	if current.LagoOrganizationID == "" {
+		return domain.BillingProviderConnection{}, fmt.Errorf("%w: lago organization id is required", ErrValidation)
+	}
 	result, syncErr := s.adapter.EnsureStripeProvider(ctx, EnsureStripeProviderInput{
 		ConnectionID:       current.ID,
 		DisplayName:        current.DisplayName,

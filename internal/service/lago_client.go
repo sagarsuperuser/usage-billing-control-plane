@@ -365,11 +365,15 @@ func (p *LagoWebhookKeyProvider) FetchWebhookPublicKey(ctx context.Context) (*rs
 }
 
 func (t *LagoHTTPTransport) doJSONRequest(ctx context.Context, method, path string, payload any) (int, []byte, error) {
+	return t.doJSONRequestWithHeaders(ctx, method, path, payload, nil)
+}
+
+func (t *LagoHTTPTransport) doJSONRequestWithHeaders(ctx context.Context, method, path string, payload any, headers map[string]string) (int, []byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return 0, nil, err
 	}
-	status, respBody, reqErr := t.doRawRequest(ctx, method, path, body)
+	status, respBody, reqErr := t.doRawRequestWithHeaders(ctx, method, path, body, headers)
 	if reqErr != nil {
 		return status, respBody, reqErr
 	}
@@ -380,6 +384,10 @@ func (t *LagoHTTPTransport) doJSONRequest(ctx context.Context, method, path stri
 }
 
 func (t *LagoHTTPTransport) doRawRequest(ctx context.Context, method, path string, payload []byte) (int, []byte, error) {
+	return t.doRawRequestWithHeaders(ctx, method, path, payload, nil)
+}
+
+func (t *LagoHTTPTransport) doRawRequestWithHeaders(ctx context.Context, method, path string, payload []byte, headers map[string]string) (int, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, method, t.baseURL+path, bytes.NewReader(payload))
 	if err != nil {
 		return 0, nil, err
@@ -387,6 +395,12 @@ func (t *LagoHTTPTransport) doRawRequest(ctx context.Context, method, path strin
 	req.Header.Set("Authorization", "Bearer "+t.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	for key, value := range headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		req.Header.Set(key, value)
+	}
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
@@ -401,7 +415,6 @@ func (t *LagoHTTPTransport) doRawRequest(ctx context.Context, method, path strin
 
 	return resp.StatusCode, body, nil
 }
-
 func mapAggregationToLago(v string) (string, error) {
 	switch strings.TrimSpace(strings.ToLower(v)) {
 	case "count":

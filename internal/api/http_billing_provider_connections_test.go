@@ -33,6 +33,55 @@ func (s *stubBillingProviderAdapterAPI) EnsureStripeProvider(_ context.Context, 
 	return s.result, nil
 }
 
+func TestInternalBillingProviderConnectionEndpointsSyncRequiresLagoOrganizationID(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	svc := service.NewBillingProviderConnectionService(repo, service.NewMemoryBillingSecretStore(), &stubBillingProviderAdapterAPI{})
+
+	ts := httptest.NewServer(api.NewServer(repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithBillingProviderConnectionService(svc),
+	).Handler())
+	defer ts.Close()
+
+	created := postJSON(t, ts.URL+"/internal/billing-provider-connections", map[string]any{
+		"provider_type":     "stripe",
+		"environment":       "test",
+		"display_name":      "Stripe Missing Org",
+		"scope":             "platform",
+		"stripe_secret_key": "sk_test_http",
+	}, "platform-admin", http.StatusCreated)
+
+	connection := created["connection"].(map[string]any)
+	connectionID := connection["id"].(string)
+
+	synced := postJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID+"/sync", map[string]any{}, "platform-admin", http.StatusBadRequest)
+	if synced["error"] != "validation error: lago organization id is required" {
+		t.Fatalf("expected missing lago org validation error, got %#v", synced["error"])
+	}
+}
+
 func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {

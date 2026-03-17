@@ -162,6 +162,32 @@ func TestBillingProviderConnectionService_SyncSuccess(t *testing.T) {
 	}
 }
 
+func TestBillingProviderConnectionService_SyncMissingLagoOrganizationID(t *testing.T) {
+	repo := newTestBillingProviderRepo(t)
+	secretStore := NewMemoryBillingSecretStore()
+	adapter := &stubBillingProviderAdapter{}
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter)
+
+	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:    "stripe",
+		Environment:     "test",
+		DisplayName:     "Stripe Missing Org",
+		Scope:           "platform",
+		StripeSecretKey: "sk_test_missing_org",
+	}, "platform_api_key", "pkey_missing_org")
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+
+	_, err = svc.SyncBillingProviderConnection(context.Background(), created.ID)
+	if err == nil || !strings.Contains(err.Error(), "lago organization id is required") {
+		t.Fatalf("expected missing lago organization validation error, got %v", err)
+	}
+	if adapter.calls != 0 {
+		t.Fatalf("expected adapter not to be called, got %d", adapter.calls)
+	}
+}
+
 func TestBillingProviderConnectionService_SyncFailurePersistsState(t *testing.T) {
 	repo := newTestBillingProviderRepo(t)
 	secretStore := NewMemoryBillingSecretStore()

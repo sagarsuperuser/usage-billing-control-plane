@@ -31,7 +31,7 @@ type lagoGraphQLError struct {
 	Message string `json:"message"`
 }
 
-func (t *LagoHTTPTransport) doGraphQLRequest(ctx context.Context, query string, variables map[string]any, out any) error {
+func (t *LagoHTTPTransport) doGraphQLRequest(ctx context.Context, organizationID, query string, variables map[string]any, out any) error {
 	if t == nil {
 		return fmt.Errorf("%w: lago transport is required", ErrValidation)
 	}
@@ -40,7 +40,11 @@ func (t *LagoHTTPTransport) doGraphQLRequest(ctx context.Context, query string, 
 		return fmt.Errorf("%w: graphql query is required", ErrValidation)
 	}
 	payload := lagoGraphQLRequest{Query: query, Variables: variables}
-	status, body, err := t.doJSONRequest(ctx, http.MethodPost, "/graphql", payload)
+	headers := map[string]string{}
+	if org := strings.TrimSpace(organizationID); org != "" {
+		headers["x-lago-organization"] = org
+	}
+	status, body, err := t.doJSONRequestWithHeaders(ctx, http.MethodPost, "/graphql", payload, headers)
 	if err != nil {
 		return err
 	}
@@ -90,20 +94,23 @@ func (a *LagoBillingProviderAdapter) EnsureStripeProvider(ctx context.Context, i
 	if input.SecretKey == "" {
 		return EnsureStripeProviderResult{}, fmt.Errorf("%w: stripe secret is required", ErrValidation)
 	}
+	if input.LagoOrganizationID == "" {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: lago organization id is required", ErrValidation)
+	}
 
 	providerCode := input.LagoProviderCode
 	if providerCode == "" {
 		providerCode = defaultLagoStripeProviderCode(input.ConnectionID, input.Environment)
 	}
 
-	existing, err := a.getPaymentProviderByCode(ctx, providerCode)
+	existing, err := a.getPaymentProviderByCode(ctx, input.LagoOrganizationID, providerCode)
 	if err != nil {
 		return EnsureStripeProviderResult{}, err
 	}
 
 	now := time.Now().UTC()
 	if existing == nil {
-		created, err := a.addStripeProvider(ctx, providerCode, input.DisplayName, input.SecretKey)
+		created, err := a.addStripeProvider(ctx, input.LagoOrganizationID, providerCode, input.DisplayName, input.SecretKey)
 		if err != nil {
 			return EnsureStripeProviderResult{}, err
 		}
@@ -117,7 +124,7 @@ func (a *LagoBillingProviderAdapter) EnsureStripeProvider(ctx context.Context, i
 	if existing.TypeName != "StripeProvider" {
 		return EnsureStripeProviderResult{}, fmt.Errorf("lago provider code %q already exists as %s", providerCode, existing.TypeName)
 	}
-	updated, err := a.updateStripeProvider(ctx, existing.ID, providerCode, input.DisplayName)
+	updated, err := a.updateStripeProvider(ctx, input.LagoOrganizationID, existing.ID, providerCode, input.DisplayName)
 	if err != nil {
 		return EnsureStripeProviderResult{}, err
 	}
@@ -138,14 +145,14 @@ type lagoPaymentProviderLookup struct {
 	} `json:"paymentProvider"`
 }
 
-func (a *LagoBillingProviderAdapter) getPaymentProviderByCode(ctx context.Context, code string) (*struct {
+func (a *LagoBillingProviderAdapter) getPaymentProviderByCode(ctx context.Context, organizationID, code string) (*struct {
 	TypeName string `json:"__typename"`
 	ID       string `json:"id"`
 	Code     string `json:"code"`
 	Name     string `json:"name"`
 }, error) {
 	var resp lagoPaymentProviderLookup
-	err := a.transport.doGraphQLRequest(ctx, `query alphaPaymentProviderByCode($code: String!) {
+	err := a.transport.doGraphQLRequest(ctx, organizationID, `query alphaPaymentProviderByCode($code: String!) {
   paymentProvider(code: $code) {
     __typename
     ... on StripeProvider {
@@ -167,11 +174,11 @@ type lagoStripeProviderMutation struct {
 	Name string `json:"name"`
 }
 
-func (a *LagoBillingProviderAdapter) addStripeProvider(ctx context.Context, code, displayName, secretKey string) (lagoStripeProviderMutation, error) {
+func (a *LagoBillingProviderAdapter) addStripeProvider(ctx context.Context, organizationID, code, displayName, secretKey string) (lagoStripeProviderMutation, error) {
 	var resp struct {
 		AddStripePaymentProvider lagoStripeProviderMutation `json:"addStripePaymentProvider"`
 	}
-	err := a.transport.doGraphQLRequest(ctx, `mutation alphaAddStripePaymentProvider($input: AddStripePaymentProviderInput!) {
+	err := a.transport.doGraphQLRequest(ctx, organizationID, `mutation alphaAddStripePaymentProvider($input: AddStripePaymentProviderInput!) {
   addStripePaymentProvider(input: $input) {
     id
     code
@@ -192,11 +199,11 @@ func (a *LagoBillingProviderAdapter) addStripeProvider(ctx context.Context, code
 	return resp.AddStripePaymentProvider, nil
 }
 
-func (a *LagoBillingProviderAdapter) updateStripeProvider(ctx context.Context, id, code, displayName string) (lagoStripeProviderMutation, error) {
+func (a *LagoBillingProviderAdapter) updateStripeProvider(ctx context.Context, organizationID, id, code, displayName string) (lagoStripeProviderMutation, error) {
 	var resp struct {
 		UpdateStripePaymentProvider lagoStripeProviderMutation `json:"updateStripePaymentProvider"`
 	}
-	err := a.transport.doGraphQLRequest(ctx, `mutation alphaUpdateStripePaymentProvider($input: UpdateStripePaymentProviderInput!) {
+	err := a.transport.doGraphQLRequest(ctx, organizationID, `mutation alphaUpdateStripePaymentProvider($input: UpdateStripePaymentProviderInput!) {
   updateStripePaymentProvider(input: $input) {
     id
     code

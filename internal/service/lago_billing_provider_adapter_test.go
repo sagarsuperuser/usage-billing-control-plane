@@ -19,6 +19,9 @@ func TestLagoBillingProviderAdapterCreatesStripeProvider(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+		if got := r.Header.Get("x-lago-organization"); got != "org_test" {
+			t.Fatalf("expected x-lago-organization header, got %q", got)
+		}
 		calls++
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -49,10 +52,11 @@ func TestLagoBillingProviderAdapterCreatesStripeProvider(t *testing.T) {
 
 	adapter := NewLagoBillingProviderAdapter(transport, "https://alpha.example.test/return")
 	result, err := adapter.EnsureStripeProvider(context.Background(), EnsureStripeProviderInput{
-		ConnectionID: "bpc_test",
-		DisplayName:  "Stripe Test",
-		Environment:  "test",
-		SecretKey:    "sk_test_123",
+		ConnectionID:       "bpc_test",
+		DisplayName:        "Stripe Test",
+		Environment:        "test",
+		SecretKey:          "sk_test_123",
+		LagoOrganizationID: "org_test",
 	})
 	if err != nil {
 		t.Fatalf("ensure stripe provider: %v", err)
@@ -72,6 +76,9 @@ func TestLagoBillingProviderAdapterUpdatesExistingStripeProvider(t *testing.T) {
 		if r.URL.Path != "/graphql" || r.Method != http.MethodPost {
 			http.NotFound(w, r)
 			return
+		}
+		if got := r.Header.Get("x-lago-organization"); got != "org_test" {
+			t.Fatalf("expected x-lago-organization header, got %q", got)
 		}
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -102,11 +109,12 @@ func TestLagoBillingProviderAdapterUpdatesExistingStripeProvider(t *testing.T) {
 
 	adapter := NewLagoBillingProviderAdapter(transport, "https://alpha.example.test/return")
 	result, err := adapter.EnsureStripeProvider(context.Background(), EnsureStripeProviderInput{
-		ConnectionID:     "bpc_existing",
-		DisplayName:      "Updated",
-		Environment:      "test",
-		SecretKey:        "sk_test_123",
-		LagoProviderCode: "stripe_existing",
+		ConnectionID:       "bpc_existing",
+		DisplayName:        "Updated",
+		Environment:        "test",
+		SecretKey:          "sk_test_123",
+		LagoOrganizationID: "org_test",
+		LagoProviderCode:   "stripe_existing",
 	})
 	if err != nil {
 		t.Fatalf("ensure existing stripe provider: %v", err)
