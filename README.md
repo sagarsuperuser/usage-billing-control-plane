@@ -624,6 +624,7 @@ Architecture and rollout docs:
 - `docs/alpha-lago-adapter-plan.md`
 - `docs/alpha-customer-model.md`
 - `docs/ui-redesign-plan.md`
+- `docs/ui-information-architecture-plan.md`
 - `docs/infra-rollout-runbook.md`
 - `docs/staging-go-live-checklist.md`
 - `docs/real-payment-e2e-runbook.md`
