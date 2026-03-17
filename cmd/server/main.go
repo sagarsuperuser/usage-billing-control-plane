@@ -310,6 +310,54 @@ func main() {
 	serverOpts = append(serverOpts, api.WithAPIKeyAuthorizer(authorizer))
 	logger.Info("api auth enabled", "component", "server", "backend", "postgres")
 
+	browserUserAuthService, err := service.NewBrowserUserAuthService(repo)
+	if err != nil {
+		fatal(logger, "initialize browser user auth", "error", err)
+	}
+	serverOpts = append(serverOpts, api.WithBrowserUserAuthService(browserUserAuthService))
+
+	if len(cfg.SSO.OIDCProviders) > 0 {
+		oidcProviders := make([]service.BrowserSSOProvider, 0, len(cfg.SSO.OIDCProviders))
+		for _, providerCfg := range cfg.SSO.OIDCProviders {
+			provider, providerErr := service.NewOIDCBrowserSSOProvider(ctx, service.OIDCBrowserSSOProviderConfig{
+				Key:          providerCfg.Key,
+				DisplayName:  providerCfg.DisplayName,
+				IssuerURL:    providerCfg.IssuerURL,
+				ClientID:     providerCfg.ClientID,
+				ClientSecret: providerCfg.ClientSecret,
+				Scopes:       providerCfg.Scopes,
+			})
+			if providerErr != nil {
+				fatal(logger, "initialize oidc provider", "provider", providerCfg.Key, "error", providerErr)
+			}
+			oidcProviders = append(oidcProviders, provider)
+		}
+		browserSSOService, err := service.NewBrowserSSOService(
+			repo,
+			browserUserAuthService,
+			oidcProviders,
+			service.BrowserSSOServiceConfig{
+				AutoProvisionUsers: cfg.SSO.AutoProvisionUsers,
+			},
+		)
+		if err != nil {
+			fatal(logger, "initialize browser sso service", "error", err)
+		}
+		serverOpts = append(serverOpts,
+			api.WithBrowserSSOService(browserSSOService),
+			api.WithUIPublicBaseURL(cfg.SSO.PublicBaseURL),
+		)
+		logger.Info(
+			"browser sso enabled",
+			"component", "server",
+			"provider_count", len(cfg.SSO.OIDCProviders),
+			"auto_provision_users", cfg.SSO.AutoProvisionUsers,
+			"ui_public_base_url", cfg.SSO.PublicBaseURL,
+		)
+	} else {
+		logger.Info("browser sso disabled", "component", "server")
+	}
+
 	if cfg.APIKeysRaw != "" {
 		bootstrapResult, err := api.BootstrapAPIKeysFromConfig(repo, cfg.APIKeysRaw)
 		if err != nil {

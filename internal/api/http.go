@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
@@ -37,6 +38,7 @@ type Server struct {
 	customerOnboardingService        *service.CustomerOnboardingService
 	billingProviderConnectionService *service.BillingProviderConnectionService
 	browserUserAuthService           *service.BrowserUserAuthService
+	browserSSOService                *service.BrowserSSOService
 	meterService                     *service.MeterService
 	usageService                     *service.UsageService
 	apiKeyService                    *service.APIKeyService
@@ -59,6 +61,7 @@ type Server struct {
 	rateLimitLoginFailOpen           bool
 	requireSessionOriginCheck        bool
 	allowedSessionOrigins            map[string]struct{}
+	uiPublicBaseURL                  string
 	mux                              *http.ServeMux
 }
 
@@ -72,6 +75,12 @@ const (
 	sessionTenantIDKey     = "principal_tenant_id"
 	sessionAPIKeyIDKey     = "principal_api_key_id"
 	sessionCSRFKey         = "csrf_token"
+	sessionSSOStateKey     = "ui_sso_state"
+	sessionSSOProviderKey  = "ui_sso_provider"
+	sessionSSONonceKey     = "ui_sso_nonce"
+	sessionSSOPKCEKey      = "ui_sso_pkce_verifier"
+	sessionSSONextKey      = "ui_sso_next"
+	sessionSSOTenantIDKey  = "ui_sso_tenant_id"
 	csrfHeaderName         = "X-CSRF-Token"
 	requestIDHeaderKey     = "X-Request-ID"
 )
@@ -319,6 +328,18 @@ func WithBillingProviderConnectionService(svc *service.BillingProviderConnection
 func WithBrowserUserAuthService(svc *service.BrowserUserAuthService) ServerOption {
 	return func(s *Server) {
 		s.browserUserAuthService = svc
+	}
+}
+
+func WithBrowserSSOService(svc *service.BrowserSSOService) ServerOption {
+	return func(s *Server) {
+		s.browserSSOService = svc
+	}
+}
+
+func WithUIPublicBaseURL(baseURL string) ServerOption {
+	return func(s *Server) {
+		s.uiPublicBaseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	}
 }
 
@@ -1072,10 +1093,10 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 			SubjectType: subjectType,
 			SubjectID:   subjectID,
 			UserEmail:   userEmail,
-			Scope:    ScopeTenant,
-			Role:     role,
-			TenantID: normalizeTenantID(tenantID),
-			APIKeyID: apiKeyID,
+			Scope:       ScopeTenant,
+			Role:        role,
+			TenantID:    normalizeTenantID(tenantID),
+			APIKeyID:    apiKeyID,
 		}, true, nil
 	default:
 		return Principal{}, true, errUnauthorized
@@ -1151,6 +1172,12 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		return RoleAdmin, true
 	}
 	if path == "/v1/ui/sessions/login" {
+		return "", false
+	}
+	if path == "/v1/ui/auth/providers" {
+		return "", false
+	}
+	if strings.HasPrefix(path, "/v1/ui/auth/sso/") {
 		return "", false
 	}
 	if path == "/v1/ui/sessions/rate-limit-probe" {
@@ -1335,6 +1362,17 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/tenants/{id}"
 	case path == "/v1/ui/sessions/login":
 		return "/v1/ui/sessions/login"
+	case path == "/v1/ui/auth/providers":
+		return "/v1/ui/auth/providers"
+	case strings.HasPrefix(path, "/v1/ui/auth/sso/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/ui/auth/sso/"), "/")
+		if strings.HasSuffix(tail, "/start") {
+			return "/v1/ui/auth/sso/{provider}/start"
+		}
+		if strings.HasSuffix(tail, "/callback") {
+			return "/v1/ui/auth/sso/{provider}/callback"
+		}
+		return "/v1/ui/auth/sso/{provider}"
 	case path == "/v1/ui/sessions/rate-limit-probe":
 		return "/v1/ui/sessions/rate-limit-probe"
 	case path == "/v1/ui/sessions/me":
@@ -1468,6 +1506,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/internal/tenants/audit", s.handleInternalTenantAudit)
 	s.mux.HandleFunc("/internal/tenants", s.handleInternalTenants)
 	s.mux.HandleFunc("/internal/tenants/", s.handleInternalTenantByID)
+	s.mux.HandleFunc("/v1/ui/auth/providers", s.handleUIAuthProviders)
+	s.mux.HandleFunc("/v1/ui/auth/sso/", s.handleUISSO)
 	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
 	s.mux.HandleFunc("/v1/ui/sessions/rate-limit-probe", s.handleUIPreAuthRateLimitProbe)
 	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
@@ -1756,6 +1796,18 @@ type uiSessionLoginRequest struct {
 	TenantID string `json:"tenant_id"`
 }
 
+func parseUISSOPath(path string) (providerKey string, action string) {
+	tail := strings.Trim(strings.TrimPrefix(path, "/v1/ui/auth/sso/"), "/")
+	if tail == "" {
+		return "", ""
+	}
+	parts := strings.Split(tail, "/")
+	if len(parts) < 2 {
+		return strings.TrimSpace(parts[0]), ""
+	}
+	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+}
+
 func (s *Server) handleUIPreAuthRateLimitProbe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
@@ -1767,6 +1819,158 @@ func (s *Server) handleUIPreAuthRateLimitProbe(w http.ResponseWriter, r *http.Re
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleUIAuthProviders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	providers := make([]map[string]any, 0)
+	if s.browserSSOService != nil {
+		for _, provider := range s.browserSSOService.ListProviders() {
+			providers = append(providers, map[string]any{
+				"key":          strings.TrimSpace(provider.Key),
+				"display_name": strings.TrimSpace(provider.DisplayName),
+				"type":         strings.TrimSpace(string(provider.Type)),
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"password_enabled": true,
+		"sso_providers":    providers,
+	})
+}
+
+func (s *Server) handleUISSO(w http.ResponseWriter, r *http.Request) {
+	providerKey, action := parseUISSOPath(r.URL.Path)
+	switch action {
+	case "start":
+		s.handleUISSOStart(w, r, providerKey)
+	case "callback":
+		s.handleUISSOCallback(w, r, providerKey)
+	default:
+		writeError(w, http.StatusNotFound, "not found")
+	}
+}
+
+func (s *Server) handleUISSOStart(w http.ResponseWriter, r *http.Request, providerKey string) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.sessionManager == nil || s.browserSSOService == nil {
+		writeError(w, http.StatusNotFound, "sso is not configured")
+		return
+	}
+	if s.rateLimiter != nil {
+		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
+			return
+		}
+	}
+
+	state, err := randomURLToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize sso")
+		return
+	}
+	nonce, err := randomURLToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize sso")
+		return
+	}
+	codeVerifier, err := randomURLToken(48)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize sso")
+		return
+	}
+	redirectURI := s.uiSSOCallbackURL(r, providerKey)
+	authURL, err := s.browserSSOService.BuildStartURL(providerKey, state, nonce, service.BuildPKCECodeChallenge(codeVerifier), redirectURI)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, service.ErrBrowserSSOProviderNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, "failed to initialize sso provider")
+		return
+	}
+	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize sso session")
+		return
+	}
+	s.sessionManager.Put(r.Context(), sessionSSOStateKey, state)
+	s.sessionManager.Put(r.Context(), sessionSSOProviderKey, strings.ToLower(strings.TrimSpace(providerKey)))
+	s.sessionManager.Put(r.Context(), sessionSSONonceKey, nonce)
+	s.sessionManager.Put(r.Context(), sessionSSOPKCEKey, codeVerifier)
+	s.sessionManager.Put(r.Context(), sessionSSONextKey, normalizeUINextPath(strings.TrimSpace(r.URL.Query().Get("next"))))
+	s.sessionManager.Put(r.Context(), sessionSSOTenantIDKey, normalizeTenantID(strings.TrimSpace(r.URL.Query().Get("tenant_id"))))
+	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+func (s *Server) handleUISSOCallback(w http.ResponseWriter, r *http.Request, providerKey string) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.sessionManager == nil || s.browserSSOService == nil || strings.TrimSpace(s.uiPublicBaseURL) == "" {
+		writeError(w, http.StatusNotFound, "sso is not configured")
+		return
+	}
+
+	query := r.URL.Query()
+	if errCode := strings.TrimSpace(query.Get("error")); errCode != "" {
+		s.redirectUISSOFailure(w, r, strings.TrimSpace(providerKey), "sso_denied")
+		return
+	}
+	code := strings.TrimSpace(query.Get("code"))
+	state := strings.TrimSpace(query.Get("state"))
+	if code == "" || state == "" {
+		s.redirectUISSOFailure(w, r, strings.TrimSpace(providerKey), "sso_invalid_callback")
+		return
+	}
+
+	expectedState := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOStateKey))
+	expectedProvider := strings.ToLower(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOProviderKey)))
+	nonce := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSONonceKey))
+	codeVerifier := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOPKCEKey))
+	tenantID := normalizeTenantID(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOTenantIDKey)))
+	nextPath := normalizeUINextPath(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSONextKey)))
+	if expectedState == "" || !subtleConstantTimeMatch(expectedState, state) || expectedProvider != strings.ToLower(strings.TrimSpace(providerKey)) || codeVerifier == "" {
+		s.clearSSOSessionState(r.Context())
+		s.redirectUISSOFailure(w, r, strings.TrimSpace(providerKey), "sso_state_invalid")
+		return
+	}
+
+	principal, err := s.browserSSOService.AuthenticateCallback(r.Context(), providerKey, code, codeVerifier, nonce, tenantID, s.uiSSOCallbackURL(r, providerKey))
+	s.clearSSOSessionState(r.Context())
+	if err != nil {
+		s.redirectUISSOFailure(w, r, strings.TrimSpace(providerKey), s.uiSSOErrorCode(err))
+		return
+	}
+
+	sessionPrincipal := Principal{
+		SubjectType: "user",
+		SubjectID:   principal.User.ID,
+		UserEmail:   principal.User.Email,
+		Scope:       Scope(principal.Scope),
+	}
+	if sessionPrincipal.Scope == ScopePlatform {
+		sessionPrincipal.PlatformRole = PlatformRole(principal.PlatformRole)
+	} else {
+		sessionPrincipal.Role = Role(principal.Role)
+		sessionPrincipal.TenantID = normalizeTenantID(principal.TenantID)
+	}
+	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to renew session")
+		return
+	}
+	csrfToken, err := randomHexToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize session")
+		return
+	}
+	s.putUISessionPrincipal(r.Context(), sessionPrincipal, csrfToken)
+	http.Redirect(w, r, s.uiNextURL(nextPath), http.StatusFound)
 }
 
 func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
@@ -1845,21 +2049,7 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.sessionManager.Put(r.Context(), sessionSubjectTypeKey, strings.TrimSpace(principal.SubjectType))
-	s.sessionManager.Put(r.Context(), sessionSubjectIDKey, strings.TrimSpace(principal.SubjectID))
-	s.sessionManager.Put(r.Context(), sessionUserEmailKey, strings.TrimSpace(principal.UserEmail))
-	s.sessionManager.Put(r.Context(), sessionScopeKey, string(principal.Scope))
-	if principal.Scope == ScopePlatform {
-		s.sessionManager.Remove(r.Context(), sessionRoleKey)
-		s.sessionManager.Put(r.Context(), sessionPlatformRoleKey, string(principal.PlatformRole))
-		s.sessionManager.Remove(r.Context(), sessionTenantIDKey)
-	} else {
-		s.sessionManager.Put(r.Context(), sessionRoleKey, string(principal.Role))
-		s.sessionManager.Remove(r.Context(), sessionPlatformRoleKey)
-		s.sessionManager.Put(r.Context(), sessionTenantIDKey, normalizeTenantID(principal.TenantID))
-	}
-	s.sessionManager.Put(r.Context(), sessionAPIKeyIDKey, strings.TrimSpace(principal.APIKeyID))
-	s.sessionManager.Put(r.Context(), sessionCSRFKey, csrfToken)
+	s.putUISessionPrincipal(r.Context(), principal, csrfToken)
 
 	writeJSON(w, http.StatusCreated, buildUISessionResponse(principal, csrfToken, time.Now().UTC().Add(s.sessionManager.Lifetime)))
 }
@@ -1884,6 +2074,94 @@ func buildUISessionResponse(principal Principal, csrfToken string, expiresAt tim
 		resp["tenant_id"] = normalizeTenantID(principal.TenantID)
 	}
 	return resp
+}
+
+func (s *Server) putUISessionPrincipal(ctx context.Context, principal Principal, csrfToken string) {
+	s.sessionManager.Put(ctx, sessionSubjectTypeKey, strings.TrimSpace(principal.SubjectType))
+	s.sessionManager.Put(ctx, sessionSubjectIDKey, strings.TrimSpace(principal.SubjectID))
+	s.sessionManager.Put(ctx, sessionUserEmailKey, strings.TrimSpace(principal.UserEmail))
+	s.sessionManager.Put(ctx, sessionScopeKey, string(principal.Scope))
+	if principal.Scope == ScopePlatform {
+		s.sessionManager.Remove(ctx, sessionRoleKey)
+		s.sessionManager.Put(ctx, sessionPlatformRoleKey, string(principal.PlatformRole))
+		s.sessionManager.Remove(ctx, sessionTenantIDKey)
+	} else {
+		s.sessionManager.Put(ctx, sessionRoleKey, string(principal.Role))
+		s.sessionManager.Remove(ctx, sessionPlatformRoleKey)
+		s.sessionManager.Put(ctx, sessionTenantIDKey, normalizeTenantID(principal.TenantID))
+	}
+	s.sessionManager.Put(ctx, sessionAPIKeyIDKey, strings.TrimSpace(principal.APIKeyID))
+	s.sessionManager.Put(ctx, sessionCSRFKey, csrfToken)
+}
+
+func (s *Server) clearSSOSessionState(ctx context.Context) {
+	s.sessionManager.Remove(ctx, sessionSSOStateKey)
+	s.sessionManager.Remove(ctx, sessionSSOProviderKey)
+	s.sessionManager.Remove(ctx, sessionSSONonceKey)
+	s.sessionManager.Remove(ctx, sessionSSOPKCEKey)
+	s.sessionManager.Remove(ctx, sessionSSONextKey)
+	s.sessionManager.Remove(ctx, sessionSSOTenantIDKey)
+}
+
+func (s *Server) uiSSOCallbackURL(r *http.Request, providerKey string) string {
+	baseURL := externalBaseURL(r)
+	return strings.TrimRight(baseURL, "/") + "/v1/ui/auth/sso/" + url.PathEscape(strings.ToLower(strings.TrimSpace(providerKey))) + "/callback"
+}
+
+func (s *Server) uiNextURL(nextPath string) string {
+	return strings.TrimRight(s.uiPublicBaseURL, "/") + normalizeUINextPath(nextPath)
+}
+
+func normalizeUINextPath(nextPath string) string {
+	nextPath = strings.TrimSpace(nextPath)
+	if nextPath == "" || nextPath == "/" {
+		return "/"
+	}
+	if strings.HasPrefix(nextPath, "http://") || strings.HasPrefix(nextPath, "https://") || strings.HasPrefix(nextPath, "//") {
+		return "/"
+	}
+	if !strings.HasPrefix(nextPath, "/") {
+		nextPath = "/" + nextPath
+	}
+	return nextPath
+}
+
+func (s *Server) uiSSOErrorCode(err error) string {
+	switch {
+	case errors.Is(err, service.ErrBrowserSSOProviderNotFound):
+		return "sso_provider_not_found"
+	case errors.Is(err, service.ErrBrowserSSOEmailRequired):
+		return "sso_email_required"
+	case errors.Is(err, service.ErrBrowserSSOEmailNotVerified):
+		return "sso_email_not_verified"
+	case errors.Is(err, service.ErrBrowserSSOUserNotProvisioned):
+		return "sso_user_not_provisioned"
+	case errors.Is(err, service.ErrBrowserTenantSelection):
+		return "tenant_selection_required"
+	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
+		return "tenant_access_denied"
+	case errors.Is(err, service.ErrBrowserUserDisabled):
+		return "user_disabled"
+	default:
+		return "sso_failed"
+	}
+}
+
+func (s *Server) redirectUISSOFailure(w http.ResponseWriter, r *http.Request, providerKey, errorCode string) {
+	target, err := url.Parse(strings.TrimRight(s.uiPublicBaseURL, "/") + "/login")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to redirect to login")
+		return
+	}
+	query := target.Query()
+	if providerKey = strings.TrimSpace(providerKey); providerKey != "" {
+		query.Set("provider", strings.ToLower(providerKey))
+	}
+	if errorCode = strings.TrimSpace(errorCode); errorCode != "" {
+		query.Set("error", errorCode)
+	}
+	target.RawQuery = query.Encode()
+	http.Redirect(w, r, target.String(), http.StatusFound)
 }
 
 func parseInternalTenantPath(path string) (tenantID string, action string) {
@@ -2162,6 +2440,17 @@ func randomHexToken(numBytes int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+func randomURLToken(numBytes int) (string, error) {
+	if numBytes <= 0 {
+		numBytes = 16
+	}
+	buf := make([]byte, numBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return strings.TrimRight(base64.RawURLEncoding.EncodeToString(buf), "="), nil
 }
 
 func (s *Server) handleLagoWebhooks(w http.ResponseWriter, r *http.Request) {

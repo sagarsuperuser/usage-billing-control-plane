@@ -60,6 +60,12 @@ const (
 	UserTenantMembershipStatusDisabled UserTenantMembershipStatus = "disabled"
 )
 
+type BrowserSSOProviderType string
+
+const (
+	BrowserSSOProviderTypeOIDC BrowserSSOProviderType = "oidc"
+)
+
 type Tenant struct {
 	ID                          string       `json:"id"`
 	Name                        string       `json:"name"`
@@ -117,6 +123,19 @@ type UserTenantMembership struct {
 	Status    UserTenantMembershipStatus `json:"status"`
 	CreatedAt time.Time                  `json:"created_at"`
 	UpdatedAt time.Time                  `json:"updated_at"`
+}
+
+type UserFederatedIdentity struct {
+	ID            string                 `json:"id"`
+	UserID        string                 `json:"user_id"`
+	ProviderKey   string                 `json:"provider_key"`
+	ProviderType  BrowserSSOProviderType `json:"provider_type"`
+	Subject       string                 `json:"subject"`
+	Email         string                 `json:"email,omitempty"`
+	EmailVerified bool                   `json:"email_verified"`
+	LastLoginAt   *time.Time             `json:"last_login_at,omitempty"`
+	CreatedAt     time.Time              `json:"created_at"`
+	UpdatedAt     time.Time              `json:"updated_at"`
 }
 
 type CustomerStatus string

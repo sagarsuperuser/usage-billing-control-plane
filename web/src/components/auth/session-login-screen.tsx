@@ -3,10 +3,12 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Building2, CreditCard, UserRoundPlus } from "lucide-react";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { useUISession } from "@/hooks/use-ui-session";
+import { fetchUIAuthProviders } from "@/lib/api";
 import { getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import type { UISession } from "@/lib/types";
 
@@ -17,8 +19,16 @@ function resolveTarget(session: UISession | null, nextPath: string | null): stri
 export function SessionLoginScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { session, isAuthenticated, isLoading } = useUISession();
+  const { session, isAuthenticated, isLoading, apiBaseURL } = useUISession();
   const requestedNext = searchParams.get("next");
+  const providerKey = searchParams.get("provider");
+  const authError = searchParams.get("error");
+  const authProvidersQuery = useQuery({
+    queryKey: ["ui-auth-providers", apiBaseURL],
+    queryFn: () => fetchUIAuthProviders({ runtimeBaseURL: apiBaseURL }),
+    enabled: Boolean(apiBaseURL),
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -73,11 +83,39 @@ export function SessionLoginScreen() {
         </section>
 
         <section className="flex items-center">
+          {authError ? (
+            <div className="sr-only">{authError}</div>
+          ) : null}
           <SessionLoginCard
             onSuccess={(nextSession) => {
               router.replace(resolveTarget(nextSession, requestedNext));
             }}
           />
+          {authProvidersQuery.data?.sso_providers?.length ? (
+            <div className="ml-6 w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/55 p-5 backdrop-blur-xl">
+              <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/80">Single sign-on</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Continue with your identity provider</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                Use SSO for browser sessions. API keys stay on API and integration traffic only.
+              </p>
+              <div className="mt-4 grid gap-3">
+                {authProvidersQuery.data.sso_providers.map((provider) => (
+                  <a
+                    key={provider.key}
+                    href={buildSSOStartURL(apiBaseURL, provider.key, requestedNext)}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-50 transition hover:bg-cyan-500/20"
+                  >
+                    Continue with {provider.display_name}
+                  </a>
+                ))}
+              </div>
+              {(providerKey || authError) && (
+                <p className="mt-3 text-xs text-amber-200">
+                  {resolveAuthErrorMessage(providerKey, authError)}
+                </p>
+              )}
+            </div>
+          ) : null}
         </section>
       </main>
     </div>
@@ -92,4 +130,33 @@ function FeatureCard({ icon, title, body }: { icon: React.ReactNode; title: stri
       <p className="mt-2 text-sm text-slate-300">{body}</p>
     </div>
   );
+}
+
+function buildSSOStartURL(apiBaseURL: string, providerKey: string, nextPath: string | null): string {
+  const baseURL = apiBaseURL.replace(/\/+$/, "");
+  const url = new URL(`${baseURL}/v1/ui/auth/sso/${encodeURIComponent(providerKey)}/start`);
+  if (nextPath) {
+    url.searchParams.set("next", normalizeNextPath(nextPath, "/"));
+  }
+  return url.toString()
+}
+
+function resolveAuthErrorMessage(providerKey: string | null, errorCode: string | null): string {
+  const label = providerKey ? ` for ${providerKey}` : "";
+  switch (errorCode) {
+    case "sso_user_not_provisioned":
+      return `No browser account is provisioned${label}. Ask an admin to grant platform or tenant access first.`;
+    case "sso_email_not_verified":
+      return `The identity provider did not return a verified email${label}.`;
+    case "tenant_selection_required":
+      return "This account spans more than one workspace. Start the SSO flow again with a target workspace route.";
+    case "tenant_access_denied":
+      return `This account is authenticated${label}, but it does not have access to the requested workspace.`;
+    case "user_disabled":
+      return "This browser account is disabled.";
+    case "sso_denied":
+      return `The sign-in request was cancelled${label}.`;
+    default:
+      return `Single sign-on failed${label}. Try again or use email and password.`;
+  }
 }

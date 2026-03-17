@@ -1081,6 +1081,91 @@ func (s *PostgresStore) ListUserTenantMemberships(userID string) ([]domain.UserT
 	return out, nil
 }
 
+func (s *PostgresStore) GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error) {
+	providerKey = strings.ToLower(strings.TrimSpace(providerKey))
+	subject = strings.TrimSpace(subject)
+	if providerKey == "" || subject == "" {
+		return domain.UserFederatedIdentity{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.UserFederatedIdentity{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, user_id, provider_key, provider_type, subject, email, email_verified, last_login_at, created_at, updated_at
+		FROM user_federated_identities
+		WHERE provider_key = $1 AND subject = $2`,
+		providerKey, subject)
+	out, err := scanUserFederatedIdentity(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.UserFederatedIdentity{}, ErrNotFound
+		}
+		return domain.UserFederatedIdentity{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.UserFederatedIdentity{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpsertUserFederatedIdentity(input domain.UserFederatedIdentity) (domain.UserFederatedIdentity, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.ProviderKey = strings.ToLower(strings.TrimSpace(input.ProviderKey))
+	input.ProviderType = domain.BrowserSSOProviderType(strings.ToLower(strings.TrimSpace(string(input.ProviderType))))
+	input.Subject = strings.TrimSpace(input.Subject)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	if input.UserID == "" || input.ProviderKey == "" || input.ProviderType == "" || input.Subject == "" {
+		return domain.UserFederatedIdentity{}, fmt.Errorf("validation failed: user_id, provider_key, provider_type, and subject are required")
+	}
+	if input.ID == "" {
+		input.ID = newID("ufi")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.UserFederatedIdentity{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `INSERT INTO user_federated_identities (
+			id, user_id, provider_key, provider_type, subject, email, email_verified, last_login_at, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (provider_key, subject) DO UPDATE
+		SET user_id = EXCLUDED.user_id,
+		    provider_type = EXCLUDED.provider_type,
+		    email = EXCLUDED.email,
+		    email_verified = EXCLUDED.email_verified,
+		    last_login_at = EXCLUDED.last_login_at,
+		    updated_at = EXCLUDED.updated_at
+		RETURNING id, user_id, provider_key, provider_type, subject, email, email_verified, last_login_at, created_at, updated_at`,
+		input.ID, input.UserID, input.ProviderKey, string(input.ProviderType), input.Subject, input.Email, input.EmailVerified, input.LastLoginAt, input.CreatedAt, input.UpdatedAt)
+	out, err := scanUserFederatedIdentity(row)
+	if err != nil {
+		return domain.UserFederatedIdentity{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.UserFederatedIdentity{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) CreateCustomer(input domain.Customer) (domain.Customer, error) {
 	input.TenantID = normalizeTenantID(input.TenantID)
 	input.ExternalID = strings.TrimSpace(input.ExternalID)
@@ -4713,6 +4798,21 @@ func scanUserTenantMembership(s rowScanner) (domain.UserTenantMembership, error)
 	out.TenantID = normalizeTenantID(out.TenantID)
 	out.Role = strings.ToLower(strings.TrimSpace(out.Role))
 	out.Status = domain.UserTenantMembershipStatus(strings.ToLower(strings.TrimSpace(status)))
+	return out, nil
+}
+
+func scanUserFederatedIdentity(s rowScanner) (domain.UserFederatedIdentity, error) {
+	var out domain.UserFederatedIdentity
+	var providerType string
+	if err := s.Scan(&out.ID, &out.UserID, &out.ProviderKey, &providerType, &out.Subject, &out.Email, &out.EmailVerified, &out.LastLoginAt, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.UserFederatedIdentity{}, err
+	}
+	out.ID = strings.TrimSpace(out.ID)
+	out.UserID = strings.TrimSpace(out.UserID)
+	out.ProviderKey = strings.ToLower(strings.TrimSpace(out.ProviderKey))
+	out.ProviderType = domain.BrowserSSOProviderType(strings.ToLower(strings.TrimSpace(providerType)))
+	out.Subject = strings.TrimSpace(out.Subject)
+	out.Email = strings.ToLower(strings.TrimSpace(out.Email))
 	return out, nil
 }
 

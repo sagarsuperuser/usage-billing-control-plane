@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -21,6 +22,22 @@ import (
 	"usage-billing-control-plane/internal/service"
 	"usage-billing-control-plane/internal/store"
 )
+
+type fakeHTTPSSOProvider struct {
+	definition service.BrowserSSOProviderDefinition
+}
+
+func (p fakeHTTPSSOProvider) Definition() service.BrowserSSOProviderDefinition {
+	return p.definition
+}
+
+func (p fakeHTTPSSOProvider) BuildAuthCodeURL(state, nonce, codeChallenge, redirectURI string) (string, error) {
+	return "https://idp.example.com/auth?state=" + state, nil
+}
+
+func (p fakeHTTPSSOProvider) Exchange(ctx context.Context, redirectURI, code, codeVerifier, nonce string) (service.BrowserSSOClaims, error) {
+	return service.BrowserSSOClaims{}, nil
+}
 
 func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
@@ -278,6 +295,87 @@ func TestUISessionCSRFProtectionForUnsafeMethods(t *testing.T) {
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/rating-rules", ruleBody, "", http.StatusForbidden)
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/rating-rules", ruleBody, "wrong-token", http.StatusForbidden)
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/rating-rules", ruleBody, csrfToken, http.StatusCreated)
+}
+
+func TestUIAuthProvidersListsConfiguredSSOProviders(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	authSvc, err := service.NewBrowserUserAuthService(repo)
+	if err != nil {
+		t.Fatalf("new browser auth service: %v", err)
+	}
+	ssoSvc, err := service.NewBrowserSSOService(
+		repo,
+		authSvc,
+		[]service.BrowserSSOProvider{
+			fakeHTTPSSOProvider{
+				definition: service.BrowserSSOProviderDefinition{
+					Key:         "google",
+					DisplayName: "Google Workspace",
+					Type:        domain.BrowserSSOProviderTypeOIDC,
+				},
+			},
+		},
+		service.BrowserSSOServiceConfig{},
+	)
+	if err != nil {
+		t.Fatalf("new browser sso service: %v", err)
+	}
+
+	handler := api.NewServer(
+		repo,
+		api.WithBrowserUserAuthService(authSvc),
+		api.WithBrowserSSOService(ssoSvc),
+	).Handler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/v1/ui/auth/providers")
+	if err != nil {
+		t.Fatalf("get auth providers: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	var payload struct {
+		PasswordEnabled bool `json:"password_enabled"`
+		SSOProviders    []struct {
+			Key         string `json:"key"`
+			DisplayName string `json:"display_name"`
+			Type        string `json:"type"`
+		} `json:"sso_providers"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode auth providers: %v", err)
+	}
+	if !payload.PasswordEnabled {
+		t.Fatalf("expected password login to stay enabled")
+	}
+	if len(payload.SSOProviders) != 1 {
+		t.Fatalf("expected one sso provider, got %d", len(payload.SSOProviders))
+	}
+	if payload.SSOProviders[0].Key != "google" {
+		t.Fatalf("expected google provider, got %#v", payload.SSOProviders[0])
+	}
 }
 
 func newSessionClient(t *testing.T) *http.Client {

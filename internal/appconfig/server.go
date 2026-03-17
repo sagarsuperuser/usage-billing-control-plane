@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -22,6 +23,7 @@ type ServerConfig struct {
 	Roles            RoleConfig
 	Temporal         TemporalConfig
 	UISession        UISessionConfig
+	SSO              SSOConfig
 	RateLimit        RateLimitConfig
 	Lago             LagoConfig
 	BillingProviders BillingProviderConfig
@@ -65,6 +67,21 @@ type UISessionConfig struct {
 	CookieSameSiteName string
 	RequireOrigin      bool
 	AllowedOrigins     []string
+}
+
+type SSOConfig struct {
+	PublicBaseURL      string
+	AutoProvisionUsers bool
+	OIDCProviders      []OIDCProviderConfig
+}
+
+type OIDCProviderConfig struct {
+	Key          string
+	DisplayName  string
+	IssuerURL    string
+	ClientID     string
+	ClientSecret string
+	Scopes       []string
 }
 
 type RateLimitConfig struct {
@@ -163,6 +180,15 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		return ServerConfig{}, fmt.Errorf("RATE_LIMIT_REDIS_URL is required when RATE_LIMIT_ENABLED=true")
 	}
 
+	oidcProviders, err := parseOIDCProviderConfigs(strings.TrimSpace(os.Getenv("UI_OIDC_PROVIDERS_JSON")))
+	if err != nil {
+		return ServerConfig{}, fmt.Errorf("failed to parse UI_OIDC_PROVIDERS_JSON: %w", err)
+	}
+	ssoPublicBaseURL := strings.TrimSpace(os.Getenv("UI_PUBLIC_BASE_URL"))
+	if len(oidcProviders) > 0 && ssoPublicBaseURL == "" {
+		return ServerConfig{}, fmt.Errorf("UI_PUBLIC_BASE_URL is required when UI_OIDC_PROVIDERS_JSON is configured")
+	}
+
 	lagoAPIURL := strings.TrimSpace(os.Getenv("LAGO_API_URL"))
 	if lagoAPIURL == "" {
 		return ServerConfig{}, fmt.Errorf("LAGO_API_URL is required")
@@ -235,6 +261,11 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			RequireOrigin:      uiSessionRequireOrigin,
 			AllowedOrigins:     allowedSessionOrigins,
 		},
+		SSO: SSOConfig{
+			PublicBaseURL:      strings.TrimRight(ssoPublicBaseURL, "/"),
+			AutoProvisionUsers: getBoolEnv("UI_SSO_AUTO_PROVISION_USERS", false),
+			OIDCProviders:      oidcProviders,
+		},
 		RateLimit: rateLimit,
 		Lago: LagoConfig{
 			APIURL:              lagoAPIURL,
@@ -277,6 +308,28 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func parseOIDCProviderConfigs(raw string) ([]OIDCProviderConfig, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	var providers []OIDCProviderConfig
+	if err := json.Unmarshal([]byte(raw), &providers); err != nil {
+		return nil, err
+	}
+	for i := range providers {
+		providers[i].Key = strings.ToLower(strings.TrimSpace(providers[i].Key))
+		providers[i].DisplayName = strings.TrimSpace(providers[i].DisplayName)
+		providers[i].IssuerURL = strings.TrimSpace(providers[i].IssuerURL)
+		providers[i].ClientID = strings.TrimSpace(providers[i].ClientID)
+		providers[i].ClientSecret = strings.TrimSpace(providers[i].ClientSecret)
+		if providers[i].Key == "" || providers[i].DisplayName == "" || providers[i].IssuerURL == "" || providers[i].ClientID == "" || providers[i].ClientSecret == "" {
+			return nil, fmt.Errorf("oidc provider key, display_name, issuer_url, client_id, and client_secret are required")
+		}
+	}
+	return providers, nil
 }
 
 type authRuntimeConfig struct {

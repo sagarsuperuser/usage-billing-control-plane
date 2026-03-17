@@ -11,11 +11,11 @@ import (
 )
 
 var (
-	ErrInvalidBrowserCredentials   = errors.New("invalid credentials")
-	ErrBrowserTenantSelection      = errors.New("tenant selection required")
-	ErrBrowserTenantAccessDenied   = errors.New("tenant access denied")
-	ErrBrowserUserDisabled         = errors.New("user disabled")
-	ErrBrowserPasswordUnavailable  = errors.New("password credential unavailable")
+	ErrInvalidBrowserCredentials  = errors.New("invalid credentials")
+	ErrBrowserTenantSelection     = errors.New("tenant selection required")
+	ErrBrowserTenantAccessDenied  = errors.New("tenant access denied")
+	ErrBrowserUserDisabled        = errors.New("user disabled")
+	ErrBrowserPasswordUnavailable = errors.New("password credential unavailable")
 )
 
 type BrowserUserAuthStore interface {
@@ -71,6 +71,15 @@ func (s *BrowserUserAuthService) Authenticate(req BrowserUserLoginRequest) (Brow
 	}
 	if err := CheckPasswordHash(password, credential.PasswordHash); err != nil {
 		return BrowserUserPrincipal{}, ErrInvalidBrowserCredentials
+	}
+
+	return s.ResolveUserPrincipal(user, requestedTenantID)
+}
+
+func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID string) (BrowserUserPrincipal, error) {
+	requestedTenantID := normalizeBrowserTenantID(strings.TrimSpace(tenantID))
+	if user.Status != domain.UserStatusActive {
+		return BrowserUserPrincipal{}, ErrBrowserUserDisabled
 	}
 
 	if user.PlatformRole == domain.UserPlatformRoleAdmin && requestedTenantID == "" {

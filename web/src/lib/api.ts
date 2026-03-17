@@ -17,6 +17,7 @@ import {
   Tenant,
   TenantOnboardingReadiness,
   TenantOnboardingResult,
+  UIAuthProviderList,
   UISession,
 } from "@/lib/types";
 
@@ -141,6 +142,19 @@ export async function fetchUISession(input: {
     runtimeBaseURL: input.runtimeBaseURL,
     allowUnauthorized: true,
   });
+}
+
+export async function fetchUIAuthProviders(input: {
+  runtimeBaseURL?: string;
+}): Promise<UIAuthProviderList> {
+  const payload = await apiRequest<UIAuthProviderList>("/v1/ui/auth/providers", {
+    method: "GET",
+    runtimeBaseURL: input.runtimeBaseURL,
+  });
+  if (!payload) {
+    throw new Error("failed to load auth providers");
+  }
+  return payload;
 }
 
 export async function logoutUISession(input: {

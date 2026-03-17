@@ -226,6 +226,8 @@ type Repository interface {
 	GetUserPasswordCredential(userID string) (domain.UserPasswordCredential, error)
 	UpsertUserTenantMembership(input domain.UserTenantMembership) (domain.UserTenantMembership, error)
 	ListUserTenantMemberships(userID string) ([]domain.UserTenantMembership, error)
+	GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error)
+	UpsertUserFederatedIdentity(input domain.UserFederatedIdentity) (domain.UserFederatedIdentity, error)
 	CreateCustomer(input domain.Customer) (domain.Customer, error)
 	GetCustomer(tenantID, id string) (domain.Customer, error)
 	GetCustomerByExternalID(tenantID, externalID string) (domain.Customer, error)

@@ -32,6 +32,17 @@ export interface UISession {
   expires_at?: string;
 }
 
+export interface UIAuthProvider {
+  key: string;
+  display_name: string;
+  type: "oidc";
+}
+
+export interface UIAuthProviderList {
+  password_enabled: boolean;
+  sso_providers: UIAuthProvider[];
+}
+
 export interface Tenant {
   id: string;
   name: string;
