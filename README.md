@@ -623,6 +623,7 @@ Architecture and rollout docs:
 - `docs/alpha-implementation-roadmap.md`
 - `docs/alpha-lago-adapter-plan.md`
 - `docs/alpha-customer-model.md`
+- `docs/alpha-provider-connect-plan.md`
 - `docs/ui-redesign-plan.md`
 - `docs/ui-information-architecture-plan.md`
 - `docs/infra-rollout-runbook.md`

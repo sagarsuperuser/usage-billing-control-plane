@@ -30,34 +30,35 @@ import (
 )
 
 type Server struct {
-	repo                      store.Repository
-	ratingService             *service.RatingService
-	tenantService             *service.TenantService
-	customerService           *service.CustomerService
-	customerOnboardingService *service.CustomerOnboardingService
-	meterService              *service.MeterService
-	usageService              *service.UsageService
-	apiKeyService             *service.APIKeyService
-	onboardingService         *service.TenantOnboardingService
-	auditExportSvc            *service.AuditExportService
-	meterSyncAdapter          service.MeterSyncAdapter
-	invoiceBillingAdapter     service.InvoiceBillingAdapter
-	customerBillingAdapter    service.CustomerBillingAdapter
-	lagoWebhookSvc            *service.LagoWebhookService
-	replayService             *replay.Service
-	recService                *reconcile.Service
-	authorizer                APIKeyAuthorizer
-	sessionManager            *scs.SessionManager
-	metricsFn                 func() map[string]any
-	readinessFn               func() error
-	requestMetrics            *requestMetricsCollector
-	logger                    *slog.Logger
-	rateLimiter               RateLimiter
-	rateLimitFailOpen         bool
-	rateLimitLoginFailOpen    bool
-	requireSessionOriginCheck bool
-	allowedSessionOrigins     map[string]struct{}
-	mux                       *http.ServeMux
+	repo                             store.Repository
+	ratingService                    *service.RatingService
+	tenantService                    *service.TenantService
+	customerService                  *service.CustomerService
+	customerOnboardingService        *service.CustomerOnboardingService
+	billingProviderConnectionService *service.BillingProviderConnectionService
+	meterService                     *service.MeterService
+	usageService                     *service.UsageService
+	apiKeyService                    *service.APIKeyService
+	onboardingService                *service.TenantOnboardingService
+	auditExportSvc                   *service.AuditExportService
+	meterSyncAdapter                 service.MeterSyncAdapter
+	invoiceBillingAdapter            service.InvoiceBillingAdapter
+	customerBillingAdapter           service.CustomerBillingAdapter
+	lagoWebhookSvc                   *service.LagoWebhookService
+	replayService                    *replay.Service
+	recService                       *reconcile.Service
+	authorizer                       APIKeyAuthorizer
+	sessionManager                   *scs.SessionManager
+	metricsFn                        func() map[string]any
+	readinessFn                      func() error
+	requestMetrics                   *requestMetricsCollector
+	logger                           *slog.Logger
+	rateLimiter                      RateLimiter
+	rateLimitFailOpen                bool
+	rateLimitLoginFailOpen           bool
+	requireSessionOriginCheck        bool
+	allowedSessionOrigins            map[string]struct{}
+	mux                              *http.ServeMux
 }
 
 const (
@@ -302,6 +303,12 @@ func WithInvoiceBillingAdapter(adapter service.InvoiceBillingAdapter) ServerOpti
 func WithCustomerBillingAdapter(adapter service.CustomerBillingAdapter) ServerOption {
 	return func(s *Server) {
 		s.customerBillingAdapter = adapter
+	}
+}
+
+func WithBillingProviderConnectionService(svc *service.BillingProviderConnectionService) ServerOption {
+	return func(s *Server) {
+		s.billingProviderConnectionService = svc
 	}
 }
 
@@ -1103,6 +1110,12 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/internal/tenants/audit" {
 		return RoleAdmin, true
 	}
+	if path == "/internal/billing-provider-connections" {
+		return RoleAdmin, true
+	}
+	if strings.HasPrefix(path, "/internal/billing-provider-connections/") {
+		return RoleAdmin, true
+	}
 	if path == "/internal/onboarding/tenants" {
 		return RoleAdmin, true
 	}
@@ -1246,6 +1259,10 @@ func requiresPlatformScope(r *http.Request) bool {
 		return true
 	case path == "/internal/ready":
 		return true
+	case path == "/internal/billing-provider-connections":
+		return true
+	case strings.HasPrefix(path, "/internal/billing-provider-connections/"):
+		return true
 	case path == "/internal/onboarding/tenants":
 		return true
 	case strings.HasPrefix(path, "/internal/onboarding/tenants/"):
@@ -1286,6 +1303,10 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/lago/webhooks"
 	case path == "/internal/tenants/audit":
 		return "/internal/tenants/audit"
+	case path == "/internal/billing-provider-connections":
+		return "/internal/billing-provider-connections"
+	case strings.HasPrefix(path, "/internal/billing-provider-connections/"):
+		return "/internal/billing-provider-connections/{id}"
 	case path == "/internal/tenants":
 		return "/internal/tenants"
 	case strings.HasPrefix(path, "/internal/tenants/"):
@@ -1420,6 +1441,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/internal/lago/webhooks", s.handleLagoWebhooks)
 	s.mux.HandleFunc("/internal/onboarding/tenants", s.handleInternalOnboardingTenants)
 	s.mux.HandleFunc("/internal/onboarding/tenants/", s.handleInternalOnboardingTenantByID)
+	s.mux.HandleFunc("/internal/billing-provider-connections", s.handleInternalBillingProviderConnections)
+	s.mux.HandleFunc("/internal/billing-provider-connections/", s.handleInternalBillingProviderConnectionByID)
 	s.mux.HandleFunc("/internal/tenants/audit", s.handleInternalTenantAudit)
 	s.mux.HandleFunc("/internal/tenants", s.handleInternalTenants)
 	s.mux.HandleFunc("/internal/tenants/", s.handleInternalTenantByID)

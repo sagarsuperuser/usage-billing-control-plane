@@ -118,6 +118,8 @@ Exit criteria:
 
 ## Phase 4: Replace Lago-First Setup With Alpha-First Setup
 
+Use [alpha-provider-connect-plan.md](./alpha-provider-connect-plan.md) as the concrete execution plan for this phase.
+
 Goal:
 - make Alpha the operational entrypoint even for billing setup
 

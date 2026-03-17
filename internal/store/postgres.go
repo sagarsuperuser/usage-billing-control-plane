@@ -76,6 +76,7 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	input.ID = normalizeTenantID(input.ID)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Status = normalizeTenantStatus(input.Status)
+	input.BillingProviderConnectionID = normalizeOptionalText(input.BillingProviderConnectionID)
 	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
 	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
 	if input.Name == "" {
@@ -100,12 +101,13 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 
 	row := tx.QueryRowContext(
 		ctx,
-		`INSERT INTO tenants (id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at)
-		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), $6, $7)
-		RETURNING id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
+		`INSERT INTO tenants (id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), $7, $8)
+		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
 		input.ID,
 		input.Name,
 		string(input.Status),
+		input.BillingProviderConnectionID,
 		input.LagoOrganizationID,
 		input.LagoBillingProviderCode,
 		input.CreatedAt,
@@ -138,7 +140,7 @@ func (s *PostgresStore) GetTenant(id string) (domain.Tenant, error) {
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at
+		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, created_at, updated_at
 		FROM tenants
 		WHERE id = $1`,
 		id,
@@ -173,7 +175,7 @@ func (s *PostgresStore) GetTenantByLagoOrganizationID(organizationID string) (do
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at
+		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, created_at, updated_at
 		FROM tenants
 		WHERE lago_organization_id = $1`,
 		organizationID,
@@ -195,6 +197,7 @@ func (s *PostgresStore) UpdateTenant(input domain.Tenant) (domain.Tenant, error)
 	input.ID = normalizeTenantID(input.ID)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Status = normalizeTenantStatus(input.Status)
+	input.BillingProviderConnectionID = normalizeOptionalText(input.BillingProviderConnectionID)
 	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
 	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
 	if input.Name == "" {
@@ -218,13 +221,15 @@ func (s *PostgresStore) UpdateTenant(input domain.Tenant) (domain.Tenant, error)
 		`UPDATE tenants
 		SET name = $1,
 		    status = $2,
-		    lago_organization_id = NULLIF($3,''),
-		    lago_billing_provider_code = NULLIF($4,''),
-		    updated_at = $5
-		WHERE id = $6
-		RETURNING id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
+		    billing_provider_connection_id = NULLIF($3,''),
+		    lago_organization_id = NULLIF($4,''),
+		    lago_billing_provider_code = NULLIF($5,''),
+		    updated_at = $6
+		WHERE id = $7
+		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
 		input.Name,
 		string(input.Status),
+		input.BillingProviderConnectionID,
 		input.LagoOrganizationID,
 		input.LagoBillingProviderCode,
 		input.UpdatedAt,
@@ -258,7 +263,7 @@ func (s *PostgresStore) ListTenants(status string) ([]domain.Tenant, error) {
 	}
 	defer rollbackSilently(tx)
 
-	query := `SELECT id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at FROM tenants`
+	query := `SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, created_at, updated_at FROM tenants`
 	args := []any{}
 	if status != "" {
 		query += ` WHERE status = $1`
@@ -310,7 +315,7 @@ func (s *PostgresStore) UpdateTenantStatus(id string, status domain.TenantStatus
 		`UPDATE tenants
 		SET status = $1, updated_at = $2
 		WHERE id = $3
-		RETURNING id, name, status, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
+		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, created_at, updated_at`,
 		string(status),
 		updatedAt,
 		id,
@@ -492,6 +497,288 @@ func rollbackSilently(tx *sql.Tx) {
 	if tx != nil {
 		_ = tx.Rollback()
 	}
+}
+
+func (s *PostgresStore) CreateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error) {
+	input.ProviderType = domain.BillingProviderType(strings.ToLower(strings.TrimSpace(string(input.ProviderType))))
+	input.Environment = strings.ToLower(strings.TrimSpace(input.Environment))
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	input.Scope = domain.BillingProviderConnectionScope(strings.ToLower(strings.TrimSpace(string(input.Scope))))
+	input.OwnerTenantID = normalizeOptionalText(input.OwnerTenantID)
+	input.Status = domain.BillingProviderConnectionStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
+	input.LagoProviderCode = normalizeOptionalText(input.LagoProviderCode)
+	input.SecretRef = normalizeOptionalText(input.SecretRef)
+	input.LastSyncError = normalizeOptionalText(input.LastSyncError)
+	input.CreatedByType = strings.ToLower(strings.TrimSpace(input.CreatedByType))
+	input.CreatedByID = normalizeOptionalText(input.CreatedByID)
+
+	if input.ProviderType == "" || input.Environment == "" || input.DisplayName == "" || input.Scope == "" || input.Status == "" || input.CreatedByType == "" {
+		return domain.BillingProviderConnection{}, fmt.Errorf("validation failed: provider_type, environment, display_name, scope, status, and created_by_type are required")
+	}
+	if input.ID == "" {
+		input.ID = newID("bpc")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.BillingProviderConnection{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO billing_provider_connections (
+			id, provider_type, environment, display_name, scope, owner_tenant_id, status,
+			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),$11,NULLIF($12,''),$13,$14,$15,NULLIF($16,''),$17,$18)
+		RETURNING id, provider_type, environment, display_name, scope, owner_tenant_id, status,
+			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at`,
+		input.ID,
+		string(input.ProviderType),
+		input.Environment,
+		input.DisplayName,
+		string(input.Scope),
+		input.OwnerTenantID,
+		string(input.Status),
+		input.LagoOrganizationID,
+		input.LagoProviderCode,
+		input.SecretRef,
+		input.LastSyncedAt,
+		input.LastSyncError,
+		input.ConnectedAt,
+		input.DisabledAt,
+		input.CreatedByType,
+		input.CreatedByID,
+		input.CreatedAt,
+		input.UpdatedAt,
+	)
+	out, err := scanBillingProviderConnection(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.BillingProviderConnection{}, ErrAlreadyExists
+		}
+		return domain.BillingProviderConnection{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.BillingProviderConnection{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetBillingProviderConnection(id string) (domain.BillingProviderConnection, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.BillingProviderConnection{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.BillingProviderConnection{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, provider_type, environment, display_name, scope, owner_tenant_id, status,
+			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at
+		FROM billing_provider_connections
+		WHERE id = $1`,
+		id,
+	)
+	out, err := scanBillingProviderConnection(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.BillingProviderConnection{}, ErrNotFound
+		}
+		return domain.BillingProviderConnection{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.BillingProviderConnection{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListBillingProviderConnections(filter BillingProviderConnectionListFilter) ([]domain.BillingProviderConnection, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"1=1"}
+	args := []any{}
+	nextArg := 1
+	if providerType := strings.ToLower(strings.TrimSpace(filter.ProviderType)); providerType != "" {
+		clauses = append(clauses, fmt.Sprintf("provider_type = $%d", nextArg))
+		args = append(args, providerType)
+		nextArg++
+	}
+	if environment := strings.ToLower(strings.TrimSpace(filter.Environment)); environment != "" {
+		clauses = append(clauses, fmt.Sprintf("environment = $%d", nextArg))
+		args = append(args, environment)
+		nextArg++
+	}
+	if status := strings.ToLower(strings.TrimSpace(filter.Status)); status != "" {
+		clauses = append(clauses, fmt.Sprintf("status = $%d", nextArg))
+		args = append(args, status)
+		nextArg++
+	}
+	if scope := strings.ToLower(strings.TrimSpace(filter.Scope)); scope != "" {
+		clauses = append(clauses, fmt.Sprintf("scope = $%d", nextArg))
+		args = append(args, scope)
+		nextArg++
+	}
+	if ownerTenantID := normalizeOptionalText(filter.OwnerTenantID); ownerTenantID != "" {
+		clauses = append(clauses, fmt.Sprintf("owner_tenant_id = $%d", nextArg))
+		args = append(args, ownerTenantID)
+		nextArg++
+	}
+	query := fmt.Sprintf(`SELECT id, provider_type, environment, display_name, scope, owner_tenant_id, status,
+		lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+		connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at
+	FROM billing_provider_connections
+	WHERE %s
+	ORDER BY created_at DESC, id ASC
+	LIMIT $%d OFFSET $%d`, strings.Join(clauses, " AND "), nextArg, nextArg+1)
+	args = append(args, limit, offset)
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.BillingProviderConnection, 0)
+	for rows.Next() {
+		item, scanErr := scanBillingProviderConnection(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.ProviderType = domain.BillingProviderType(strings.ToLower(strings.TrimSpace(string(input.ProviderType))))
+	input.Environment = strings.ToLower(strings.TrimSpace(input.Environment))
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	input.Scope = domain.BillingProviderConnectionScope(strings.ToLower(strings.TrimSpace(string(input.Scope))))
+	input.OwnerTenantID = normalizeOptionalText(input.OwnerTenantID)
+	input.Status = domain.BillingProviderConnectionStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
+	input.LagoProviderCode = normalizeOptionalText(input.LagoProviderCode)
+	input.SecretRef = normalizeOptionalText(input.SecretRef)
+	input.LastSyncError = normalizeOptionalText(input.LastSyncError)
+	input.CreatedByType = strings.ToLower(strings.TrimSpace(input.CreatedByType))
+	input.CreatedByID = normalizeOptionalText(input.CreatedByID)
+	if input.ID == "" || input.ProviderType == "" || input.Environment == "" || input.DisplayName == "" || input.Scope == "" || input.Status == "" || input.CreatedByType == "" {
+		return domain.BillingProviderConnection{}, fmt.Errorf("validation failed: id, provider_type, environment, display_name, scope, status, and created_by_type are required")
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.BillingProviderConnection{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE billing_provider_connections
+		SET provider_type = $1,
+		    environment = $2,
+		    display_name = $3,
+		    scope = $4,
+		    owner_tenant_id = NULLIF($5,''),
+		    status = $6,
+		    lago_organization_id = NULLIF($7,''),
+		    lago_provider_code = NULLIF($8,''),
+		    secret_ref = NULLIF($9,''),
+		    last_synced_at = $10,
+		    last_sync_error = NULLIF($11,''),
+		    connected_at = $12,
+		    disabled_at = $13,
+		    created_by_type = $14,
+		    created_by_id = NULLIF($15,''),
+		    updated_at = $16
+		WHERE id = $17
+		RETURNING id, provider_type, environment, display_name, scope, owner_tenant_id, status,
+			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at`,
+		string(input.ProviderType),
+		input.Environment,
+		input.DisplayName,
+		string(input.Scope),
+		input.OwnerTenantID,
+		string(input.Status),
+		input.LagoOrganizationID,
+		input.LagoProviderCode,
+		input.SecretRef,
+		input.LastSyncedAt,
+		input.LastSyncError,
+		input.ConnectedAt,
+		input.DisabledAt,
+		input.CreatedByType,
+		input.CreatedByID,
+		input.UpdatedAt,
+		input.ID,
+	)
+	out, err := scanBillingProviderConnection(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.BillingProviderConnection{}, ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return domain.BillingProviderConnection{}, ErrAlreadyExists
+		}
+		return domain.BillingProviderConnection{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.BillingProviderConnection{}, err
+	}
+	return out, nil
 }
 
 func (s *PostgresStore) CreateCustomer(input domain.Customer) (domain.Customer, error) {
@@ -3993,13 +4280,17 @@ func scanReplayJob(s rowScanner) (domain.ReplayJob, error) {
 func scanTenant(s rowScanner) (domain.Tenant, error) {
 	var out domain.Tenant
 	var status string
+	var billingProviderConnectionID sql.NullString
 	var lagoOrganizationID sql.NullString
 	var lagoBillingProviderCode sql.NullString
-	if err := s.Scan(&out.ID, &out.Name, &status, &lagoOrganizationID, &lagoBillingProviderCode, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	if err := s.Scan(&out.ID, &out.Name, &status, &billingProviderConnectionID, &lagoOrganizationID, &lagoBillingProviderCode, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.Tenant{}, err
 	}
 	out.ID = normalizeTenantID(out.ID)
 	out.Name = strings.TrimSpace(out.Name)
+	if billingProviderConnectionID.Valid {
+		out.BillingProviderConnectionID = normalizeOptionalText(billingProviderConnectionID.String)
+	}
 	if lagoOrganizationID.Valid {
 		out.LagoOrganizationID = normalizeOptionalText(lagoOrganizationID.String)
 	}
@@ -4007,6 +4298,83 @@ func scanTenant(s rowScanner) (domain.Tenant, error) {
 		out.LagoBillingProviderCode = normalizeOptionalText(lagoBillingProviderCode.String)
 	}
 	out.Status = normalizeTenantStatus(domain.TenantStatus(status))
+	return out, nil
+}
+
+func scanBillingProviderConnection(s rowScanner) (domain.BillingProviderConnection, error) {
+	var out domain.BillingProviderConnection
+	var providerType string
+	var scope string
+	var status string
+	var ownerTenantID sql.NullString
+	var lagoOrganizationID sql.NullString
+	var lagoProviderCode sql.NullString
+	var secretRef sql.NullString
+	var lastSyncedAt sql.NullTime
+	var lastSyncError sql.NullString
+	var connectedAt sql.NullTime
+	var disabledAt sql.NullTime
+	var createdByID sql.NullString
+
+	if err := s.Scan(
+		&out.ID,
+		&providerType,
+		&out.Environment,
+		&out.DisplayName,
+		&scope,
+		&ownerTenantID,
+		&status,
+		&lagoOrganizationID,
+		&lagoProviderCode,
+		&secretRef,
+		&lastSyncedAt,
+		&lastSyncError,
+		&connectedAt,
+		&disabledAt,
+		&out.CreatedByType,
+		&createdByID,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	); err != nil {
+		return domain.BillingProviderConnection{}, err
+	}
+
+	out.ProviderType = domain.BillingProviderType(strings.ToLower(strings.TrimSpace(providerType)))
+	out.Environment = strings.ToLower(strings.TrimSpace(out.Environment))
+	out.DisplayName = strings.TrimSpace(out.DisplayName)
+	out.Scope = domain.BillingProviderConnectionScope(strings.ToLower(strings.TrimSpace(scope)))
+	out.Status = domain.BillingProviderConnectionStatus(strings.ToLower(strings.TrimSpace(status)))
+	out.CreatedByType = strings.ToLower(strings.TrimSpace(out.CreatedByType))
+	if ownerTenantID.Valid {
+		out.OwnerTenantID = normalizeOptionalText(ownerTenantID.String)
+	}
+	if lagoOrganizationID.Valid {
+		out.LagoOrganizationID = normalizeOptionalText(lagoOrganizationID.String)
+	}
+	if lagoProviderCode.Valid {
+		out.LagoProviderCode = normalizeOptionalText(lagoProviderCode.String)
+	}
+	if secretRef.Valid {
+		out.SecretRef = normalizeOptionalText(secretRef.String)
+	}
+	if lastSyncedAt.Valid {
+		t := lastSyncedAt.Time.UTC()
+		out.LastSyncedAt = &t
+	}
+	if lastSyncError.Valid {
+		out.LastSyncError = normalizeOptionalText(lastSyncError.String)
+	}
+	if connectedAt.Valid {
+		t := connectedAt.Time.UTC()
+		out.ConnectedAt = &t
+	}
+	if disabledAt.Valid {
+		t := disabledAt.Time.UTC()
+		out.DisabledAt = &t
+	}
+	if createdByID.Valid {
+		out.CreatedByID = normalizeOptionalText(createdByID.String)
+	}
 	return out, nil
 }
 

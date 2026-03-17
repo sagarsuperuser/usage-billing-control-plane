@@ -18,14 +18,58 @@ const (
 	TenantStatusDeleted   TenantStatus = "deleted"
 )
 
+type BillingProviderType string
+
+const (
+	BillingProviderTypeStripe BillingProviderType = "stripe"
+)
+
+type BillingProviderConnectionStatus string
+
+const (
+	BillingProviderConnectionStatusPending   BillingProviderConnectionStatus = "pending"
+	BillingProviderConnectionStatusConnected BillingProviderConnectionStatus = "connected"
+	BillingProviderConnectionStatusSyncError BillingProviderConnectionStatus = "sync_error"
+	BillingProviderConnectionStatusDisabled  BillingProviderConnectionStatus = "disabled"
+)
+
+type BillingProviderConnectionScope string
+
+const (
+	BillingProviderConnectionScopePlatform BillingProviderConnectionScope = "platform"
+	BillingProviderConnectionScopeTenant   BillingProviderConnectionScope = "tenant"
+)
+
 type Tenant struct {
-	ID                      string       `json:"id"`
-	Name                    string       `json:"name"`
-	Status                  TenantStatus `json:"status"`
-	LagoOrganizationID      string       `json:"lago_organization_id,omitempty"`
-	LagoBillingProviderCode string       `json:"lago_billing_provider_code,omitempty"`
-	CreatedAt               time.Time    `json:"created_at"`
-	UpdatedAt               time.Time    `json:"updated_at"`
+	ID                          string       `json:"id"`
+	Name                        string       `json:"name"`
+	Status                      TenantStatus `json:"status"`
+	BillingProviderConnectionID string       `json:"billing_provider_connection_id,omitempty"`
+	LagoOrganizationID          string       `json:"lago_organization_id,omitempty"`
+	LagoBillingProviderCode     string       `json:"lago_billing_provider_code,omitempty"`
+	CreatedAt                   time.Time    `json:"created_at"`
+	UpdatedAt                   time.Time    `json:"updated_at"`
+}
+
+type BillingProviderConnection struct {
+	ID                 string                          `json:"id"`
+	ProviderType       BillingProviderType             `json:"provider_type"`
+	Environment        string                          `json:"environment"`
+	DisplayName        string                          `json:"display_name"`
+	Scope              BillingProviderConnectionScope  `json:"scope"`
+	OwnerTenantID      string                          `json:"owner_tenant_id,omitempty"`
+	Status             BillingProviderConnectionStatus `json:"status"`
+	LagoOrganizationID string                          `json:"lago_organization_id,omitempty"`
+	LagoProviderCode   string                          `json:"lago_provider_code,omitempty"`
+	SecretRef          string                          `json:"secret_ref,omitempty"`
+	LastSyncedAt       *time.Time                      `json:"last_synced_at,omitempty"`
+	LastSyncError      string                          `json:"last_sync_error,omitempty"`
+	ConnectedAt        *time.Time                      `json:"connected_at,omitempty"`
+	DisabledAt         *time.Time                      `json:"disabled_at,omitempty"`
+	CreatedByType      string                          `json:"created_by_type"`
+	CreatedByID        string                          `json:"created_by_id,omitempty"`
+	CreatedAt          time.Time                       `json:"created_at"`
+	UpdatedAt          time.Time                       `json:"updated_at"`
 }
 
 type CustomerStatus string

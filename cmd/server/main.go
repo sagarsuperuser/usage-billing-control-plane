@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -217,6 +218,27 @@ func main() {
 	)
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL)
 
+	if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
+		billingSecretStore, err := newBillingSecretStore(context.Background(), cfg.BillingProviders)
+		if err != nil {
+			fatal(logger, "initialize billing provider secret store", "error", err)
+		}
+		billingProviderSvc := service.NewBillingProviderConnectionService(
+			repo,
+			billingSecretStore,
+			service.NewLagoBillingProviderAdapter(lagoTransport, cfg.BillingProviders.StripeSuccessRedirectURL),
+		)
+		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
+		logger.Info(
+			"billing provider connections enabled",
+			"component", "server",
+			"secret_store_backend", cfg.BillingProviders.SecretStoreBackend,
+			"stripe_success_redirect_url", cfg.BillingProviders.StripeSuccessRedirectURL,
+		)
+	} else {
+		logger.Info("billing provider connections disabled", "component", "server")
+	}
+
 	if cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler {
 		if temporalClient == nil {
 			fatal(logger, "temporal client is required when payment reconcile roles are enabled")
@@ -398,5 +420,25 @@ func buildMetricsProvider(replayTemporalDispatcher *replay.TemporalDispatcher, d
 			out["replay_temporal_dispatcher"] = replayTemporalDispatcher.Stats()
 		}
 		return out
+	}
+}
+
+func newBillingSecretStore(ctx context.Context, cfg appconfig.BillingProviderConfig) (service.BillingSecretStore, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.SecretStoreBackend)) {
+	case "memory":
+		return service.NewMemoryBillingSecretStore(), nil
+	case "aws-secretsmanager":
+		return service.NewAWSSecretsManagerBillingSecretStore(ctx, service.AWSSecretsManagerBillingSecretStoreConfig{
+			Region:          cfg.SecretStoreAWSRegion,
+			Endpoint:        cfg.SecretStoreAWSEndpoint,
+			Prefix:          cfg.SecretStorePrefix,
+			AccessKeyID:     cfg.SecretStoreAccessKeyID,
+			SecretAccessKey: cfg.SecretStoreSecretAccessKey,
+			SessionToken:    cfg.SecretStoreSessionToken,
+		})
+	case "":
+		return nil, fmt.Errorf("billing provider secret store backend is required")
+	default:
+		return nil, fmt.Errorf("unsupported billing provider secret store backend %q", cfg.SecretStoreBackend)
 	}
 }

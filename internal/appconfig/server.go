@@ -15,18 +15,19 @@ import (
 )
 
 type ServerConfig struct {
-	RuntimeEnv     string
-	ProductionLike bool
-	Port           string
-	DB             DBConfig
-	Roles          RoleConfig
-	Temporal       TemporalConfig
-	UISession      UISessionConfig
-	RateLimit      RateLimitConfig
-	Lago           LagoConfig
-	Payment        PaymentReconcileConfig
-	APIKeysRaw     string
-	AuditExport    AuditExportConfig
+	RuntimeEnv       string
+	ProductionLike   bool
+	Port             string
+	DB               DBConfig
+	Roles            RoleConfig
+	Temporal         TemporalConfig
+	UISession        UISessionConfig
+	RateLimit        RateLimitConfig
+	Lago             LagoConfig
+	BillingProviders BillingProviderConfig
+	Payment          PaymentReconcileConfig
+	APIKeysRaw       string
+	AuditExport      AuditExportConfig
 }
 
 type DBConfig struct {
@@ -80,6 +81,17 @@ type LagoConfig struct {
 	APIKey              string
 	HTTPTimeout         time.Duration
 	WebhookPublicKeyTTL time.Duration
+}
+
+type BillingProviderConfig struct {
+	SecretStoreBackend         string
+	SecretStoreAWSRegion       string
+	SecretStoreAWSEndpoint     string
+	SecretStorePrefix          string
+	SecretStoreAccessKeyID     string
+	SecretStoreSecretAccessKey string
+	SecretStoreSessionToken    string
+	StripeSuccessRedirectURL   string
 }
 
 type PaymentReconcileConfig struct {
@@ -159,6 +171,30 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	if lagoAPIKey == "" {
 		return ServerConfig{}, fmt.Errorf("LAGO_API_KEY is required")
 	}
+	billingProviderSecretStoreBackend := strings.ToLower(strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_BACKEND")))
+	billingProviderSecretStoreAccessKeyID := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_ACCESS_KEY_ID"))
+	if billingProviderSecretStoreAccessKeyID == "" {
+		billingProviderSecretStoreAccessKeyID = strings.TrimSpace(os.Getenv("AWS_ACCESS_KEY_ID"))
+	}
+	billingProviderSecretStoreSecretAccessKey := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_SECRET_ACCESS_KEY"))
+	if billingProviderSecretStoreSecretAccessKey == "" {
+		billingProviderSecretStoreSecretAccessKey = strings.TrimSpace(os.Getenv("AWS_SECRET_ACCESS_KEY"))
+	}
+	billingProviderSecretStoreSessionToken := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_SESSION_TOKEN"))
+	if billingProviderSecretStoreSessionToken == "" {
+		billingProviderSecretStoreSessionToken = strings.TrimSpace(os.Getenv("AWS_SESSION_TOKEN"))
+	}
+	billingProviderStripeSuccessRedirectURL := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_STRIPE_SUCCESS_REDIRECT_URL"))
+	if billingProviderSecretStoreBackend != "" {
+		switch billingProviderSecretStoreBackend {
+		case "memory", "aws-secretsmanager":
+		default:
+			return ServerConfig{}, fmt.Errorf("BILLING_PROVIDER_SECRET_STORE_BACKEND must be memory or aws-secretsmanager")
+		}
+		if billingProviderStripeSuccessRedirectURL == "" {
+			return ServerConfig{}, fmt.Errorf("BILLING_PROVIDER_STRIPE_SUCCESS_REDIRECT_URL is required when billing provider connections are enabled")
+		}
+	}
 	accessKeyID := strings.TrimSpace(os.Getenv("AUDIT_EXPORT_S3_ACCESS_KEY_ID"))
 	if accessKeyID == "" {
 		accessKeyID = strings.TrimSpace(os.Getenv("AWS_ACCESS_KEY_ID"))
@@ -205,6 +241,16 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			APIKey:              lagoAPIKey,
 			HTTPTimeout:         time.Duration(getIntEnv("LAGO_HTTP_TIMEOUT_MS", 10000)) * time.Millisecond,
 			WebhookPublicKeyTTL: time.Duration(getIntEnv("LAGO_WEBHOOK_PUBLIC_KEY_TTL_SEC", 300)) * time.Second,
+		},
+		BillingProviders: BillingProviderConfig{
+			SecretStoreBackend:         billingProviderSecretStoreBackend,
+			SecretStoreAWSRegion:       firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_AWS_REGION")), strings.TrimSpace(os.Getenv("AWS_REGION")), strings.TrimSpace(os.Getenv("AWS_DEFAULT_REGION"))),
+			SecretStoreAWSEndpoint:     strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_AWS_ENDPOINT")),
+			SecretStorePrefix:          strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_PREFIX")),
+			SecretStoreAccessKeyID:     billingProviderSecretStoreAccessKeyID,
+			SecretStoreSecretAccessKey: billingProviderSecretStoreSecretAccessKey,
+			SecretStoreSessionToken:    billingProviderSecretStoreSessionToken,
+			StripeSuccessRedirectURL:   billingProviderStripeSuccessRedirectURL,
 		},
 		Payment: PaymentReconcileConfig{
 			TaskQueue:         firstNonEmpty(strings.TrimSpace(os.Getenv("PAYMENT_RECONCILE_TEMPORAL_TASK_QUEUE")), paymentsync.DefaultTemporalPaymentReconcileTaskQueue),

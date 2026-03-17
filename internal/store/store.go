@@ -44,6 +44,16 @@ type CustomerListFilter struct {
 	Offset     int
 }
 
+type BillingProviderConnectionListFilter struct {
+	ProviderType  string
+	Environment   string
+	Status        string
+	Scope         string
+	OwnerTenantID string
+	Limit         int
+	Offset        int
+}
+
 type APIKeyListFilter struct {
 	TenantID      string
 	Role          string
@@ -204,6 +214,10 @@ type Repository interface {
 	UpdateTenantStatus(id string, status domain.TenantStatus, updatedAt time.Time) (domain.Tenant, error)
 	CreateTenantAuditEvent(input domain.TenantAuditEvent) (domain.TenantAuditEvent, error)
 	ListTenantAuditEvents(filter TenantAuditFilter) (TenantAuditResult, error)
+	CreateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error)
+	GetBillingProviderConnection(id string) (domain.BillingProviderConnection, error)
+	ListBillingProviderConnections(filter BillingProviderConnectionListFilter) ([]domain.BillingProviderConnection, error)
+	UpdateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error)
 	CreateCustomer(input domain.Customer) (domain.Customer, error)
 	GetCustomer(tenantID, id string) (domain.Customer, error)
 	GetCustomerByExternalID(tenantID, externalID string) (domain.Customer, error)
