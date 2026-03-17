@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Building2, CreditCard, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchBillingProviderConnection, fetchTenantOnboardingStatus } from "@/lib/api";
@@ -50,7 +50,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
       <main className="relative mx-auto flex max-w-[1240px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"

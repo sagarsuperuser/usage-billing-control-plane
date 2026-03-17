@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { ArrowRight, Building2, CreditCard, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchBillingProviderConnections, onboardTenant } from "@/lib/api";
@@ -112,7 +112,7 @@ export function TenantOnboardingScreen() {
           </div>
         </section>
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"

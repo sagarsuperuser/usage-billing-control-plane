@@ -5,7 +5,7 @@ import { ChevronRight, LoaderCircle, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
@@ -108,7 +108,7 @@ export function CustomerListScreen() {
           </div>
         </section>
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"

@@ -5,7 +5,7 @@ import { CreditCard, ArrowRight, LoaderCircle, UserRoundPlus } from "lucide-reac
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { onboardCustomer } from "@/lib/api";
@@ -103,7 +103,7 @@ export function CustomerOnboardingScreen() {
           </div>
         </section>
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"

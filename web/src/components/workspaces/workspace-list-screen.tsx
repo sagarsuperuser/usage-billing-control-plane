@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { ChevronRight, LoaderCircle, Plus } from "lucide-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
@@ -111,7 +111,7 @@ export function WorkspaceListScreen() {
           </div>
         </section>
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"

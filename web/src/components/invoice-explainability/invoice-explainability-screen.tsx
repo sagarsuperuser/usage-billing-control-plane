@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -187,7 +187,7 @@ export function InvoiceExplainabilityScreen() {
           </div>
         </section>
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"

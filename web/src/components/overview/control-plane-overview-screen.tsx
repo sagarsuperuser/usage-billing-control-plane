@@ -5,7 +5,7 @@ import { useMemo, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Activity, Building2, CreditCard, LoaderCircle, ReceiptText, UserRoundPlus, Workflow } from "lucide-react";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import {
   fetchBillingProviderConnections,
@@ -257,7 +257,7 @@ export function ControlPlaneOverviewScreen() {
           </div>
         </section>
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
         <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">

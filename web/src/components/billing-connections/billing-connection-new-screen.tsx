@@ -6,7 +6,7 @@ import { useState } from "react";
 import { CreditCard, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { createBillingProviderConnection, syncBillingProviderConnection } from "@/lib/api";
@@ -77,7 +77,7 @@ export function BillingConnectionNewScreen() {
           </div>
         </section>
 
-        {!isAuthenticated ? <SessionLoginCard /> : null}
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"
