@@ -24,7 +24,32 @@ function trimTrailingSlash(value: string): string {
 }
 
 export function getConfiguredAPIBaseURL(): string {
+  if (typeof window !== "undefined") {
+    const runtimeConfig = (window as Window & { __LAGO_ALPHA_RUNTIME__?: { apiBaseURL?: string } }).__LAGO_ALPHA_RUNTIME__;
+    if (runtimeConfig?.apiBaseURL) {
+      return trimTrailingSlash(runtimeConfig.apiBaseURL);
+    }
+  }
   return trimTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "");
+}
+
+export async function fetchRuntimeConfig(): Promise<{ apiBaseURL: string }> {
+  const response = await fetch("/runtime-config", {
+    method: "GET",
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to load runtime config (${response.status})`);
+  }
+  const payload = (await response.json()) as { apiBaseURL?: string };
+  const apiBaseURL = trimTrailingSlash(payload.apiBaseURL?.trim() ?? "");
+  if (typeof window !== "undefined") {
+    (window as Window & { __LAGO_ALPHA_RUNTIME__?: { apiBaseURL?: string } }).__LAGO_ALPHA_RUNTIME__ = {
+      apiBaseURL,
+    };
+  }
+  return { apiBaseURL };
 }
 
 function resolveBaseURL(runtimeBaseURL?: string): string {

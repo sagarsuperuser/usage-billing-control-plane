@@ -3,13 +3,20 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchUISession, getConfiguredAPIBaseURL, loginUISession, logoutUISession } from "@/lib/api";
+import { fetchRuntimeConfig, fetchUISession, loginUISession, logoutUISession } from "@/lib/api";
 import { useSessionStore } from "@/store/use-session-store";
 
 export function useUISession() {
   const queryClient = useQueryClient();
   const { session, setSession } = useSessionStore();
-  const apiBaseURL = getConfiguredAPIBaseURL();
+
+  const runtimeConfigQuery = useQuery({
+    queryKey: ["runtime-config"],
+    queryFn: fetchRuntimeConfig,
+    staleTime: Infinity,
+  });
+
+  const apiBaseURL = runtimeConfigQuery.data?.apiBaseURL ?? "";
 
   const sessionQuery = useQuery({
     queryKey: ["ui-session", apiBaseURL],
@@ -17,6 +24,7 @@ export function useUISession() {
       fetchUISession({
         runtimeBaseURL: apiBaseURL,
       }),
+    enabled: runtimeConfigQuery.isSuccess,
   });
 
   const loginMutation = useMutation({
@@ -74,7 +82,8 @@ export function useUISession() {
     isPlatformAdmin,
     csrfToken: session?.csrf_token ?? "",
     isAuthenticated: Boolean(session?.authenticated),
-    isLoading: sessionQuery.isLoading,
+    isLoading: runtimeConfigQuery.isLoading || sessionQuery.isLoading,
+    configError: runtimeConfigQuery.error as Error | null,
     login: loginMutation.mutateAsync,
     loggingIn: loginMutation.isPending,
     loginError: loginMutation.error as Error | null,
