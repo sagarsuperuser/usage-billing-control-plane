@@ -312,7 +312,12 @@ test("platform overview shows live workspace attention counts", async ({ page })
   await page.getByTestId("session-login-api-key").fill("platform-key");
   await page.getByTestId("session-login-submit").click();
 
+  const nav = page.locator("nav");
   await expect(page.getByRole("heading", { name: "Primary onboarding journeys" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Payments", exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toHaveCount(0);
   await expect(page.getByText("Workspaces missing pricing")).toBeVisible();
   await expect(page.getByText("Workspaces missing first customer")).toBeVisible();
   await expect(page.getByText("Workspaces missing billing connection")).toBeVisible();
@@ -337,7 +342,13 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   await page.getByTestId("session-login-api-key").fill("tenant-key");
   await page.getByTestId("session-login-submit").click();
 
+  const nav = page.locator("nav");
   await expect(page.getByRole("heading", { name: "Primary onboarding journeys" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Payments", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toHaveCount(0);
   await expect(page.getByText("Customers waiting on payment setup")).toBeVisible();
   await expect(page.getByText("Customers with billing sync errors")).toBeVisible();
   await expect(page.getByText("Billing-ready customers")).toBeVisible();

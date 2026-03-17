@@ -3,16 +3,28 @@ import { expect, test, type Page } from "@playwright/test";
 type BillingMockWindow = Window & typeof globalThis & {
   __billingMock: {
     retryCSRF: string;
+    statusRequestCount: number;
+    summaryRequestCount: number;
   };
 };
 
-type SessionPayload = {
+type TenantSessionPayload = {
   authenticated: boolean;
   role: "reader" | "writer" | "admin";
   tenant_id: string;
   api_key_id: string;
   csrf_token: string;
 };
+
+type PlatformSessionPayload = {
+  authenticated: boolean;
+  scope: "platform";
+  platform_role: "platform_admin";
+  api_key_id: string;
+  csrf_token: string;
+};
+
+type SessionPayload = TenantSessionPayload | PlatformSessionPayload;
 
 type InitPayload = {
   session: SessionPayload;
@@ -63,6 +75,8 @@ async function installPaymentOpsMock(page: Page, session: SessionPayload) {
   await page.addInitScript(({ session, summary, row }: InitPayload) => {
     let loggedIn = true;
     let retryCSRF = "";
+    let statusRequestCount = 0;
+    let summaryRequestCount = 0;
 
     const json = (status: number, payload: unknown) =>
       new Response(JSON.stringify(payload), {
@@ -74,7 +88,7 @@ async function installPaymentOpsMock(page: Page, session: SessionPayload) {
 
     const originalFetch = window.fetch.bind(window);
     const w = window as BillingMockWindow;
-    w.__billingMock = { retryCSRF: "" };
+    w.__billingMock = { retryCSRF: "", statusRequestCount: 0, summaryRequestCount: 0 };
 
     window.fetch = async (input, init) => {
       const request = input instanceof Request ? input : null;
@@ -107,10 +121,14 @@ async function installPaymentOpsMock(page: Page, session: SessionPayload) {
       }
 
       if (path === "/v1/invoice-payment-statuses" && method === "GET") {
+        statusRequestCount += 1;
+        w.__billingMock.statusRequestCount = statusRequestCount;
         return loggedIn ? json(200, { items: [row], limit: 25, offset: 0 }) : json(401, { error: "unauthorized" });
       }
 
       if (path === "/v1/invoice-payment-statuses/summary" && method === "GET") {
+        summaryRequestCount += 1;
+        w.__billingMock.summaryRequestCount = summaryRequestCount;
         return loggedIn ? json(200, summary) : json(401, { error: "unauthorized" });
       }
 
@@ -130,11 +148,8 @@ async function installPaymentOpsMock(page: Page, session: SessionPayload) {
   }, { session, summary: summaryPayload, row: invoiceRow });
 }
 
-test.beforeEach(async ({ page }) => {
-  await installPaymentOpsMock(page, sessionPayload);
-});
-
 test("supports session logout in payment operations UI", async ({ page }) => {
+  await installPaymentOpsMock(page, sessionPayload);
   await page.goto("/payment-operations");
 
   await expect(page.getByTestId("session-logout")).toBeVisible();
@@ -145,6 +160,7 @@ test("supports session logout in payment operations UI", async ({ page }) => {
 });
 
 test("sends CSRF token when retrying failed payment", async ({ page }) => {
+  await installPaymentOpsMock(page, sessionPayload);
   await page.goto("/payment-operations");
 
   await expect(page.getByText("INV-123")).toBeVisible();
@@ -166,4 +182,28 @@ test("disables retry for reader sessions", async ({ page }) => {
   const retryButton = page.getByRole("button", { name: "Retry" }).first();
   await expect(retryButton).toBeDisabled();
   await expect(page.getByText("Current session role reader is read-only for payment retry operations.")).toBeVisible();
+});
+
+test("platform session is blocked from tenant payment operations without hitting tenant APIs", async ({ page }) => {
+  await installPaymentOpsMock(page, {
+    authenticated: true,
+    scope: "platform",
+    platform_role: "platform_admin",
+    api_key_id: "platform_ui_1",
+    csrf_token: "csrf-platform-123",
+  });
+
+  await page.goto("/payment-operations");
+
+  await expect(page.getByText("Tenant session required")).toBeVisible();
+  await expect(page.getByText("Payment operations are tenant-scoped.")).toBeVisible();
+  await expect(page.getByText("INV-123")).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => ({
+        status: (window as BillingMockWindow).__billingMock.statusRequestCount,
+        summary: (window as BillingMockWindow).__billingMock.summaryRequestCount,
+      }))
+    )
+    .toEqual({ status: 0, summary: 0 });
 });

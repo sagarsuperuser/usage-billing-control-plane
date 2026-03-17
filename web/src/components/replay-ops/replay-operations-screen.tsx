@@ -15,6 +15,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryReplayJob } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
@@ -53,7 +54,8 @@ function replayBadgeClass(status?: string): string {
 
 export function ReplayOperationsScreen() {
   const queryClient = useQueryClient();
-  const { apiBaseURL, csrfToken, isAuthenticated, canWrite, role } = useUISession();
+  const { apiBaseURL, csrfToken, isAuthenticated, canWrite, role, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [customerFilter, setCustomerFilter] = useState("");
   const [meterFilter, setMeterFilter] = useState("");
@@ -81,7 +83,7 @@ export function ReplayOperationsScreen() {
         limit,
         offset,
       }),
-    enabled: isAuthenticated,
+    enabled: isTenantSession,
   });
 
   const diagnosticsQuery = useQuery({
@@ -91,7 +93,7 @@ export function ReplayOperationsScreen() {
         runtimeBaseURL: apiBaseURL,
         jobID: selectedJobID,
       }),
-    enabled: isAuthenticated && drawerOpen && selectedJobID.length > 0,
+    enabled: isTenantSession && drawerOpen && selectedJobID.length > 0,
   });
 
   const createMutation = useMutation({
@@ -445,30 +447,36 @@ export function ReplayOperationsScreen() {
         </section>
 
         {!isAuthenticated ? <SessionLoginCard /> : null}
+        {isAuthenticated && scope !== "tenant" ? (
+          <ScopeNotice
+            title="Tenant session required"
+            body="Recovery tools are tenant-scoped. Sign in with a tenant reader, writer, or admin API key to inspect replay jobs or queue recovery work."
+          />
+        ) : null}
 
-        {flashMessage ? (
+        {isTenantSession && flashMessage ? (
           <section data-testid="replay-flash-message" className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
             {flashMessage}
           </section>
         ) : null}
 
-        {jobsQuery.error ? (
+        {isTenantSession && jobsQuery.error ? (
           <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
             {(jobsQuery.error as Error).message}
           </section>
         ) : null}
-        {createMutation.error ? (
+        {isTenantSession && createMutation.error ? (
           <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
             {(createMutation.error as Error).message}
           </section>
         ) : null}
-        {retryMutation.error ? (
+        {isTenantSession && retryMutation.error ? (
           <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
             {(retryMutation.error as Error).message}
           </section>
         ) : null}
 
-        {drawerOpen && selectedJobID ? (
+        {isTenantSession && drawerOpen && selectedJobID ? (
           <aside
             data-testid="replay-diagnostics-drawer"
             className="fixed inset-y-0 right-0 z-30 flex w-full max-w-[560px] flex-col border-l border-white/10 bg-slate-950/95 p-6 shadow-2xl backdrop-blur-xl"

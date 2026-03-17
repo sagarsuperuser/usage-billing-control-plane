@@ -5,6 +5,7 @@ import { CreditCard, LoaderCircle, RefreshCw, RotateCcw, UserRoundPlus } from "l
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import {
   fetchCustomerReadiness,
@@ -529,15 +530,6 @@ function StepCard({ index, title, body }: { index: string; title: string; body: 
       <p className="mt-2 text-sm font-semibold text-white">{title}</p>
       <p className="mt-2 text-sm text-slate-300">{body}</p>
     </div>
-  );
-}
-
-function ScopeNotice({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-100">
-      <p className="font-semibold text-amber-50">{title}</p>
-      <p className="mt-1 text-amber-100/90">{body}</p>
-    </section>
   );
 }
 

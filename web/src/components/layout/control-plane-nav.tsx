@@ -10,9 +10,9 @@ const links = [
   { href: "/control-plane", label: "Overview" },
   { href: "/tenant-onboarding", label: "Workspace Setup", scope: "platform" as const },
   { href: "/customer-onboarding", label: "Customers", scope: "tenant" as const },
-  { href: "/payment-operations", label: "Payments" },
-  { href: "/replay-operations", label: "Recovery" },
-  { href: "/invoice-explainability", label: "Explainability" },
+  { href: "/payment-operations", label: "Payments", scope: "tenant" as const },
+  { href: "/replay-operations", label: "Recovery", scope: "tenant" as const },
+  { href: "/invoice-explainability", label: "Explainability", scope: "tenant" as const },
 ];
 
 export function ControlPlaneNav() {

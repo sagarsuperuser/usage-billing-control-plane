@@ -5,6 +5,7 @@ import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchInvoiceExplainability } from "@/lib/api";
@@ -20,7 +21,8 @@ const sortOptions = [
 type ExplainabilitySort = (typeof sortOptions)[number];
 
 export function InvoiceExplainabilityScreen() {
-  const { apiBaseURL, isAuthenticated } = useUISession();
+  const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [invoiceID, setInvoiceID] = useState("");
   const [feeTypesInput, setFeeTypesInput] = useState("");
   const [lineItemSort, setLineItemSort] = useState<ExplainabilitySort>("created_at_asc");
@@ -68,7 +70,7 @@ export function InvoiceExplainabilityScreen() {
         page: parsedPage,
         limit: parsedLimit,
       }),
-    enabled: isAuthenticated && submittedInvoiceID.length > 0,
+    enabled: isTenantSession && submittedInvoiceID.length > 0,
   });
 
   const lineItems = explainabilityQuery.data?.line_items ?? [];
@@ -162,7 +164,7 @@ export function InvoiceExplainabilityScreen() {
               type="button"
               data-testid="explainability-load"
               onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
-              disabled={!isAuthenticated || !invoiceID.trim()}
+              disabled={!isTenantSession || !invoiceID.trim()}
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Search className="h-4 w-4" />
@@ -172,7 +174,7 @@ export function InvoiceExplainabilityScreen() {
               type="button"
               data-testid="explainability-refresh"
               onClick={() => explainabilityQuery.refetch()}
-              disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !isAuthenticated}
+              disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !isTenantSession}
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 text-sm text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {explainabilityQuery.isFetching ? (
@@ -186,8 +188,14 @@ export function InvoiceExplainabilityScreen() {
         </section>
 
         {!isAuthenticated ? <SessionLoginCard /> : null}
+        {isAuthenticated && scope !== "tenant" ? (
+          <ScopeNotice
+            title="Tenant session required"
+            body="Explainability is tenant-scoped. Sign in with a tenant reader, writer, or admin API key to inspect invoice computation traces."
+          />
+        ) : null}
 
-        {explainabilityQuery.error ? (
+        {isTenantSession && explainabilityQuery.error ? (
           <section data-testid="explainability-error" className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
             {(explainabilityQuery.error as Error).message}
           </section>

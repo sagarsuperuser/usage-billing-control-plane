@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
+import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchInvoiceEvents, fetchInvoiceLifecycle, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
 import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/lib/format";
@@ -67,7 +68,8 @@ function invoiceBadgeClass(status?: string): string {
 export function PaymentOperationsScreen() {
   const queryClient = useQueryClient();
   const { selectedInvoiceID, setSelectedInvoiceID } = useSessionStore();
-  const { apiBaseURL, csrfToken, isAuthenticated, canWrite, role } = useUISession();
+  const { apiBaseURL, csrfToken, isAuthenticated, canWrite, role, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [organizationID, setOrganizationID] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
@@ -108,7 +110,7 @@ export function PaymentOperationsScreen() {
         runtimeBaseURL: apiBaseURL,
         filters,
       }),
-    enabled: isAuthenticated,
+    enabled: isTenantSession,
   });
   const statusSummaryQuery = useQuery({
     queryKey: ["invoice-status-summary", apiBaseURL, organizationID, summaryStaleAfterSec],
@@ -118,7 +120,7 @@ export function PaymentOperationsScreen() {
         organizationID: organizationID || undefined,
         staleAfterSec: summaryStaleAfterSec,
       }),
-    enabled: isAuthenticated,
+    enabled: isTenantSession,
   });
 
   const eventsQuery = useQuery({
@@ -144,7 +146,7 @@ export function PaymentOperationsScreen() {
         limit: eventLimit,
         offset: eventOffset,
       }),
-    enabled: isAuthenticated && selectedInvoiceID.length > 0 && timelineOpen,
+    enabled: isTenantSession && selectedInvoiceID.length > 0 && timelineOpen,
   });
   const lifecycleQuery = useQuery({
     queryKey: ["invoice-lifecycle", apiBaseURL, selectedInvoiceID],
@@ -153,7 +155,7 @@ export function PaymentOperationsScreen() {
         runtimeBaseURL: apiBaseURL,
         invoiceID: selectedInvoiceID,
       }),
-    enabled: isAuthenticated && selectedInvoiceID.length > 0 && timelineOpen,
+    enabled: isTenantSession && selectedInvoiceID.length > 0 && timelineOpen,
   });
 
   const retryMutation = useMutation({
@@ -357,13 +359,21 @@ export function PaymentOperationsScreen() {
         </section>
 
         {!isAuthenticated ? <SessionLoginCard /> : null}
+        {isAuthenticated && scope !== "tenant" ? (
+          <ScopeNotice
+            title="Tenant session required"
+            body="Payment operations are tenant-scoped. Sign in with a tenant reader, writer, or admin API key to inspect invoice payment status or retry failed payments."
+          />
+        ) : null}
 
-        {statusesQuery.error ? (
+        {isTenantSession && statusesQuery.error ? (
           <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
             {(statusesQuery.error as Error).message}
           </section>
         ) : null}
 
+        {isTenantSession ? (
+          <>
         <section className="rounded-2xl border border-white/10 bg-slate-900/75 p-3 backdrop-blur">
           <div className="overflow-auto">
             <table className="w-full min-w-[1140px] border-separate border-spacing-y-2 text-sm">
@@ -501,6 +511,8 @@ export function PaymentOperationsScreen() {
           <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
             Current session role <strong>{role ?? "reader"}</strong> is read-only for payment retry operations. Use a writer or admin key to trigger retries.
           </section>
+        ) : null}
+          </>
         ) : null}
       </main>
 
