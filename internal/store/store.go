@@ -250,6 +250,10 @@ type Repository interface {
 	CreatePlan(input domain.Plan) (domain.Plan, error)
 	ListPlans(tenantID string) ([]domain.Plan, error)
 	GetPlan(tenantID, id string) (domain.Plan, error)
+	CreateSubscription(input domain.Subscription) (domain.Subscription, error)
+	ListSubscriptions(tenantID string) ([]domain.Subscription, error)
+	GetSubscription(tenantID, id string) (domain.Subscription, error)
+	UpdateSubscription(input domain.Subscription) (domain.Subscription, error)
 
 	CreateUsageEvent(input domain.UsageEvent) (domain.UsageEvent, error)
 	GetUsageEventByIdempotencyKey(tenantID, idempotencyKey string) (domain.UsageEvent, error)

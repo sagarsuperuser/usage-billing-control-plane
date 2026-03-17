@@ -1,8 +1,12 @@
 import {
   BillingProviderConnection,
+  CreateSubscriptionResult,
   Customer,
   Plan,
   PricingMetric,
+  SubscriptionDetail,
+  SubscriptionPaymentSetupResult,
+  SubscriptionSummary,
   CustomerOnboardingResult,
   CustomerReadiness,
   InvoiceExplainability,
@@ -253,6 +257,92 @@ export async function fetchPlan(input: {
     runtimeBaseURL: input.runtimeBaseURL,
     method: "GET",
   });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchSubscriptions(input: {
+  runtimeBaseURL?: string;
+}): Promise<SubscriptionSummary[]> {
+  const payload = await apiRequest<SubscriptionSummary[]>("/v1/subscriptions", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createSubscription(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<CreateSubscriptionResult> {
+  const payload = await apiRequest<CreateSubscriptionResult>("/v1/subscriptions", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchSubscription(input: {
+  runtimeBaseURL?: string;
+  subscriptionID: string;
+}): Promise<SubscriptionDetail> {
+  const payload = await apiRequest<SubscriptionDetail>(`/v1/subscriptions/${encodeURIComponent(input.subscriptionID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function requestSubscriptionPaymentSetup(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  subscriptionID: string;
+  paymentMethodType?: string;
+}): Promise<SubscriptionPaymentSetupResult> {
+  const payload = await apiRequest<SubscriptionPaymentSetupResult>(
+    `/v1/subscriptions/${encodeURIComponent(input.subscriptionID)}/payment-setup/request`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: { payment_method_type: input.paymentMethodType },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function resendSubscriptionPaymentSetup(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  subscriptionID: string;
+  paymentMethodType?: string;
+}): Promise<SubscriptionPaymentSetupResult> {
+  const payload = await apiRequest<SubscriptionPaymentSetupResult>(
+    `/v1/subscriptions/${encodeURIComponent(input.subscriptionID)}/payment-setup/resend`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: { payment_method_type: input.paymentMethodType },
+    }
+  );
   if (!payload) {
     throw new Error("unauthorized");
   }

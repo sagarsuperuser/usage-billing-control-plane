@@ -106,6 +106,50 @@ export interface Plan {
   updated_at: string;
 }
 
+export interface SubscriptionSummary {
+  id: string;
+  tenant_id?: string;
+  code: string;
+  display_name: string;
+  status: "draft" | "pending_payment_setup" | "active" | "action_required" | "archived";
+  customer_id: string;
+  customer_external_id: string;
+  customer_display_name: string;
+  plan_id: string;
+  plan_code: string;
+  plan_name: string;
+  billing_interval: "monthly" | "yearly";
+  currency: string;
+  base_amount_cents: number;
+  payment_setup_status: "missing" | "pending" | "ready" | "error";
+  default_payment_method_verified: boolean;
+  payment_setup_action_required: boolean;
+  payment_setup_requested_at?: string;
+  activated_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscriptionDetail extends SubscriptionSummary {
+  customer: Customer;
+  plan: Plan;
+  billing_profile: CustomerBillingProfile;
+  payment_setup: CustomerPaymentSetup;
+  missing_steps: string[];
+}
+
+export interface SubscriptionPaymentSetupResult {
+  action: "requested" | "resent" | "already_ready";
+  checkout_url?: string;
+  subscription: SubscriptionDetail;
+}
+
+export interface CreateSubscriptionResult {
+  subscription: SubscriptionDetail;
+  payment_setup_started: boolean;
+  checkout_url?: string;
+}
+
 export interface APIKey {
   id: string;
   key_prefix: string;

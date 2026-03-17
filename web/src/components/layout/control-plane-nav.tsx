@@ -12,6 +12,7 @@ const links = [
   { href: "/workspaces/new", label: "Workspace Setup", scope: "platform" as const },
   { href: "/pricing", label: "Pricing", scope: "tenant" as const },
   { href: "/customers", label: "Customers", scope: "tenant" as const },
+  { href: "/subscriptions", label: "Subscriptions", scope: "tenant" as const },
   { href: "/customers/new", label: "Customer Setup", scope: "tenant" as const },
   { href: "/payment-operations", label: "Payments", scope: "tenant" as const },
   { href: "/replay-operations", label: "Recovery", scope: "tenant" as const },
@@ -27,6 +28,9 @@ function isActivePath(pathname: string, href: string): boolean {
   }
   if (href === "/customers") {
     return pathname === "/customers" || (pathname.startsWith("/customers/") && pathname !== "/customers/new");
+  }
+  if (href === "/subscriptions") {
+    return pathname === "/subscriptions" || pathname.startsWith("/subscriptions/");
   }
   if (href === "/pricing") {
     return pathname === "/pricing" || pathname.startsWith("/pricing/");

@@ -14,6 +14,10 @@ export function formatReadinessStatus(status?: string): string {
       return "Error";
     case "active":
       return "Active";
+    case "pending_payment_setup":
+      return "Pending payment setup";
+    case "action_required":
+      return "Action required";
     case "suspended":
       return "Suspended";
     case "deleted":

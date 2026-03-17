@@ -1996,6 +1996,133 @@ func (s *PostgresStore) GetPlan(tenantID, id string) (domain.Plan, error) {
 	return plan, nil
 }
 
+func (s *PostgresStore) CreateSubscription(input domain.Subscription) (domain.Subscription, error) {
+	if input.ID == "" {
+		input.ID = newID("sub")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.UpdatedAt = now
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(ctx, `INSERT INTO subscriptions (id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, payment_setup_requested_at, activated_at, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		input.ID, input.TenantID, input.Code, input.DisplayName, input.CustomerID, input.PlanID, input.Status, input.PaymentSetupRequestedAt, input.ActivatedAt, input.CreatedAt, input.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.Subscription{}, ErrDuplicateKey
+		}
+		return domain.Subscription{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Subscription{}, err
+	}
+	return input, nil
+}
+
+func (s *PostgresStore) ListSubscriptions(tenantID string) ([]domain.Subscription, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, payment_setup_requested_at, activated_at, created_at, updated_at FROM subscriptions WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC`, normalizeTenantID(tenantID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.Subscription, 0)
+	for rows.Next() {
+		subscription, scanErr := scanSubscription(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, subscription)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetSubscription(tenantID, id string) (domain.Subscription, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, payment_setup_requested_at, activated_at, created_at, updated_at FROM subscriptions WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), strings.TrimSpace(id))
+	subscription, err := scanSubscription(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Subscription{}, ErrNotFound
+		}
+		return domain.Subscription{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Subscription{}, err
+	}
+	return subscription, nil
+}
+
+func (s *PostgresStore) UpdateSubscription(input domain.Subscription) (domain.Subscription, error) {
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.UpdatedAt = time.Now().UTC()
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	defer rollbackSilently(tx)
+
+	result, err := tx.ExecContext(ctx, `UPDATE subscriptions SET subscription_code = $3, display_name = $4, customer_id = $5, plan_id = $6, status = $7, payment_setup_requested_at = $8, activated_at = $9, updated_at = $10 WHERE tenant_id = $1 AND id = $2`,
+		input.TenantID, input.ID, input.Code, input.DisplayName, input.CustomerID, input.PlanID, input.Status, input.PaymentSetupRequestedAt, input.ActivatedAt, input.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.Subscription{}, ErrDuplicateKey
+		}
+		return domain.Subscription{}, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	if rowsAffected == 0 {
+		return domain.Subscription{}, ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Subscription{}, err
+	}
+	return input, nil
+}
+
 func loadPlanMetricIDs(ctx context.Context, tx *sql.Tx, tenantID string, planIDs []string) (map[string][]string, error) {
 	out := make(map[string][]string, len(planIDs))
 	if len(planIDs) == 0 {
@@ -4685,6 +4812,39 @@ func scanPlan(s rowScanner) (domain.Plan, error) {
 	return out, nil
 }
 
+func scanSubscription(s rowScanner) (domain.Subscription, error) {
+	var out domain.Subscription
+	var status string
+	var paymentSetupRequestedAt sql.NullTime
+	var activatedAt sql.NullTime
+	if err := s.Scan(
+		&out.ID,
+		&out.TenantID,
+		&out.Code,
+		&out.DisplayName,
+		&out.CustomerID,
+		&out.PlanID,
+		&status,
+		&paymentSetupRequestedAt,
+		&activatedAt,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	); err != nil {
+		return domain.Subscription{}, err
+	}
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.Status = normalizeSubscriptionStatus(domain.SubscriptionStatus(status))
+	if paymentSetupRequestedAt.Valid {
+		value := paymentSetupRequestedAt.Time.UTC()
+		out.PaymentSetupRequestedAt = &value
+	}
+	if activatedAt.Valid {
+		value := activatedAt.Time.UTC()
+		out.ActivatedAt = &value
+	}
+	return out, nil
+}
+
 func scanMeter(s rowScanner) (domain.Meter, error) {
 	var out domain.Meter
 	if err := s.Scan(
@@ -5586,6 +5746,21 @@ func normalizePaymentSetupStatus(v domain.PaymentSetupStatus) domain.PaymentSetu
 		return domain.PaymentSetupStatusError
 	default:
 		return domain.PaymentSetupStatusMissing
+	}
+}
+
+func normalizeSubscriptionStatus(v domain.SubscriptionStatus) domain.SubscriptionStatus {
+	switch strings.ToLower(strings.TrimSpace(string(v))) {
+	case string(domain.SubscriptionStatusPendingPaymentSetup):
+		return domain.SubscriptionStatusPendingPaymentSetup
+	case string(domain.SubscriptionStatusActive):
+		return domain.SubscriptionStatusActive
+	case string(domain.SubscriptionStatusActionRequired):
+		return domain.SubscriptionStatusActionRequired
+	case string(domain.SubscriptionStatusArchived):
+		return domain.SubscriptionStatusArchived
+	default:
+		return domain.SubscriptionStatusDraft
 	}
 }
 

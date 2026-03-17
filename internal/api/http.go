@@ -41,6 +41,7 @@ type Server struct {
 	browserSSOService                *service.BrowserSSOService
 	pricingMetricService             *service.PricingMetricService
 	planService                      *service.PlanService
+	subscriptionService              *service.SubscriptionService
 	meterService                     *service.MeterService
 	usageService                     *service.UsageService
 	apiKeyService                    *service.APIKeyService
@@ -405,6 +406,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.meterService = service.NewMeterService(repo)
 	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)
 	s.planService = service.NewPlanService(repo)
+	s.subscriptionService = service.NewSubscriptionService(repo, s.customerService)
 	s.usageService = service.NewUsageService(repo)
 	s.apiKeyService = service.NewAPIKeyService(repo)
 	if s.browserUserAuthService == nil {
@@ -1266,6 +1268,19 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		}
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/plans/"):
+		if r.Method == http.MethodPatch {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case path == "/v1/subscriptions":
+		if r.Method == http.MethodPost {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/subscriptions/"):
+		if r.Method == http.MethodPost || r.Method == http.MethodPatch {
+			return RoleWriter, true
+		}
 		return RoleReader, true
 	case path == "/v1/invoices/preview":
 		return RoleReader, true
@@ -1438,6 +1453,17 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/plans"
 	case strings.HasPrefix(path, "/v1/plans/"):
 		return "/v1/plans/{id}"
+	case path == "/v1/subscriptions":
+		return "/v1/subscriptions"
+	case strings.HasPrefix(path, "/v1/subscriptions/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/subscriptions/"), "/")
+		if strings.HasSuffix(tail, "/payment-setup/request") {
+			return "/v1/subscriptions/{id}/payment-setup/request"
+		}
+		if strings.HasSuffix(tail, "/payment-setup/resend") {
+			return "/v1/subscriptions/{id}/payment-setup/resend"
+		}
+		return "/v1/subscriptions/{id}"
 	case path == "/v1/invoices/preview":
 		return "/v1/invoices/preview"
 	case strings.HasPrefix(path, "/v1/invoices/"):
@@ -1552,6 +1578,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/pricing/metrics/", s.handlePricingMetricByID)
 	s.mux.HandleFunc("/v1/plans", s.handlePlans)
 	s.mux.HandleFunc("/v1/plans/", s.handlePlanByID)
+	s.mux.HandleFunc("/v1/subscriptions", s.handleSubscriptions)
+	s.mux.HandleFunc("/v1/subscriptions/", s.handleSubscriptionByID)
 
 	s.mux.HandleFunc("/v1/invoices/preview", s.handleInvoicePreview)
 	s.mux.HandleFunc("/v1/invoices/", s.handleInvoiceByID)
