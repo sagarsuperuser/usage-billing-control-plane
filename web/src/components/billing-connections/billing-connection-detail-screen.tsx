@@ -73,7 +73,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"
-            body="Billing connections are managed at the platform layer. Sign in with a platform_admin API key to inspect them."
+            body="Billing connections are managed at the platform layer. Sign in with a platform account to inspect them."
             actionHref="/customers"
             actionLabel="Open tenant home"
           />
@@ -124,27 +124,30 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryStat label="Status" value={connection.status} helper={connection.last_sync_error || "Provider sync is currently healthy."} />
-              <SummaryStat label="Environment" value={connection.environment} helper={`Provider type: ${connection.provider_type}`} />
+              <SummaryStat label="Status" value={formatReadinessStatus(connection.status)} helper={connection.sync_summary} />
+              <SummaryStat label="Environment" value={connection.environment} helper={`Provider: ${connection.provider_type}`} />
+              <SummaryStat label="Linked workspaces" value={String(connection.linked_workspace_count)} helper={connection.workspace_ready ? "Ready for workspace assignment." : "Sync this connection before assigning it to new workspaces."} />
               <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Secret material stays outside the database." />
-              <SummaryStat label="Scope" value={connection.scope} helper={connection.owner_tenant_id ? `Tenant owner ${connection.owner_tenant_id}` : "Platform-owned connection"} />
             </section>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
               <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Provider sync</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Lago mapping and health</h2>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Connection health</h2>
                 <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  <MetaItem label="Billing organization" value={connection.lago_organization_id || "-"} mono />
-                  <MetaItem label="Lago provider code" value={connection.lago_provider_code || "-"} mono />
+                  <MetaItem label="Sync state" value={connection.sync_state.replaceAll("_", " ")} />
+                  <MetaItem label="Workspace readiness" value={connection.workspace_ready ? "Ready" : "Needs sync"} />
                   <MetaItem label="Connected at" value={connection.connected_at ? formatExactTimestamp(connection.connected_at) : "-"} />
                   <MetaItem label="Last synced at" value={connection.last_synced_at ? formatExactTimestamp(connection.last_synced_at) : "-"} />
                 </div>
-                {connection.last_sync_error ? (
-                  <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">
-                    {connection.last_sync_error}
+                <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4 text-sm text-slate-200">{connection.sync_summary}</div>
+                <details className="mt-4 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-white">Advanced provider mapping</summary>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <MetaItem label="Billing organization reference" value={connection.lago_organization_id || "-"} mono />
+                    <MetaItem label="Provider code" value={connection.lago_provider_code || "-"} mono />
                   </div>
-                ) : null}
+                </details>
               </section>
 
               <aside className="flex flex-col gap-4">
@@ -158,7 +161,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                       className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {syncMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                      Sync provider
+                      Sync now
                     </button>
                     <button
                       type="button"
@@ -200,7 +203,7 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
   return (
     <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 backdrop-blur-xl">
       <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className="mt-2 break-words text-base font-semibold leading-tight text-white">{formatReadinessStatus(value)}</p>
+      <p className="mt-2 break-words text-base font-semibold leading-tight text-white">{value}</p>
       <p className="mt-2 text-xs leading-relaxed text-slate-400">{helper}</p>
     </div>
   );

@@ -2,9 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 
 type PlatformSessionPayload = {
   authenticated: boolean;
+  subject_type: "user";
+  subject_id: string;
+  user_email: string;
   scope: "platform";
   platform_role: "platform_admin";
-  api_key_id: string;
   csrf_token: string;
 };
 
@@ -15,6 +17,10 @@ type BillingProviderConnection = {
   display_name: string;
   scope: "platform";
   status: "pending" | "connected" | "sync_error" | "disabled";
+  workspace_ready: boolean;
+  sync_state: "healthy" | "failed" | "never_synced" | "pending" | "disabled";
+  sync_summary: string;
+  linked_workspace_count: number;
   lago_organization_id?: string;
   lago_provider_code?: string;
   secret_configured: boolean;
@@ -27,7 +33,7 @@ type BillingProviderConnection = {
 };
 
 async function installBillingConnectionMock(page: Page, session: PlatformSessionPayload) {
-  let loggedIn = false;
+  let loggedIn = true;
   let capturedCSRF = "";
   let connections: BillingProviderConnection[] = [];
 
@@ -69,6 +75,10 @@ async function installBillingConnectionMock(page: Page, session: PlatformSession
         display_name: body.display_name || "Stripe Sandbox",
         scope: "platform",
         status: "pending",
+        workspace_ready: false,
+        sync_state: "never_synced",
+        sync_summary: "Connection has not been synced yet. Run the first sync before assigning it to workspaces.",
+        linked_workspace_count: 0,
         lago_organization_id: body.lago_organization_id,
         secret_configured: true,
         created_by_type: "platform_api_key",
@@ -85,6 +95,9 @@ async function installBillingConnectionMock(page: Page, session: PlatformSession
           ? {
               ...item,
               status: "connected",
+              workspace_ready: true,
+              sync_state: "healthy",
+              sync_summary: "Connected and ready for workspace assignment.",
               lago_provider_code: "alpha_stripe_test_bpc_alpha",
               connected_at: now,
               last_synced_at: now,
@@ -110,25 +123,22 @@ async function installBillingConnectionMock(page: Page, session: PlatformSession
 test("platform admin can create and sync a billing connection", async ({ page }) => {
   const session: PlatformSessionPayload = {
     authenticated: true,
+    subject_type: "user",
+    subject_id: "usr_platform_1",
+    user_email: "platform-admin@alpha.test",
     scope: "platform",
     platform_role: "platform_admin",
-    api_key_id: "platform_ui_1",
     csrf_token: "csrf-platform-123",
   };
   const mock = await installBillingConnectionMock(page, session);
 
   await page.goto("/billing-connections/new");
-  await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
-  await page.getByTestId("session-login-password").fill("correct horse battery");
-  await page.getByTestId("session-login-submit").click();
-
   await page.getByLabel("Connection name").fill("Stripe Sandbox");
-  await page.getByLabel("Billing organization ID").fill("org_acme");
   await page.getByLabel("Stripe secret key").fill("sk_test_123");
   await page.getByRole("button", { name: "Create and sync connection" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page).toHaveURL(/\/billing-connections\/bpc_alpha$/);
   await expect(page.getByRole("heading", { name: "Stripe Sandbox" })).toBeVisible();
-  await expect(page.getByText("alpha_stripe_test_bpc_alpha")).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ })).toBeVisible();
 });

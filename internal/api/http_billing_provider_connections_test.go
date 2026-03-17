@@ -84,6 +84,12 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	if connection["secret_configured"] != true {
 		t.Fatalf("expected secret_configured=true")
 	}
+	if connection["workspace_ready"] != false {
+		t.Fatalf("expected workspace_ready=false before sync")
+	}
+	if connection["linked_workspace_count"] != float64(0) {
+		t.Fatalf("expected linked workspace count 0, got %#v", connection["linked_workspace_count"])
+	}
 	if _, ok := connection["secret_ref"]; ok {
 		t.Fatalf("expected secret_ref to be omitted from response")
 	}
@@ -112,6 +118,9 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	syncedConnection := synced["connection"].(map[string]any)
 	if syncedConnection["status"] != "connected" {
 		t.Fatalf("expected connected status after sync, got %#v", syncedConnection["status"])
+	}
+	if syncedConnection["workspace_ready"] != true {
+		t.Fatalf("expected workspace_ready=true after sync")
 	}
 	if syncedConnection["lago_provider_code"] != "stripe_synced" {
 		t.Fatalf("expected synced provider code, got %#v", syncedConnection["lago_provider_code"])

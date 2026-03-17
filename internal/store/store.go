@@ -217,6 +217,7 @@ type Repository interface {
 	CreateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error)
 	GetBillingProviderConnection(id string) (domain.BillingProviderConnection, error)
 	ListBillingProviderConnections(filter BillingProviderConnectionListFilter) ([]domain.BillingProviderConnection, error)
+	CountTenantsByBillingProviderConnections(connectionIDs []string) (map[string]int, error)
 	UpdateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error)
 	CreateUser(input domain.User) (domain.User, error)
 	GetUser(id string) (domain.User, error)

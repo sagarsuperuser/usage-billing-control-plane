@@ -10,7 +10,6 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchBillingProviderConnections } from "@/lib/api";
-import { formatExactTimestamp } from "@/lib/format";
 import { type BillingProviderConnection } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -48,18 +47,21 @@ export function BillingConnectionListScreen() {
     const term = search.trim().toLowerCase();
     if (!term) return items;
     return items.filter((item) =>
-      [item.display_name, item.id, item.lago_organization_id, item.lago_provider_code]
+      [item.display_name, item.id, item.provider_type, item.environment]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(term))
     );
   }, [connectionsQuery.data, search]);
 
-  const summary = useMemo(() => ({
-    total: filteredConnections.length,
-    connected: filteredConnections.filter((item) => item.status === "connected").length,
-    syncErrors: filteredConnections.filter((item) => item.status === "sync_error").length,
-    disabled: filteredConnections.filter((item) => item.status === "disabled").length,
-  }), [filteredConnections]);
+  const summary = useMemo(
+    () => ({
+      total: filteredConnections.length,
+      connected: filteredConnections.filter((item) => item.status === "connected").length,
+      syncErrors: filteredConnections.filter((item) => item.status === "sync_error").length,
+      disabled: filteredConnections.filter((item) => item.status === "disabled").length,
+    }),
+    [filteredConnections]
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1d4ed8_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
@@ -78,7 +80,7 @@ export function BillingConnectionListScreen() {
               <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Platform Directory</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Billing Connections</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Own Stripe secret storage and Lago provider sync in Alpha. Workspaces link these records instead of carrying raw provider mappings directly.
+                Own Stripe secret storage and provider sync in Alpha. Workspaces link these records instead of carrying raw billing-engine mappings directly.
               </p>
             </div>
             <Link
@@ -95,7 +97,7 @@ export function BillingConnectionListScreen() {
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"
-            body="Billing connections are owned at the platform layer. Sign in with a platform_admin API key to manage them."
+            body="Billing connections are owned at the platform layer. Sign in with a platform account to manage them."
             actionHref="/customers"
             actionLabel="Open tenant home"
           />
@@ -118,7 +120,7 @@ export function BillingConnectionListScreen() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by name, org, provider code, or ID"
+                placeholder="Search by name, provider, environment, or ID"
                 className="h-11 min-w-[280px] rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
               />
               <select
@@ -154,7 +156,7 @@ function ConnectionRow({ connection }: { connection: BillingProviderConnection }
   return (
     <Link
       href={`/billing-connections/${encodeURIComponent(connection.id)}`}
-      className="grid gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4 transition hover:border-fuchsia-400/40 hover:bg-fuchsia-500/5 lg:grid-cols-[minmax(0,1.1fr)_repeat(3,minmax(0,0.55fr))_auto] lg:items-center"
+      className="grid gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4 transition hover:border-fuchsia-400/40 hover:bg-fuchsia-500/5 lg:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.45fr))_auto] lg:items-center"
     >
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -164,13 +166,11 @@ function ConnectionRow({ connection }: { connection: BillingProviderConnection }
           </span>
         </div>
         <p className="mt-1 break-all font-mono text-xs text-slate-400">{connection.id}</p>
-        <p className="mt-2 text-sm text-slate-300">
-          {connection.last_sync_error ? connection.last_sync_error : `Last updated ${formatExactTimestamp(connection.updated_at)}`}
-        </p>
+        <p className="mt-2 text-sm text-slate-300">{connection.sync_summary}</p>
       </div>
+      <StatusCell label="Provider" value={connection.provider_type} />
       <StatusCell label="Environment" value={connection.environment} />
-      <StatusCell label="Billing org" value={connection.lago_organization_id || "-"} mono />
-      <StatusCell label="Provider code" value={connection.lago_provider_code || "-"} mono />
+      <StatusCell label="Linked workspaces" value={String(connection.linked_workspace_count)} />
       <StatusCell label="Scope" value={connection.scope} />
       <span className="inline-flex items-center gap-2 text-sm font-medium text-fuchsia-100">
         Open

@@ -62,6 +62,10 @@ export interface BillingProviderConnection {
   scope: "platform" | "tenant";
   owner_tenant_id?: string;
   status: "pending" | "connected" | "sync_error" | "disabled";
+  workspace_ready: boolean;
+  sync_state: "healthy" | "failed" | "never_synced" | "pending" | "disabled";
+  sync_summary: string;
+  linked_workspace_count: number;
   lago_organization_id?: string;
   lago_provider_code?: string;
   secret_configured: boolean;

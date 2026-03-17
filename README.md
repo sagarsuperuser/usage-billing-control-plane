@@ -624,6 +624,11 @@ Architecture and rollout docs:
 - `docs/alpha-lago-adapter-plan.md`
 - `docs/alpha-customer-model.md`
 - `docs/alpha-provider-connect-plan.md`
+- `docs/alpha_import_goal.md`
+- `docs/alpha_import_matrix.md`
+- `docs/alpha_wave1_roadmap.md`
+- `docs/alpha_slice1_billing_connections_spec.md`
+- `docs/alpha_slice2_pricing_spec.md`
 - `docs/ui-redesign-plan.md`
 - `docs/ui-information-architecture-plan.md`
 - `docs/infra-rollout-runbook.md`

@@ -10,43 +10,85 @@ import (
 )
 
 type billingProviderConnectionResponse struct {
-	ID                 string                                 `json:"id"`
-	ProviderType       domain.BillingProviderType             `json:"provider_type"`
-	Environment        string                                 `json:"environment"`
-	DisplayName        string                                 `json:"display_name"`
-	Scope              domain.BillingProviderConnectionScope  `json:"scope"`
-	OwnerTenantID      string                                 `json:"owner_tenant_id,omitempty"`
-	Status             domain.BillingProviderConnectionStatus `json:"status"`
-	LagoOrganizationID string                                 `json:"lago_organization_id,omitempty"`
-	LagoProviderCode   string                                 `json:"lago_provider_code,omitempty"`
-	SecretConfigured   bool                                   `json:"secret_configured"`
-	LastSyncedAt       *string                                `json:"last_synced_at,omitempty"`
-	LastSyncError      string                                 `json:"last_sync_error,omitempty"`
-	ConnectedAt        *string                                `json:"connected_at,omitempty"`
-	DisabledAt         *string                                `json:"disabled_at,omitempty"`
-	CreatedByType      string                                 `json:"created_by_type"`
-	CreatedByID        string                                 `json:"created_by_id,omitempty"`
-	CreatedAt          string                                 `json:"created_at"`
-	UpdatedAt          string                                 `json:"updated_at"`
+	ID                   string                                 `json:"id"`
+	ProviderType         domain.BillingProviderType             `json:"provider_type"`
+	Environment          string                                 `json:"environment"`
+	DisplayName          string                                 `json:"display_name"`
+	Scope                domain.BillingProviderConnectionScope  `json:"scope"`
+	OwnerTenantID        string                                 `json:"owner_tenant_id,omitempty"`
+	Status               domain.BillingProviderConnectionStatus `json:"status"`
+	WorkspaceReady       bool                                   `json:"workspace_ready"`
+	SyncState            string                                 `json:"sync_state"`
+	SyncSummary          string                                 `json:"sync_summary"`
+	LinkedWorkspaceCount int                                    `json:"linked_workspace_count"`
+	LagoOrganizationID   string                                 `json:"lago_organization_id,omitempty"`
+	LagoProviderCode     string                                 `json:"lago_provider_code,omitempty"`
+	SecretConfigured     bool                                   `json:"secret_configured"`
+	LastSyncedAt         *string                                `json:"last_synced_at,omitempty"`
+	LastSyncError        string                                 `json:"last_sync_error,omitempty"`
+	ConnectedAt          *string                                `json:"connected_at,omitempty"`
+	DisabledAt           *string                                `json:"disabled_at,omitempty"`
+	CreatedByType        string                                 `json:"created_by_type"`
+	CreatedByID          string                                 `json:"created_by_id,omitempty"`
+	CreatedAt            string                                 `json:"created_at"`
+	UpdatedAt            string                                 `json:"updated_at"`
 }
 
-func newBillingProviderConnectionResponse(item domain.BillingProviderConnection) billingProviderConnectionResponse {
+func billingConnectionSyncState(item domain.BillingProviderConnection) string {
+	switch item.Status {
+	case domain.BillingProviderConnectionStatusDisabled:
+		return "disabled"
+	case domain.BillingProviderConnectionStatusConnected:
+		return "healthy"
+	case domain.BillingProviderConnectionStatusSyncError:
+		return "failed"
+	default:
+		if item.LastSyncedAt == nil {
+			return "never_synced"
+		}
+		return "pending"
+	}
+}
+
+func billingConnectionSyncSummary(item domain.BillingProviderConnection) string {
+	switch billingConnectionSyncState(item) {
+	case "healthy":
+		return "Connected and ready for workspace assignment."
+	case "failed":
+		if msg := strings.TrimSpace(item.LastSyncError); msg != "" {
+			return msg
+		}
+		return "The last sync failed. Review provider configuration and try again."
+	case "disabled":
+		return "Connection is disabled and cannot be assigned to new workspaces."
+	case "never_synced":
+		return "Connection has not been synced yet. Run the first sync before assigning it to workspaces."
+	default:
+		return "Connection is waiting for a successful provider sync."
+	}
+}
+
+func newBillingProviderConnectionResponse(item domain.BillingProviderConnection, linkedWorkspaceCount int) billingProviderConnectionResponse {
 	out := billingProviderConnectionResponse{
-		ID:                 item.ID,
-		ProviderType:       item.ProviderType,
-		Environment:        item.Environment,
-		DisplayName:        item.DisplayName,
-		Scope:              item.Scope,
-		OwnerTenantID:      item.OwnerTenantID,
-		Status:             item.Status,
-		LagoOrganizationID: item.LagoOrganizationID,
-		LagoProviderCode:   item.LagoProviderCode,
-		SecretConfigured:   strings.TrimSpace(item.SecretRef) != "",
-		LastSyncError:      item.LastSyncError,
-		CreatedByType:      item.CreatedByType,
-		CreatedByID:        item.CreatedByID,
-		CreatedAt:          item.CreatedAt.UTC().Format(time.RFC3339Nano),
-		UpdatedAt:          item.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		ID:                   item.ID,
+		ProviderType:         item.ProviderType,
+		Environment:          item.Environment,
+		DisplayName:          item.DisplayName,
+		Scope:                item.Scope,
+		OwnerTenantID:        item.OwnerTenantID,
+		Status:               item.Status,
+		WorkspaceReady:       item.Status == domain.BillingProviderConnectionStatusConnected,
+		SyncState:            billingConnectionSyncState(item),
+		SyncSummary:          billingConnectionSyncSummary(item),
+		LinkedWorkspaceCount: linkedWorkspaceCount,
+		LagoOrganizationID:   item.LagoOrganizationID,
+		LagoProviderCode:     item.LagoProviderCode,
+		SecretConfigured:     strings.TrimSpace(item.SecretRef) != "",
+		LastSyncError:        item.LastSyncError,
+		CreatedByType:        item.CreatedByType,
+		CreatedByID:          item.CreatedByID,
+		CreatedAt:            item.CreatedAt.UTC().Format(time.RFC3339Nano),
+		UpdatedAt:            item.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	if item.LastSyncedAt != nil {
 		value := item.LastSyncedAt.UTC().Format(time.RFC3339Nano)
@@ -85,7 +127,7 @@ func (s *Server) handleInternalBillingProviderConnections(w http.ResponseWriter,
 			writeDomainError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusCreated, map[string]any{"connection": newBillingProviderConnectionResponse(created)})
+		writeJSON(w, http.StatusCreated, map[string]any{"connection": newBillingProviderConnectionResponse(created, 0)})
 	case http.MethodGet:
 		limit, err := parseQueryInt(r, "limit")
 		if err != nil {
@@ -110,9 +152,18 @@ func (s *Server) handleInternalBillingProviderConnections(w http.ResponseWriter,
 			writeDomainError(w, err)
 			return
 		}
+		ids := make([]string, 0, len(items))
+		for _, item := range items {
+			ids = append(ids, item.ID)
+		}
+		counts, err := s.repo.CountTenantsByBillingProviderConnections(ids)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
 		resp := make([]billingProviderConnectionResponse, 0, len(items))
 		for _, item := range items {
-			resp = append(resp, newBillingProviderConnectionResponse(item))
+			resp = append(resp, newBillingProviderConnectionResponse(item, counts[item.ID]))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": resp})
 	default:
@@ -142,6 +193,15 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 		return
 	}
 
+	loadCounts := func() (map[string]int, bool) {
+		counts, err := s.repo.CountTenantsByBillingProviderConnections([]string{id})
+		if err != nil {
+			writeDomainError(w, err)
+			return nil, false
+		}
+		return counts, true
+	}
+
 	switch {
 	case action == "sync":
 		if r.Method != http.MethodPost {
@@ -153,7 +213,11 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 			writeDomainError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item)})
+		counts, ok := loadCounts()
+		if !ok {
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
 	case action == "disable":
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
@@ -164,7 +228,11 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 			writeDomainError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item)})
+		counts, ok := loadCounts()
+		if !ok {
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
 	default:
 		switch r.Method {
 		case http.MethodGet:
@@ -173,7 +241,11 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 				writeDomainError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item)})
+			counts, ok := loadCounts()
+			if !ok {
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
 		case http.MethodPatch:
 			var req service.UpdateBillingProviderConnectionRequest
 			if err := decodeJSON(r, &req); err != nil {
@@ -185,7 +257,11 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 				writeDomainError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item)})
+			counts, ok := loadCounts()
+			if !ok {
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
 		default:
 			writeMethodNotAllowed(w)
 		}

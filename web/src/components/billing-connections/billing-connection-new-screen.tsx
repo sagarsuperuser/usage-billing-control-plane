@@ -33,7 +33,7 @@ export function BillingConnectionNewScreen() {
           display_name: displayName.trim(),
           scope: "platform",
           stripe_secret_key: stripeSecretKey.trim(),
-          lago_organization_id: lagoOrganizationID.trim(),
+          lago_organization_id: lagoOrganizationID.trim() || undefined,
         },
       });
       return syncBillingProviderConnection({
@@ -65,7 +65,7 @@ export function BillingConnectionNewScreen() {
               <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Platform Setup</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">New Billing Connection</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Create a platform-owned Stripe connection. Alpha stores the secret, syncs the provider into Lago, and exposes a stable connection record for workspace assignment.
+                Create a platform-owned Stripe connection. Alpha stores the secret, syncs the provider, and exposes a stable connection record for workspace assignment.
               </p>
             </div>
             <Link
@@ -81,7 +81,7 @@ export function BillingConnectionNewScreen() {
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"
-            body="Billing connections are managed at the platform layer. Sign in with a platform_admin API key to create them."
+            body="Billing connections are managed at the platform layer. Sign in with a platform account to create them."
             actionHref="/customers"
             actionLabel="Open tenant home"
           />
@@ -100,7 +100,7 @@ export function BillingConnectionNewScreen() {
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Connect Stripe</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                  This is currently a Stripe-first platform flow. Alpha keeps the secret in its secret store and pushes only the required provider config into Lago.
+                  This is a Stripe-first platform flow. Alpha keeps the secret in its secret store and pushes only the provider configuration needed for sync.
                 </p>
               </div>
               <span className="inline-flex rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 p-3 text-fuchsia-100">
@@ -111,7 +111,7 @@ export function BillingConnectionNewScreen() {
             <div className="mt-6 grid gap-3 lg:grid-cols-3">
               <StepCard index="1" title="Name the connection" body="Use a durable display name your operators can recognize later." />
               <StepCard index="2" title="Store the Stripe secret" body="Alpha stores the secret outside the database using the billing secret store." />
-              <StepCard index="3" title="Sync into Lago" body="Alpha provisions the matching Stripe provider in Lago and keeps the resulting mapping on the connection record." />
+              <StepCard index="3" title="Sync the provider" body="Alpha provisions the matching provider and keeps the resulting mapping on the connection record." />
             </div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
@@ -130,12 +130,6 @@ export function BillingConnectionNewScreen() {
                   </select>
                 </label>
                 <InputField
-                  label="Billing organization ID"
-                  value={lagoOrganizationID}
-                  onChange={setLagoOrganizationID}
-                  placeholder="org_acme"
-                />
-                <InputField
                   label="Stripe secret key"
                   value={stripeSecretKey}
                   onChange={setStripeSecretKey}
@@ -143,15 +137,27 @@ export function BillingConnectionNewScreen() {
                   type="password"
                 />
               </div>
+
+              <details className="mt-4 rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-white">Advanced provider mapping</summary>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <InputField
+                    label="Billing organization reference (optional)"
+                    value={lagoOrganizationID}
+                    onChange={setLagoOrganizationID}
+                    placeholder="org_acme"
+                  />
+                </div>
+              </details>
             </div>
 
             <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
               <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Before you run</p>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ChecklistLine done={displayName.trim().length > 0} text="Connection name is set" />
-                <ChecklistLine done={lagoOrganizationID.trim().length > 0} text="Billing organization is set" />
                 <ChecklistLine done={stripeSecretKey.trim().length > 0} text="Stripe secret key is set" />
                 <ChecklistLine done text="Provider type is Stripe" />
+                <ChecklistLine done text={lagoOrganizationID.trim().length > 0 ? "Billing organization reference added" : "Billing organization reference can be added later"} />
               </div>
             </div>
 
@@ -162,14 +168,7 @@ export function BillingConnectionNewScreen() {
                   setFlash(null);
                   createMutation.mutate();
                 }}
-                disabled={
-                  !isPlatformAdmin ||
-                  !csrfToken ||
-                  createMutation.isPending ||
-                  !displayName.trim() ||
-                  !lagoOrganizationID.trim() ||
-                  !stripeSecretKey.trim()
-                }
+                disabled={!isPlatformAdmin || !csrfToken || createMutation.isPending || !displayName.trim() || !stripeSecretKey.trim()}
                 className="inline-flex h-11 items-center gap-2 rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 px-4 text-sm font-medium text-fuchsia-100 transition hover:bg-fuchsia-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
@@ -190,7 +189,7 @@ export function BillingConnectionNewScreen() {
             <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl text-sm text-slate-300">
               <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Current limitation</p>
               <p className="mt-3">
-                Secret rotation is not exposed here yet because the current Lago mutation contract cannot cleanly rotate Stripe secrets through the same public update path.
+                Secret rotation is not exposed here yet because the current provider update contract cannot cleanly rotate Stripe secrets through the same public update path.
               </p>
             </section>
           </aside>

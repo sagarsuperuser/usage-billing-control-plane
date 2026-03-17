@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 
 	"usage-billing-control-plane/internal/domain"
 	"usage-billing-control-plane/migrations"
@@ -692,6 +693,64 @@ func (s *PostgresStore) ListBillingProviderConnections(filter BillingProviderCon
 		return nil, err
 	}
 	return out, nil
+}
+
+func (s *PostgresStore) CountTenantsByBillingProviderConnections(connectionIDs []string) (map[string]int, error) {
+	ids := make([]string, 0, len(connectionIDs))
+	seen := make(map[string]struct{}, len(connectionIDs))
+	for _, item := range connectionIDs {
+		id := strings.TrimSpace(item)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	counts := make(map[string]int, len(ids))
+	if len(ids) == 0 {
+		return counts, nil
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT billing_provider_connection_id, COUNT(*)
+		 FROM tenants
+		 WHERE billing_provider_connection_id = ANY($1)
+		 GROUP BY billing_provider_connection_id`,
+		pq.Array(ids),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		var count int
+		if err := rows.Scan(&id, &count); err != nil {
+			return nil, err
+		}
+		counts[id] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return counts, nil
 }
 
 func (s *PostgresStore) UpdateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error) {
