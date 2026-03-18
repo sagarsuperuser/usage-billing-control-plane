@@ -5,30 +5,42 @@ import { LoaderCircle, LogIn } from "lucide-react";
 
 import type { UISession } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
+import { isInvitationPendingLoginError, isWorkspaceSelectionRequiredError } from "@/lib/api";
 
 export function SessionLoginCard({
   onSuccess,
+  onSelectionRequired,
+  onInvitationPending,
+  nextPath,
 }: {
   onSuccess?: (session: UISession) => void;
+  onSelectionRequired?: () => void;
+  onInvitationPending?: (nextPath: string) => void;
+  nextPath?: string | null;
 }) {
   const { login, loggingIn, loginError, isLoading, configError } = useUISession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tenantID, setTenantID] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage("");
     try {
-      const session = await login({
-        email,
-        password,
-        tenantID,
-      });
+      const session = await login({ email, password, nextPath: nextPath ?? undefined });
       setPassword("");
       onSuccess?.(session);
     } catch (err) {
+      if (isWorkspaceSelectionRequiredError(err)) {
+        setPassword("");
+        onSelectionRequired?.();
+        return;
+      }
+      if (isInvitationPendingLoginError(err)) {
+        setPassword("");
+        onInvitationPending?.(err.nextPath);
+        return;
+      }
       const message = err instanceof Error ? err.message : "Sign-in failed";
       setErrorMessage(message);
     }
@@ -80,18 +92,6 @@ export function SessionLoginCard({
               className="h-11 rounded-xl border border-white/20 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
             />
           </div>
-        </div>
-
-        <div className="grid gap-2">
-          <label className="text-xs font-medium uppercase tracking-wider text-slate-400">Workspace ID, if your account spans more than one workspace</label>
-          <input
-            type="text"
-            data-testid="session-login-tenant-id"
-            value={tenantID}
-            onChange={(event) => setTenantID(event.target.value)}
-            placeholder="Optional tenant/workspace ID"
-            className="h-11 rounded-xl border border-white/20 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
-          />
         </div>
 
         <div className="flex items-end">

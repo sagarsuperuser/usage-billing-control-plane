@@ -4,10 +4,14 @@ import (
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/alexedwards/scs/postgresstore"
+	"github.com/alexedwards/scs/v2"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"usage-billing-control-plane/internal/api"
@@ -138,4 +142,104 @@ func TestWorkspaceAccessSubresources(t *testing.T) {
 	if membership.Status != domain.UserTenantMembershipStatusDisabled {
 		t.Fatalf("expected disabled membership after remove, got %q", membership.Status)
 	}
+}
+
+func TestWorkspaceInvitationPreviewAndAcceptFlow(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	now := time.Now().UTC()
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:        "tenant_accept",
+		Name:      "Tenant Accept",
+		Status:    domain.TenantStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:    "invitee@tenant.test",
+		password: "invitee password 123",
+	})
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_invite_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(mustNewDBAuthorizer(t, repo)),
+		api.WithSessionManager(sessionManager),
+		api.WithUIPublicBaseURL("https://app.example.com"),
+	).Handler())
+	defer ts.Close()
+
+	inviteResult := postJSON(t, ts.URL+"/internal/tenants/tenant_accept/invitations", map[string]any{
+		"email": "invitee@tenant.test",
+		"role":  "writer",
+	}, "platform-admin", http.StatusCreated)
+	acceptPath, _ := inviteResult["accept_path"].(string)
+	if acceptPath == "" {
+		t.Fatalf("expected accept_path in invitation response")
+	}
+	token := strings.TrimPrefix(acceptPath, "/invite/")
+	previewResp, err := http.Get(ts.URL + "/v1/ui/invitations/" + url.PathEscape(token))
+	if err != nil {
+		t.Fatalf("preview request: %v", err)
+	}
+	defer previewResp.Body.Close()
+	if previewResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on preview, got %d", previewResp.StatusCode)
+	}
+
+	client := newSessionClient(t)
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":    "invitee@tenant.test",
+		"password": "invitee password 123",
+	}, "", http.StatusCreated)
+	csrfToken, _ := loginResp["csrf_token"].(string)
+	acceptResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/invitations/"+url.PathEscape(token)+"/accept", map[string]any{}, csrfToken, http.StatusCreated)
+	sessionPayload := acceptResp["session"].(map[string]any)
+	if got, _ := sessionPayload["tenant_id"].(string); got != "tenant_accept" {
+		t.Fatalf("expected tenant_accept session after invite acceptance, got %q", got)
+	}
+	membership, err := repo.GetUserTenantMembership(strings.TrimSpace(loginResp["subject_id"].(string)), "tenant_accept")
+	if err != nil {
+		t.Fatalf("load membership after accept: %v", err)
+	}
+	if membership.Status != domain.UserTenantMembershipStatusActive || membership.Role != "writer" {
+		t.Fatalf("expected active writer membership after invite accept, got status=%q role=%q", membership.Status, membership.Role)
+	}
+}
+
+func mustNewDBAuthorizer(t *testing.T, repo *store.PostgresStore) *api.DBAPIKeyAuthorizer {
+	t.Helper()
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	return authorizer
 }

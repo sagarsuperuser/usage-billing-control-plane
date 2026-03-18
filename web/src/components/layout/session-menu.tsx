@@ -16,8 +16,8 @@ export function SessionMenu() {
   const contextLabel = scope === "platform" ? "Cross-workspace control" : session.tenant_id || "Tenant workspace";
   const identityLabel = session.user_email || contextLabel;
   const homeHref = scope === "platform" ? "/billing-connections" : "/customers";
-  const secondaryHref = scope === "platform" ? "/workspaces" : "/payment-operations";
-  const secondaryLabel = scope === "platform" ? "Open workspaces" : "Open payments";
+  const secondaryHref = scope === "platform" ? "/workspaces" : "/workspace-access";
+  const secondaryLabel = scope === "platform" ? "Open workspaces" : "Open access";
 
   return (
     <details className="group relative">

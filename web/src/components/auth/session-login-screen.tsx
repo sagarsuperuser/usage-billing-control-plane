@@ -9,7 +9,7 @@ import { Building2, CreditCard, UserRoundPlus } from "lucide-react";
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchUIAuthProviders } from "@/lib/api";
-import { getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
+import { buildWorkspaceSelectionPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import type { UISession } from "@/lib/types";
 
 function resolveTarget(session: UISession | null, nextPath: string | null): string {
@@ -87,8 +87,15 @@ export function SessionLoginScreen() {
             <div className="sr-only">{authError}</div>
           ) : null}
           <SessionLoginCard
+            nextPath={requestedNext}
             onSuccess={(nextSession) => {
               router.replace(resolveTarget(nextSession, requestedNext));
+            }}
+            onSelectionRequired={() => {
+              router.replace(buildWorkspaceSelectionPath(requestedNext));
+            }}
+            onInvitationPending={(nextPath) => {
+              router.replace(normalizeNextPath(nextPath, "/"));
             }}
           />
           {authProvidersQuery.data?.sso_providers?.length ? (
@@ -149,7 +156,7 @@ function resolveAuthErrorMessage(providerKey: string | null, errorCode: string |
     case "sso_email_not_verified":
       return `The identity provider did not return a verified email${label}.`;
     case "tenant_selection_required":
-      return "This account spans more than one workspace. Start the SSO flow again with a target workspace route.";
+      return "This account spans more than one workspace. Continue to choose the workspace you want to open.";
     case "tenant_access_denied":
       return `This account is authenticated${label}, but it does not have access to the requested workspace.`;
     case "user_disabled":

@@ -1578,6 +1578,38 @@ func (s *PostgresStore) GetWorkspaceInvitation(id string) (domain.WorkspaceInvit
 	return out, nil
 }
 
+func (s *PostgresStore) GetWorkspaceInvitationByTokenHash(tokenHash string) (domain.WorkspaceInvitation, error) {
+	tokenHash = strings.TrimSpace(tokenHash)
+	if tokenHash == "" {
+		return domain.WorkspaceInvitation{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, workspace_id, email, role, status, token_hash, expires_at, accepted_at, accepted_by_user_id,
+		invited_by_user_id, invited_by_platform_user, revoked_at, created_at, updated_at
+		FROM workspace_invitations
+		WHERE token_hash = $1`, tokenHash)
+	out, err := scanWorkspaceInvitation(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.WorkspaceInvitation{}, ErrNotFound
+		}
+		return domain.WorkspaceInvitation{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) ListWorkspaceInvitations(filter WorkspaceInvitationListFilter) ([]domain.WorkspaceInvitation, error) {
 	limit := filter.Limit
 	if limit <= 0 {

@@ -13,6 +13,7 @@ const links = [
   { href: "/pricing", label: "Pricing", scope: "tenant" as const },
   { href: "/customers", label: "Customers", scope: "tenant" as const },
   { href: "/subscriptions", label: "Subscriptions", scope: "tenant" as const },
+  { href: "/workspace-access", label: "Access", scope: "tenant" as const },
   { href: "/customers/new", label: "Customer Setup", scope: "tenant" as const },
   { href: "/payment-operations", label: "Payments", scope: "tenant" as const },
   { href: "/replay-operations", label: "Recovery", scope: "tenant" as const },

@@ -253,6 +253,7 @@ type Repository interface {
 	ListTenantMemberships(tenantID string) ([]domain.UserTenantMembership, error)
 	CreateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error)
 	GetWorkspaceInvitation(id string) (domain.WorkspaceInvitation, error)
+	GetWorkspaceInvitationByTokenHash(tokenHash string) (domain.WorkspaceInvitation, error)
 	ListWorkspaceInvitations(filter WorkspaceInvitationListFilter) ([]domain.WorkspaceInvitation, error)
 	UpdateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error)
 	GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error)

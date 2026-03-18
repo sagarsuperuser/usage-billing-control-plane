@@ -28,11 +28,12 @@ export function useUISession() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: (input: { email: string; password: string; tenantID?: string }) =>
+    mutationFn: (input: { email: string; password: string; tenantID?: string; nextPath?: string }) =>
       loginUISession({
         email: input.email,
         password: input.password,
         tenantID: input.tenantID,
+        nextPath: input.nextPath,
         runtimeBaseURL: apiBaseURL,
       }),
     onSuccess: (session) => {

@@ -30,6 +30,7 @@ type ServerConfig struct {
 	Payment          PaymentReconcileConfig
 	APIKeysRaw       string
 	AuditExport      AuditExportConfig
+	Email            InvitationEmailConfig
 }
 
 type DBConfig struct {
@@ -125,6 +126,15 @@ type AuditExportConfig struct {
 	S3          service.S3Config
 	DownloadTTL time.Duration
 	WorkerPoll  time.Duration
+}
+
+type InvitationEmailConfig struct {
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	FromEmail    string
+	FromName     string
 }
 
 func LoadServerConfigFromEnv() (ServerConfig, error) {
@@ -235,6 +245,17 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	if sessionToken == "" {
 		sessionToken = strings.TrimSpace(os.Getenv("AWS_SESSION_TOKEN"))
 	}
+	inviteSMTPHost := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_SMTP_HOST"))
+	inviteSMTPPort := getIntEnv("INVITATION_EMAIL_SMTP_PORT", 587)
+	inviteSMTPUsername := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_SMTP_USERNAME"))
+	inviteSMTPPassword := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_SMTP_PASSWORD"))
+	inviteFromEmail := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_FROM_EMAIL"))
+	inviteFromName := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_FROM_NAME"))
+	if inviteSMTPHost != "" {
+		if inviteFromEmail == "" {
+			return ServerConfig{}, fmt.Errorf("INVITATION_EMAIL_FROM_EMAIL is required when invitation email delivery is configured")
+		}
+	}
 
 	dbCfg, err := LoadDBConfigFromEnv()
 	if err != nil {
@@ -307,6 +328,14 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			},
 			DownloadTTL: time.Duration(getIntEnv("AUDIT_EXPORT_DOWNLOAD_TTL_SEC", 86400)) * time.Second,
 			WorkerPoll:  time.Duration(getIntEnv("AUDIT_EXPORT_WORKER_POLL_MS", 500)) * time.Millisecond,
+		},
+		Email: InvitationEmailConfig{
+			SMTPHost:     inviteSMTPHost,
+			SMTPPort:     inviteSMTPPort,
+			SMTPUsername: inviteSMTPUsername,
+			SMTPPassword: inviteSMTPPassword,
+			FromEmail:    inviteFromEmail,
+			FromName:     inviteFromName,
 		},
 	}
 

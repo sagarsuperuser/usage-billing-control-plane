@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -297,6 +298,110 @@ func TestUISessionCSRFProtectionForUnsafeMethods(t *testing.T) {
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/rating-rules", ruleBody, "", http.StatusForbidden)
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/rating-rules", ruleBody, "wrong-token", http.StatusForbidden)
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/rating-rules", ruleBody, csrfToken, http.StatusCreated)
+}
+
+func TestUISessionLoginReturnsPendingWorkspaceSelectionForMultiWorkspaceUser(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	now := time.Now().UTC()
+	user, err := repo.CreateUser(domain.User{
+		Email:       "multi@tenant.test",
+		DisplayName: "Multi User",
+		Status:      domain.UserStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	hash, err := service.HashPassword("multi password 123")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if _, err := repo.UpsertUserPasswordCredential(domain.UserPasswordCredential{
+		UserID:            user.ID,
+		PasswordHash:      hash,
+		PasswordUpdatedAt: now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}); err != nil {
+		t.Fatalf("upsert password: %v", err)
+	}
+	for _, tenantID := range []string{"tenant_a", "tenant_b"} {
+		if _, err := repo.CreateTenant(domain.Tenant{
+			ID:        tenantID,
+			Name:      strings.ToUpper(tenantID),
+			Status:    domain.TenantStatusActive,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("create tenant %s: %v", tenantID, err)
+		}
+		if _, err := repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+			UserID:    user.ID,
+			TenantID:  tenantID,
+			Role:      "admin",
+			Status:    domain.UserTenantMembershipStatusActive,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("create membership %s: %v", tenantID, err)
+		}
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_workspace_select"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+		api.WithUIPublicBaseURL("https://app.example.com"),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":    "multi@tenant.test",
+		"password": "multi password 123",
+	}, "", http.StatusConflict)
+	if required, _ := loginResp["required"].(bool); !required {
+		t.Fatalf("expected workspace selection required response, got %#v", loginResp)
+	}
+	items := loginResp["items"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 workspace options, got %d", len(items))
+	}
+	csrfToken, _ := loginResp["csrf_token"].(string)
+	selectResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/workspaces/select", map[string]any{
+		"tenant_id": "tenant_b",
+	}, csrfToken, http.StatusCreated)
+	if got, _ := selectResp["tenant_id"].(string); got != "tenant_b" {
+		t.Fatalf("expected tenant_b session after selection, got %q", got)
+	}
 }
 
 func TestUIAuthProvidersListsConfiguredSSOProviders(t *testing.T) {

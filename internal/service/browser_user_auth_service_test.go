@@ -16,6 +16,23 @@ type browserAuthStoreStub struct {
 	memberships []domain.UserTenantMembership
 }
 
+func (s browserAuthStoreStub) GetUser(id string) (domain.User, error) {
+	if s.user.ID == "" || s.user.ID != id {
+		return domain.User{}, store.ErrNotFound
+	}
+	return s.user, nil
+}
+
+func (s browserAuthStoreStub) GetTenant(id string) (domain.Tenant, error) {
+	return domain.Tenant{
+		ID:        id,
+		Name:      id,
+		Status:    domain.TenantStatusActive,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}, nil
+}
+
 func (s browserAuthStoreStub) GetUserByEmail(email string) (domain.User, error) {
 	if s.user.Email == "" || s.user.Email != email {
 		return domain.User{}, store.ErrNotFound

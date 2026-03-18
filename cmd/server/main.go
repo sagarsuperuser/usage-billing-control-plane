@@ -317,6 +317,29 @@ func main() {
 	}
 	serverOpts = append(serverOpts, api.WithBrowserUserAuthService(browserUserAuthService))
 
+	if strings.TrimSpace(cfg.Email.SMTPHost) != "" {
+		invitationEmailSender, err := service.NewSMTPWorkspaceInvitationEmailSender(service.SMTPWorkspaceInvitationEmailConfig{
+			Host:      cfg.Email.SMTPHost,
+			Port:      cfg.Email.SMTPPort,
+			Username:  cfg.Email.SMTPUsername,
+			Password:  cfg.Email.SMTPPassword,
+			FromEmail: cfg.Email.FromEmail,
+			FromName:  cfg.Email.FromName,
+		})
+		if err != nil {
+			fatal(logger, "initialize workspace invitation email sender", "error", err)
+		}
+		serverOpts = append(serverOpts, api.WithWorkspaceInvitationEmailSender(invitationEmailSender))
+		logger.Info(
+			"workspace invitation email enabled",
+			"component", "server",
+			"smtp_host", cfg.Email.SMTPHost,
+			"from_email", cfg.Email.FromEmail,
+		)
+	} else {
+		logger.Info("workspace invitation email disabled", "component", "server")
+	}
+
 	if len(cfg.SSO.OIDCProviders) > 0 {
 		oidcProviders := make([]service.BrowserSSOProvider, 0, len(cfg.SSO.OIDCProviders))
 		for _, providerCfg := range cfg.SSO.OIDCProviders {

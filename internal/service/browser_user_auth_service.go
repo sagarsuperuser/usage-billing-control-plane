@@ -20,6 +20,8 @@ var (
 
 type BrowserUserAuthStore interface {
 	GetUserByEmail(email string) (domain.User, error)
+	GetUser(id string) (domain.User, error)
+	GetTenant(id string) (domain.Tenant, error)
 	GetUserPasswordCredential(userID string) (domain.UserPasswordCredential, error)
 	ListUserTenantMemberships(userID string) ([]domain.UserTenantMembership, error)
 }
@@ -38,6 +40,36 @@ type BrowserUserPrincipal struct {
 	TenantID     string
 }
 
+type BrowserWorkspaceOption struct {
+	TenantID string
+	Name     string
+	Role     string
+}
+
+type BrowserTenantSelectionError struct {
+	User domain.User
+}
+
+func (e BrowserTenantSelectionError) Error() string {
+	return ErrBrowserTenantSelection.Error()
+}
+
+func (e BrowserTenantSelectionError) Unwrap() error {
+	return ErrBrowserTenantSelection
+}
+
+type BrowserTenantAccessDeniedError struct {
+	User domain.User
+}
+
+func (e BrowserTenantAccessDeniedError) Error() string {
+	return ErrBrowserTenantAccessDenied.Error()
+}
+
+func (e BrowserTenantAccessDeniedError) Unwrap() error {
+	return ErrBrowserTenantAccessDenied
+}
+
 type BrowserUserAuthService struct {
 	store BrowserUserAuthStore
 }
@@ -53,27 +85,36 @@ func (s *BrowserUserAuthService) Authenticate(req BrowserUserLoginRequest) (Brow
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	password := strings.TrimSpace(req.Password)
 	requestedTenantID := normalizeBrowserTenantID(strings.TrimSpace(req.TenantID))
+	user, err := s.AuthenticateIdentity(email, password)
+	if err != nil {
+		return BrowserUserPrincipal{}, err
+	}
+	return s.ResolveUserPrincipal(user, requestedTenantID)
+}
+
+func (s *BrowserUserAuthService) AuthenticateIdentity(email, password string) (domain.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	password = strings.TrimSpace(password)
 	if email == "" || password == "" {
-		return BrowserUserPrincipal{}, ErrInvalidBrowserCredentials
+		return domain.User{}, ErrInvalidBrowserCredentials
 	}
 
 	user, err := s.store.GetUserByEmail(email)
 	if err != nil {
-		return BrowserUserPrincipal{}, ErrInvalidBrowserCredentials
+		return domain.User{}, ErrInvalidBrowserCredentials
 	}
 	if user.Status != domain.UserStatusActive {
-		return BrowserUserPrincipal{}, ErrBrowserUserDisabled
+		return domain.User{}, ErrBrowserUserDisabled
 	}
 
 	credential, err := s.store.GetUserPasswordCredential(user.ID)
 	if err != nil {
-		return BrowserUserPrincipal{}, ErrBrowserPasswordUnavailable
+		return domain.User{}, ErrBrowserPasswordUnavailable
 	}
 	if err := CheckPasswordHash(password, credential.PasswordHash); err != nil {
-		return BrowserUserPrincipal{}, ErrInvalidBrowserCredentials
+		return domain.User{}, ErrInvalidBrowserCredentials
 	}
-
-	return s.ResolveUserPrincipal(user, requestedTenantID)
+	return user, nil
 }
 
 func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID string) (BrowserUserPrincipal, error) {
@@ -113,7 +154,7 @@ func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID
 				}, nil
 			}
 		}
-		return BrowserUserPrincipal{}, ErrBrowserTenantAccessDenied
+		return BrowserUserPrincipal{}, BrowserTenantAccessDeniedError{User: user}
 	}
 
 	if len(activeMemberships) == 1 {
@@ -127,7 +168,7 @@ func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID
 	}
 
 	if len(activeMemberships) > 1 {
-		return BrowserUserPrincipal{}, ErrBrowserTenantSelection
+		return BrowserUserPrincipal{}, BrowserTenantSelectionError{User: user}
 	}
 
 	if user.PlatformRole == domain.UserPlatformRoleAdmin {
@@ -138,7 +179,47 @@ func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID
 		}, nil
 	}
 
-	return BrowserUserPrincipal{}, ErrBrowserTenantAccessDenied
+	return BrowserUserPrincipal{}, BrowserTenantAccessDeniedError{User: user}
+}
+
+func (s *BrowserUserAuthService) ListWorkspaceOptions(userID string) ([]BrowserWorkspaceOption, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, fmt.Errorf("%w: user id is required", ErrValidation)
+	}
+	memberships, err := s.store.ListUserTenantMemberships(userID)
+	if err != nil {
+		return nil, fmt.Errorf("list memberships: %w", err)
+	}
+	out := make([]BrowserWorkspaceOption, 0, len(memberships))
+	for _, membership := range memberships {
+		if membership.Status != domain.UserTenantMembershipStatusActive {
+			continue
+		}
+		tenantID := normalizeBrowserTenantID(membership.TenantID)
+		if tenantID == "" {
+			continue
+		}
+		name := tenantID
+		if tenant, tenantErr := s.store.GetTenant(tenantID); tenantErr == nil {
+			if trimmed := strings.TrimSpace(tenant.Name); trimmed != "" {
+				name = trimmed
+			}
+		}
+		out = append(out, BrowserWorkspaceOption{
+			TenantID: tenantID,
+			Name:     name,
+			Role:     strings.ToLower(strings.TrimSpace(membership.Role)),
+		})
+	}
+	for i := 0; i < len(out); i++ {
+		for j := i + 1; j < len(out); j++ {
+			if strings.ToLower(out[j].Name) < strings.ToLower(out[i].Name) {
+				out[i], out[j] = out[j], out[i]
+			}
+		}
+	}
+	return out, nil
 }
 
 func HashPassword(password string) (string, error) {

@@ -32,6 +32,19 @@ export interface UISession {
   expires_at?: string;
 }
 
+export interface WorkspaceSelectionOption {
+  tenant_id: string;
+  name: string;
+  role: "reader" | "writer" | "admin";
+}
+
+export interface WorkspaceSelectionState {
+  required: boolean;
+  user_email?: string;
+  items: WorkspaceSelectionOption[];
+  csrf_token?: string;
+}
+
 export interface UIAuthProvider {
   key: string;
   display_name: string;
@@ -87,6 +100,23 @@ export interface WorkspaceInvitation {
   revoked_at?: string;
   created_at: string;
   updated_at: string;
+  accept_url?: string;
+}
+
+export interface WorkspaceInvitationIssueResult {
+  invitation: WorkspaceInvitation;
+  accept_url: string;
+  accept_path: string;
+}
+
+export interface WorkspaceInvitationPreview {
+  invitation: WorkspaceInvitation;
+  workspace_name: string;
+  requires_login: boolean;
+  authenticated: boolean;
+  current_user_email?: string;
+  email_matches_session: boolean;
+  can_accept: boolean;
 }
 
 export interface BillingProviderConnection {

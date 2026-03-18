@@ -85,6 +85,7 @@ type WorkspaceInvitation = {
   invited_by_platform_user: boolean;
   created_at: string;
   updated_at: string;
+  accept_url?: string;
 };
 
 function buildReadiness(pricingReady: boolean, customerExists: boolean, connectionID: string): TenantOnboardingReadiness {
@@ -288,9 +289,14 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
         invited_by_platform_user: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        accept_url: `/invite/wsi_${tenantID}_token`,
       };
       invitationsByTenant[tenantID] = [invitation, ...(invitationsByTenant[tenantID] ?? [])];
-      return json(201, { invitation });
+      return json(201, {
+        invitation,
+        accept_url: invitation.accept_url,
+        accept_path: `/invite/wsi_${tenantID}_token`,
+      });
     }
     if (path.startsWith("/internal/tenants/") && path.includes("/invitations/") && path.endsWith("/revoke") && method === "POST") {
       const segments = path.split("/");

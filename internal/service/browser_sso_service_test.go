@@ -73,6 +73,21 @@ func (s *browserSSOStoreStub) ListUserTenantMemberships(userID string) ([]domain
 	return s.memberships[userID], nil
 }
 
+func (s *browserSSOStoreStub) GetTenant(id string) (domain.Tenant, error) {
+	for _, memberships := range s.memberships {
+		for _, membership := range memberships {
+			if membership.TenantID == id {
+				return domain.Tenant{
+					ID:     id,
+					Name:   id,
+					Status: domain.TenantStatusActive,
+				}, nil
+			}
+		}
+	}
+	return domain.Tenant{}, store.ErrNotFound
+}
+
 func (s *browserSSOStoreStub) GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error) {
 	item, ok := s.identitiesByPair[providerKey+"|"+subject]
 	if !ok {

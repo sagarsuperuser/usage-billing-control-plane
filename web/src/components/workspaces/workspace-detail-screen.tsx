@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Building2, CreditCard, LoaderCircle, MailPlus, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, Copy, CreditCard, LoaderCircle, MailPlus, ShieldCheck, UserRound } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -35,6 +35,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const [selectedConnectionID, setSelectedConnectionID] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("admin");
+  const [latestInviteURL, setLatestInviteURL] = useState("");
 
   const tenantStatusQuery = useQuery({
     queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID],
@@ -133,6 +134,12 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     Boolean(csrfToken) &&
     !createInvitationMutation.isPending &&
     inviteEmail.trim().length > 0;
+
+  useEffect(() => {
+    if (createInvitationMutation.data?.accept_url) {
+      setLatestInviteURL(createInvitationMutation.data.accept_url);
+    }
+  }, [createInvitationMutation.data]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1d4ed8_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
@@ -380,6 +387,22 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         Send invite
                       </button>
                     </div>
+                    {latestInviteURL ? (
+                      <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Latest invite link</p>
+                        <p className="mt-2 break-all text-xs text-slate-300">{latestInviteURL}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(latestInviteURL);
+                          }}
+                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-slate-200 transition hover:bg-white/10"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy invite link
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">

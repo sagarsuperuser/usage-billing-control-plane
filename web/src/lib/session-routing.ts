@@ -25,3 +25,8 @@ export function buildLoginPath(nextPath: string): string {
   const safeNext = normalizeNextPath(nextPath, "/control-plane");
   return `/login?next=${encodeURIComponent(safeNext)}`;
 }
+
+export function buildWorkspaceSelectionPath(nextPath: string | null | undefined): string {
+  const safeNext = normalizeNextPath(nextPath, "/customers");
+  return `/workspace-select?next=${encodeURIComponent(safeNext)}`;
+}

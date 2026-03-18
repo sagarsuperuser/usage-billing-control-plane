@@ -25,8 +25,11 @@ import {
   TenantOnboardingResult,
   UIAuthProviderList,
   UISession,
+  WorkspaceInvitationIssueResult,
+  WorkspaceInvitationPreview,
   WorkspaceInvitation,
   WorkspaceMember,
+  WorkspaceSelectionState,
 } from "@/lib/types";
 
 function trimTrailingSlash(value: string): string {
@@ -121,25 +124,83 @@ async function apiRequest<T>(
   return payload as T;
 }
 
+export class WorkspaceSelectionRequiredError extends Error {
+  readonly selection: WorkspaceSelectionState;
+
+  constructor(selection: WorkspaceSelectionState) {
+    super("workspace selection required");
+    this.name = "WorkspaceSelectionRequiredError";
+    this.selection = selection;
+  }
+}
+
+export function isWorkspaceSelectionRequiredError(value: unknown): value is WorkspaceSelectionRequiredError {
+  return value instanceof WorkspaceSelectionRequiredError || (
+    value instanceof Error &&
+    value.name === "WorkspaceSelectionRequiredError"
+  ) || (
+    typeof value === "object" &&
+    value !== null &&
+    "selection" in value
+  );
+}
+
+export class InvitationPendingLoginError extends Error {
+  readonly nextPath: string;
+
+  constructor(nextPath: string) {
+    super("invitation login pending");
+    this.name = "InvitationPendingLoginError";
+    this.nextPath = nextPath;
+  }
+}
+
+export function isInvitationPendingLoginError(value: unknown): value is InvitationPendingLoginError {
+  return value instanceof InvitationPendingLoginError || (
+    value instanceof Error &&
+    value.name === "InvitationPendingLoginError"
+  ) || (
+    typeof value === "object" &&
+    value !== null &&
+    "nextPath" in value
+  );
+}
+
 export async function loginUISession(input: {
   email: string;
   password: string;
   tenantID?: string;
+  nextPath?: string;
   runtimeBaseURL?: string;
 }): Promise<UISession> {
-  const payload = await apiRequest<UISession>("/v1/ui/sessions/login", {
+  const baseURL = resolveBaseURL(input.runtimeBaseURL);
+  const endpoint = baseURL ? `${baseURL}/v1/ui/sessions/login` : "/v1/ui/sessions/login";
+  const response = await fetch(endpoint, {
     method: "POST",
-    runtimeBaseURL: input.runtimeBaseURL,
-    body: {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
       email: input.email,
       password: input.password,
       tenant_id: input.tenantID,
-    },
+      next: input.nextPath,
+    }),
+    cache: "no-store",
+    credentials: "include",
   });
-  if (!payload) {
-    throw new Error("login failed");
+  const isJSON = response.headers.get("content-type")?.includes("application/json");
+  const payload = isJSON ? ((await response.json()) as Record<string, unknown>) : null;
+  if (response.status === 409 && payload) {
+    throw new WorkspaceSelectionRequiredError(payload as unknown as WorkspaceSelectionState);
   }
-  return payload;
+  if (response.status === 202 && payload && payload.pending_invitation === true) {
+    throw new InvitationPendingLoginError(typeof payload.next_path === "string" ? payload.next_path : input.nextPath || "/");
+  }
+  if (!response.ok) {
+    throw new Error((payload && typeof payload.error === "string" && payload.error) || `Request failed (${response.status})`);
+  }
+  return payload as unknown as UISession;
 }
 
 export async function fetchUISession(input: {
@@ -532,6 +593,46 @@ export async function fetchWorkspaceMembers(input: {
   return payload.items;
 }
 
+export async function updateWorkspaceMember(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  tenantID: string;
+  userID: string;
+  role: "reader" | "writer" | "admin";
+}): Promise<WorkspaceMember> {
+  const payload = await apiRequest<{ member: WorkspaceMember }>(
+    `/internal/tenants/${encodeURIComponent(input.tenantID)}/members/${encodeURIComponent(input.userID)}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "PATCH",
+      csrfToken: input.csrfToken,
+      body: {
+        role: input.role,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.member;
+}
+
+export async function removeWorkspaceMember(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  tenantID: string;
+  userID: string;
+}): Promise<void> {
+  await apiRequest<null>(
+    `/internal/tenants/${encodeURIComponent(input.tenantID)}/members/${encodeURIComponent(input.userID)}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "DELETE",
+      csrfToken: input.csrfToken,
+    }
+  );
+}
+
 export async function fetchWorkspaceInvitations(input: {
   runtimeBaseURL?: string;
   tenantID: string;
@@ -557,8 +658,8 @@ export async function createWorkspaceInvitation(input: {
   tenantID: string;
   email: string;
   role: "reader" | "writer" | "admin";
-}): Promise<WorkspaceInvitation> {
-  const payload = await apiRequest<{ invitation: WorkspaceInvitation }>(
+}): Promise<WorkspaceInvitationIssueResult> {
+  const payload = await apiRequest<WorkspaceInvitationIssueResult>(
     `/internal/tenants/${encodeURIComponent(input.tenantID)}/invitations`,
     {
       runtimeBaseURL: input.runtimeBaseURL,
@@ -573,7 +674,7 @@ export async function createWorkspaceInvitation(input: {
   if (!payload) {
     throw new Error("unauthorized");
   }
-  return payload.invitation;
+  return payload;
 }
 
 export async function revokeWorkspaceInvitation(input: {
@@ -595,6 +696,173 @@ export async function revokeWorkspaceInvitation(input: {
     throw new Error("unauthorized");
   }
   return payload.invitation;
+}
+
+export async function fetchTenantWorkspaceMembers(input: {
+  runtimeBaseURL?: string;
+}): Promise<WorkspaceMember[]> {
+  const payload = await apiRequest<{ items: WorkspaceMember[] }>("/v1/workspace/members", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.items;
+}
+
+export async function updateTenantWorkspaceMember(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  userID: string;
+  role: "reader" | "writer" | "admin";
+}): Promise<WorkspaceMember> {
+  const payload = await apiRequest<{ member: WorkspaceMember }>(`/v1/workspace/members/${encodeURIComponent(input.userID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "PATCH",
+    csrfToken: input.csrfToken,
+    body: {
+      role: input.role,
+    },
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.member;
+}
+
+export async function removeTenantWorkspaceMember(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  userID: string;
+}): Promise<void> {
+  await apiRequest<null>(`/v1/workspace/members/${encodeURIComponent(input.userID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "DELETE",
+    csrfToken: input.csrfToken,
+  });
+}
+
+export async function fetchTenantWorkspaceInvitations(input: {
+  runtimeBaseURL?: string;
+  status?: string;
+}): Promise<WorkspaceInvitation[]> {
+  const query = toQuery({ status: input.status });
+  const payload = await apiRequest<{ items: WorkspaceInvitation[] }>(`/v1/workspace/invitations${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.items;
+}
+
+export async function createTenantWorkspaceInvitation(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  email: string;
+  role: "reader" | "writer" | "admin";
+}): Promise<WorkspaceInvitationIssueResult> {
+  const payload = await apiRequest<WorkspaceInvitationIssueResult>("/v1/workspace/invitations", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: {
+      email: input.email,
+      role: input.role,
+    },
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function revokeTenantWorkspaceInvitation(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  invitationID: string;
+}): Promise<WorkspaceInvitation> {
+  const payload = await apiRequest<{ invitation: WorkspaceInvitation }>(
+    `/v1/workspace/invitations/${encodeURIComponent(input.invitationID)}/revoke`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.invitation;
+}
+
+export async function fetchPendingWorkspaceSelection(input: {
+  runtimeBaseURL?: string;
+}): Promise<WorkspaceSelectionState> {
+  const payload = await apiRequest<WorkspaceSelectionState>("/v1/ui/workspaces/pending", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("workspace selection not pending");
+  }
+  return payload;
+}
+
+export async function selectPendingWorkspace(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  tenantID: string;
+}): Promise<UISession> {
+  const payload = await apiRequest<UISession>("/v1/ui/workspaces/select", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: {
+      tenant_id: input.tenantID,
+    },
+  });
+  if (!payload) {
+    throw new Error("workspace selection failed");
+  }
+  return payload;
+}
+
+export async function fetchWorkspaceInvitationPreview(input: {
+  runtimeBaseURL?: string;
+  token: string;
+}): Promise<WorkspaceInvitationPreview> {
+  const payload = await apiRequest<WorkspaceInvitationPreview>(`/v1/ui/invitations/${encodeURIComponent(input.token)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("workspace invitation not found");
+  }
+  return payload;
+}
+
+export async function acceptWorkspaceInvitation(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  token: string;
+}): Promise<{ invitation: WorkspaceInvitation; session: UISession }> {
+  const payload = await apiRequest<{ invitation: WorkspaceInvitation; session: UISession }>(
+    `/v1/ui/invitations/${encodeURIComponent(input.token)}/accept`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("workspace invitation acceptance failed");
+  }
+  return payload;
 }
 
 export async function syncBillingProviderConnection(input: {

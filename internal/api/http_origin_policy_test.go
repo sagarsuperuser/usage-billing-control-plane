@@ -24,6 +24,13 @@ type browserOriginAuthStore struct {
 	memberships []domain.UserTenantMembership
 }
 
+func (s browserOriginAuthStore) GetUser(id string) (domain.User, error) {
+	if s.user.ID != id {
+		return domain.User{}, store.ErrNotFound
+	}
+	return s.user, nil
+}
+
 func (s browserOriginAuthStore) GetUserByEmail(email string) (domain.User, error) {
 	if s.user.Email != email {
 		return domain.User{}, store.ErrNotFound
@@ -43,6 +50,19 @@ func (s browserOriginAuthStore) ListUserTenantMemberships(userID string) ([]doma
 		return nil, store.ErrNotFound
 	}
 	return s.memberships, nil
+}
+
+func (s browserOriginAuthStore) GetTenant(id string) (domain.Tenant, error) {
+	for _, membership := range s.memberships {
+		if membership.TenantID == id {
+			return domain.Tenant{
+				ID:     id,
+				Name:   id,
+				Status: domain.TenantStatusActive,
+			}, nil
+		}
+	}
+	return domain.Tenant{}, store.ErrNotFound
 }
 
 func TestParseAllowedOrigins(t *testing.T) {
