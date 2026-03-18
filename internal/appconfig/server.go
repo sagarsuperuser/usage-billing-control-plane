@@ -453,6 +453,18 @@ func getIntEnv(key string, defaultVal int) int {
 	return parsed
 }
 
+func getDurationEnv(key string, defaultVal time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultVal
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil {
+		return defaultVal
+	}
+	return parsed
+}
+
 func getBoolEnv(key string, defaultVal bool) bool {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
