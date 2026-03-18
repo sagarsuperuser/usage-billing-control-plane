@@ -7,8 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchBillingProviderConnections, onboardTenant } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
 import { type BillingProviderConnection, type TenantOnboardingResult } from "@/lib/types";
@@ -39,7 +39,7 @@ export function TenantOnboardingScreen() {
 
   const connectedBillingConnections = useMemo(
     () => (billingConnectionsQuery.data ?? []).filter((item) => item.status === "connected" && item.scope === "platform"),
-    [billingConnectionsQuery.data]
+    [billingConnectionsQuery.data],
   );
 
   const selectedBillingConnection = connectedBillingConnections.find((item) => item.id === billingProviderConnectionID) ?? null;
@@ -62,11 +62,7 @@ export function TenantOnboardingScreen() {
       setResult(payload);
       setTenantID(payload.tenant.id);
       setTenantName(payload.tenant.name);
-      setFlash(
-        payload.tenant_created
-          ? `Workspace ${payload.tenant.id} created successfully.`
-          : `Workspace ${payload.tenant.id} updated and readiness refreshed.`
-      );
+      setFlash(payload.tenant_created ? `Workspace ${payload.tenant.id} created successfully.` : `Workspace ${payload.tenant.id} updated and readiness refreshed.`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["tenants"] }),
         queryClient.invalidateQueries({ queryKey: ["overview-tenants"] }),
@@ -76,40 +72,26 @@ export function TenantOnboardingScreen() {
   });
 
   const createdSecret = result?.tenant_admin_bootstrap.secret ?? "";
+  const canSubmit = Boolean(isPlatformAdmin && csrfToken && tenantID.trim() && tenantName.trim() && billingProviderConnectionID);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1d4ed8_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-55">
-        <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: "Workspace Setup" }]} />
+        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: "New" }]} />
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Platform Setup</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Workspace Setup</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-                Create a workspace, attach a connected billing provider, and generate the first admin credential. Create billing connections first so workspace setup stays focused on tenant provisioning.
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace setup</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create workspace</h1>
+              <p className="mt-3 max-w-3xl text-sm text-slate-600">
+                Create a workspace, attach one active billing connection, and optionally mint the first admin credential. Billing connection lifecycle stays on dedicated billing pages.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link
-                href="/billing-connections"
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
-              >
-                Open billing connections
-              </Link>
-              <Link
-                href="/workspaces"
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
-              >
-                Open workspaces
-              </Link>
+              <Link href="/billing-connections" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open billing connections</Link>
+              <Link href="/workspaces" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open workspaces</Link>
             </div>
           </div>
         </section>
@@ -118,173 +100,135 @@ export function TenantOnboardingScreen() {
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"
-            body="This screen drives /internal onboarding APIs. Sign in with a platform_admin API key to create workspaces."
+            body="This screen drives platform onboarding APIs. Sign in with a platform admin account to create workspaces."
             actionHref="/customers"
             actionLabel="Open tenant home"
           />
         ) : null}
 
-        {flash ? (
-          <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-            {flash}
-          </section>
-        ) : null}
+        {flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
 
-        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Guided setup</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Create workspace</h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                  This page only creates or reconciles the workspace. Billing connection lifecycle now lives on dedicated billing connection pages.
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Workspace provisioning</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-600">This flow only creates or reconciles the workspace. Ongoing readiness review happens on the workspace detail page.</p>
               </div>
-              <span className="inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-cyan-100">
+              <span className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-700">
                 <Building2 className="h-5 w-5" />
               </span>
             </div>
 
-            <div className="mt-6 grid gap-3 lg:grid-cols-3">
-              <StepCard index="1" title="Name the workspace" body="Use a stable workspace ID and a display name your team will recognize later." />
-              <StepCard index="2" title="Select active billing connection" body="Choose the one billing connection this workspace should use for payment and billing execution." />
-              <StepCard index="3" title="Create admin access" body="Generate the first admin credential now, or leave it for a controlled handoff later." />
+            <div className="mt-5 grid gap-3 lg:grid-cols-3">
+              <StepCard index="1" title="Name the workspace" body="Use a stable ID and a display name operators will recognize later." />
+              <StepCard index="2" title="Select active billing" body="Choose the one connection this workspace should use for billing execution." />
+              <StepCard index="3" title="Bootstrap admin access" body="Generate the first admin credential now or leave it for a controlled handoff." />
             </div>
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 1</p>
-              <h3 className="mt-2 text-lg font-semibold text-white">Workspace identity</h3>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <InputField label="Workspace ID" value={tenantID} onChange={setTenantID} placeholder="tenant_acme" />
-                <InputField label="Workspace name" value={tenantName} onChange={setTenantName} placeholder="Acme Corp" />
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 2</p>
-              <h3 className="mt-2 text-lg font-semibold text-white">Workspace billing</h3>
-              <p className="mt-2 text-sm text-slate-300">
-                Billing connections are created separately. Workspace setup only chooses the one active connection this workspace should use.
-              </p>
-              {billingConnectionsQuery.isLoading ? (
-                <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                  Loading billing connections
+            <div className="mt-5 grid gap-5">
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 1</p>
+                <h3 className="mt-2 text-lg font-semibold text-slate-950">Workspace identity</h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <InputField label="Workspace ID" value={tenantID} onChange={setTenantID} placeholder="tenant_acme" />
+                  <InputField label="Workspace name" value={tenantName} onChange={setTenantName} placeholder="Acme Corp" />
                 </div>
-              ) : connectedBillingConnections.length === 0 ? (
-                <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-                  No connected billing providers are available yet.
-                  <div className="mt-3">
-                    <Link
-                      href="/billing-connections/new"
-                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-300/30 bg-white/10 px-3 text-sm font-medium text-amber-50 transition hover:bg-white/15"
-                    >
-                      <CreditCard className="h-4 w-4" />
-                      Create billing connection
-                    </Link>
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 2</p>
+                <h3 className="mt-2 text-lg font-semibold text-slate-950">Active billing connection</h3>
+                <p className="mt-2 text-sm text-slate-600">Billing connections are created separately. Workspace setup only chooses the active connection for this workspace.</p>
+                {billingConnectionsQuery.isLoading ? (
+                  <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    Loading billing connections
                   </div>
-                </div>
-              ) : (
-                <div className="mt-4 grid gap-4">
-                  <label className="grid gap-2 text-sm text-slate-200">
-                    <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Active billing connection</span>
-                    <select
-                      aria-label="Billing connection"
-                      value={billingProviderConnectionID}
-                      onChange={(event) => setBillingProviderConnectionID(event.target.value)}
-                      className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    >
-                      <option value="">Select one active billing connection</option>
-                      {connectedBillingConnections.map((connection) => (
-                        <option key={connection.id} value={connection.id}>
-                          {connectionLabel(connection)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {selectedBillingConnection ? (
-                    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Selected active connection</p>
-                      <h4 className="mt-2 text-base font-semibold text-white">{selectedBillingConnection.display_name}</h4>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <MetaItem label="Connection ID" value={selectedBillingConnection.id} mono />
-                        <MetaItem label="Environment" value={selectedBillingConnection.environment} />
-                        <MetaItem label="Connection health" value={formatReadinessStatus(selectedBillingConnection.status)} />
-                        <MetaItem label="Workspace billing status" value="Will be attached on setup" />
-                      </div>
+                ) : connectedBillingConnections.length === 0 ? (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+                    No connected billing providers are available yet.
+                    <div className="mt-3">
+                      <Link href="/billing-connections/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
+                        <CreditCard className="h-4 w-4" />
+                        Create billing connection
+                      </Link>
                     </div>
-                  ) : null}
+                  </div>
+                ) : (
+                  <div className="mt-4 grid gap-4">
+                    <label className="grid gap-2 text-sm text-slate-700">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Active billing connection</span>
+                      <select
+                        aria-label="Billing connection"
+                        value={billingProviderConnectionID}
+                        onChange={(event) => setBillingProviderConnectionID(event.target.value)}
+                        className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      >
+                        <option value="">Select one active billing connection</option>
+                        {connectedBillingConnections.map((connection) => (
+                          <option key={connection.id} value={connection.id}>
+                            {connectionLabel(connection)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {selectedBillingConnection ? (
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Selected connection</p>
+                        <h4 className="mt-2 text-base font-semibold text-slate-950">{selectedBillingConnection.display_name}</h4>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <MetaItem label="Connection ID" value={selectedBillingConnection.id} mono />
+                          <MetaItem label="Environment" value={selectedBillingConnection.environment} />
+                          <MetaItem label="Connection health" value={formatReadinessStatus(selectedBillingConnection.status)} />
+                          <MetaItem label="Workspace billing" value="Will be attached on setup" />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 3</p>
+                <h3 className="mt-2 text-lg font-semibold text-slate-950">Admin bootstrap</h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+                  <InputField label="Admin credential name" value={adminKeyName} onChange={setAdminKeyName} placeholder="bootstrap-admin-tenant_acme" />
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Advanced controls</p>
+                    <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={bootstrapAdminKey} onChange={(event) => setBootstrapAdminKey(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+                      Generate first admin credential
+                    </label>
+                    <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={allowExistingActiveKeys} onChange={(event) => setAllowExistingActiveKeys(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+                      Allow existing active credentials
+                    </label>
+                  </div>
                 </div>
-              )}
+              </section>
             </div>
 
-            <details className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
-              <summary className="cursor-pointer list-none">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 3</p>
-                    <h3 className="mt-2 text-lg font-semibold text-white">Advanced admin access options</h3>
-                  </div>
-                  <span className="text-xs uppercase tracking-[0.14em] text-slate-400">Expand</span>
-                </div>
-              </summary>
-              <div className="mt-4 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
-                <InputField
-                  label="Admin credential name"
-                  value={adminKeyName}
-                  onChange={setAdminKeyName}
-                  placeholder="bootstrap-admin-tenant_acme"
-                />
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Advanced controls</p>
-                  <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={bootstrapAdminKey}
-                      onChange={(event) => setBootstrapAdminKey(event.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
-                    />
-                    Generate first admin credential
-                  </label>
-                  <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={allowExistingActiveKeys}
-                      onChange={(event) => setAllowExistingActiveKeys(event.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
-                    />
-                    Allow existing active credentials
-                  </label>
-                </div>
-              </div>
-            </details>
-
-            <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Before you run</p>
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Before you run</p>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ChecklistLine done={tenantID.trim().length > 0} text="Workspace ID is set" />
                 <ChecklistLine done={tenantName.trim().length > 0} text="Workspace name is set" />
                 <ChecklistLine done={Boolean(billingProviderConnectionID)} text="Billing connection is selected" />
-                <ChecklistLine done={connectedBillingConnections.length > 0} text="At least one connected billing provider exists" />
+                <ChecklistLine done={connectedBillingConnections.length > 0} text="A connected billing provider exists" />
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
+            <div className="mt-6 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setFlash(null);
                   onboardMutation.mutate();
                 }}
-                disabled={
-                  !isPlatformAdmin ||
-                  !csrfToken ||
-                  onboardMutation.isPending ||
-                  !tenantID.trim() ||
-                  !tenantName.trim() ||
-                  !billingProviderConnectionID
-                }
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canSubmit || onboardMutation.isPending}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {onboardMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                 Run workspace setup
@@ -301,81 +245,65 @@ export function TenantOnboardingScreen() {
                   setResult(null);
                   setFlash(null);
                 }}
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+                className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
               >
                 Reset form
               </button>
             </div>
 
             {createdSecret ? (
-              <div className="mt-6 rounded-3xl border border-amber-400/40 bg-[linear-gradient(135deg,rgba(245,158,11,0.14),rgba(15,23,42,0.72))] p-5 text-sm text-amber-100">
-                <div className="flex items-center gap-2 font-semibold text-amber-50">
+              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
+                <div className="flex items-center gap-2 font-semibold text-amber-800">
                   <KeyRound className="h-4 w-4" />
                   First admin credential
                 </div>
-                <p className="mt-2 text-sm text-amber-100/90">Capture this one-time credential now and hand it off through your secure admin bootstrap path.</p>
-                <p className="mt-3 break-all rounded-xl border border-white/10 bg-slate-950/60 px-3 py-3 font-mono text-xs text-amber-50">
-                  {createdSecret}
-                </p>
+                <p className="mt-2">Capture this one-time credential now and hand it off through your secure admin bootstrap path.</p>
+                <p className="mt-3 break-all rounded-lg border border-amber-200 bg-white px-3 py-3 font-mono text-xs text-amber-800">{createdSecret}</p>
               </div>
             ) : null}
           </section>
 
-          <aside className="flex flex-col gap-4">
-            <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-              <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">After setup</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Use dedicated workspace pages</h2>
-              <div className="mt-4 grid gap-3">
+          <aside className="grid gap-5 self-start">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">After setup</p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">Use dedicated workspace pages</h2>
+              <div className="mt-4 grid gap-2">
                 <ChecklistLine done text="Create or reconcile the workspace here" />
-                <ChecklistLine done text="Open the workspace detail page to review readiness" />
-                <ChecklistLine done text="Manage Stripe and Lago sync from Billing Connections" />
+                <ChecklistLine done text="Open workspace detail to review readiness" />
+                <ChecklistLine done text="Manage Stripe and sync from billing connections" />
               </div>
             </section>
 
             {result?.tenant ? (
-              <section className="rounded-3xl border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(6,182,212,0.12),rgba(15,23,42,0.9))] p-6 backdrop-blur-xl">
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workspace created</p>
-                <h2 className="mt-2 break-words text-xl font-semibold text-white">{result.tenant.name}</h2>
-                <p className="mt-1 break-all font-mono text-xs text-slate-400">{result.tenant.id}</p>
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace created</p>
+                <h2 className="mt-2 break-words text-xl font-semibold text-slate-950">{result.tenant.name}</h2>
+                <p className="mt-1 break-all font-mono text-xs text-slate-500">{result.tenant.id}</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <SummaryStat
-                    label="Workspace"
-                    value={result.readiness.tenant.status}
-                    helper={result.readiness.tenant.tenant_active ? "Active" : "Needs activation"}
-                  />
-                  <SummaryStat
-                    label="Overall"
-                    value={result.readiness.status}
-                    helper={`${result.readiness.missing_steps.length} checklist items remain`}
-                  />
+                  <SummaryStat label="Workspace" value={result.readiness.tenant.status} helper={result.readiness.tenant.tenant_active ? "Active" : "Needs activation"} />
+                  <SummaryStat label="Overall" value={result.readiness.status} helper={`${result.readiness.missing_steps.length} checklist items remain`} />
                 </div>
                 {result.tenant.billing_provider_connection_id ? (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-200">
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
                     Active billing connection
-                    <p className="mt-2 break-all font-mono text-xs text-slate-400">{result.tenant.billing_provider_connection_id}</p>
+                    <p className="mt-2 break-all font-mono text-xs text-slate-500">{result.tenant.billing_provider_connection_id}</p>
                   </div>
                 ) : null}
                 <div className="mt-5 flex flex-col gap-3">
-                  <Link
-                    href={`/workspaces/${encodeURIComponent(result.tenant.id)}`}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
-                  >
+                  <Link href={`/workspaces/${encodeURIComponent(result.tenant.id)}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
                     View workspace detail
                     <ArrowRight className="h-4 w-4" />
                   </Link>
-                  <Link
-                    href="/workspaces"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
-                  >
+                  <Link href="/workspaces" className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
                     Open workspace directory
                   </Link>
                 </div>
               </section>
             ) : (
-              <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">What changes now</p>
-                <div className="mt-4 space-y-3 text-sm text-slate-300">
-                  <p>Billing connections now own Stripe secret storage and Lago sync.</p>
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What changes now</p>
+                <div className="mt-4 space-y-3 text-sm text-slate-600">
+                  <p>Billing connections now own Stripe secret storage and provider sync.</p>
                   <p>Workspace setup links one active billing connection to the workspace.</p>
                   <p>Use workspace detail pages for readiness review and next actions.</p>
                 </div>
@@ -390,44 +318,34 @@ export function TenantOnboardingScreen() {
 
 function StepCard({ index, title, body }: { index: string; title: string; body: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Step {index}</p>
-      <p className="mt-2 text-sm font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm text-slate-300">{body}</p>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Step {index}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-2 text-sm text-slate-600">{body}</p>
     </div>
   );
 }
 
 function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className="mt-2 break-words text-base font-semibold leading-tight text-white">{formatReadinessStatus(value)}</p>
-      <p className="mt-2 text-xs leading-relaxed text-slate-400">{helper}</p>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold text-slate-950">{formatReadinessStatus(value)}</p>
+      <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
     </div>
   );
 }
 
-function InputField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
+function InputField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
   return (
-    <label className="grid gap-2 text-sm text-slate-200">
-      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{label}</span>
+    <label className="grid gap-2 text-sm text-slate-700">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
       <input
         aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
+        className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
       />
     </label>
   );
@@ -435,22 +353,20 @@ function InputField({
 
 function ChecklistLine({ done, text }: { done: boolean; text: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3">
-      <span
-        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"}`}
-      >
+    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
+      <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
         {done ? "OK" : "!"}
       </span>
-      <p className="text-sm text-slate-200">{text}</p>
+      <p className="text-sm text-slate-800">{text}</p>
     </div>
   );
 }
 
 function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
-      <p className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</p>
-      <p className={`mt-2 break-all text-sm text-slate-100 ${mono ? "font-mono" : ""}`}>{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }
