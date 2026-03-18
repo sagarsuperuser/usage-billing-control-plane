@@ -46,6 +46,22 @@ api:
   podAnnotations: {}
   podLabels: {}
 
+migrations:
+  enabled: true
+  image:
+    repository: "" # defaults to api.image.repository when empty
+    tag: "" # defaults to api.image.tag when empty
+    pullPolicy: IfNotPresent
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 300
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
 replayWorker:
   enabled: true
   replicas: 2
