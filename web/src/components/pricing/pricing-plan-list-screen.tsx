@@ -7,8 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchPlans, fetchPricingMetrics } from "@/lib/api";
 import { type Plan, type PricingMetric } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -17,7 +17,18 @@ export function PricingPlanListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const [search, setSearch] = useState("");
 
-  const plansQuery = useQuery({ queryKey: ["pricing-plans", apiBaseURL], queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated && scope === "tenant" });
+  const plansQuery = useQuery({
+    queryKey: ["pricing-plans", apiBaseURL],
+    queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
+
+  const metricsQuery = useQuery({
+    queryKey: ["pricing-metrics", apiBaseURL],
+    queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
+
   const filtered = useMemo(() => {
     const items = plansQuery.data ?? [];
     const term = search.trim().toLowerCase();
@@ -25,19 +36,59 @@ export function PricingPlanListScreen() {
     return items.filter((item) => item.code.toLowerCase().includes(term) || item.name.toLowerCase().includes(term) || item.currency.toLowerCase().includes(term));
   }, [plansQuery.data, search]);
 
-  const metricsQuery = useQuery({ queryKey: ["pricing-metrics", apiBaseURL], queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated && scope === "tenant" });
   const metricsByID = useMemo(() => new Map((metricsQuery.data ?? []).map((metric) => [metric.id, metric])), [metricsQuery.data]);
+  const draftCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#14532d_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-55"><div className="absolute -left-24 top-4 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" /><div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" /></div>
-      <main className="relative mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Plans" }]} />
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl"><div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Pricing</p><h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Plans</h1><p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">Plans define how customers are charged. Keep the first version simple: a base price, a billing cadence, and one or more linked metrics.</p></div><Link href="/pricing/plans/new" className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"><Plus className="h-4 w-4" />New plan</Link></div></section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Plans</h1>
+              <p className="mt-3 max-w-3xl text-sm text-slate-600">
+                Plans define how customers are charged. Keep the first version simple: a base price, a cadence, and one or more linked metrics.
+              </p>
+            </div>
+            <Link href="/pricing/plans/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+              <Plus className="h-4 w-4" />
+              New plan
+            </Link>
+          </div>
+        </section>
+
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Tenant session required" body="Plans are tenant-scoped. Sign in with a tenant account to manage them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Plan inventory</p><h2 className="mt-2 text-2xl font-semibold text-white">Browse and inspect</h2></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, code, or currency" className="h-11 min-w-[260px] rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2" /></div><div className="mt-5 grid gap-3">{plansQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((plan) => <PlanRow key={plan.id} plan={plan} metricsByID={metricsByID} />)}</div></section>
+        {isAuthenticated && scope !== "tenant" ? (
+          <ScopeNotice title="Tenant session required" body="Plans are tenant-scoped. Sign in with a tenant account to manage them." actionHref="/billing-connections" actionLabel="Open platform home" />
+        ) : null}
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <MetricCard label="Total plans" value={String(plansQuery.data?.length ?? 0)} />
+          <MetricCard label="Draft plans" value={String(draftCount)} />
+          <MetricCard label="Search results" value={String(filtered.length)} />
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan inventory</p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
+            </div>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by name, code, or currency"
+              className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+            />
+          </div>
+          <div className="mt-5 grid gap-3">
+            {plansQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((plan) => <PlanRow key={plan.id} plan={plan} metricsByID={metricsByID} />)}
+          </div>
+        </section>
       </main>
     </div>
   );
@@ -45,8 +96,67 @@ export function PricingPlanListScreen() {
 
 function PlanRow({ plan, metricsByID }: { plan: Plan; metricsByID: Map<string, PricingMetric> }) {
   const metricLabel = plan.meter_ids.map((id) => metricsByID.get(id)?.name || id).slice(0, 2).join(", ");
-  return <Link href={`/pricing/plans/${encodeURIComponent(plan.id)}`} className="grid gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4 transition hover:border-cyan-400/40 hover:bg-cyan-500/5 lg:grid-cols-[minmax(0,1.1fr)_repeat(3,minmax(0,0.55fr))_auto] lg:items-center"><div className="min-w-0"><h3 className="truncate text-lg font-semibold text-white">{plan.name}</h3><p className="mt-1 break-all font-mono text-xs text-slate-400">{plan.code}</p><p className="mt-2 text-sm text-slate-300">{metricLabel ? `Includes ${metricLabel}` : "No metrics linked yet."}</p></div><StatusCell label="Status" value={plan.status} /><StatusCell label="Interval" value={plan.billing_interval} /><StatusCell label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} /><StatusCell label="Metrics" value={String(plan.meter_ids.length)} /><span className="inline-flex items-center gap-2 text-sm font-medium text-cyan-100">Open <ChevronRight className="h-4 w-4" /></span></Link>;
+
+  return (
+    <Link
+      href={`/pricing/plans/${encodeURIComponent(plan.id)}`}
+      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.55fr))_auto] lg:items-center"
+    >
+      <div className="min-w-0">
+        <h3 className="truncate text-base font-semibold text-slate-950">{plan.name}</h3>
+        <p className="mt-1 break-all font-mono text-xs text-slate-500">{plan.code}</p>
+        <p className="mt-2 text-sm text-slate-600">{metricLabel ? `Includes ${metricLabel}` : "No metrics linked yet."}</p>
+      </div>
+      <StatusCell label="Status" value={plan.status} />
+      <StatusCell label="Interval" value={plan.billing_interval} />
+      <StatusCell label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} />
+      <StatusCell label="Metrics" value={String(plan.meter_ids.length)} />
+      <StatusCell label="Currency" value={plan.currency.toUpperCase()} />
+      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+        Open
+        <ChevronRight className="h-4 w-4" />
+      </span>
+    </Link>
+  );
 }
-function StatusCell({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"><p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p><p className="mt-2 text-sm font-semibold text-white">{value}</p></div>; }
-function LoadingState() { return <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-6 text-sm text-slate-300"><LoaderCircle className="h-4 w-4 animate-spin" />Loading plan inventory</div>; }
-function EmptyState() { return <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/40 px-5 py-8 text-sm text-slate-300"><p className="font-semibold text-white">No plans yet.</p><p className="mt-2 text-slate-400">Create the first plan after you have at least one metric.</p><div className="mt-4"><Link href="/pricing/plans/new" className="inline-flex h-10 items-center rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/20">Create plan</Link></div></div>; }
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function StatusCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+      <LoaderCircle className="h-4 w-4 animate-spin" />
+      Loading plan inventory
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
+      <p className="font-semibold text-slate-950">No plans yet.</p>
+      <p className="mt-2">Create the first plan after you have at least one metric.</p>
+      <div className="mt-4">
+        <Link href="/pricing/plans/new" className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800">
+          Create plan
+        </Link>
+      </div>
+    </div>
+  );
+}

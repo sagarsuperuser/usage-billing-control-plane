@@ -7,8 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import {
   createWorkspaceInvitation,
   fetchBillingProviderConnection,
@@ -25,8 +25,8 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 function readinessTone(status?: string): string {
   return status === "ready"
-    ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-    : "border-amber-400/40 bg-amber-500/10 text-amber-100";
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : "border-amber-200 bg-amber-50 text-amber-700";
 }
 
 export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
@@ -46,33 +46,35 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const selectedTenant = tenantStatusQuery.data?.tenant ?? null;
   const selectedReadiness = tenantStatusQuery.data?.readiness ?? null;
   const activeBillingConnectionID = selectedTenant?.workspace_billing.active_billing_connection_id || selectedTenant?.billing_provider_connection_id || "";
+
   const billingConnectionQuery = useQuery({
     queryKey: ["billing-provider-connection", apiBaseURL, activeBillingConnectionID],
-    queryFn: () =>
-      fetchBillingProviderConnection({
-        runtimeBaseURL: apiBaseURL,
-        connectionID: activeBillingConnectionID,
-      }),
+    queryFn: () => fetchBillingProviderConnection({ runtimeBaseURL: apiBaseURL, connectionID: activeBillingConnectionID }),
     enabled: isAuthenticated && isPlatformAdmin && Boolean(activeBillingConnectionID),
   });
+
   const billingConnectionsQuery = useQuery({
     queryKey: ["billing-provider-connections", apiBaseURL, "workspace-detail"],
     queryFn: () => fetchBillingProviderConnections({ runtimeBaseURL: apiBaseURL, limit: 100, status: "connected", scope: "platform" }),
     enabled: isAuthenticated && isPlatformAdmin,
   });
+
   const workspaceMembersQuery = useQuery({
     queryKey: ["workspace-members", apiBaseURL, tenantID],
     queryFn: () => fetchWorkspaceMembers({ runtimeBaseURL: apiBaseURL, tenantID }),
     enabled: isAuthenticated && isPlatformAdmin && tenantID.trim().length > 0,
   });
+
   const workspaceInvitationsQuery = useQuery({
     queryKey: ["workspace-invitations", apiBaseURL, tenantID],
     queryFn: () => fetchWorkspaceInvitations({ runtimeBaseURL: apiBaseURL, tenantID }),
     enabled: isAuthenticated && isPlatformAdmin && tenantID.trim().length > 0,
   });
+
   useEffect(() => {
     setSelectedConnectionID(activeBillingConnectionID);
   }, [activeBillingConnectionID]);
+
   const updateWorkspaceBillingMutation = useMutation({
     mutationFn: () =>
       updateTenantWorkspaceBilling({
@@ -90,6 +92,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
       ]);
     },
   });
+
   const createInvitationMutation = useMutation({
     mutationFn: () =>
       createWorkspaceInvitation({
@@ -108,6 +111,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
       ]);
     },
   });
+
   const revokeInvitationMutation = useMutation({
     mutationFn: (invitationID: string) =>
       revokeWorkspaceInvitation({
@@ -120,6 +124,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
       await queryClient.invalidateQueries({ queryKey: ["workspace-invitations", apiBaseURL, tenantID] });
     },
   });
+
   const nextActions = selectedReadiness?.missing_steps.map(describeTenantMissingStep) ?? [];
   const availableConnections = billingConnectionsQuery.data ?? [];
   const workspaceMembers = workspaceMembersQuery.data ?? [];
@@ -130,10 +135,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     !updateWorkspaceBillingMutation.isPending &&
     Boolean(selectedConnectionID) &&
     selectedConnectionID !== activeBillingConnectionID;
-  const canCreateInvitation =
-    Boolean(csrfToken) &&
-    !createInvitationMutation.isPending &&
-    inviteEmail.trim().length > 0;
+  const canCreateInvitation = Boolean(csrfToken) && !createInvitationMutation.isPending && inviteEmail.trim().length > 0;
 
   useEffect(() => {
     if (createInvitationMutation.data?.accept_url) {
@@ -142,13 +144,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   }, [createInvitationMutation.data]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1d4ed8_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-55">
-        <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto flex max-w-[1240px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: selectedTenant?.name || tenantID }]} />
 
@@ -156,27 +153,22 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
         {isAuthenticated && scope !== "platform" ? (
           <ScopeNotice
             title="Platform session required"
-            body="Workspace detail is a platform-admin view. Sign in with a platform_admin API key to inspect cross-workspace readiness."
+            body="Workspace detail is a platform-admin view. Sign in with a platform account to inspect cross-workspace readiness."
             actionHref="/customers"
             actionLabel="Open tenant home"
           />
         ) : null}
 
         {tenantStatusQuery.isLoading ? (
-          <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300 backdrop-blur-xl">
-            <div className="flex items-center gap-2">
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-              Loading workspace detail
-            </div>
-          </section>
+          <LoadingPanel label="Loading workspace detail" />
         ) : tenantStatusQuery.isError || !selectedTenant || !selectedReadiness ? (
-          <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workspace detail</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">Workspace not available</h1>
-            <p className="mt-3 text-sm text-slate-300">The requested workspace could not be loaded from the onboarding status API.</p>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Workspace not available</h1>
+            <p className="mt-3 text-sm text-slate-600">The requested workspace could not be loaded from the onboarding status API.</p>
             <Link
               href="/workspaces"
-              className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+              className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to workspaces
@@ -184,27 +176,32 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
           </section>
         ) : (
           <>
-            <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Workspace detail</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-white md:text-4xl">{selectedTenant.name}</h1>
-                  <p className="mt-2 break-all font-mono text-sm text-slate-400">{selectedTenant.id}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace</p>
+                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{selectedTenant.name}</h1>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                    <span className="font-mono text-xs text-slate-500">{selectedTenant.id}</span>
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
+                      {formatReadinessStatus(selectedReadiness.status)}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                      {formatReadinessStatus(selectedTenant.status)}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
-                    {formatReadinessStatus(selectedReadiness.status)}
-                  </span>
                   <Link
                     href="/workspaces"
-                    className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Back to workspaces
                   </Link>
                   <Link
                     href="/workspaces/new"
-                    className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
                   >
                     <Building2 className="h-4 w-4" />
                     New workspace
@@ -214,7 +211,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryStat label="Workspace" value={selectedReadiness.tenant.status} helper={selectedReadiness.tenant.tenant_active ? "Active" : "Needs activation"} />
+              <SummaryStat label="Workspace" value={selectedReadiness.tenant.status} helper={selectedReadiness.tenant.tenant_active ? "Active and available" : "Needs activation"} />
               <SummaryStat
                 label="Billing"
                 value={selectedReadiness.billing_integration.status}
@@ -226,242 +223,226 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                       : "Billing and pricing still need setup"
                 }
               />
-              <SummaryStat label="First customer" value={selectedReadiness.first_customer.status} helper={selectedReadiness.first_customer.customer_exists ? "Customer exists" : "No customer yet"} />
+              <SummaryStat
+                label="First customer"
+                value={selectedReadiness.first_customer.status}
+                helper={selectedReadiness.first_customer.customer_exists ? "Customer exists" : "No customer yet"}
+              />
               <SummaryStat label="Open actions" value={String(selectedReadiness.missing_steps.length)} helper="Remaining checklist items" />
             </section>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-              <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Readiness</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">What still needs action</h2>
-
-                <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                  <p className="text-sm font-semibold text-white">Next actions</p>
-                  <div className="mt-3 grid gap-2">
-                    {nextActions.length > 0 ? (
-                      nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />)
-                    ) : (
-                      <ChecklistLine done text="Workspace is ready for the next operational handoff." />
-                    )}
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
+              <div className="grid gap-5">
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Readiness</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Operational checklist</h2>
+                      <p className="mt-2 text-sm text-slate-600">Track what still blocks handoff into normal tenant operations.</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      {nextActions.length === 0 ? "No remaining blockers" : `${nextActions.length} action item(s) remaining`}
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 xl:grid-cols-3">
-                  <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={selectedReadiness.tenant.missing_steps} />
-                  <ReadinessCard title="Billing integration" readiness={selectedReadiness.billing_integration.status} missing={selectedReadiness.billing_integration.missing_steps} />
-                  <ReadinessCard title="First customer" readiness={selectedReadiness.first_customer.status} missing={selectedReadiness.first_customer.missing_steps} />
-                </div>
-              </section>
-
-              <aside className="flex flex-col gap-4">
-                <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workspace billing</p>
-                  {activeBillingConnectionID ? (
-                    <>
-                      <dl className="mt-4 grid gap-3">
-                        <MetaItem label="Active connection" value={activeBillingConnectionID} mono />
-                        <MetaItem label="Workspace billing status" value={formatReadinessStatus(selectedTenant.workspace_billing.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)} />
-                        <MetaItem label="Connection status" value={billingConnectionQuery.data ? formatReadinessStatus(billingConnectionQuery.data.status) : billingConnectionQuery.isLoading ? "Loading" : "Unavailable"} />
-                        <MetaItem label="Display name" value={billingConnectionQuery.data?.display_name || "-"} />
-                        <MetaItem label="Isolation mode" value={selectedTenant.workspace_billing.isolation_mode ? formatReadinessStatus(selectedTenant.workspace_billing.isolation_mode) : selectedReadiness.billing_integration.isolation_mode ? formatReadinessStatus(selectedReadiness.billing_integration.isolation_mode) : "Shared"} />
-                        <MetaItem label="Binding source" value={selectedTenant.workspace_billing.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
-                      </dl>
-                      <Link
-                        href={`/billing-connections/${encodeURIComponent(activeBillingConnectionID)}`}
-                        className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
-                      >
-                        <CreditCard className="h-4 w-4" />
-                        Open billing connection
-                      </Link>
-                      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Change active connection</p>
-                        <div className="mt-3 flex flex-col gap-3">
-                          <select
-                            aria-label="Active billing connection"
-                            value={selectedConnectionID}
-                            onChange={(event) => setSelectedConnectionID(event.target.value)}
-                            className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                          >
-                            <option value="">Select one active billing connection</option>
-                            {availableConnections.map((connection) => (
-                              <option key={connection.id} value={connection.id}>
-                                {connection.display_name} · {connection.environment}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => updateWorkspaceBillingMutation.mutate()}
-                            disabled={!canSaveWorkspaceBilling}
-                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {updateWorkspaceBillingMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                            Save active connection
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <dl className="mt-4 grid gap-3">
-                        <MetaItem label="Workspace billing status" value="Missing" />
-                        <MetaItem label="Next action" value="Select one active billing connection below" />
-                      </dl>
-                      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Assign active connection</p>
-                        <div className="mt-3 flex flex-col gap-3">
-                          <select
-                            aria-label="Active billing connection"
-                            value={selectedConnectionID}
-                            onChange={(event) => setSelectedConnectionID(event.target.value)}
-                            className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                          >
-                            <option value="">Select one active billing connection</option>
-                            {availableConnections.map((connection) => (
-                              <option key={connection.id} value={connection.id}>
-                                {connection.display_name} · {connection.environment}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => updateWorkspaceBillingMutation.mutate()}
-                            disabled={!canSaveWorkspaceBilling}
-                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {updateWorkspaceBillingMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                            Save active connection
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <div className="mt-5 grid gap-3">
+                    {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Workspace is ready for the next operational handoff." />}
+                  </div>
+                  <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                    <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={selectedReadiness.tenant.missing_steps} />
+                    <ReadinessCard title="Billing integration" readiness={selectedReadiness.billing_integration.status} missing={selectedReadiness.billing_integration.missing_steps} />
+                    <ReadinessCard title="First customer" readiness={selectedReadiness.first_customer.status} missing={selectedReadiness.first_customer.missing_steps} />
+                  </div>
                 </section>
 
-                <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Metadata</p>
-                  <dl className="mt-4 grid gap-3">
-                    <MetaItem label="Created" value={formatExactTimestamp(selectedTenant.created_at)} />
-                    <MetaItem label="Updated" value={formatExactTimestamp(selectedTenant.updated_at)} />
-                    <MetaItem label="Workspace status" value={formatReadinessStatus(selectedTenant.status)} />
-                  </dl>
-                </section>
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace access</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Members and pending invites</h2>
+                    </div>
+                    <div className="grid min-w-[180px] gap-2 text-sm text-slate-600">
+                      <InlineStat label="Members" value={String(workspaceMembers.length)} />
+                      <InlineStat label="Pending" value={String(pendingInvitations.length)} />
+                    </div>
+                  </div>
 
-                <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workspace access</p>
+                  <div className="mt-5 grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-semibold text-slate-950">Invite workspace operator</p>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                        Hand off this workspace through Alpha access, not backend-only provisioning.
+                      </p>
+                      <div className="mt-4 grid gap-3">
+                        <input
+                          type="email"
+                          value={inviteEmail}
+                          onChange={(event) => setInviteEmail(event.target.value)}
+                          placeholder="tenant-admin@example.com"
+                          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                        />
+                        <select
+                          aria-label="Workspace role"
+                          value={inviteRole}
+                          onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
+                          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="writer">Writer</option>
+                          <option value="reader">Reader</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => createInvitationMutation.mutate()}
+                          disabled={!canCreateInvitation}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
+                          Send invite
+                        </button>
+                      </div>
+                      {latestInviteURL ? (
+                        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Latest invite link</p>
+                          <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(latestInviteURL);
+                            }}
+                            className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy invite link
+                          </button>
+                        </div>
+                      ) : null}
+                    </section>
+
+                    <div className="grid gap-4">
+                      <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-950">Current members</p>
+                        <div className="mt-3 grid gap-3">
+                          {workspaceMembers.length > 0 ? (
+                            workspaceMembers.map((member) => (
+                              <div key={member.user_id} className="grid gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_120px] lg:items-center">
+                                <div className="min-w-0">
+                                  <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                                    <UserRound className="h-4 w-4 text-slate-500" />
+                                    <span className="truncate">{member.display_name}</span>
+                                  </p>
+                                  <p className="mt-1 break-all text-xs text-slate-600">{member.email}</p>
+                                </div>
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                                  {member.role}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <EmptyPanel message="No members yet. Invite the first workspace admin to complete the handoff." />
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-950">Pending invites</p>
+                        <div className="mt-3 grid gap-3">
+                          {pendingInvitations.length > 0 ? (
+                            pendingInvitations.map((invite) => (
+                              <div key={invite.id} className="grid gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_96px] lg:items-center">
+                                <div className="min-w-0">
+                                  <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                                    <ShieldCheck className="h-4 w-4 text-amber-600" />
+                                    <span className="truncate">{invite.email}</span>
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    {invite.role} · expires {formatExactTimestamp(invite.expires_at)}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => revokeInvitationMutation.mutate(invite.id)}
+                                  disabled={!csrfToken || revokeInvitationMutation.isPending}
+                                  className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Revoke
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <EmptyPanel message="No pending workspace invites." />
+                          )}
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <aside className="grid gap-5 self-start">
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace billing</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Active billing path</h2>
+                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedTenant.workspace_billing.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}`}>
+                      {formatReadinessStatus(selectedTenant.workspace_billing.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}
+                    </span>
+                  </div>
+
                   <div className="mt-4 grid gap-3">
-                    <MetaItem label="Members" value={String(workspaceMembers.length)} />
-                    <MetaItem label="Pending invites" value={String(pendingInvitations.length)} />
+                    <MetaItem label="Active connection" value={activeBillingConnectionID || "Not assigned"} mono={Boolean(activeBillingConnectionID)} />
+                    <MetaItem label="Connection name" value={billingConnectionQuery.data?.display_name || (billingConnectionQuery.isLoading ? "Loading" : "Unavailable")} />
+                    <MetaItem label="Connection status" value={billingConnectionQuery.data ? formatReadinessStatus(billingConnectionQuery.data.status) : billingConnectionQuery.isLoading ? "Loading" : "Unavailable"} />
+                    <MetaItem label="Isolation mode" value={selectedTenant.workspace_billing.isolation_mode ? formatReadinessStatus(selectedTenant.workspace_billing.isolation_mode) : selectedReadiness.billing_integration.isolation_mode ? formatReadinessStatus(selectedReadiness.billing_integration.isolation_mode) : "Shared"} />
+                    <MetaItem label="Binding source" value={selectedTenant.workspace_billing.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
                   </div>
 
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                    <p className="text-sm font-semibold text-white">Invite workspace admin</p>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                      Hand off this workspace to a tenant operator through Alpha access, not backend-only provisioning.
-                    </p>
-                    <div className="mt-3 flex flex-col gap-3">
-                      <input
-                        type="email"
-                        value={inviteEmail}
-                        onChange={(event) => setInviteEmail(event.target.value)}
-                        placeholder="tenant-admin@example.com"
-                        className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                      />
+                  {activeBillingConnectionID ? (
+                    <Link
+                      href={`/billing-connections/${encodeURIComponent(activeBillingConnectionID)}`}
+                      className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Open billing connection
+                    </Link>
+                  ) : null}
+
+                  <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-950">Change active connection</p>
+                    <div className="mt-3 grid gap-3">
                       <select
-                        aria-label="Workspace role"
-                        value={inviteRole}
-                        onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
-                        className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                        aria-label="Active billing connection"
+                        value={selectedConnectionID}
+                        onChange={(event) => setSelectedConnectionID(event.target.value)}
+                        className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       >
-                        <option value="admin">Admin</option>
-                        <option value="writer">Writer</option>
-                        <option value="reader">Reader</option>
+                        <option value="">Select one active billing connection</option>
+                        {availableConnections.map((connection) => (
+                          <option key={connection.id} value={connection.id}>
+                            {connection.display_name} · {connection.environment}
+                          </option>
+                        ))}
                       </select>
                       <button
                         type="button"
-                        onClick={() => createInvitationMutation.mutate()}
-                        disabled={!canCreateInvitation}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => updateWorkspaceBillingMutation.mutate()}
+                        disabled={!canSaveWorkspaceBilling}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
-                        Send invite
+                        {updateWorkspaceBillingMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                        Save active connection
                       </button>
                     </div>
-                    {latestInviteURL ? (
-                      <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Latest invite link</p>
-                        <p className="mt-2 break-all text-xs text-slate-300">{latestInviteURL}</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(latestInviteURL);
-                          }}
-                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-slate-200 transition hover:bg-white/10"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copy invite link
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
+                </section>
 
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                    <p className="text-sm font-semibold text-white">Current members</p>
-                    <div className="mt-3 grid gap-3">
-                      {workspaceMembers.length > 0 ? (
-                        workspaceMembers.map((member) => (
-                          <div key={member.user_id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="flex items-center gap-2 text-sm font-medium text-white">
-                                  <UserRound className="h-4 w-4 text-cyan-300" />
-                                  <span className="truncate">{member.display_name}</span>
-                                </p>
-                                <p className="mt-1 break-all text-xs text-slate-400">{member.email}</p>
-                              </div>
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-slate-200">
-                                {member.role}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-slate-400">No members yet. Invite the first workspace admin to complete the handoff.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                    <p className="text-sm font-semibold text-white">Pending invites</p>
-                    <div className="mt-3 grid gap-3">
-                      {pendingInvitations.length > 0 ? (
-                        pendingInvitations.map((invite) => (
-                          <div key={invite.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="flex items-center gap-2 text-sm font-medium text-white">
-                                  <ShieldCheck className="h-4 w-4 text-amber-300" />
-                                  <span className="truncate">{invite.email}</span>
-                                </p>
-                                <p className="mt-1 text-xs text-slate-400">
-                                  {invite.role} · expires {formatExactTimestamp(invite.expires_at)}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => revokeInvitationMutation.mutate(invite.id)}
-                                disabled={!csrfToken || revokeInvitationMutation.isPending}
-                                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Revoke
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-slate-400">No pending workspace invites.</p>
-                      )}
-                    </div>
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metadata</p>
+                  <div className="mt-4 grid gap-3">
+                    <MetaItem label="Created" value={formatExactTimestamp(selectedTenant.created_at)} />
+                    <MetaItem label="Updated" value={formatExactTimestamp(selectedTenant.updated_at)} />
+                    <MetaItem label="Workspace status" value={formatReadinessStatus(selectedTenant.status)} />
                   </div>
                 </section>
               </aside>
@@ -473,12 +454,23 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   );
 }
 
+function LoadingPanel({ label }: { label: string }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+      <div className="flex items-center gap-2">
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+        {label}
+      </div>
+    </section>
+  );
+}
+
 function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 backdrop-blur-xl">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className="mt-2 break-words text-base font-semibold leading-tight text-white">{formatReadinessStatus(value)}</p>
-      <p className="mt-2 text-xs leading-relaxed text-slate-400">{helper}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold text-slate-950">{formatReadinessStatus(value)}</p>
+      <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
     </div>
   );
 }
@@ -486,14 +478,14 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
 function ReadinessCard({ title, readiness, missing }: { title: string; readiness: string; missing: string[] }) {
   const lead = missing[0] ? describeTenantSectionStep(missing[0]) : "No action needed";
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-white">{title}</p>
-        <span className={`rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${readinessTone(readiness)}`}>
+        <p className="text-sm font-semibold text-slate-950">{title}</p>
+        <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(readiness)}`}>
           {formatReadinessStatus(readiness)}
         </span>
       </div>
-      <p className="mt-3 text-xs text-slate-300">{lead}</p>
+      <p className="mt-3 text-xs text-slate-700">{lead}</p>
       <p className="mt-2 text-xs text-slate-500">{missing.length === 0 ? "All set" : `${missing.length} action item(s) remaining`}</p>
     </div>
   );
@@ -501,22 +493,35 @@ function ReadinessCard({ title, readiness, missing }: { title: string; readiness
 
 function ChecklistLine({ done, text }: { done: boolean; text: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3">
+    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
       <span
-        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-500/20 text-emerald-100" : "bg-amber-500/20 text-amber-100"}`}
+        className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
       >
         {done ? "OK" : "!"}
       </span>
-      <p className="text-sm text-slate-200">{text}</p>
+      <p className="text-sm text-slate-800">{text}</p>
     </div>
   );
 }
 
 function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
-      <dt className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</dt>
-      <dd className={`mt-2 break-all text-sm text-slate-100 ${mono ? "font-mono" : ""}`}>{value}</dd>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</dt>
+      <dd className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );
+}
+
+function InlineStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-sm font-semibold text-slate-950">{value}</span>
+    </div>
+  );
+}
+
+function EmptyPanel({ message }: { message: string }) {
+  return <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-600">{message}</p>;
 }

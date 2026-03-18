@@ -6,8 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchPlans, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -29,23 +29,20 @@ export function PricingHomeScreen() {
   const loading = metricsQuery.isLoading || plansQuery.isLoading;
   const metricCount = metricsQuery.data?.length ?? 0;
   const planCount = plansQuery.data?.length ?? 0;
+  const draftPlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
+  const activePlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "active").length;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#14532d_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-55">
-        <div className="absolute -left-24 top-4 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Tenant" }, { label: "Pricing" }]} />
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Pricing</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Pricing foundation</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-            Define what gets measured and how customers are charged without leaving Alpha. Keep the first version simple: metrics first, then plans.
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Pricing foundation</h1>
+          <p className="mt-3 max-w-3xl text-sm text-slate-600">
+            Define what gets measured and how customers are charged without leaving Alpha. Start with stable metrics, then compose plans on top of them.
           </p>
         </section>
 
@@ -62,67 +59,106 @@ export function PricingHomeScreen() {
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Metrics" value={metricCount} />
           <MetricCard label="Plans" value={planCount} />
-          <MetricCard label="Draft plans" value={(plansQuery.data ?? []).filter((plan) => plan.status === "draft").length} tone="warn" />
-          <MetricCard label="Active plans" value={(plansQuery.data ?? []).filter((plan) => plan.status === "active").length} tone="success" />
+          <MetricCard label="Draft plans" value={draftPlanCount} />
+          <MetricCard label="Active plans" value={activePlanCount} />
         </section>
 
         {loading ? (
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-6 text-sm text-slate-300">
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-            Loading pricing inventory
-          </div>
+          <section className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600 shadow-sm">
+            <div className="flex items-center gap-2">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading pricing inventory
+            </div>
+          </section>
         ) : (
-          <section className="grid gap-6 lg:grid-cols-2">
-            <DomainCard
+          <div className="grid gap-5 lg:grid-cols-2">
+            <DomainPanel
               eyebrow="Metrics"
               title="What gets measured"
-              body="Create usage metrics that describe the commercial signal you want to track, such as API calls or seats."
+              body="Create usage metrics that describe the commercial signal you want to track, such as API calls, seats, or spendable units."
               href="/pricing/metrics"
               cta="Open metrics"
               secondaryHref="/pricing/metrics/new"
               secondaryLabel="New metric"
+              stats={[
+                { label: "Total", value: String(metricCount) },
+                { label: "Next step", value: metricCount > 0 ? "Review inventory" : "Create first metric" },
+              ]}
             />
-            <DomainCard
+            <DomainPanel
               eyebrow="Plans"
               title="How customers are charged"
-              body="Create plans that combine a base price with one or more metrics. Keep the first version opinionated and easy to review."
+              body="Create plans that combine a base price with one or more metrics. Keep the first version easy to review and safe to launch."
               href="/pricing/plans"
               cta="Open plans"
               secondaryHref="/pricing/plans/new"
               secondaryLabel="New plan"
+              stats={[
+                { label: "Total", value: String(planCount) },
+                { label: "Drafts", value: String(draftPlanCount) },
+              ]}
             />
-          </section>
+          </div>
         )}
       </main>
     </div>
   );
 }
 
-function DomainCard({ eyebrow, title, body, href, cta, secondaryHref, secondaryLabel }: { eyebrow: string; title: string; body: string; href: string; cta: string; secondaryHref: string; secondaryLabel: string }) {
+function DomainPanel({
+  eyebrow,
+  title,
+  body,
+  href,
+  cta,
+  secondaryHref,
+  secondaryLabel,
+  stats,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  href: string;
+  cta: string;
+  secondaryHref: string;
+  secondaryLabel: string;
+  stats: Array<{ label: string; value: string }>;
+}) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-      <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">{eyebrow}</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2>
-      <p className="mt-3 text-sm leading-relaxed text-slate-300">{body}</p>
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{eyebrow}</p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">{title}</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">{body}</p>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {stats.map((stat) => (
+          <div key={stat.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-950">{stat.value}</p>
+          </div>
+        ))}
+      </div>
       <div className="mt-5 flex flex-wrap gap-3">
-        <Link href={href} className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">
+        <Link href={href} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
           {cta}
           <ArrowRight className="h-4 w-4" />
         </Link>
-        <Link href={secondaryHref} className="inline-flex h-11 items-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10">
+        <Link href={secondaryHref} className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
           {secondaryLabel}
         </Link>
       </div>
-    </div>
+    </section>
   );
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: number; tone?: "success" | "warn" }) {
-  const toneClass = tone === "success" ? "text-emerald-100" : tone === "warn" ? "text-amber-100" : "text-white";
+function MetricCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 backdrop-blur-xl">
-      <p className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
     </div>
   );
 }
