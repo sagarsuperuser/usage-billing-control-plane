@@ -625,6 +625,7 @@ Architecture and rollout docs:
 - `docs/alpha-customer-model.md`
 - `docs/alpha-provider-connect-plan.md`
 - `docs/alpha-billing-execution-model.md`
+- `docs/alpha-workspace-access-model.md`
 - `docs/alpha_workspace_billing_binding_spec.md`
 - `docs/alpha_import_goal.md`
 - `docs/alpha_import_matrix.md`

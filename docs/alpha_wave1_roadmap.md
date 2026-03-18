@@ -14,6 +14,7 @@ Read together with:
 
 - [Alpha Import Goal](./alpha_import_goal.md)
 - [Alpha Import Matrix](./alpha_import_matrix.md)
+- [Alpha Workspace Access Model](./alpha-workspace-access-model.md)
 - [Slice 1 Spec: Billing Connections Hardening](./alpha_slice1_billing_connections_spec.md)
 - [Slice 2 Spec: Pricing Foundation](./alpha_slice2_pricing_spec.md)
 - [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
@@ -54,6 +55,7 @@ Alpha should support the following end-to-end stories:
 4. A tenant operator can request payment setup from Alpha, and the payer can complete payment-method linking without exposing Lago UI.
 5. A tenant operator can browse invoices and payments inside Alpha without needing Lago UI.
 6. An organization admin can invite users, manage roles, and enforce browser-auth ownership through Alpha.
+7. After workspace setup, Alpha can hand tenant ownership to an invited workspace admin without requiring backend-only pre-provisioning.
 
 If any of those still require Lago UI, Wave 1 is not complete.
 

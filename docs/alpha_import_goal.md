@@ -77,6 +77,16 @@ Platform users should not see tenant/operator clutter.
 
 Tenant users should not see platform plumbing.
 
+### 6. Workspace ownership must be delegated explicitly
+
+After a platform admin creates a workspace, Alpha should hand ownership to tenant users through:
+
+- browser identity
+- workspace membership
+- invite-driven access
+
+Platform setup is not complete until a tenant admin or operator can actually enter the workspace through Alpha.
+
 ---
 
 ## UX Constraints
@@ -203,6 +213,7 @@ Relevant route files:
 - roles
 - authentication settings
 - Okta configuration
+- workspace access delegation and membership lifecycle
 
 ### 11. Developer tooling
 
