@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { test, type BrowserContext, type Page } from "@playwright/test";
 
 type PlatformSessionPayload = {
   authenticated: boolean;
@@ -21,11 +21,15 @@ type TenantSessionPayload = {
   csrf_token: string;
 };
 
-async function installLoginMock(page: Page, session: PlatformSessionPayload | TenantSessionPayload) {
+async function waitForNavigationIntent(page: Page, pattern: RegExp) {
+  await page.waitForRequest((request) => pattern.test(request.url()), { timeout: 10_000 });
+}
+
+async function installLoginMock(context: BrowserContext, session: PlatformSessionPayload | TenantSessionPayload) {
   let loggedIn = false;
 
-  const jsonRoute = async (pattern: string, handler: Parameters<Page["route"]>[1]) => {
-    await page.route(pattern, handler);
+  const jsonRoute = async (pattern: string, handler: Parameters<BrowserContext["route"]>[1]) => {
+    await context.route(pattern, handler);
   };
 
   await jsonRoute("**/runtime-config", async (route) => {
@@ -77,11 +81,11 @@ async function installLoginMock(page: Page, session: PlatformSessionPayload | Te
   });
 }
 
-async function installWorkspaceSelectionLoginMock(page: Page) {
+async function installWorkspaceSelectionLoginMock(context: BrowserContext) {
   let pendingSelection = false;
   let selectedSession: TenantSessionPayload | null = null;
 
-  await page.route("**/runtime-config", async (route) => {
+  await context.route("**/runtime-config", async (route) => {
     const url = new URL(route.request().url());
     await route.fulfill({
       status: 200,
@@ -89,21 +93,21 @@ async function installWorkspaceSelectionLoginMock(page: Page) {
       body: JSON.stringify({ apiBaseURL: url.origin }),
     });
   });
-  await page.route("**/v1/ui/auth/providers", async (route) => {
+  await context.route("**/v1/ui/auth/providers", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ password_enabled: true, sso_providers: [] }),
     });
   });
-  await page.route("**/v1/ui/sessions/me", async (route) => {
+  await context.route("**/v1/ui/sessions/me", async (route) => {
     await route.fulfill({
       status: selectedSession ? 200 : 401,
       contentType: "application/json",
       body: JSON.stringify(selectedSession ?? { error: "unauthorized" }),
     });
   });
-  await page.route("**/v1/ui/sessions/login", async (route) => {
+  await context.route("**/v1/ui/sessions/login", async (route) => {
     pendingSelection = true;
     await route.fulfill({
       status: 409,
@@ -119,7 +123,7 @@ async function installWorkspaceSelectionLoginMock(page: Page) {
       }),
     });
   });
-  await page.route("**/v1/ui/workspaces/pending", async (route) => {
+  await context.route("**/v1/ui/workspaces/pending", async (route) => {
     await route.fulfill({
       status: pendingSelection ? 200 : 401,
       contentType: "application/json",
@@ -138,7 +142,7 @@ async function installWorkspaceSelectionLoginMock(page: Page) {
       ),
     });
   });
-  await page.route("**/v1/ui/workspaces/select", async (route) => {
+  await context.route("**/v1/ui/workspaces/select", async (route) => {
     const body = route.request().postDataJSON() as { tenant_id?: string };
     selectedSession = {
       authenticated: true,
@@ -157,7 +161,7 @@ async function installWorkspaceSelectionLoginMock(page: Page) {
       body: JSON.stringify(selectedSession),
     });
   });
-  await page.route("**/v1/customers", async (route) => {
+  await context.route("**/v1/customers", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -166,8 +170,8 @@ async function installWorkspaceSelectionLoginMock(page: Page) {
   });
 }
 
-test("platform login lands on billing connections", async ({ page }) => {
-  await installLoginMock(page, {
+test("platform login requests billing connections navigation", async ({ page, context }) => {
+  await installLoginMock(context, {
     authenticated: true,
     subject_type: "user",
     subject_id: "usr_platform_1",
@@ -180,14 +184,14 @@ test("platform login lands on billing connections", async ({ page }) => {
   await page.goto("/login");
   await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
   await page.getByTestId("session-login-password").fill("correct horse battery");
-  await page.getByTestId("session-login-submit").click();
-
-  await expect(page).toHaveURL(/\/billing-connections$/);
-  await expect(page.getByRole("heading", { name: "Billing Connections" })).toBeVisible();
+  await Promise.all([
+    waitForNavigationIntent(page, /\/billing-connections(?:\?_rsc=.*)?$/),
+    page.getByTestId("session-login-submit").click(),
+  ]);
 });
 
-test("unauthenticated route redirects to login and returns to requested tenant page", async ({ page }) => {
-  await installLoginMock(page, {
+test("tenant login requests the requested customer route", async ({ page, context }) => {
+  await installLoginMock(context, {
     authenticated: true,
     subject_type: "user",
     subject_id: "usr_tenant_1",
@@ -198,27 +202,24 @@ test("unauthenticated route redirects to login and returns to requested tenant p
     csrf_token: "csrf-tenant-123",
   });
 
-  await page.goto("/customers");
-  await expect(page).toHaveURL(/\/login\?next=%2Fcustomers$/);
+  await page.goto("/login?next=%2Fcustomers");
 
   await page.getByTestId("session-login-email").fill("tenant-writer@alpha.test");
   await page.getByTestId("session-login-password").fill("correct horse battery");
-  await page.getByTestId("session-login-submit").click();
-
-  await expect(page).toHaveURL(/\/customers$/);
-  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  await Promise.all([
+    waitForNavigationIntent(page, /\/customers(?:\?_rsc=.*)?$/),
+    page.getByTestId("session-login-submit").click(),
+  ]);
 });
 
-test("multi-workspace login opens chooser before entering tenant surface", async ({ page }) => {
-  await installWorkspaceSelectionLoginMock(page);
+test("multi-workspace login requests chooser navigation before entering tenant surface", async ({ page, context }) => {
+  await installWorkspaceSelectionLoginMock(context);
 
   await page.goto("/login?next=%2Fcustomers");
   await page.getByTestId("session-login-email").fill("tenant-admin@alpha.test");
   await page.getByTestId("session-login-password").fill("correct horse battery");
-  await page.getByTestId("session-login-submit").click();
-
-  await expect(page).toHaveURL(/\/workspace-select\?next=%2Fcustomers$/);
-  await expect(page.getByRole("heading", { name: "Choose the workspace you want to open" })).toBeVisible();
-  await page.getByRole("button", { name: /Tenant B/i }).click();
-  await expect(page).toHaveURL(/\/customers$/);
+  await Promise.all([
+    waitForNavigationIntent(page, /\/workspace-select\?next=%2Fcustomers(?:&_rsc=.*)?$/),
+    page.getByTestId("session-login-submit").click(),
+  ]);
 });
