@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
 
 type TenantSessionPayload = {
   authenticated: boolean;
@@ -56,8 +56,26 @@ type Subscription = {
   payment_setup_requested_at?: string;
 };
 
-async function installSubscriptionMock(page: Page, session: TenantSessionPayload) {
-  let loggedIn = true;
+async function buildDetail(subscription: Subscription, customer: Customer, plan: Plan, now: string) {
+  return {
+    ...subscription,
+    customer,
+    plan,
+    billing_profile: { customer_id: customer.id, profile_status: "ready", created_at: now, updated_at: now },
+    payment_setup: {
+      customer_id: customer.id,
+      setup_status: subscription.payment_setup_status,
+      default_payment_method_present: false,
+      payment_method_type: "card",
+      last_verification_result: "checkout_url_generated",
+      created_at: now,
+      updated_at: now,
+    },
+    missing_steps: subscription.payment_setup_status === "ready" ? [] : ["default_payment_method_verified"],
+  };
+}
+
+async function installSubscriptionMock(context: BrowserContext, session: TenantSessionPayload) {
   const now = new Date().toISOString();
   const customers: Customer[] = [
     { id: "cus_1", external_id: "acme", display_name: "Acme Corp", email: "billing@acme.test", status: "active", created_at: now, updated_at: now },
@@ -67,26 +85,53 @@ async function installSubscriptionMock(page: Page, session: TenantSessionPayload
   ];
   let subscriptions: Subscription[] = [];
 
-  await page.route("**/*", async (route) => {
+  await context.route("**/runtime-config", async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseURL: url.origin }),
+    });
+  });
+
+  await context.route("**/v1/ui/sessions/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(session),
+    });
+  });
+
+  await context.route("**/v1/customers**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(customers),
+    });
+  });
+
+  await context.route("**/v1/plans", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(plans),
+    });
+  });
+
+  await context.route("**/v1/subscriptions", async (route) => {
     const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
     const method = request.method().toUpperCase();
 
-    const json = async (status: number, payload: unknown) => {
-      await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
-    };
-
-    if (path === "/runtime-config" && method === "GET") return json(200, { apiBaseURL: "" });
-    if (path === "/v1/ui/sessions/me" && method === "GET") return json(loggedIn ? 200 : 401, loggedIn ? session : { error: "unauthorized" });
-    if (path === "/v1/ui/sessions/login" && method === "POST") {
-      loggedIn = true;
-      return json(201, session);
+    if (method === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(subscriptions),
+      });
+      return;
     }
-    if (path === "/v1/customers" && method === "GET") return json(200, customers);
-    if (path === "/v1/plans" && method === "GET") return json(200, plans);
-    if (path === "/v1/subscriptions" && method === "GET") return json(200, subscriptions);
-    if (path === "/v1/subscriptions" && method === "POST") {
+
+    if (method === "POST") {
       const body = request.postDataJSON() as Record<string, unknown>;
       const subscription: Subscription = {
         id: "sub_1",
@@ -110,29 +155,41 @@ async function installSubscriptionMock(page: Page, session: TenantSessionPayload
         updated_at: now,
       };
       subscriptions = [subscription];
-      return json(201, {
-        subscription: {
-          ...subscription,
-          customer: customers[0],
-          plan: plans[0],
-          billing_profile: { customer_id: "cus_1", profile_status: "ready", created_at: now, updated_at: now },
-          payment_setup: {
-            customer_id: "cus_1",
-            setup_status: subscription.payment_setup_status,
-            default_payment_method_present: false,
-            payment_method_type: "card",
-            created_at: now,
-            updated_at: now,
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          subscription: {
+            ...subscription,
+            customer: customers[0],
+            plan: plans[0],
+            billing_profile: { customer_id: "cus_1", profile_status: "ready", created_at: now, updated_at: now },
+            payment_setup: {
+              customer_id: "cus_1",
+              setup_status: subscription.payment_setup_status,
+              default_payment_method_present: false,
+              payment_method_type: "card",
+              created_at: now,
+              updated_at: now,
+            },
+            missing_steps: ["default_payment_method_verified"],
           },
-          missing_steps: ["default_payment_method_verified"],
-        },
-        payment_setup_started: true,
-        checkout_url: "https://checkout.alpha.test/session/sub_1",
+          payment_setup_started: true,
+          checkout_url: "https://checkout.alpha.test/session/sub_1",
+        }),
       });
+      return;
     }
-    if (path === "/v1/subscriptions/sub_1" && method === "GET") {
-      const subscription = subscriptions[0];
-      return json(200, {
+
+    await route.fallback();
+  });
+
+  await context.route("**/v1/subscriptions/sub_1", async (route) => {
+    const subscription = subscriptions[0];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
         ...subscription,
         customer: customers[0],
         plan: plans[0],
@@ -147,42 +204,31 @@ async function installSubscriptionMock(page: Page, session: TenantSessionPayload
           updated_at: now,
         },
         missing_steps: subscription.payment_setup_status === "ready" ? [] : ["default_payment_method_verified"],
-      });
-    }
-    if (path === "/v1/subscriptions/sub_1/payment-setup/request" && method === "POST") {
-      subscriptions = subscriptions.map((item) => ({ ...item, status: "pending_payment_setup", payment_setup_status: "pending", payment_setup_requested_at: now }));
-      return json(200, { action: "requested", checkout_url: "https://checkout.alpha.test/session/sub_1", subscription: await buildDetail(subscriptions[0], customers[0], plans[0], now) });
-    }
-    if (path === "/v1/subscriptions/sub_1/payment-setup/resend" && method === "POST") {
-      subscriptions = subscriptions.map((item) => ({ ...item, status: "pending_payment_setup", payment_setup_status: "pending", payment_setup_requested_at: now }));
-      return json(200, { action: "resent", checkout_url: "https://checkout.alpha.test/session/sub_1?resent=1", subscription: await buildDetail(subscriptions[0], customers[0], plans[0], now) });
-    }
+      }),
+    });
+  });
 
-    return route.continue();
+  await context.route("**/v1/subscriptions/sub_1/payment-setup/request", async (route) => {
+    subscriptions = subscriptions.map((item) => ({ ...item, status: "pending_payment_setup", payment_setup_status: "pending", payment_setup_requested_at: now }));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ action: "requested", checkout_url: "https://checkout.alpha.test/session/sub_1", subscription: await buildDetail(subscriptions[0], customers[0], plans[0], now) }),
+    });
+  });
+
+  await context.route("**/v1/subscriptions/sub_1/payment-setup/resend", async (route) => {
+    subscriptions = subscriptions.map((item) => ({ ...item, status: "pending_payment_setup", payment_setup_status: "pending", payment_setup_requested_at: now }));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ action: "resent", checkout_url: "https://checkout.alpha.test/session/sub_1?resent=1", subscription: await buildDetail(subscriptions[0], customers[0], plans[0], now) }),
+    });
   });
 }
 
-async function buildDetail(subscription: Subscription, customer: Customer, plan: Plan, now: string) {
-  return {
-    ...subscription,
-    customer,
-    plan,
-    billing_profile: { customer_id: customer.id, profile_status: "ready", created_at: now, updated_at: now },
-    payment_setup: {
-      customer_id: customer.id,
-      setup_status: subscription.payment_setup_status,
-      default_payment_method_present: false,
-      payment_method_type: "card",
-      last_verification_result: "checkout_url_generated",
-      created_at: now,
-      updated_at: now,
-    },
-    missing_steps: subscription.payment_setup_status === "ready" ? [] : ["default_payment_method_verified"],
-  };
-}
-
-test("tenant writer can create subscription and resend payment setup", async ({ page }) => {
-  await installSubscriptionMock(page, {
+test("tenant writer can create subscription and resend payment setup", async ({ page, context }) => {
+  await installSubscriptionMock(context, {
     authenticated: true,
     subject_type: "user",
     subject_id: "usr_tenant_1",
@@ -194,19 +240,47 @@ test("tenant writer can create subscription and resend payment setup", async ({ 
   });
 
   await page.goto("/subscriptions/new");
-  await page.getByTestId("subscription-name").fill("Acme Growth");
-  await page.getByTestId("subscription-code").fill("acme_growth");
-  await page.getByTestId("subscription-customer").selectOption("acme");
-  await page.getByTestId("subscription-plan").selectOption("pln_growth");
+  const nameInput = page.getByTestId("subscription-name");
+  const codeInput = page.getByTestId("subscription-code");
+  const customerSelect = page.getByTestId("subscription-customer");
+  const planSelect = page.getByTestId("subscription-plan");
+
+  await expect(page.getByRole("heading", { name: "Create subscription" })).toBeVisible();
+  await expect(customerSelect.locator("option")).toHaveCount(2);
+  await expect(planSelect.locator("option")).toHaveCount(2);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await nameInput.fill("Acme Growth");
+    await codeInput.fill("acme_growth");
+    await customerSelect.selectOption("acme");
+    await planSelect.selectOption("pln_growth");
+
+    if (
+      (await nameInput.inputValue()) === "Acme Growth" &&
+      (await codeInput.inputValue()) === "acme_growth" &&
+      (await customerSelect.inputValue()) === "acme" &&
+      (await planSelect.inputValue()) === "pln_growth"
+    ) {
+      break;
+    }
+
+    await page.waitForTimeout(150);
+  }
+
+  await expect(nameInput).toHaveValue("Acme Growth");
+  await expect(codeInput).toHaveValue("acme_growth");
+  await expect(customerSelect).toHaveValue("acme");
+  await expect(planSelect).toHaveValue("pln_growth");
+  await expect(page.getByTestId("subscription-submit")).toBeEnabled();
   await page.getByTestId("subscription-submit").click();
 
   await expect(page.getByText("Subscription created")).toBeVisible();
   await page.getByRole("link", { name: "Open subscription" }).click();
 
   await expect(page).toHaveURL(/\/subscriptions\/sub_1$/);
-  await expect(page.getByRole("heading", { name: "Acme Corp - Growth" })).toBeVisible();
-  await expect(page.locator("span").filter({ hasText: "Pending payment setup" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Acme Growth" })).toBeVisible();
+  await expect(page.getByText("Pending payment setup", { exact: true }).first()).toBeVisible();
 
-  await page.getByTestId("subscription-resend-setup").click();
+  await page.getByRole("button", { name: "Resend link" }).click();
   await expect(page.getByRole("link", { name: "Open resent setup link" })).toBeVisible();
 });

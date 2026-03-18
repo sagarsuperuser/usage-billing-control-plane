@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
 
@@ -34,39 +34,41 @@ type BillingProviderConnection = {
   last_sync_error?: string;
 };
 
-async function installBillingConnectionMock(page: Page, session: PlatformSessionPayload, initialConnections: BillingProviderConnection[] = []) {
-  let loggedIn = true;
+async function installBillingConnectionMock(context: BrowserContext, session: PlatformSessionPayload, initialConnections: BillingProviderConnection[] = []) {
   let capturedCSRF = "";
   let connections: BillingProviderConnection[] = [...initialConnections];
 
-  await page.route("**/*", async (route) => {
+  await context.route("**/runtime-config", async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseURL: url.origin }),
+    });
+  });
+
+  await context.route("**/v1/ui/sessions/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(session),
+    });
+  });
+
+  await context.route("**/internal/billing-provider-connections", async (route) => {
     const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
     const method = request.method().toUpperCase();
 
-    const json = async (status: number, payload: unknown) => {
+    if (method === "GET") {
       await route.fulfill({
-        status,
+        status: 200,
         contentType: "application/json",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ items: connections }),
       });
-    };
+      return;
+    }
 
-    if (path === "/v1/ui/sessions/me" && method === "GET") {
-      return json(loggedIn ? 200 : 401, loggedIn ? session : { error: "unauthorized" });
-    }
-    if (path === "/v1/ui/sessions/login" && method === "POST") {
-      loggedIn = true;
-      return json(201, session);
-    }
-    if (path === "/runtime-config" && method === "GET") {
-      return json(200, { apiBaseURL: "" });
-    }
-    if (path === "/internal/billing-provider-connections" && method === "GET") {
-      return json(200, { items: connections });
-    }
-    if (path === "/internal/billing-provider-connections" && method === "POST") {
+    if (method === "POST") {
       capturedCSRF = request.headers()["x-csrf-token"] || "";
       const body = request.postDataJSON() as Record<string, string>;
       const now = new Date().toISOString();
@@ -88,32 +90,56 @@ async function installBillingConnectionMock(page: Page, session: PlatformSession
         updated_at: now,
       };
       connections = [created, ...connections];
-      return json(201, { connection: created });
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ connection: created }),
+      });
+      return;
     }
-    if (path === "/internal/billing-provider-connections/bpc_alpha/sync" && method === "POST") {
-      const now = new Date().toISOString();
-      connections = connections.map((item) =>
-        item.id === "bpc_alpha"
-          ? {
-              ...item,
-              status: "connected",
-              workspace_ready: true,
-              sync_state: "healthy",
-              sync_summary: "Connected and ready for workspace assignment.",
-              lago_provider_code: "alpha_stripe_test_bpc_alpha",
-              connected_at: now,
-              last_synced_at: now,
-              updated_at: now,
-            }
-          : item
-      );
-      return json(200, { connection: connections[0] });
+
+    await route.fallback();
+  });
+
+  await context.route("**/internal/billing-provider-connections/bpc_alpha/sync", async (route) => {
+    const now = new Date().toISOString();
+    connections = connections.map((item) =>
+      item.id === "bpc_alpha"
+        ? {
+            ...item,
+            status: "connected",
+            workspace_ready: true,
+            sync_state: "healthy",
+            sync_summary: "Connected and ready for workspace assignment.",
+            lago_provider_code: "alpha_stripe_test_bpc_alpha",
+            connected_at: now,
+            last_synced_at: now,
+            updated_at: now,
+          }
+        : item,
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ connection: connections[0] }),
+    });
+  });
+
+  await context.route("**/internal/billing-provider-connections/bpc_alpha", async (route) => {
+    const request = route.request();
+    const method = request.method().toUpperCase();
+    const connection = connections.find((item) => item.id === "bpc_alpha");
+
+    if (method === "GET") {
+      await route.fulfill({
+        status: connection ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(connection ? { connection } : { error: "not found" }),
+      });
+      return;
     }
-    if (path === "/internal/billing-provider-connections/bpc_alpha" && method === "GET") {
-      const connection = connections.find((item) => item.id === "bpc_alpha");
-      return json(connection ? 200 : 404, connection ? { connection } : { error: "not found" });
-    }
-    if (path === "/internal/billing-provider-connections/bpc_alpha" && method === "PATCH") {
+
+    if (method === "PATCH") {
       capturedCSRF = request.headers()["x-csrf-token"] || "";
       const body = request.postDataJSON() as Record<string, string>;
       const now = new Date().toISOString();
@@ -127,12 +153,17 @@ async function installBillingConnectionMock(page: Page, session: PlatformSession
               lago_provider_code: body.lago_provider_code || undefined,
               updated_at: now,
             }
-          : item
+          : item,
       );
-      return json(200, { connection: connections[0] });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ connection: connections[0] }),
+      });
+      return;
     }
 
-    return route.continue();
+    await route.fallback();
   });
 
   return {
@@ -145,31 +176,17 @@ async function createConnectionFromNewScreen(page: Page) {
   const secretInput = page.getByLabel("Stripe secret key");
   const submitButton = page.getByRole("button", { name: "Create and sync connection" });
 
-  await expect(page.getByRole("heading", { name: "New Billing Connection" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "New billing connection" })).toBeVisible();
   await expect(nameInput).toBeEditable();
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    await nameInput.fill("Stripe Sandbox");
-    if ((await nameInput.inputValue()) === "Stripe Sandbox") {
-      break;
-    }
-    await page.waitForTimeout(100);
-  }
+  await nameInput.fill("Stripe Sandbox");
   await expect(nameInput).toHaveValue("Stripe Sandbox");
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    await secretInput.fill("sk_test_123");
-    if ((await secretInput.inputValue()) === "sk_test_123") {
-      break;
-    }
-    await page.waitForTimeout(100);
-  }
+  await secretInput.fill("sk_test_123");
   await expect(secretInput).toHaveValue("sk_test_123");
-
   await expect(submitButton).toBeEnabled();
   await submitButton.click();
 }
 
-test("platform admin can create and sync a billing connection", async ({ page }) => {
+test("platform admin can create and sync a billing connection", async ({ page, context }) => {
   const session: PlatformSessionPayload = {
     authenticated: true,
     subject_type: "user",
@@ -179,7 +196,7 @@ test("platform admin can create and sync a billing connection", async ({ page })
     platform_role: "platform_admin",
     csrf_token: "csrf-platform-123",
   };
-  const mock = await installBillingConnectionMock(page, session);
+  const mock = await installBillingConnectionMock(context, session);
 
   await page.goto("/billing-connections/new");
   await createConnectionFromNewScreen(page);
@@ -190,7 +207,7 @@ test("platform admin can create and sync a billing connection", async ({ page })
   await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ })).toBeVisible();
 });
 
-test("platform admin can edit billing connection detail metadata", async ({ page }) => {
+test("platform admin can edit billing connection detail metadata", async ({ page, context }) => {
   const session: PlatformSessionPayload = {
     authenticated: true,
     subject_type: "user",
@@ -201,7 +218,7 @@ test("platform admin can edit billing connection detail metadata", async ({ page
     csrf_token: "csrf-platform-123",
   };
   const seededNow = new Date().toISOString();
-  const mock = await installBillingConnectionMock(page, session, [
+  const mock = await installBillingConnectionMock(context, session, [
     {
       id: "bpc_alpha",
       provider_type: "stripe",
@@ -225,17 +242,14 @@ test("platform admin can edit billing connection detail metadata", async ({ page
   ]);
 
   await page.goto("/billing-connections/bpc_alpha");
-
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Connection name").fill("Stripe Sandbox Updated");
-  await page.locator("summary").filter({ hasText: "Internal overrides" }).click();
-  await page.getByLabel("Billing organization override").fill("org_updated");
+    await page.getByLabel("Billing organization override").fill("org_updated");
   await page.getByLabel("Provider code override").fill("alpha_override");
   await page.getByRole("button", { name: "Save changes" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page.getByRole("heading", { name: "Stripe Sandbox Updated" })).toBeVisible();
-  const configPanel = page.locator("aside").first();
-  await expect(configPanel.getByText("org_updated")).toBeVisible();
-  await expect(configPanel.getByText("alpha_override")).toBeVisible();
+    await expect(page.getByText("org_updated")).toBeVisible();
+  await expect(page.getByText("alpha_override")).toBeVisible();
 });

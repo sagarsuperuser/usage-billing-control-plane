@@ -23,7 +23,7 @@ export default defineConfig({
   webServer: useExternalBaseURL
     ? undefined
     : {
-        command: `npx -y pnpm@10.30.0 dev --port ${port} --hostname 127.0.0.1`,
+        command: `npx -y pnpm@10.30.0 exec next dev --webpack --port ${port} --hostname 127.0.0.1`,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

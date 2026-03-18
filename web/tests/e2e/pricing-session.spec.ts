@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
 
 type TenantSessionPayload = {
   authenticated: boolean;
@@ -36,29 +36,41 @@ type Plan = {
   updated_at: string;
 };
 
-async function installPricingMock(page: Page, session: TenantSessionPayload) {
-  let loggedIn = true;
+async function installPricingMock(context: BrowserContext, session: TenantSessionPayload) {
   let metrics: PricingMetric[] = [];
   let plans: Plan[] = [];
 
-  await page.route("**/*", async (route) => {
+  await context.route("**/runtime-config", async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseURL: url.origin }),
+    });
+  });
+
+  await context.route("**/v1/ui/sessions/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(session),
+    });
+  });
+
+  await context.route("**/v1/pricing/metrics", async (route) => {
     const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
     const method = request.method().toUpperCase();
 
-    const json = async (status: number, payload: unknown) => {
-      await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
-    };
-
-    if (path === "/runtime-config" && method === "GET") return json(200, { apiBaseURL: "" });
-    if (path === "/v1/ui/sessions/me" && method === "GET") return json(loggedIn ? 200 : 401, loggedIn ? session : { error: "unauthorized" });
-    if (path === "/v1/ui/sessions/login" && method === "POST") {
-      loggedIn = true;
-      return json(201, session);
+    if (method === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(metrics),
+      });
+      return;
     }
-    if (path === "/v1/pricing/metrics" && method === "GET") return json(200, metrics);
-    if (path === "/v1/pricing/metrics" && method === "POST") {
+
+    if (method === "POST") {
       const body = request.postDataJSON() as Record<string, string>;
       const now = new Date().toISOString();
       const metric: PricingMetric = {
@@ -72,11 +84,39 @@ async function installPricingMock(page: Page, session: TenantSessionPayload) {
         updated_at: now,
       };
       metrics = [metric];
-      return json(201, metric);
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(metric),
+      });
+      return;
     }
-    if (path === "/v1/pricing/metrics/mtr_metric_1" && method === "GET") return json(200, metrics[0]);
-    if (path === "/v1/plans" && method === "GET") return json(200, plans);
-    if (path === "/v1/plans" && method === "POST") {
+
+    await route.fallback();
+  });
+
+  await context.route("**/v1/pricing/metrics/mtr_metric_1", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(metrics[0]),
+    });
+  });
+
+  await context.route("**/v1/plans", async (route) => {
+    const request = route.request();
+    const method = request.method().toUpperCase();
+
+    if (method === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(plans),
+      });
+      return;
+    }
+
+    if (method === "POST") {
       const body = request.postDataJSON() as Record<string, unknown>;
       const now = new Date().toISOString();
       const plan: Plan = {
@@ -93,16 +133,28 @@ async function installPricingMock(page: Page, session: TenantSessionPayload) {
         updated_at: now,
       };
       plans = [plan];
-      return json(201, plan);
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(plan),
+      });
+      return;
     }
-    if (path === "/v1/plans/pln_growth_1" && method === "GET") return json(200, plans[0]);
 
-    return route.continue();
+    await route.fallback();
+  });
+
+  await context.route("**/v1/plans/pln_growth_1", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(plans[0]),
+    });
   });
 }
 
-test("tenant writer can create pricing metric and plan", async ({ page }) => {
-  await installPricingMock(page, {
+test("tenant writer can create pricing metric and plan", async ({ page, context }) => {
+  await installPricingMock(context, {
     authenticated: true,
     subject_type: "user",
     subject_id: "usr_tenant_1",
@@ -116,6 +168,7 @@ test("tenant writer can create pricing metric and plan", async ({ page }) => {
   await page.goto("/pricing/metrics/new");
   await page.getByTestId("pricing-metric-name").fill("API Calls");
   await page.getByTestId("pricing-metric-code").fill("api_calls");
+  await expect(page.getByTestId("pricing-metric-submit")).toBeEnabled();
   await page.getByTestId("pricing-metric-submit").click();
 
   await expect(page).toHaveURL(/\/pricing\/metrics\/mtr_metric_1$/);
@@ -126,6 +179,7 @@ test("tenant writer can create pricing metric and plan", async ({ page }) => {
   await page.getByTestId("pricing-plan-code").fill("growth");
   await page.getByTestId("pricing-plan-base-price").fill("49");
   await page.getByTestId("pricing-plan-metric-mtr_metric_1").check();
+  await expect(page.getByTestId("pricing-plan-submit")).toBeEnabled();
   await page.getByTestId("pricing-plan-submit").click();
 
   await expect(page).toHaveURL(/\/pricing\/plans\/pln_growth_1$/);
