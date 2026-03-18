@@ -469,6 +469,27 @@ export async function createBillingProviderConnection(input: {
   return payload.connection;
 }
 
+export async function updateBillingProviderConnection(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  connectionID: string;
+  body: Record<string, unknown>;
+}): Promise<BillingProviderConnection> {
+  const payload = await apiRequest<{ connection: BillingProviderConnection }>(
+    `/internal/billing-provider-connections/${encodeURIComponent(input.connectionID)}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "PATCH",
+      csrfToken: input.csrfToken,
+      body: input.body,
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.connection;
+}
+
 export async function syncBillingProviderConnection(input: {
   runtimeBaseURL?: string;
   csrfToken: string;
