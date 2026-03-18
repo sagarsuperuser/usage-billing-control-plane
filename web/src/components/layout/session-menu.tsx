@@ -21,31 +21,44 @@ export function SessionMenu() {
 
   return (
     <details className="group relative">
-      <summary data-testid="session-menu-toggle" className="flex cursor-pointer list-none items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition hover:bg-white/10">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/10 text-cyan-100">
+      <summary
+        data-testid="session-menu-toggle"
+        className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-left transition hover:border-stone-300 hover:bg-white"
+      >
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700">
           <UserRoundCog className="h-4 w-4" />
         </span>
         <span className="min-w-0">
-          <span className="block text-[10px] uppercase tracking-[0.16em] text-slate-400">Current access</span>
-          <span className="block truncate text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100">{accessLabel}</span>
-          <span className="block truncate text-[11px] text-slate-300">{identityLabel}</span>
+          <span className="block text-[10px] uppercase tracking-[0.16em] text-slate-500">Current access</span>
+          <span className="block truncate text-xs font-semibold uppercase tracking-[0.12em] text-slate-900">{accessLabel}</span>
+          <span className="block truncate text-[11px] text-slate-600">{identityLabel}</span>
         </span>
       </summary>
-      <div className="absolute right-0 z-30 mt-2 w-[280px] rounded-2xl border border-white/10 bg-slate-950/95 p-3 shadow-2xl backdrop-blur-xl">
-        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-3">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Signed in surface</p>
-          <p className="mt-1 text-sm font-semibold text-white">{scope === "platform" ? "Platform administration" : "Tenant operations"}</p>
-          <p className="mt-1 text-xs text-slate-300">{identityLabel}</p>
+      <div className="absolute right-0 z-30 mt-2 w-[300px] rounded-3xl border border-stone-200 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
+        <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Signed in surface</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">{scope === "platform" ? "Platform administration" : "Workspace operations"}</p>
+          <p className="mt-1 text-xs text-slate-600">{identityLabel}</p>
+          <p className="mt-2 text-xs text-slate-500">{contextLabel}</p>
         </div>
         <div className="mt-3 grid gap-2">
-          <Link href={homeHref} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-100 transition hover:bg-white/10">
-            <PanelsTopLeft className="h-3.5 w-3.5" />
+          <Link
+            href={homeHref}
+            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-800 transition hover:border-stone-300 hover:bg-white"
+          >
+            <PanelsTopLeft className="h-3.5 w-3.5 text-slate-500" />
             Open role home
           </Link>
-          <Link href={secondaryHref} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-100 transition hover:bg-white/10">
+          <Link
+            href={secondaryHref}
+            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-800 transition hover:border-stone-300 hover:bg-white"
+          >
             {secondaryLabel}
           </Link>
-          <Link href="/login" className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-amber-100 transition hover:bg-amber-500/20">
+          <Link
+            href="/login"
+            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 transition hover:bg-amber-100"
+          >
             Sign in with different access
           </Link>
           <button
@@ -55,7 +68,7 @@ export function SessionMenu() {
             onClick={() => {
               void logout(csrfToken);
             }}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-800 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loggingOut ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
             End session
