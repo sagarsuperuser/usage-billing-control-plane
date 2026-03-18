@@ -881,7 +881,7 @@ func (s *PostgresStore) CreateWorkspaceBillingBinding(input domain.WorkspaceBill
 			id, workspace_id, billing_provider_connection_id, backend, backend_organization_id, backend_provider_code,
 			isolation_mode, status, provisioning_error, last_verified_at, connected_at, disabled_at,
 			created_by_type, created_by_id, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),$7,$8,NULLIF($9,''),$10,$11,$12,$13,NULLIF($14,''),$15,$16)
+		) VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,NULLIF($14,''),$15,$16)
 		RETURNING id, workspace_id, billing_provider_connection_id, backend, backend_organization_id, backend_provider_code,
 			isolation_mode, status, provisioning_error, last_verified_at, connected_at, disabled_at,
 			created_by_type, created_by_id, created_at, updated_at`,
@@ -1069,7 +1069,7 @@ func (s *PostgresStore) UpdateWorkspaceBillingBinding(input domain.WorkspaceBill
 		    backend_provider_code = NULLIF($5,''),
 		    isolation_mode = $6,
 		    status = $7,
-		    provisioning_error = NULLIF($8,''),
+		    provisioning_error = $8,
 		    last_verified_at = $9,
 		    connected_at = $10,
 		    disabled_at = $11,
