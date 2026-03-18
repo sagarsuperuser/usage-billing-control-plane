@@ -8,11 +8,12 @@ import (
 )
 
 type TenantOnboardingService struct {
-	tenantService   *TenantService
-	customerService *CustomerService
-	apiKeyService   *APIKeyService
-	ratingService   *RatingService
-	meterService    *MeterService
+	tenantService                  *TenantService
+	workspaceBillingBindingService *WorkspaceBillingBindingService
+	customerService                *CustomerService
+	apiKeyService                  *APIKeyService
+	ratingService                  *RatingService
+	meterService                   *MeterService
 }
 
 type TenantOnboardingRequest struct {
@@ -44,10 +45,15 @@ type TenantCoreReadiness struct {
 }
 
 type BillingIntegrationReadiness struct {
-	Status              string   `json:"status"`
-	BillingMappingReady bool     `json:"billing_mapping_ready"`
-	PricingReady        bool     `json:"pricing_ready"`
-	MissingSteps        []string `json:"missing_steps"`
+	Status                    string   `json:"status"`
+	BillingMappingReady       bool     `json:"billing_mapping_ready"`
+	BillingConnected          bool     `json:"billing_connected"`
+	WorkspaceBillingStatus    string   `json:"workspace_billing_status,omitempty"`
+	WorkspaceBillingSource    string   `json:"workspace_billing_source,omitempty"`
+	ActiveBillingConnectionID string   `json:"active_billing_connection_id,omitempty"`
+	IsolationMode             string   `json:"isolation_mode,omitempty"`
+	PricingReady              bool     `json:"pricing_ready"`
+	MissingSteps              []string `json:"missing_steps"`
 }
 
 type FirstCustomerBillingReadiness struct {
@@ -76,13 +82,14 @@ type TenantOnboardingResult struct {
 	Readiness            TenantOnboardingReadiness  `json:"readiness"`
 }
 
-func NewTenantOnboardingService(tenantSvc *TenantService, customerSvc *CustomerService, apiKeySvc *APIKeyService, ratingSvc *RatingService, meterSvc *MeterService) *TenantOnboardingService {
+func NewTenantOnboardingService(tenantSvc *TenantService, workspaceBindingSvc *WorkspaceBillingBindingService, customerSvc *CustomerService, apiKeySvc *APIKeyService, ratingSvc *RatingService, meterSvc *MeterService) *TenantOnboardingService {
 	return &TenantOnboardingService{
-		tenantService:   tenantSvc,
-		customerService: customerSvc,
-		apiKeyService:   apiKeySvc,
-		ratingService:   ratingSvc,
-		meterService:    meterSvc,
+		tenantService:                  tenantSvc,
+		workspaceBillingBindingService: workspaceBindingSvc,
+		customerService:                customerSvc,
+		apiKeyService:                  apiKeySvc,
+		ratingService:                  ratingSvc,
+		meterService:                   meterSvc,
 	}
 }
 
@@ -199,10 +206,30 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 	}
 
 	billingIntegrationReadiness := BillingIntegrationReadiness{
-		Status:              "pending",
-		BillingMappingReady: strings.TrimSpace(tenant.LagoOrganizationID) != "" && strings.TrimSpace(tenant.LagoBillingProviderCode) != "",
-		PricingReady:        len(rules) > 0 && len(meters) > 0,
-		MissingSteps:        make([]string, 0, 2),
+		Status:                    "pending",
+		ActiveBillingConnectionID: strings.TrimSpace(tenant.BillingProviderConnectionID),
+		PricingReady:              len(rules) > 0 && len(meters) > 0,
+		MissingSteps:              make([]string, 0, 2),
+	}
+	if s.workspaceBillingBindingService != nil {
+		if billingContext, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID); err == nil {
+			billingIntegrationReadiness.BillingMappingReady = true
+			billingIntegrationReadiness.BillingConnected = true
+			billingIntegrationReadiness.WorkspaceBillingStatus = billingContext.Status
+			billingIntegrationReadiness.WorkspaceBillingSource = billingContext.Source
+			billingIntegrationReadiness.ActiveBillingConnectionID = billingContext.BillingProviderConnectionID
+			billingIntegrationReadiness.IsolationMode = string(billingContext.IsolationMode)
+		} else {
+			billingIntegrationReadiness.BillingMappingReady = false
+		}
+	} else {
+		billingIntegrationReadiness.BillingMappingReady = strings.TrimSpace(tenant.LagoOrganizationID) != "" && strings.TrimSpace(tenant.LagoBillingProviderCode) != ""
+		billingIntegrationReadiness.BillingConnected = billingIntegrationReadiness.BillingMappingReady
+		if billingIntegrationReadiness.BillingMappingReady {
+			billingIntegrationReadiness.WorkspaceBillingStatus = "connected"
+			billingIntegrationReadiness.WorkspaceBillingSource = "tenant_fields"
+			billingIntegrationReadiness.IsolationMode = string(domain.WorkspaceBillingIsolationModeShared)
+		}
 	}
 	if !billingIntegrationReadiness.BillingMappingReady {
 		billingIntegrationReadiness.MissingSteps = append(billingIntegrationReadiness.MissingSteps, "billing_mapping")

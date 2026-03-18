@@ -69,9 +69,7 @@ export function WorkspaceListScreen() {
       total: filteredTenants.length,
       ready: readiness.filter((item) => item.status === "ready").length,
       needsAttention: readiness.filter((item) => item.status !== "ready").length,
-      missingBilling: filteredTenants.filter(
-        (tenant) => !tenant.billing_provider_connection_id && (!tenant.lago_organization_id || !tenant.lago_billing_provider_code)
-      ).length,
+      missingBilling: filteredTenants.filter((tenant) => !tenant.workspace_billing.connected).length,
     };
   }, [filteredTenants, readinessByTenant]);
 
@@ -193,7 +191,16 @@ function WorkspaceRow({ tenant, readiness }: { tenant: Tenant; readiness?: Tenan
         </p>
       </div>
       <StatusCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
-      <StatusCell label="Billing" value={tenant.billing_provider_connection_id ? "Linked" : readiness?.billing_integration.billing_mapping_ready ? "Mapped" : "Missing"} />
+      <StatusCell
+        label="Billing"
+        value={
+          tenant.workspace_billing.connected
+            ? tenant.workspace_billing.active_billing_connection_id
+              ? "Active"
+              : formatReadinessStatus(tenant.workspace_billing.status)
+            : "Missing"
+        }
+      />
       <StatusCell label="First customer" value={readiness?.first_customer.customer_exists ? "Created" : "Missing"} />
       <StatusCell label="Pricing" value={readiness?.billing_integration.pricing_ready ? "Ready" : "Missing"} />
       <span className="inline-flex items-center gap-2 text-sm font-medium text-cyan-100">

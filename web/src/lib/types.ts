@@ -48,10 +48,18 @@ export interface Tenant {
   name: string;
   status: "active" | "suspended" | "deleted";
   billing_provider_connection_id?: string;
-  lago_organization_id?: string;
-  lago_billing_provider_code?: string;
+  workspace_billing: WorkspaceBilling;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkspaceBilling {
+  configured: boolean;
+  connected: boolean;
+  active_billing_connection_id?: string;
+  status: string;
+  source?: string;
+  isolation_mode?: "shared" | "dedicated";
 }
 
 export interface BillingProviderConnection {
@@ -173,6 +181,11 @@ export interface TenantCoreReadiness {
 export interface BillingIntegrationReadiness {
   status: string;
   billing_mapping_ready: boolean;
+  billing_connected: boolean;
+  workspace_billing_status?: string;
+  workspace_billing_source?: string;
+  active_billing_connection_id?: string;
+  isolation_mode?: "shared" | "dedicated";
   pricing_ready: boolean;
   missing_steps: string[];
 }

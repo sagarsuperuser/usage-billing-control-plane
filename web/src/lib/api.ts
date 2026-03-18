@@ -490,6 +490,29 @@ export async function updateBillingProviderConnection(input: {
   return payload.connection;
 }
 
+export async function updateTenantWorkspaceBilling(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  tenantID: string;
+  billingProviderConnectionID: string;
+}): Promise<Tenant> {
+  const payload = await apiRequest<{ tenant: Tenant }>(
+    `/internal/tenants/${encodeURIComponent(input.tenantID)}/workspace-billing`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "PATCH",
+      csrfToken: input.csrfToken,
+      body: {
+        billing_provider_connection_id: input.billingProviderConnectionID,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.tenant;
+}
+
 export async function syncBillingProviderConnection(input: {
   runtimeBaseURL?: string;
   csrfToken: string;

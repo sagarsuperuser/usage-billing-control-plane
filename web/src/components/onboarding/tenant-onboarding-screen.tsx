@@ -147,7 +147,7 @@ export function TenantOnboardingScreen() {
 
             <div className="mt-6 grid gap-3 lg:grid-cols-3">
               <StepCard index="1" title="Name the workspace" body="Use a stable workspace ID and a display name your team will recognize later." />
-              <StepCard index="2" title="Select billing connection" body="Choose a connected billing provider owned by Alpha instead of entering raw billing engine mappings here." />
+              <StepCard index="2" title="Select active billing connection" body="Choose the one billing connection this workspace should use for payment and billing execution." />
               <StepCard index="3" title="Create admin access" body="Generate the first admin credential now, or leave it for a controlled handoff later." />
             </div>
 
@@ -162,9 +162,9 @@ export function TenantOnboardingScreen() {
 
             <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Step 2</p>
-              <h3 className="mt-2 text-lg font-semibold text-white">Billing connection</h3>
+              <h3 className="mt-2 text-lg font-semibold text-white">Workspace billing</h3>
               <p className="mt-2 text-sm text-slate-300">
-                Billing connections are created separately so Stripe secrets and Lago sync stay managed at the platform layer.
+                Billing connections are created separately. Workspace setup only chooses the one active connection this workspace should use.
               </p>
               {billingConnectionsQuery.isLoading ? (
                 <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
@@ -187,14 +187,14 @@ export function TenantOnboardingScreen() {
               ) : (
                 <div className="mt-4 grid gap-4">
                   <label className="grid gap-2 text-sm text-slate-200">
-                    <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Billing connection</span>
+                    <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Active billing connection</span>
                     <select
                       aria-label="Billing connection"
                       value={billingProviderConnectionID}
                       onChange={(event) => setBillingProviderConnectionID(event.target.value)}
                       className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
                     >
-                      <option value="">Select a connected billing provider</option>
+                      <option value="">Select one active billing connection</option>
                       {connectedBillingConnections.map((connection) => (
                         <option key={connection.id} value={connection.id}>
                           {connectionLabel(connection)}
@@ -204,13 +204,13 @@ export function TenantOnboardingScreen() {
                   </label>
                   {selectedBillingConnection ? (
                     <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Selected connection</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">Selected active connection</p>
                       <h4 className="mt-2 text-base font-semibold text-white">{selectedBillingConnection.display_name}</h4>
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
                         <MetaItem label="Connection ID" value={selectedBillingConnection.id} mono />
                         <MetaItem label="Environment" value={selectedBillingConnection.environment} />
-                        <MetaItem label="Billing organization" value={selectedBillingConnection.lago_organization_id || "-"} mono />
-                        <MetaItem label="Lago provider code" value={selectedBillingConnection.lago_provider_code || "-"} mono />
+                        <MetaItem label="Connection health" value={formatReadinessStatus(selectedBillingConnection.status)} />
+                        <MetaItem label="Workspace billing status" value="Will be attached on setup" />
                       </div>
                     </div>
                   ) : null}
@@ -351,7 +351,7 @@ export function TenantOnboardingScreen() {
                 </div>
                 {result.tenant.billing_provider_connection_id ? (
                   <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-200">
-                    Linked billing connection
+                    Active billing connection
                     <p className="mt-2 break-all font-mono text-xs text-slate-400">{result.tenant.billing_provider_connection_id}</p>
                   </div>
                 ) : null}
@@ -376,7 +376,7 @@ export function TenantOnboardingScreen() {
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">What changes now</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-300">
                   <p>Billing connections now own Stripe secret storage and Lago sync.</p>
-                  <p>Workspace setup only links a prepared billing connection to the tenant.</p>
+                  <p>Workspace setup links one active billing connection to the workspace.</p>
                   <p>Use workspace detail pages for readiness review and next actions.</p>
                 </div>
               </section>

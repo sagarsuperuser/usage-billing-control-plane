@@ -40,6 +40,29 @@ const (
 	BillingProviderConnectionScopeTenant   BillingProviderConnectionScope = "tenant"
 )
 
+type WorkspaceBillingBackend string
+
+const (
+	WorkspaceBillingBackendLago WorkspaceBillingBackend = "lago"
+)
+
+type WorkspaceBillingIsolationMode string
+
+const (
+	WorkspaceBillingIsolationModeShared    WorkspaceBillingIsolationMode = "shared"
+	WorkspaceBillingIsolationModeDedicated WorkspaceBillingIsolationMode = "dedicated"
+)
+
+type WorkspaceBillingBindingStatus string
+
+const (
+	WorkspaceBillingBindingStatusPending            WorkspaceBillingBindingStatus = "pending"
+	WorkspaceBillingBindingStatusProvisioning       WorkspaceBillingBindingStatus = "provisioning"
+	WorkspaceBillingBindingStatusConnected          WorkspaceBillingBindingStatus = "connected"
+	WorkspaceBillingBindingStatusVerificationFailed WorkspaceBillingBindingStatus = "verification_failed"
+	WorkspaceBillingBindingStatusDisabled           WorkspaceBillingBindingStatus = "disabled"
+)
+
 type UserStatus string
 
 const (
@@ -96,6 +119,25 @@ type BillingProviderConnection struct {
 	CreatedByID        string                          `json:"created_by_id,omitempty"`
 	CreatedAt          time.Time                       `json:"created_at"`
 	UpdatedAt          time.Time                       `json:"updated_at"`
+}
+
+type WorkspaceBillingBinding struct {
+	ID                          string                        `json:"id"`
+	WorkspaceID                 string                        `json:"workspace_id"`
+	BillingProviderConnectionID string                        `json:"billing_provider_connection_id"`
+	Backend                     WorkspaceBillingBackend       `json:"backend"`
+	BackendOrganizationID       string                        `json:"backend_organization_id,omitempty"`
+	BackendProviderCode         string                        `json:"backend_provider_code,omitempty"`
+	IsolationMode               WorkspaceBillingIsolationMode `json:"isolation_mode"`
+	Status                      WorkspaceBillingBindingStatus `json:"status"`
+	ProvisioningError           string                        `json:"provisioning_error,omitempty"`
+	LastVerifiedAt              *time.Time                    `json:"last_verified_at,omitempty"`
+	ConnectedAt                 *time.Time                    `json:"connected_at,omitempty"`
+	DisabledAt                  *time.Time                    `json:"disabled_at,omitempty"`
+	CreatedByType               string                        `json:"created_by_type"`
+	CreatedByID                 string                        `json:"created_by_id,omitempty"`
+	CreatedAt                   time.Time                     `json:"created_at"`
+	UpdatedAt                   time.Time                     `json:"updated_at"`
 }
 
 type User struct {

@@ -840,6 +840,278 @@ func (s *PostgresStore) UpdateBillingProviderConnection(input domain.BillingProv
 	return out, nil
 }
 
+func (s *PostgresStore) CreateWorkspaceBillingBinding(input domain.WorkspaceBillingBinding) (domain.WorkspaceBillingBinding, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.WorkspaceID = normalizeTenantID(input.WorkspaceID)
+	input.BillingProviderConnectionID = strings.TrimSpace(input.BillingProviderConnectionID)
+	input.Backend = domain.WorkspaceBillingBackend(strings.ToLower(strings.TrimSpace(string(input.Backend))))
+	input.BackendOrganizationID = normalizeOptionalText(input.BackendOrganizationID)
+	input.BackendProviderCode = normalizeOptionalText(input.BackendProviderCode)
+	input.IsolationMode = domain.WorkspaceBillingIsolationMode(strings.ToLower(strings.TrimSpace(string(input.IsolationMode))))
+	input.Status = domain.WorkspaceBillingBindingStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.ProvisioningError = normalizeOptionalText(input.ProvisioningError)
+	input.CreatedByType = strings.ToLower(strings.TrimSpace(input.CreatedByType))
+	input.CreatedByID = normalizeOptionalText(input.CreatedByID)
+	if input.WorkspaceID == "" || input.BillingProviderConnectionID == "" || input.Backend == "" || input.IsolationMode == "" || input.Status == "" || input.CreatedByType == "" {
+		return domain.WorkspaceBillingBinding{}, fmt.Errorf("validation failed: workspace_id, billing_provider_connection_id, backend, isolation_mode, status, and created_by_type are required")
+	}
+	if input.ID == "" {
+		input.ID = newID("wbb")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO workspace_billing_bindings (
+			id, workspace_id, billing_provider_connection_id, backend, backend_organization_id, backend_provider_code,
+			isolation_mode, status, provisioning_error, last_verified_at, connected_at, disabled_at,
+			created_by_type, created_by_id, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),$7,$8,NULLIF($9,''),$10,$11,$12,$13,NULLIF($14,''),$15,$16)
+		RETURNING id, workspace_id, billing_provider_connection_id, backend, backend_organization_id, backend_provider_code,
+			isolation_mode, status, provisioning_error, last_verified_at, connected_at, disabled_at,
+			created_by_type, created_by_id, created_at, updated_at`,
+		input.ID,
+		input.WorkspaceID,
+		input.BillingProviderConnectionID,
+		string(input.Backend),
+		input.BackendOrganizationID,
+		input.BackendProviderCode,
+		string(input.IsolationMode),
+		string(input.Status),
+		input.ProvisioningError,
+		input.LastVerifiedAt,
+		input.ConnectedAt,
+		input.DisabledAt,
+		input.CreatedByType,
+		input.CreatedByID,
+		input.CreatedAt,
+		input.UpdatedAt,
+	)
+	out, err := scanWorkspaceBillingBinding(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.WorkspaceBillingBinding{}, ErrAlreadyExists
+		}
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetWorkspaceBillingBinding(workspaceID string) (domain.WorkspaceBillingBinding, error) {
+	workspaceID = normalizeTenantID(workspaceID)
+	if workspaceID == "" {
+		return domain.WorkspaceBillingBinding{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, workspace_id, billing_provider_connection_id, backend, backend_organization_id, backend_provider_code,
+			isolation_mode, status, provisioning_error, last_verified_at, connected_at, disabled_at,
+			created_by_type, created_by_id, created_at, updated_at
+		FROM workspace_billing_bindings
+		WHERE workspace_id = $1`,
+		workspaceID,
+	)
+	out, err := scanWorkspaceBillingBinding(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.WorkspaceBillingBinding{}, ErrNotFound
+		}
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListWorkspaceBillingBindings(filter WorkspaceBillingBindingListFilter) ([]domain.WorkspaceBillingBinding, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"1=1"}
+	args := []any{}
+	nextArg := 1
+	if workspaceID := normalizeTenantID(filter.WorkspaceID); workspaceID != "" {
+		clauses = append(clauses, fmt.Sprintf("workspace_id = $%d", nextArg))
+		args = append(args, workspaceID)
+		nextArg++
+	}
+	if connectionID := strings.TrimSpace(filter.BillingProviderConnectionID); connectionID != "" {
+		clauses = append(clauses, fmt.Sprintf("billing_provider_connection_id = $%d", nextArg))
+		args = append(args, connectionID)
+		nextArg++
+	}
+	if backend := strings.ToLower(strings.TrimSpace(filter.Backend)); backend != "" {
+		clauses = append(clauses, fmt.Sprintf("backend = $%d", nextArg))
+		args = append(args, backend)
+		nextArg++
+	}
+	if isolationMode := strings.ToLower(strings.TrimSpace(filter.IsolationMode)); isolationMode != "" {
+		clauses = append(clauses, fmt.Sprintf("isolation_mode = $%d", nextArg))
+		args = append(args, isolationMode)
+		nextArg++
+	}
+	if status := strings.ToLower(strings.TrimSpace(filter.Status)); status != "" {
+		clauses = append(clauses, fmt.Sprintf("status = $%d", nextArg))
+		args = append(args, status)
+		nextArg++
+	}
+	query := fmt.Sprintf(`SELECT id, workspace_id, billing_provider_connection_id, backend, backend_organization_id, backend_provider_code,
+		isolation_mode, status, provisioning_error, last_verified_at, connected_at, disabled_at,
+		created_by_type, created_by_id, created_at, updated_at
+	FROM workspace_billing_bindings
+	WHERE %s
+	ORDER BY created_at DESC, id ASC
+	LIMIT $%d OFFSET $%d`, strings.Join(clauses, " AND "), nextArg, nextArg+1)
+	args = append(args, limit, offset)
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.WorkspaceBillingBinding, 0)
+	for rows.Next() {
+		item, scanErr := scanWorkspaceBillingBinding(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateWorkspaceBillingBinding(input domain.WorkspaceBillingBinding) (domain.WorkspaceBillingBinding, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.WorkspaceID = normalizeTenantID(input.WorkspaceID)
+	input.BillingProviderConnectionID = strings.TrimSpace(input.BillingProviderConnectionID)
+	input.Backend = domain.WorkspaceBillingBackend(strings.ToLower(strings.TrimSpace(string(input.Backend))))
+	input.BackendOrganizationID = normalizeOptionalText(input.BackendOrganizationID)
+	input.BackendProviderCode = normalizeOptionalText(input.BackendProviderCode)
+	input.IsolationMode = domain.WorkspaceBillingIsolationMode(strings.ToLower(strings.TrimSpace(string(input.IsolationMode))))
+	input.Status = domain.WorkspaceBillingBindingStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.ProvisioningError = normalizeOptionalText(input.ProvisioningError)
+	input.CreatedByType = strings.ToLower(strings.TrimSpace(input.CreatedByType))
+	input.CreatedByID = normalizeOptionalText(input.CreatedByID)
+	if input.ID == "" || input.WorkspaceID == "" || input.BillingProviderConnectionID == "" || input.Backend == "" || input.IsolationMode == "" || input.Status == "" || input.CreatedByType == "" {
+		return domain.WorkspaceBillingBinding{}, fmt.Errorf("validation failed: id, workspace_id, billing_provider_connection_id, backend, isolation_mode, status, and created_by_type are required")
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE workspace_billing_bindings
+		SET workspace_id = $1,
+		    billing_provider_connection_id = $2,
+		    backend = $3,
+		    backend_organization_id = NULLIF($4,''),
+		    backend_provider_code = NULLIF($5,''),
+		    isolation_mode = $6,
+		    status = $7,
+		    provisioning_error = NULLIF($8,''),
+		    last_verified_at = $9,
+		    connected_at = $10,
+		    disabled_at = $11,
+		    created_by_type = $12,
+		    created_by_id = NULLIF($13,''),
+		    updated_at = $14
+		WHERE id = $15
+		RETURNING id, workspace_id, billing_provider_connection_id, backend, backend_organization_id, backend_provider_code,
+			isolation_mode, status, provisioning_error, last_verified_at, connected_at, disabled_at,
+			created_by_type, created_by_id, created_at, updated_at`,
+		input.WorkspaceID,
+		input.BillingProviderConnectionID,
+		string(input.Backend),
+		input.BackendOrganizationID,
+		input.BackendProviderCode,
+		string(input.IsolationMode),
+		string(input.Status),
+		input.ProvisioningError,
+		input.LastVerifiedAt,
+		input.ConnectedAt,
+		input.DisabledAt,
+		input.CreatedByType,
+		input.CreatedByID,
+		input.UpdatedAt,
+		input.ID,
+	)
+	out, err := scanWorkspaceBillingBinding(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.WorkspaceBillingBinding{}, ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return domain.WorkspaceBillingBinding{}, ErrAlreadyExists
+		}
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) CreateUser(input domain.User) (domain.User, error) {
 	input.ID = strings.TrimSpace(input.ID)
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
@@ -5063,6 +5335,72 @@ func scanTenant(s rowScanner) (domain.Tenant, error) {
 		out.LagoBillingProviderCode = normalizeOptionalText(lagoBillingProviderCode.String)
 	}
 	out.Status = normalizeTenantStatus(domain.TenantStatus(status))
+	return out, nil
+}
+
+func scanWorkspaceBillingBinding(s rowScanner) (domain.WorkspaceBillingBinding, error) {
+	var out domain.WorkspaceBillingBinding
+	var backend string
+	var backendOrganizationID sql.NullString
+	var backendProviderCode sql.NullString
+	var isolationMode string
+	var status string
+	var provisioningError sql.NullString
+	var lastVerifiedAt sql.NullTime
+	var connectedAt sql.NullTime
+	var disabledAt sql.NullTime
+	var createdByID sql.NullString
+	if err := s.Scan(
+		&out.ID,
+		&out.WorkspaceID,
+		&out.BillingProviderConnectionID,
+		&backend,
+		&backendOrganizationID,
+		&backendProviderCode,
+		&isolationMode,
+		&status,
+		&provisioningError,
+		&lastVerifiedAt,
+		&connectedAt,
+		&disabledAt,
+		&out.CreatedByType,
+		&createdByID,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	); err != nil {
+		return domain.WorkspaceBillingBinding{}, err
+	}
+	out.ID = strings.TrimSpace(out.ID)
+	out.WorkspaceID = normalizeTenantID(out.WorkspaceID)
+	out.BillingProviderConnectionID = strings.TrimSpace(out.BillingProviderConnectionID)
+	out.Backend = domain.WorkspaceBillingBackend(strings.ToLower(strings.TrimSpace(backend)))
+	if backendOrganizationID.Valid {
+		out.BackendOrganizationID = normalizeOptionalText(backendOrganizationID.String)
+	}
+	if backendProviderCode.Valid {
+		out.BackendProviderCode = normalizeOptionalText(backendProviderCode.String)
+	}
+	out.IsolationMode = domain.WorkspaceBillingIsolationMode(strings.ToLower(strings.TrimSpace(isolationMode)))
+	out.Status = domain.WorkspaceBillingBindingStatus(strings.ToLower(strings.TrimSpace(status)))
+	if provisioningError.Valid {
+		out.ProvisioningError = normalizeOptionalText(provisioningError.String)
+	}
+	out.CreatedByType = strings.ToLower(strings.TrimSpace(out.CreatedByType))
+	if createdByID.Valid {
+		out.CreatedByID = normalizeOptionalText(createdByID.String)
+	}
+	if lastVerifiedAt.Valid {
+		t := lastVerifiedAt.Time.UTC()
+		out.LastVerifiedAt = &t
+	}
+	if connectedAt.Valid {
+		t := connectedAt.Time.UTC()
+		out.ConnectedAt = &t
+	}
+	if disabledAt.Valid {
+		t := disabledAt.Time.UTC()
+		out.DisabledAt = &t
+	}
 	return out, nil
 }
 

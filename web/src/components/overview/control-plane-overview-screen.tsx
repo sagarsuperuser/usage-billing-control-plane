@@ -60,9 +60,7 @@ export function ControlPlaneOverviewScreen() {
     const connections = billingConnectionsQuery.data ?? [];
     return {
       total: tenants.length,
-      missingBilling: tenants.filter(
-        (tenant) => !tenant.billing_provider_connection_id && (!tenant.lago_organization_id || !tenant.lago_billing_provider_code)
-      ).length,
+      missingBilling: tenants.filter((tenant) => !tenant.workspace_billing.connected).length,
       missingPricing: readiness.filter((item) => !item.billing_integration.pricing_ready).length,
       missingFirstCustomer: readiness.filter((item) => !item.first_customer.customer_exists).length,
       connectedProviders: connections.filter((item) => item.status === "connected").length,

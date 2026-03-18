@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Building2, CreditCard, LoaderCircle } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { fetchBillingProviderConnection, fetchTenantOnboardingStatus } from "@/lib/api";
+import { fetchBillingProviderConnection, fetchBillingProviderConnections, fetchTenantOnboardingStatus, updateTenantWorkspaceBilling } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -20,7 +21,9 @@ function readinessTone(status?: string): string {
 }
 
 export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
-  const { apiBaseURL, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const queryClient = useQueryClient();
+  const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const [selectedConnectionID, setSelectedConnectionID] = useState("");
 
   const tenantStatusQuery = useQuery({
     queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID],
@@ -30,16 +33,48 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
 
   const selectedTenant = tenantStatusQuery.data?.tenant ?? null;
   const selectedReadiness = tenantStatusQuery.data?.readiness ?? null;
+  const activeBillingConnectionID = selectedTenant?.workspace_billing.active_billing_connection_id || selectedTenant?.billing_provider_connection_id || "";
   const billingConnectionQuery = useQuery({
-    queryKey: ["billing-provider-connection", apiBaseURL, selectedTenant?.billing_provider_connection_id],
+    queryKey: ["billing-provider-connection", apiBaseURL, activeBillingConnectionID],
     queryFn: () =>
       fetchBillingProviderConnection({
         runtimeBaseURL: apiBaseURL,
-        connectionID: selectedTenant?.billing_provider_connection_id ?? "",
+        connectionID: activeBillingConnectionID,
       }),
-    enabled: isAuthenticated && isPlatformAdmin && Boolean(selectedTenant?.billing_provider_connection_id),
+    enabled: isAuthenticated && isPlatformAdmin && Boolean(activeBillingConnectionID),
+  });
+  const billingConnectionsQuery = useQuery({
+    queryKey: ["billing-provider-connections", apiBaseURL, "workspace-detail"],
+    queryFn: () => fetchBillingProviderConnections({ runtimeBaseURL: apiBaseURL, limit: 100, status: "connected", scope: "platform" }),
+    enabled: isAuthenticated && isPlatformAdmin,
+  });
+  useEffect(() => {
+    setSelectedConnectionID(activeBillingConnectionID);
+  }, [activeBillingConnectionID]);
+  const updateWorkspaceBillingMutation = useMutation({
+    mutationFn: () =>
+      updateTenantWorkspaceBilling({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        tenantID,
+        billingProviderConnectionID: selectedConnectionID,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID] }),
+        queryClient.invalidateQueries({ queryKey: ["tenants"] }),
+        queryClient.invalidateQueries({ queryKey: ["overview-tenants"] }),
+        queryClient.invalidateQueries({ queryKey: ["billing-provider-connection"] }),
+      ]);
+    },
   });
   const nextActions = selectedReadiness?.missing_steps.map(describeTenantMissingStep) ?? [];
+  const availableConnections = billingConnectionsQuery.data ?? [];
+  const canSaveWorkspaceBilling =
+    Boolean(csrfToken) &&
+    !updateWorkspaceBillingMutation.isPending &&
+    Boolean(selectedConnectionID) &&
+    selectedConnectionID !== activeBillingConnectionID;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1d4ed8_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
@@ -115,7 +150,17 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <SummaryStat label="Workspace" value={selectedReadiness.tenant.status} helper={selectedReadiness.tenant.tenant_active ? "Active" : "Needs activation"} />
-              <SummaryStat label="Billing" value={selectedReadiness.billing_integration.status} helper={selectedReadiness.billing_integration.pricing_ready ? "Pricing connected" : "Pricing missing"} />
+              <SummaryStat
+                label="Billing"
+                value={selectedReadiness.billing_integration.status}
+                helper={
+                  selectedReadiness.billing_integration.billing_connected
+                    ? `Active connection linked${selectedReadiness.billing_integration.isolation_mode ? ` · ${selectedReadiness.billing_integration.isolation_mode}` : ""}`
+                    : selectedReadiness.billing_integration.pricing_ready
+                      ? "Pricing ready, billing not attached"
+                      : "Billing and pricing still need setup"
+                }
+              />
               <SummaryStat label="First customer" value={selectedReadiness.first_customer.status} helper={selectedReadiness.first_customer.customer_exists ? "Customer exists" : "No customer yet"} />
               <SummaryStat label="Open actions" value={String(selectedReadiness.missing_steps.length)} helper="Remaining checklist items" />
             </section>
@@ -145,29 +190,86 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
 
               <aside className="flex flex-col gap-4">
                 <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Billing connection</p>
-                  {selectedTenant.billing_provider_connection_id ? (
+                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workspace billing</p>
+                  {activeBillingConnectionID ? (
                     <>
                       <dl className="mt-4 grid gap-3">
-                        <MetaItem label="Connection ID" value={selectedTenant.billing_provider_connection_id} mono />
+                        <MetaItem label="Active connection" value={activeBillingConnectionID} mono />
+                        <MetaItem label="Workspace billing status" value={formatReadinessStatus(selectedTenant.workspace_billing.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)} />
                         <MetaItem label="Connection status" value={billingConnectionQuery.data ? formatReadinessStatus(billingConnectionQuery.data.status) : billingConnectionQuery.isLoading ? "Loading" : "Unavailable"} />
                         <MetaItem label="Display name" value={billingConnectionQuery.data?.display_name || "-"} />
-                        <MetaItem label="Billing organization" value={selectedTenant.lago_organization_id || "-"} mono />
-                        <MetaItem label="Lago provider code" value={selectedTenant.lago_billing_provider_code || "-"} mono />
+                        <MetaItem label="Isolation mode" value={selectedTenant.workspace_billing.isolation_mode ? formatReadinessStatus(selectedTenant.workspace_billing.isolation_mode) : selectedReadiness.billing_integration.isolation_mode ? formatReadinessStatus(selectedReadiness.billing_integration.isolation_mode) : "Shared"} />
+                        <MetaItem label="Binding source" value={selectedTenant.workspace_billing.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
                       </dl>
                       <Link
-                        href={`/billing-connections/${encodeURIComponent(selectedTenant.billing_provider_connection_id)}`}
+                        href={`/billing-connections/${encodeURIComponent(activeBillingConnectionID)}`}
                         className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
                       >
                         <CreditCard className="h-4 w-4" />
                         Open billing connection
                       </Link>
+                      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Change active connection</p>
+                        <div className="mt-3 flex flex-col gap-3">
+                          <select
+                            aria-label="Active billing connection"
+                            value={selectedConnectionID}
+                            onChange={(event) => setSelectedConnectionID(event.target.value)}
+                            className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                          >
+                            <option value="">Select one active billing connection</option>
+                            {availableConnections.map((connection) => (
+                              <option key={connection.id} value={connection.id}>
+                                {connection.display_name} · {connection.environment}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => updateWorkspaceBillingMutation.mutate()}
+                            disabled={!canSaveWorkspaceBilling}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {updateWorkspaceBillingMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                            Save active connection
+                          </button>
+                        </div>
+                      </div>
                     </>
                   ) : (
-                    <dl className="mt-4 grid gap-3">
-                      <MetaItem label="Billing organization" value={selectedTenant.lago_organization_id || "-"} mono />
-                      <MetaItem label="Lago provider code" value={selectedTenant.lago_billing_provider_code || "-"} mono />
-                    </dl>
+                    <>
+                      <dl className="mt-4 grid gap-3">
+                        <MetaItem label="Workspace billing status" value="Missing" />
+                        <MetaItem label="Next action" value="Select one active billing connection below" />
+                      </dl>
+                      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Assign active connection</p>
+                        <div className="mt-3 flex flex-col gap-3">
+                          <select
+                            aria-label="Active billing connection"
+                            value={selectedConnectionID}
+                            onChange={(event) => setSelectedConnectionID(event.target.value)}
+                            className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                          >
+                            <option value="">Select one active billing connection</option>
+                            {availableConnections.map((connection) => (
+                              <option key={connection.id} value={connection.id}>
+                                {connection.display_name} · {connection.environment}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => updateWorkspaceBillingMutation.mutate()}
+                            disabled={!canSaveWorkspaceBilling}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {updateWorkspaceBillingMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                            Save active connection
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </section>
 

@@ -54,6 +54,16 @@ type BillingProviderConnectionListFilter struct {
 	Offset        int
 }
 
+type WorkspaceBillingBindingListFilter struct {
+	WorkspaceID                 string
+	BillingProviderConnectionID string
+	Backend                     string
+	IsolationMode               string
+	Status                      string
+	Limit                       int
+	Offset                      int
+}
+
 type APIKeyListFilter struct {
 	TenantID      string
 	Role          string
@@ -219,6 +229,10 @@ type Repository interface {
 	ListBillingProviderConnections(filter BillingProviderConnectionListFilter) ([]domain.BillingProviderConnection, error)
 	CountTenantsByBillingProviderConnections(connectionIDs []string) (map[string]int, error)
 	UpdateBillingProviderConnection(input domain.BillingProviderConnection) (domain.BillingProviderConnection, error)
+	CreateWorkspaceBillingBinding(input domain.WorkspaceBillingBinding) (domain.WorkspaceBillingBinding, error)
+	GetWorkspaceBillingBinding(workspaceID string) (domain.WorkspaceBillingBinding, error)
+	ListWorkspaceBillingBindings(filter WorkspaceBillingBindingListFilter) ([]domain.WorkspaceBillingBinding, error)
+	UpdateWorkspaceBillingBinding(input domain.WorkspaceBillingBinding) (domain.WorkspaceBillingBinding, error)
 	CreateUser(input domain.User) (domain.User, error)
 	GetUser(id string) (domain.User, error)
 	GetUserByEmail(email string) (domain.User, error)

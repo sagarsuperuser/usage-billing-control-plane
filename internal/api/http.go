@@ -37,6 +37,7 @@ type Server struct {
 	customerService                  *service.CustomerService
 	customerOnboardingService        *service.CustomerOnboardingService
 	billingProviderConnectionService *service.BillingProviderConnectionService
+	workspaceBillingBindingService   *service.WorkspaceBillingBindingService
 	browserUserAuthService           *service.BrowserUserAuthService
 	browserSSOService                *service.BrowserSSOService
 	pricingMetricService             *service.PricingMetricService
@@ -66,6 +67,76 @@ type Server struct {
 	allowedSessionOrigins            map[string]struct{}
 	uiPublicBaseURL                  string
 	mux                              *http.ServeMux
+}
+
+type workspaceBillingResponse struct {
+	Configured                bool   `json:"configured"`
+	Connected                 bool   `json:"connected"`
+	ActiveBillingConnectionID string `json:"active_billing_connection_id,omitempty"`
+	Status                    string `json:"status"`
+	Source                    string `json:"source,omitempty"`
+	IsolationMode             string `json:"isolation_mode,omitempty"`
+}
+
+type tenantResponse struct {
+	ID                          string                   `json:"id"`
+	Name                        string                   `json:"name"`
+	Status                      domain.TenantStatus      `json:"status"`
+	BillingProviderConnectionID string                   `json:"billing_provider_connection_id,omitempty"`
+	WorkspaceBilling            workspaceBillingResponse `json:"workspace_billing"`
+	CreatedAt                   time.Time                `json:"created_at"`
+	UpdatedAt                   time.Time                `json:"updated_at"`
+}
+
+func (s *Server) newTenantResponse(tenant domain.Tenant) tenantResponse {
+	return tenantResponse{
+		ID:                          tenant.ID,
+		Name:                        tenant.Name,
+		Status:                      tenant.Status,
+		BillingProviderConnectionID: tenant.BillingProviderConnectionID,
+		WorkspaceBilling:            s.buildWorkspaceBillingResponse(tenant),
+		CreatedAt:                   tenant.CreatedAt,
+		UpdatedAt:                   tenant.UpdatedAt,
+	}
+}
+
+func (s *Server) newTenantResponses(items []domain.Tenant) []tenantResponse {
+	out := make([]tenantResponse, 0, len(items))
+	for _, tenant := range items {
+		out = append(out, s.newTenantResponse(tenant))
+	}
+	return out
+}
+
+func (s *Server) buildWorkspaceBillingResponse(tenant domain.Tenant) workspaceBillingResponse {
+	resp := workspaceBillingResponse{
+		Status: "missing",
+	}
+	if strings.TrimSpace(tenant.BillingProviderConnectionID) == "" {
+		return resp
+	}
+	resp.Configured = true
+	resp.ActiveBillingConnectionID = tenant.BillingProviderConnectionID
+	resp.Status = "pending"
+	if s == nil || s.workspaceBillingBindingService == nil {
+		return resp
+	}
+	if effective, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID); err == nil {
+		resp.Connected = true
+		resp.ActiveBillingConnectionID = effective.BillingProviderConnectionID
+		resp.Status = effective.Status
+		resp.Source = effective.Source
+		resp.IsolationMode = string(effective.IsolationMode)
+		return resp
+	}
+	if binding, err := s.workspaceBillingBindingService.GetWorkspaceBillingBinding(tenant.ID); err == nil {
+		resp.ActiveBillingConnectionID = binding.BillingProviderConnectionID
+		resp.Status = string(binding.Status)
+		resp.Source = "binding"
+		resp.IsolationMode = string(binding.IsolationMode)
+		resp.Connected = binding.Status == domain.WorkspaceBillingBindingStatusConnected
+	}
+	return resp
 }
 
 const (
@@ -400,7 +471,8 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 		opt(s)
 	}
 	s.ratingService = service.NewRatingService(repo)
-	s.tenantService = service.NewTenantService(repo)
+	s.workspaceBillingBindingService = service.NewWorkspaceBillingBindingService(repo)
+	s.tenantService = service.NewTenantService(repo).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter)
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)
@@ -412,7 +484,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	if s.browserUserAuthService == nil {
 		s.browserUserAuthService, _ = service.NewBrowserUserAuthService(repo)
 	}
-	s.onboardingService = service.NewTenantOnboardingService(s.tenantService, s.customerService, s.apiKeyService, s.ratingService, s.meterService)
+	s.onboardingService = service.NewTenantOnboardingService(s.tenantService, s.workspaceBillingBindingService, s.customerService, s.apiKeyService, s.ratingService, s.meterService)
 	s.registerRoutes()
 	return s
 }
@@ -1633,7 +1705,7 @@ func (s *Server) handleInternalTenants(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{
-			"tenant":  tenant,
+			"tenant":  s.newTenantResponse(tenant),
 			"created": true,
 		})
 	case http.MethodGet:
@@ -1644,7 +1716,7 @@ func (s *Server) handleInternalTenants(w http.ResponseWriter, r *http.Request) {
 			writeDomainError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, tenants)
+		writeJSON(w, http.StatusOK, s.newTenantResponses(tenants))
 	default:
 		writeMethodNotAllowed(w)
 	}
@@ -1660,12 +1732,16 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "tenant id is required")
 		return
 	}
-	if action != "" && action != "bootstrap-admin-key" {
+	if action != "" && action != "bootstrap-admin-key" && action != "workspace-billing" {
 		writeError(w, http.StatusBadRequest, "unsupported tenant subresource")
 		return
 	}
 	if action == "bootstrap-admin-key" {
 		s.handleInternalTenantBootstrapAdminKey(w, r, id)
+		return
+	}
+	if action == "workspace-billing" {
+		s.handleInternalTenantWorkspaceBilling(w, r, id)
 		return
 	}
 
@@ -1676,7 +1752,7 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 			writeDomainError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, tenant)
+		writeJSON(w, http.StatusOK, s.newTenantResponse(tenant))
 	case http.MethodPatch:
 		var req struct {
 			Name                        *string              `json:"name,omitempty"`
@@ -1700,7 +1776,50 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 			writeDomainError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, tenant)
+		writeJSON(w, http.StatusOK, s.newTenantResponse(tenant))
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleInternalTenantWorkspaceBilling(w http.ResponseWriter, r *http.Request, tenantID string) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		tenant, err := s.tenantService.GetTenant(tenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"workspace_billing": s.buildWorkspaceBillingResponse(tenant),
+		})
+	case http.MethodPatch:
+		var req struct {
+			BillingProviderConnectionID string `json:"billing_provider_connection_id"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		connectionID := strings.TrimSpace(req.BillingProviderConnectionID)
+		if connectionID == "" {
+			writeError(w, http.StatusBadRequest, "billing_provider_connection_id is required")
+			return
+		}
+		tenant, err := s.tenantService.UpdateTenant(tenantID, service.UpdateTenantRequest{
+			BillingProviderConnectionID: &connectionID,
+		}, requestActorAPIKeyID(r))
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"tenant": s.newTenantResponse(tenant),
+		})
 	default:
 		writeMethodNotAllowed(w)
 	}
@@ -1814,7 +1933,12 @@ func (s *Server) handleInternalOnboardingTenants(w http.ResponseWriter, r *http.
 	if result.TenantCreated {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, result)
+	writeJSON(w, status, map[string]any{
+		"tenant":                 s.newTenantResponse(result.Tenant),
+		"tenant_created":         result.TenantCreated,
+		"tenant_admin_bootstrap": result.TenantAdminBootstrap,
+		"readiness":              result.Readiness,
+	})
 }
 
 func (s *Server) handleInternalOnboardingTenantByID(w http.ResponseWriter, r *http.Request) {
@@ -1842,7 +1966,7 @@ func (s *Server) handleInternalOnboardingTenantByID(w http.ResponseWriter, r *ht
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tenant":    tenant,
+		"tenant":    s.newTenantResponse(tenant),
 		"readiness": readiness,
 		"tenant_id": normalizeTenantID(id),
 	})

@@ -11,7 +11,8 @@ import (
 )
 
 type TenantService struct {
-	store store.Repository
+	store                          store.Repository
+	workspaceBillingBindingService *WorkspaceBillingBindingService
 }
 
 type EnsureTenantRequest struct {
@@ -53,6 +54,14 @@ func NewTenantService(s store.Repository) *TenantService {
 	return &TenantService{store: s}
 }
 
+func (s *TenantService) WithWorkspaceBillingBindingService(bindingSvc *WorkspaceBillingBindingService) *TenantService {
+	if s == nil {
+		return nil
+	}
+	s.workspaceBillingBindingService = bindingSvc
+	return s
+}
+
 func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID string) (domain.Tenant, error) {
 	if s == nil || s.store == nil {
 		return domain.Tenant{}, fmt.Errorf("%w: tenant repository is required", ErrValidation)
@@ -60,26 +69,32 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 
 	id := normalizeTenantID(req.ID)
 	name := strings.TrimSpace(req.Name)
-	billingProviderConnectionID, lagoOrganizationID, lagoBillingProviderCode, err := s.resolveTenantBillingConfiguration(
-		req.BillingProviderConnectionID,
-		req.LagoOrganizationID,
-		req.LagoBillingProviderCode,
-	)
-	if err != nil {
-		return domain.Tenant{}, err
-	}
 	if name == "" {
 		name = id
 	}
 
 	now := time.Now().UTC()
+	initialConnectionID := strings.TrimSpace(req.BillingProviderConnectionID)
+	initialOrg := strings.TrimSpace(req.LagoOrganizationID)
+	initialCode := strings.TrimSpace(req.LagoBillingProviderCode)
+	if s.workspaceBillingBindingService == nil || initialConnectionID == "" {
+		var err error
+		initialConnectionID, initialOrg, initialCode, err = s.resolveTenantBillingConfiguration(
+			req.BillingProviderConnectionID,
+			req.LagoOrganizationID,
+			req.LagoBillingProviderCode,
+		)
+		if err != nil {
+			return domain.Tenant{}, err
+		}
+	}
 	created, err := s.store.CreateTenant(domain.Tenant{
 		ID:                          id,
 		Name:                        name,
 		Status:                      domain.TenantStatusActive,
-		BillingProviderConnectionID: billingProviderConnectionID,
-		LagoOrganizationID:          lagoOrganizationID,
-		LagoBillingProviderCode:     lagoBillingProviderCode,
+		BillingProviderConnectionID: initialConnectionID,
+		LagoOrganizationID:          initialOrg,
+		LagoBillingProviderCode:     initialCode,
 		CreatedAt:                   now,
 		UpdatedAt:                   now,
 	})
@@ -88,6 +103,13 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 			return domain.Tenant{}, fmt.Errorf("%w: tenant already exists", store.ErrDuplicateKey)
 		}
 		return domain.Tenant{}, err
+	}
+	if s.workspaceBillingBindingService != nil && strings.TrimSpace(req.BillingProviderConnectionID) != "" {
+		synced, err := s.syncTenantBillingBinding(created, req.BillingProviderConnectionID, req.LagoOrganizationID, req.LagoBillingProviderCode, actorAPIKeyID)
+		if err != nil {
+			return domain.Tenant{}, err
+		}
+		created = synced
 	}
 
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
@@ -115,14 +137,6 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 
 	id := normalizeTenantID(req.ID)
 	name := strings.TrimSpace(req.Name)
-	billingProviderConnectionID, lagoOrganizationID, lagoBillingProviderCode, err := s.resolveTenantBillingConfiguration(
-		req.BillingProviderConnectionID,
-		req.LagoOrganizationID,
-		req.LagoBillingProviderCode,
-	)
-	if err != nil {
-		return domain.Tenant{}, false, err
-	}
 	if name == "" {
 		name = id
 	}
@@ -150,22 +164,29 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		metadata["new_name"] = name
 		changed = true
 	}
-	if billingProviderConnectionID != existing.BillingProviderConnectionID {
-		updated.BillingProviderConnectionID = billingProviderConnectionID
+	rawConnectionID := req.BillingProviderConnectionID
+	rawOrg := req.LagoOrganizationID
+	rawCode := req.LagoBillingProviderCode
+	nextConnectionID, nextOrg, nextCode, err := s.resolveTenantWriteBillingConfiguration(existing, &rawConnectionID, &rawOrg, &rawCode, actorAPIKeyID)
+	if err != nil {
+		return domain.Tenant{}, false, err
+	}
+	if nextConnectionID != existing.BillingProviderConnectionID {
+		updated.BillingProviderConnectionID = nextConnectionID
 		metadata["previous_billing_provider_connection_id"] = existing.BillingProviderConnectionID
-		metadata["new_billing_provider_connection_id"] = billingProviderConnectionID
+		metadata["new_billing_provider_connection_id"] = nextConnectionID
 		changed = true
 	}
-	if lagoOrganizationID != existing.LagoOrganizationID {
-		updated.LagoOrganizationID = lagoOrganizationID
+	if nextOrg != existing.LagoOrganizationID {
+		updated.LagoOrganizationID = nextOrg
 		metadata["previous_lago_organization_id"] = existing.LagoOrganizationID
-		metadata["new_lago_organization_id"] = lagoOrganizationID
+		metadata["new_lago_organization_id"] = nextOrg
 		changed = true
 	}
-	if lagoBillingProviderCode != existing.LagoBillingProviderCode {
-		updated.LagoBillingProviderCode = lagoBillingProviderCode
+	if nextCode != existing.LagoBillingProviderCode {
+		updated.LagoBillingProviderCode = nextCode
 		metadata["previous_lago_billing_provider_code"] = existing.LagoBillingProviderCode
-		metadata["new_lago_billing_provider_code"] = lagoBillingProviderCode
+		metadata["new_lago_billing_provider_code"] = nextCode
 		changed = true
 	}
 	if !changed {
@@ -252,51 +273,27 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 			statusChanged = true
 		}
 	}
-	if req.BillingProviderConnectionID != nil {
-		resolvedConnectionID, resolvedOrg, resolvedCode, err := s.resolveTenantBillingConfiguration(
-			*req.BillingProviderConnectionID,
-			valueOrDefault(req.LagoOrganizationID, ""),
-			valueOrDefault(req.LagoBillingProviderCode, ""),
-		)
-		if err != nil {
-			return domain.Tenant{}, err
-		}
-		if resolvedConnectionID != current.BillingProviderConnectionID {
-			updated.BillingProviderConnectionID = resolvedConnectionID
-			metadata["previous_billing_provider_connection_id"] = current.BillingProviderConnectionID
-			metadata["new_billing_provider_connection_id"] = resolvedConnectionID
-			changed = true
-		}
-		if req.LagoOrganizationID == nil && resolvedOrg != current.LagoOrganizationID {
-			updated.LagoOrganizationID = resolvedOrg
-			metadata["previous_lago_organization_id"] = current.LagoOrganizationID
-			metadata["new_lago_organization_id"] = resolvedOrg
-			changed = true
-		}
-		if req.LagoBillingProviderCode == nil && resolvedCode != current.LagoBillingProviderCode {
-			updated.LagoBillingProviderCode = resolvedCode
-			metadata["previous_lago_billing_provider_code"] = current.LagoBillingProviderCode
-			metadata["new_lago_billing_provider_code"] = resolvedCode
-			changed = true
-		}
+	nextConnectionID, nextOrg, nextCode, err := s.resolveTenantWriteBillingConfiguration(current, req.BillingProviderConnectionID, req.LagoOrganizationID, req.LagoBillingProviderCode, actorAPIKeyID)
+	if err != nil {
+		return domain.Tenant{}, err
 	}
-	if req.LagoOrganizationID != nil {
-		value := strings.TrimSpace(*req.LagoOrganizationID)
-		if value != current.LagoOrganizationID {
-			updated.LagoOrganizationID = value
-			metadata["previous_lago_organization_id"] = current.LagoOrganizationID
-			metadata["new_lago_organization_id"] = value
-			changed = true
-		}
+	if nextConnectionID != current.BillingProviderConnectionID {
+		updated.BillingProviderConnectionID = nextConnectionID
+		metadata["previous_billing_provider_connection_id"] = current.BillingProviderConnectionID
+		metadata["new_billing_provider_connection_id"] = nextConnectionID
+		changed = true
 	}
-	if req.LagoBillingProviderCode != nil {
-		value := strings.TrimSpace(*req.LagoBillingProviderCode)
-		if value != current.LagoBillingProviderCode {
-			updated.LagoBillingProviderCode = value
-			metadata["previous_lago_billing_provider_code"] = current.LagoBillingProviderCode
-			metadata["new_lago_billing_provider_code"] = value
-			changed = true
-		}
+	if nextOrg != current.LagoOrganizationID {
+		updated.LagoOrganizationID = nextOrg
+		metadata["previous_lago_organization_id"] = current.LagoOrganizationID
+		metadata["new_lago_organization_id"] = nextOrg
+		changed = true
+	}
+	if nextCode != current.LagoBillingProviderCode {
+		updated.LagoBillingProviderCode = nextCode
+		metadata["previous_lago_billing_provider_code"] = current.LagoBillingProviderCode
+		metadata["new_lago_billing_provider_code"] = nextCode
+		changed = true
 	}
 	if !changed {
 		return current, nil
@@ -322,6 +319,83 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 		return domain.Tenant{}, fmt.Errorf("create tenant audit event: %w", auditErr)
 	}
 	return out, nil
+}
+
+func (s *TenantService) resolveTenantWriteBillingConfiguration(current domain.Tenant, connectionID, lagoOrganizationID, lagoBillingProviderCode *string, actorAPIKeyID string) (string, string, string, error) {
+	rawConnectionID := current.BillingProviderConnectionID
+	if connectionID != nil {
+		rawConnectionID = strings.TrimSpace(*connectionID)
+	}
+	rawOrg := current.LagoOrganizationID
+	if lagoOrganizationID != nil {
+		rawOrg = strings.TrimSpace(*lagoOrganizationID)
+	}
+	rawCode := current.LagoBillingProviderCode
+	if lagoBillingProviderCode != nil {
+		rawCode = strings.TrimSpace(*lagoBillingProviderCode)
+	}
+	if s.workspaceBillingBindingService != nil && rawConnectionID != "" {
+		return s.ensureBindingBackedTenantBillingConfiguration(current.ID, rawConnectionID, rawOrg, rawCode, actorAPIKeyID)
+	}
+	return s.resolveTenantBillingConfiguration(rawConnectionID, rawOrg, rawCode)
+}
+
+func (s *TenantService) syncTenantBillingBinding(current domain.Tenant, connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode, actorAPIKeyID string) (domain.Tenant, error) {
+	if s.workspaceBillingBindingService == nil || strings.TrimSpace(connectionID) == "" {
+		return current, nil
+	}
+	resolvedConnectionID, resolvedOrg, resolvedCode, err := s.ensureBindingBackedTenantBillingConfiguration(
+		current.ID,
+		connectionID,
+		rawLagoOrganizationID,
+		rawLagoBillingProviderCode,
+		actorAPIKeyID,
+	)
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	if current.BillingProviderConnectionID == resolvedConnectionID && current.LagoOrganizationID == resolvedOrg && current.LagoBillingProviderCode == resolvedCode {
+		return current, nil
+	}
+	current.BillingProviderConnectionID = resolvedConnectionID
+	current.LagoOrganizationID = resolvedOrg
+	current.LagoBillingProviderCode = resolvedCode
+	current.UpdatedAt = time.Now().UTC()
+	return s.store.UpdateTenant(current)
+}
+
+func (s *TenantService) ensureBindingBackedTenantBillingConfiguration(workspaceID, connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode, actorAPIKeyID string) (string, string, string, error) {
+	if s.workspaceBillingBindingService == nil {
+		return s.resolveTenantBillingConfiguration(connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode)
+	}
+	resolvedConnectionID, resolvedOrg, resolvedCode, err := s.resolveTenantBillingConfiguration(connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode)
+	if err != nil {
+		return "", "", "", err
+	}
+	actorType := "platform_api_key"
+	actorID := strings.TrimSpace(actorAPIKeyID)
+	if actorID == "" {
+		actorType = "system_migration"
+		actorID = normalizeTenantID(workspaceID)
+	}
+	binding, _, err := s.workspaceBillingBindingService.EnsureWorkspaceBillingBinding(EnsureWorkspaceBillingBindingRequest{
+		WorkspaceID:                 workspaceID,
+		BillingProviderConnectionID: resolvedConnectionID,
+		Backend:                     string(domain.WorkspaceBillingBackendLago),
+		BackendOrganizationID:       resolvedOrg,
+		BackendProviderCode:         resolvedCode,
+		IsolationMode:               string(domain.WorkspaceBillingIsolationModeShared),
+		CreatedByType:               actorType,
+		CreatedByID:                 actorID,
+	})
+	if err != nil {
+		return "", "", "", err
+	}
+	effective, err := effectiveWorkspaceBillingContextFromBinding(binding)
+	if err != nil {
+		return "", "", "", err
+	}
+	return effective.BillingProviderConnectionID, effective.BackendOrganizationID, effective.BackendProviderCode, nil
 }
 
 func (s *TenantService) resolveTenantBillingConfiguration(connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode string) (string, string, string, error) {

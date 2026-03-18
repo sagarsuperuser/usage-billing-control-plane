@@ -77,15 +77,150 @@ func TestTenantOnboardingUsesBillingProviderConnection(t *testing.T) {
 	if tenant["billing_provider_connection_id"] != connection.ID {
 		t.Fatalf("expected billing_provider_connection_id %q, got %#v", connection.ID, tenant["billing_provider_connection_id"])
 	}
-	if tenant["lago_organization_id"] != "org_platform" {
-		t.Fatalf("expected lago organization id from connection, got %#v", tenant["lago_organization_id"])
+	workspaceBilling, ok := tenant["workspace_billing"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected workspace_billing object in tenant response")
 	}
-	if tenant["lago_billing_provider_code"] != "stripe_platform" {
-		t.Fatalf("expected lago provider code from connection, got %#v", tenant["lago_billing_provider_code"])
+	if got, _ := workspaceBilling["active_billing_connection_id"].(string); got != connection.ID {
+		t.Fatalf("expected workspace_billing.active_billing_connection_id %q, got %q", connection.ID, got)
+	}
+	if connected, _ := workspaceBilling["connected"].(bool); !connected {
+		t.Fatalf("expected workspace_billing.connected=true")
 	}
 
 	got := getJSON(t, ts.URL+"/internal/tenants/tenant_conn_assign", "platform-admin", http.StatusOK)
 	if got["billing_provider_connection_id"] != connection.ID {
 		t.Fatalf("expected persisted billing_provider_connection_id %q, got %#v", connection.ID, got["billing_provider_connection_id"])
+	}
+	binding, err := repo.GetWorkspaceBillingBinding("tenant_conn_assign")
+	if err != nil {
+		t.Fatalf("get workspace billing binding: %v", err)
+	}
+	if binding.BillingProviderConnectionID != connection.ID {
+		t.Fatalf("expected binding connection id %q, got %q", connection.ID, binding.BillingProviderConnectionID)
+	}
+}
+
+func TestTenantWorkspaceBillingSubresourceUpdatesActiveConnection(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	now := time.Now().UTC()
+	connectedAt := now
+	lastSyncedAt := now
+	connectionA, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
+		ID:                 "bpc_workspace_billing_a",
+		ProviderType:       domain.BillingProviderTypeStripe,
+		Environment:        "test",
+		DisplayName:        "Stripe A",
+		Scope:              domain.BillingProviderConnectionScopePlatform,
+		Status:             domain.BillingProviderConnectionStatusConnected,
+		LagoOrganizationID: "org_a",
+		LagoProviderCode:   "stripe_a",
+		SecretRef:          "memory://billing-provider-connections/bpc_workspace_billing_a/seed",
+		ConnectedAt:        &connectedAt,
+		LastSyncedAt:       &lastSyncedAt,
+		CreatedByType:      "platform_api_key",
+		CreatedByID:        "pkey_seed",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create billing provider connection A: %v", err)
+	}
+	connectionB, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
+		ID:                 "bpc_workspace_billing_b",
+		ProviderType:       domain.BillingProviderTypeStripe,
+		Environment:        "test",
+		DisplayName:        "Stripe B",
+		Scope:              domain.BillingProviderConnectionScopePlatform,
+		Status:             domain.BillingProviderConnectionStatusConnected,
+		LagoOrganizationID: "org_b",
+		LagoProviderCode:   "stripe_b",
+		SecretRef:          "memory://billing-provider-connections/bpc_workspace_billing_b/seed",
+		ConnectedAt:        &connectedAt,
+		LastSyncedAt:       &lastSyncedAt,
+		CreatedByType:      "platform_api_key",
+		CreatedByID:        "pkey_seed",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create billing provider connection B: %v", err)
+	}
+
+	_, err = repo.CreateTenant(domain.Tenant{
+		ID:                          "tenant_workspace_billing",
+		Name:                        "Tenant Workspace Billing",
+		Status:                      domain.TenantStatusActive,
+		BillingProviderConnectionID: connectionA.ID,
+		LagoOrganizationID:          connectionA.LagoOrganizationID,
+		LagoBillingProviderCode:     connectionA.LagoProviderCode,
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
+	})
+	if err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	_, err = repo.CreateWorkspaceBillingBinding(domain.WorkspaceBillingBinding{
+		ID:                          "wbb_workspace_billing",
+		WorkspaceID:                 "tenant_workspace_billing",
+		BillingProviderConnectionID: connectionA.ID,
+		Backend:                     domain.WorkspaceBillingBackendLago,
+		BackendOrganizationID:       connectionA.LagoOrganizationID,
+		BackendProviderCode:         connectionA.LagoProviderCode,
+		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
+		Status:                      domain.WorkspaceBillingBindingStatusConnected,
+		ConnectedAt:                 &connectedAt,
+		CreatedByType:               "platform_api_key",
+		CreatedByID:                 "pkey_seed",
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
+	})
+	if err != nil {
+		t.Fatalf("create workspace billing binding: %v", err)
+	}
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer)).Handler())
+	defer ts.Close()
+
+	result := patchJSON(t, ts.URL+"/internal/tenants/tenant_workspace_billing/workspace-billing", map[string]any{
+		"billing_provider_connection_id": connectionB.ID,
+	}, "platform-admin", http.StatusOK)
+	tenant := result["tenant"].(map[string]any)
+	workspaceBilling := tenant["workspace_billing"].(map[string]any)
+	if got, _ := workspaceBilling["active_billing_connection_id"].(string); got != connectionB.ID {
+		t.Fatalf("expected workspace billing connection to switch to %q, got %q", connectionB.ID, got)
+	}
+	if connected, _ := workspaceBilling["connected"].(bool); !connected {
+		t.Fatalf("expected workspace billing to remain connected")
+	}
+
+	binding, err := repo.GetWorkspaceBillingBinding("tenant_workspace_billing")
+	if err != nil {
+		t.Fatalf("get workspace billing binding: %v", err)
+	}
+	if binding.BillingProviderConnectionID != connectionB.ID {
+		t.Fatalf("expected binding connection id %q, got %q", connectionB.ID, binding.BillingProviderConnectionID)
 	}
 }

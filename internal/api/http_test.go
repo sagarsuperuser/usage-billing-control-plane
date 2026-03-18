@@ -1994,12 +1994,6 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	if createdTenant["id"] != "tenant_ops" {
 		t.Fatalf("expected tenant_ops id, got %v", createdTenant["id"])
 	}
-	if createdTenant["lago_organization_id"] != "org_ops" {
-		t.Fatalf("expected org_ops lago org id, got %v", createdTenant["lago_organization_id"])
-	}
-	if createdTenant["lago_billing_provider_code"] != "stripe_ops" {
-		t.Fatalf("expected stripe_ops provider code, got %v", createdTenant["lago_billing_provider_code"])
-	}
 
 	duplicateCreate := postJSON(t, ts.URL+"/internal/tenants", map[string]any{
 		"id":   "tenant_ops",
@@ -2023,15 +2017,19 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	if got["id"] != "tenant_ops" {
 		t.Fatalf("expected tenant_ops get response, got %v", got["id"])
 	}
-	if got["lago_organization_id"] != "org_ops" {
-		t.Fatalf("expected get response to include lago org id, got %v", got["lago_organization_id"])
-	}
 
 	updated2 := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
 		"lago_billing_provider_code": "stripe_v2",
 	}, "platform-admin", http.StatusOK)
-	if updated2["lago_billing_provider_code"] != "stripe_v2" {
-		t.Fatalf("expected updated provider code, got %v", updated2["lago_billing_provider_code"])
+	if updated2["id"] != "tenant_ops" {
+		t.Fatalf("expected updated tenant response to remain sanitized, got %v", updated2["id"])
+	}
+	tenantOps, err := repo.GetTenant("tenant_ops")
+	if err != nil {
+		t.Fatalf("get tenant_ops from repo: %v", err)
+	}
+	if tenantOps.LagoBillingProviderCode != "stripe_v2" {
+		t.Fatalf("expected persisted provider code stripe_v2, got %q", tenantOps.LagoBillingProviderCode)
 	}
 
 	auditPage := getJSON(t, ts.URL+"/internal/tenants/audit?tenant_id=tenant_ops&limit=10", "platform-admin", http.StatusOK)
