@@ -2,6 +2,8 @@ package service_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ type browserSSOStoreStub struct {
 	usersByEmail     map[string]domain.User
 	memberships      map[string][]domain.UserTenantMembership
 	identitiesByPair map[string]domain.UserFederatedIdentity
+	invitations      map[string]domain.WorkspaceInvitation
 }
 
 func newBrowserSSOStoreStub(user domain.User, memberships []domain.UserTenantMembership) *browserSSOStoreStub {
@@ -30,6 +33,7 @@ func newBrowserSSOStoreStub(user domain.User, memberships []domain.UserTenantMem
 			user.ID: memberships,
 		},
 		identitiesByPair: map[string]domain.UserFederatedIdentity{},
+		invitations:      map[string]domain.WorkspaceInvitation{},
 	}
 }
 
@@ -63,6 +67,14 @@ func (s *browserSSOStoreStub) CreateUser(input domain.User) (domain.User, error)
 	s.usersByID[input.ID] = input
 	s.usersByEmail[input.Email] = input
 	return input, nil
+}
+
+func (s *browserSSOStoreStub) GetWorkspaceInvitationByTokenHash(tokenHash string) (domain.WorkspaceInvitation, error) {
+	item, ok := s.invitations[tokenHash]
+	if !ok {
+		return domain.WorkspaceInvitation{}, store.ErrNotFound
+	}
+	return item, nil
 }
 
 func (s *browserSSOStoreStub) GetUserPasswordCredential(userID string) (domain.UserPasswordCredential, error) {
@@ -166,7 +178,7 @@ func TestBrowserSSOServiceLinksExistingUserByVerifiedEmail(t *testing.T) {
 		t.Fatalf("new browser sso service: %v", err)
 	}
 
-	principal, err := ssoSvc.AuthenticateCallback(context.Background(), "google", "code", "verifier", "nonce", "", "https://api.example.com/v1/ui/auth/sso/google/callback")
+	principal, err := ssoSvc.AuthenticateCallback(context.Background(), "google", "code", "verifier", "nonce", "", "https://api.example.com/v1/ui/auth/sso/google/callback", "")
 	if err != nil {
 		t.Fatalf("authenticate callback: %v", err)
 	}
@@ -213,8 +225,74 @@ func TestBrowserSSOServiceRejectsUnverifiedEmailProvisioning(t *testing.T) {
 		t.Fatalf("new browser sso service: %v", err)
 	}
 
-	_, err = ssoSvc.AuthenticateCallback(context.Background(), "google", "code", "verifier", "nonce", "", "https://api.example.com/v1/ui/auth/sso/google/callback")
+	_, err = ssoSvc.AuthenticateCallback(context.Background(), "google", "code", "verifier", "nonce", "", "https://api.example.com/v1/ui/auth/sso/google/callback", "")
 	if !errors.Is(err, service.ErrBrowserSSOEmailNotVerified) {
 		t.Fatalf("expected email-not-verified error, got %v", err)
 	}
+}
+
+func TestBrowserSSOServiceProvisionsUserWhenPendingInvitationMatches(t *testing.T) {
+	existing := domain.User{
+		ID:           "usr_platform",
+		Email:        "admin@example.com",
+		DisplayName:  "Admin",
+		Status:       domain.UserStatusActive,
+		PlatformRole: domain.UserPlatformRoleAdmin,
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}
+	storeStub := newBrowserSSOStoreStub(existing, nil)
+	storeStub.invitations[hashInvitationTokenForTest("invite-token")] = domain.WorkspaceInvitation{
+		ID:          "win_1",
+		WorkspaceID: "tenant_a",
+		Email:       "invited@example.com",
+		Role:        "writer",
+		Status:      domain.WorkspaceInvitationStatusPending,
+		ExpiresAt:   time.Now().UTC().Add(24 * time.Hour),
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	authSvc, err := service.NewBrowserUserAuthService(storeStub)
+	if err != nil {
+		t.Fatalf("new browser user auth service: %v", err)
+	}
+	ssoSvc, err := service.NewBrowserSSOService(
+		storeStub,
+		authSvc,
+		[]service.BrowserSSOProvider{
+			fakeBrowserSSOProvider{
+				definition: service.BrowserSSOProviderDefinition{Key: "google", DisplayName: "Google Workspace", Type: domain.BrowserSSOProviderTypeOIDC},
+				claims: service.BrowserSSOClaims{
+					Subject:       "google-subject-3",
+					Email:         "invited@example.com",
+					EmailVerified: true,
+					DisplayName:   "Invited User",
+				},
+			},
+		},
+		service.BrowserSSOServiceConfig{},
+	)
+	if err != nil {
+		t.Fatalf("new browser sso service: %v", err)
+	}
+
+	_, err = ssoSvc.AuthenticateCallback(context.Background(), "google", "code", "verifier", "nonce", "", "https://api.example.com/v1/ui/auth/sso/google/callback", "invite-token")
+	var accessDenied service.BrowserTenantAccessDeniedError
+	if !errors.As(err, &accessDenied) {
+		t.Fatalf("expected tenant access denied for newly provisioned invited user, got %v", err)
+	}
+	if got := accessDenied.User.Email; got != "invited@example.com" {
+		t.Fatalf("expected provisioned invitee email, got %q", got)
+	}
+	if _, err := storeStub.GetUserByEmail("invited@example.com"); err != nil {
+		t.Fatalf("expected provisioned user, got %v", err)
+	}
+	if _, err := storeStub.GetUserFederatedIdentity("google", "google-subject-3"); err != nil {
+		t.Fatalf("expected linked federated identity, got %v", err)
+	}
+}
+
+func hashInvitationTokenForTest(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }

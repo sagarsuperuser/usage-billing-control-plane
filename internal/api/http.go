@@ -133,6 +133,7 @@ type workspaceInvitationPreviewResponse struct {
 	CurrentUserEmail    string                      `json:"current_user_email,omitempty"`
 	EmailMatchesSession bool                        `json:"email_matches_session"`
 	CanAccept           bool                        `json:"can_accept"`
+	AccountExists       bool                        `json:"account_exists"`
 }
 
 func newWorkspaceInvitationResponse(invite domain.WorkspaceInvitation) workspaceInvitationResponse {
@@ -2366,6 +2367,11 @@ type uiSessionLoginRequest struct {
 	Next     string `json:"next"`
 }
 
+type uiInvitationRegisterRequest struct {
+	DisplayName string `json:"display_name"`
+	Password    string `json:"password"`
+}
+
 type uiWorkspaceSelectRequest struct {
 	TenantID string `json:"tenant_id"`
 }
@@ -2392,6 +2398,17 @@ func parseUIInvitationPath(path string) (token string, action string) {
 		return strings.TrimSpace(parts[0]), ""
 	}
 	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+}
+
+func invitationTokenFromNextPath(nextPath string) string {
+	token, action := parseUIInvitationPath(normalizeUINextPath(nextPath))
+	if token == "" {
+		return ""
+	}
+	if action != "" && action != "accept" && action != "register" {
+		return ""
+	}
+	return token
 }
 
 func parseTenantWorkspaceSubresource(path, prefix string) (id string, action string) {
@@ -2549,6 +2566,8 @@ func (s *Server) handleUIInvitations(w http.ResponseWriter, r *http.Request) {
 		s.handleUIInvitationPreview(w, r, token)
 	case "accept":
 		s.handleUIInvitationAccept(w, r, token)
+	case "register":
+		s.handleUIInvitationRegister(w, r, token)
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 	}
@@ -2594,6 +2613,7 @@ func (s *Server) handleUIInvitationPreview(w http.ResponseWriter, r *http.Reques
 		CurrentUserEmail:    preview.CurrentUserEmail,
 		EmailMatchesSession: preview.EmailMatchesSession,
 		CanAccept:           preview.CanAccept,
+		AccountExists:       preview.AccountExists,
 	})
 }
 
@@ -2641,6 +2661,84 @@ func (s *Server) handleUIInvitationAccept(w http.ResponseWriter, r *http.Request
 		writeDomainError(w, err)
 		return
 	}
+	authResult, err := s.browserUserAuthService.ResolveUserPrincipal(user, invite.WorkspaceID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to renew session")
+		return
+	}
+	csrfToken, err := randomHexToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize session")
+		return
+	}
+	sessionPrincipal := Principal{
+		SubjectType: "user",
+		SubjectID:   authResult.User.ID,
+		UserEmail:   authResult.User.Email,
+		Scope:       Scope(authResult.Scope),
+	}
+	if sessionPrincipal.Scope == ScopePlatform {
+		sessionPrincipal.PlatformRole = PlatformRole(authResult.PlatformRole)
+	} else {
+		sessionPrincipal.Role = Role(authResult.Role)
+		sessionPrincipal.TenantID = normalizeTenantID(authResult.TenantID)
+	}
+	s.clearUIPendingWorkspaceSelection(r.Context())
+	s.putUISessionPrincipal(r.Context(), sessionPrincipal, csrfToken)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"invitation": newWorkspaceInvitationResponse(invite),
+		"session":    buildUISessionResponse(sessionPrincipal, csrfToken, time.Now().UTC().Add(s.sessionManager.Lifetime)),
+	})
+}
+
+func (s *Server) handleUIInvitationRegister(w http.ResponseWriter, r *http.Request, token string) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.workspaceAccessService == nil || s.browserUserAuthService == nil || s.sessionManager == nil || s.repo == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
+		return
+	}
+	if s.rateLimiter != nil {
+		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
+			return
+		}
+	}
+
+	var req uiInvitationRegisterRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	req.Password = strings.TrimSpace(req.Password)
+	if req.Password == "" {
+		writeError(w, http.StatusBadRequest, "password is required")
+		return
+	}
+
+	user, invite, _, err := s.workspaceAccessService.RegisterInvitedUser(token, req.DisplayName, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrWorkspaceInvitationAccountExists):
+			writeError(w, http.StatusConflict, "workspace invitation account already exists")
+		case errors.Is(err, service.ErrWorkspaceInvitationExpired):
+			writeError(w, http.StatusGone, "workspace invitation expired")
+		case errors.Is(err, service.ErrWorkspaceInvitationRevoked):
+			writeError(w, http.StatusGone, "workspace invitation revoked")
+		case errors.Is(err, service.ErrWorkspaceInvitationAccepted):
+			writeError(w, http.StatusGone, "workspace invitation already accepted")
+		default:
+			writeDomainError(w, err)
+		}
+		return
+	}
+
 	authResult, err := s.browserUserAuthService.ResolveUserPrincipal(user, invite.WorkspaceID)
 	if err != nil {
 		writeDomainError(w, err)
@@ -2774,7 +2872,7 @@ func (s *Server) handleUISSOCallback(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
-	principal, err := s.browserSSOService.AuthenticateCallback(r.Context(), providerKey, code, codeVerifier, nonce, tenantID, s.uiSSOCallbackURL(r, providerKey))
+	principal, err := s.browserSSOService.AuthenticateCallback(r.Context(), providerKey, code, codeVerifier, nonce, tenantID, s.uiSSOCallbackURL(r, providerKey), invitationTokenFromNextPath(nextPath))
 	s.clearSSOSessionState(r.Context())
 	if err != nil {
 		var selectionErr service.BrowserTenantSelectionError

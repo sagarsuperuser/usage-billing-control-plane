@@ -17,6 +17,8 @@ type workspaceAccessStore interface {
 	GetTenant(id string) (domain.Tenant, error)
 	GetUser(id string) (domain.User, error)
 	GetUserByEmail(email string) (domain.User, error)
+	CreateUser(input domain.User) (domain.User, error)
+	UpsertUserPasswordCredential(input domain.UserPasswordCredential) (domain.UserPasswordCredential, error)
 	GetUserTenantMembership(userID, tenantID string) (domain.UserTenantMembership, error)
 	ListTenantMemberships(tenantID string) ([]domain.UserTenantMembership, error)
 	UpsertUserTenantMembership(input domain.UserTenantMembership) (domain.UserTenantMembership, error)
@@ -32,6 +34,7 @@ var (
 	ErrWorkspaceInvitationRevoked       = errors.New("workspace invitation revoked")
 	ErrWorkspaceInvitationAccepted      = errors.New("workspace invitation accepted")
 	ErrWorkspaceInvitationEmailMismatch = errors.New("workspace invitation email mismatch")
+	ErrWorkspaceInvitationAccountExists = errors.New("workspace invitation account already exists")
 )
 
 type WorkspaceAccessService struct {
@@ -70,6 +73,7 @@ type WorkspaceInvitationPreview struct {
 	CurrentUserEmail    string                     `json:"current_user_email,omitempty"`
 	EmailMatchesSession bool                       `json:"email_matches_session"`
 	CanAccept           bool                       `json:"can_accept"`
+	AccountExists       bool                       `json:"account_exists"`
 }
 
 func NewWorkspaceAccessService(repo workspaceAccessStore) *WorkspaceAccessService {
@@ -298,6 +302,12 @@ func (s *WorkspaceAccessService) PreviewWorkspaceInvitation(token, currentUserEm
 	}
 	currentUserEmail = strings.ToLower(strings.TrimSpace(currentUserEmail))
 	emailMatches := currentUserEmail != "" && currentUserEmail == invite.Email
+	accountExists := false
+	if _, err := s.store.GetUserByEmail(invite.Email); err == nil {
+		accountExists = true
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return WorkspaceInvitationPreview{}, err
+	}
 	return WorkspaceInvitationPreview{
 		Invitation:          invite,
 		WorkspaceName:       workspace.Name,
@@ -306,7 +316,57 @@ func (s *WorkspaceAccessService) PreviewWorkspaceInvitation(token, currentUserEm
 		CurrentUserEmail:    currentUserEmail,
 		EmailMatchesSession: emailMatches,
 		CanAccept:           invite.Status == domain.WorkspaceInvitationStatusPending && !invite.ExpiresAt.Before(time.Now().UTC()) && emailMatches,
+		AccountExists:       accountExists,
 	}, nil
+}
+
+func (s *WorkspaceAccessService) RegisterInvitedUser(token, displayName, password string) (domain.User, domain.WorkspaceInvitation, domain.UserTenantMembership, error) {
+	if s == nil || s.store == nil {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, fmt.Errorf("%w: workspace access repository is required", ErrValidation)
+	}
+	invite, _, err := s.lookupWorkspaceInvitation(token)
+	if err != nil {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, err
+	}
+	if _, err := s.store.GetUserByEmail(invite.Email); err == nil {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, ErrWorkspaceInvitationAccountExists
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, err
+	}
+
+	passwordHash, err := HashPassword(password)
+	if err != nil {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, err
+	}
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		displayName = defaultDisplayNameForEmail(invite.Email)
+	}
+	now := time.Now().UTC()
+	user, err := s.store.CreateUser(domain.User{
+		Email:       invite.Email,
+		DisplayName: displayName,
+		Status:      domain.UserStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, err
+	}
+	if _, err := s.store.UpsertUserPasswordCredential(domain.UserPasswordCredential{
+		UserID:            user.ID,
+		PasswordHash:      passwordHash,
+		PasswordUpdatedAt: now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}); err != nil {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, err
+	}
+	acceptedInvite, membership, err := s.AcceptWorkspaceInvitation(token, user.ID)
+	if err != nil {
+		return domain.User{}, domain.WorkspaceInvitation{}, domain.UserTenantMembership{}, err
+	}
+	return user, acceptedInvite, membership, nil
 }
 
 func (s *WorkspaceAccessService) AcceptWorkspaceInvitation(token, userID string) (domain.WorkspaceInvitation, domain.UserTenantMembership, error) {

@@ -41,6 +41,7 @@ type BrowserSSOStore interface {
 	GetUser(id string) (domain.User, error)
 	GetUserByEmail(email string) (domain.User, error)
 	CreateUser(input domain.User) (domain.User, error)
+	GetWorkspaceInvitationByTokenHash(tokenHash string) (domain.WorkspaceInvitation, error)
 	GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error)
 	UpsertUserFederatedIdentity(input domain.UserFederatedIdentity) (domain.UserFederatedIdentity, error)
 }
@@ -106,7 +107,7 @@ func (s *BrowserSSOService) BuildStartURL(providerKey, state, nonce, codeChallen
 	return provider.BuildAuthCodeURL(state, nonce, codeChallenge, redirectURI)
 }
 
-func (s *BrowserSSOService) AuthenticateCallback(ctx context.Context, providerKey, code, codeVerifier, nonce, tenantID, redirectURI string) (BrowserUserPrincipal, error) {
+func (s *BrowserSSOService) AuthenticateCallback(ctx context.Context, providerKey, code, codeVerifier, nonce, tenantID, redirectURI, invitationToken string) (BrowserUserPrincipal, error) {
 	provider, err := s.provider(providerKey)
 	if err != nil {
 		return BrowserUserPrincipal{}, err
@@ -115,10 +116,10 @@ func (s *BrowserSSOService) AuthenticateCallback(ctx context.Context, providerKe
 	if err != nil {
 		return BrowserUserPrincipal{}, fmt.Errorf("exchange sso callback: %w", err)
 	}
-	return s.resolveClaims(provider.Definition(), claims, tenantID)
+	return s.resolveClaims(provider.Definition(), claims, tenantID, invitationToken)
 }
 
-func (s *BrowserSSOService) resolveClaims(definition BrowserSSOProviderDefinition, claims BrowserSSOClaims, tenantID string) (BrowserUserPrincipal, error) {
+func (s *BrowserSSOService) resolveClaims(definition BrowserSSOProviderDefinition, claims BrowserSSOClaims, tenantID, invitationToken string) (BrowserUserPrincipal, error) {
 	providerKey := normalizeBrowserSSOProviderKey(definition.Key)
 	subject := strings.TrimSpace(claims.Subject)
 	email := strings.ToLower(strings.TrimSpace(claims.Email))
@@ -129,7 +130,7 @@ func (s *BrowserSSOService) resolveClaims(definition BrowserSSOProviderDefinitio
 		return BrowserUserPrincipal{}, fmt.Errorf("sso subject is required")
 	}
 
-	user, identity, err := s.findOrProvisionUser(providerKey, definition.Type, subject, email, claims)
+	user, identity, err := s.findOrProvisionUser(providerKey, definition.Type, subject, email, invitationToken, claims)
 	if err != nil {
 		return BrowserUserPrincipal{}, err
 	}
@@ -149,7 +150,7 @@ func (s *BrowserSSOService) resolveClaims(definition BrowserSSOProviderDefinitio
 	return s.auth.ResolveUserPrincipal(user, tenantID)
 }
 
-func (s *BrowserSSOService) findOrProvisionUser(providerKey string, providerType domain.BrowserSSOProviderType, subject, email string, claims BrowserSSOClaims) (domain.User, domain.UserFederatedIdentity, error) {
+func (s *BrowserSSOService) findOrProvisionUser(providerKey string, providerType domain.BrowserSSOProviderType, subject, email, invitationToken string, claims BrowserSSOClaims) (domain.User, domain.UserFederatedIdentity, error) {
 	identity, err := s.store.GetUserFederatedIdentity(providerKey, subject)
 	if err == nil {
 		user, userErr := s.store.GetUser(identity.UserID)
@@ -174,7 +175,14 @@ func (s *BrowserSSOService) findOrProvisionUser(providerKey string, providerType
 		if !errors.Is(err, store.ErrNotFound) {
 			return domain.User{}, domain.UserFederatedIdentity{}, fmt.Errorf("get user by email: %w", err)
 		}
-		if !s.config.AutoProvisionUsers {
+		allowProvision := s.config.AutoProvisionUsers
+		if !allowProvision {
+			allowProvision, err = s.canProvisionUserFromInvitation(invitationToken, email)
+			if err != nil {
+				return domain.User{}, domain.UserFederatedIdentity{}, err
+			}
+		}
+		if !allowProvision {
 			return domain.User{}, domain.UserFederatedIdentity{}, ErrBrowserSSOUserNotProvisioned
 		}
 		displayName := strings.TrimSpace(claims.DisplayName)
@@ -204,6 +212,27 @@ func (s *BrowserSSOService) findOrProvisionUser(providerKey string, providerType
 		UpdatedAt:     now,
 	}
 	return user, identity, nil
+}
+
+func (s *BrowserSSOService) canProvisionUserFromInvitation(invitationToken, email string) (bool, error) {
+	tokenHash := hashWorkspaceInvitationToken(invitationToken)
+	if tokenHash == "" {
+		return false, nil
+	}
+	invite, err := s.store.GetWorkspaceInvitationByTokenHash(tokenHash)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("get workspace invitation: %w", err)
+	}
+	if invite.Status != domain.WorkspaceInvitationStatusPending {
+		return false, nil
+	}
+	if invite.ExpiresAt.Before(time.Now().UTC()) {
+		return false, nil
+	}
+	return strings.EqualFold(strings.TrimSpace(invite.Email), strings.TrimSpace(email)), nil
 }
 
 func (s *BrowserSSOService) provider(providerKey string) (BrowserSSOProvider, error) {

@@ -865,6 +865,29 @@ export async function acceptWorkspaceInvitation(input: {
   return payload;
 }
 
+export async function registerWorkspaceInvitation(input: {
+  runtimeBaseURL?: string;
+  token: string;
+  displayName?: string;
+  password: string;
+}): Promise<{ invitation: WorkspaceInvitation; session: UISession }> {
+  const payload = await apiRequest<{ invitation: WorkspaceInvitation; session: UISession }>(
+    `/v1/ui/invitations/${encodeURIComponent(input.token)}/register`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      body: {
+        display_name: input.displayName?.trim() || "",
+        password: input.password,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("workspace invitation registration failed");
+  }
+  return payload;
+}
+
 export async function syncBillingProviderConnection(input: {
   runtimeBaseURL?: string;
   csrfToken: string;

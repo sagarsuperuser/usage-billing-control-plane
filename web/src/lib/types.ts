@@ -117,6 +117,7 @@ export interface WorkspaceInvitationPreview {
   current_user_email?: string;
   email_matches_session: boolean;
   can_accept: boolean;
+  account_exists: boolean;
 }
 
 export interface BillingProviderConnection {

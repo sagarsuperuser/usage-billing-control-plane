@@ -235,6 +235,99 @@ func TestWorkspaceInvitationPreviewAndAcceptFlow(t *testing.T) {
 	}
 }
 
+func TestWorkspaceInvitationRegisterFlow(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	now := time.Now().UTC()
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:        "tenant_register",
+		Name:      "Tenant Register",
+		Status:    domain.TenantStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_invite_register_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(mustNewDBAuthorizer(t, repo)),
+		api.WithSessionManager(sessionManager),
+		api.WithUIPublicBaseURL("https://app.example.com"),
+	).Handler())
+	defer ts.Close()
+
+	inviteResult := postJSON(t, ts.URL+"/internal/tenants/tenant_register/invitations", map[string]any{
+		"email": "new-invitee@tenant.test",
+		"role":  "admin",
+	}, "platform-admin", http.StatusCreated)
+	acceptPath, _ := inviteResult["accept_path"].(string)
+	if acceptPath == "" {
+		t.Fatalf("expected accept_path in invitation response")
+	}
+	token := strings.TrimPrefix(acceptPath, "/invite/")
+
+	preview := getJSON(t, ts.URL+"/v1/ui/invitations/"+url.PathEscape(token), "", http.StatusOK)
+	if accountExists, _ := preview["account_exists"].(bool); accountExists {
+		t.Fatalf("expected no pre-existing account for invite")
+	}
+
+	client := newSessionClient(t)
+	registerResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/invitations/"+url.PathEscape(token)+"/register", map[string]any{
+		"display_name": "New Invitee",
+		"password":     "new invitee password 123",
+	}, "", http.StatusCreated)
+	sessionPayload := registerResp["session"].(map[string]any)
+	if got, _ := sessionPayload["tenant_id"].(string); got != "tenant_register" {
+		t.Fatalf("expected tenant_register session after invite registration, got %q", got)
+	}
+
+	user, err := repo.GetUserByEmail("new-invitee@tenant.test")
+	if err != nil {
+		t.Fatalf("load registered user: %v", err)
+	}
+	if user.DisplayName != "New Invitee" {
+		t.Fatalf("expected registered display name, got %q", user.DisplayName)
+	}
+	if _, err := repo.GetUserPasswordCredential(user.ID); err != nil {
+		t.Fatalf("expected password credential for registered invitee: %v", err)
+	}
+	membership, err := repo.GetUserTenantMembership(user.ID, "tenant_register")
+	if err != nil {
+		t.Fatalf("load membership after register: %v", err)
+	}
+	if membership.Status != domain.UserTenantMembershipStatusActive || membership.Role != "admin" {
+		t.Fatalf("expected active admin membership after invite register, got status=%q role=%q", membership.Status, membership.Role)
+	}
+}
+
 func mustNewDBAuthorizer(t *testing.T, repo *store.PostgresStore) *api.DBAPIKeyAuthorizer {
 	t.Helper()
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)

@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, MailCheck, PanelsTopLeft } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { acceptWorkspaceInvitation, fetchWorkspaceInvitationPreview } from "@/lib/api";
+import { acceptWorkspaceInvitation, fetchUIAuthProviders, fetchWorkspaceInvitationPreview, registerWorkspaceInvitation } from "@/lib/api";
 import { buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import { useUISession } from "@/hooks/use-ui-session";
 import { useSessionStore } from "@/store/use-session-store";
@@ -16,12 +16,20 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, session, isAuthenticated, isLoading } = useUISession();
   const { setSession } = useSessionStore();
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
 
   const previewQuery = useQuery({
     queryKey: ["workspace-invitation", apiBaseURL, token],
     queryFn: () => fetchWorkspaceInvitationPreview({ runtimeBaseURL: apiBaseURL, token }),
     enabled: Boolean(apiBaseURL) && token.trim().length > 0,
     retry: false,
+  });
+  const authProvidersQuery = useQuery({
+    queryKey: ["ui-auth-providers", apiBaseURL],
+    queryFn: () => fetchUIAuthProviders({ runtimeBaseURL: apiBaseURL }),
+    enabled: Boolean(apiBaseURL),
+    staleTime: 60_000,
   });
 
   const invitePath = useMemo(() => `/invite/${encodeURIComponent(token)}`, [token]);
@@ -35,6 +43,21 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
     onSuccess: (payload) => {
       setSession(payload.session);
       queryClient.setQueryData(["ui-session", apiBaseURL], payload.session);
+      router.replace(normalizeNextPath("/customers", getDefaultLandingPath(payload.session)));
+    },
+  });
+  const registerMutation = useMutation({
+    mutationFn: () =>
+      registerWorkspaceInvitation({
+        runtimeBaseURL: apiBaseURL,
+        token,
+        displayName,
+        password,
+      }),
+    onSuccess: (payload) => {
+      setSession(payload.session);
+      queryClient.setQueryData(["ui-session", apiBaseURL], payload.session);
+      setPassword("");
       router.replace(normalizeNextPath("/customers", getDefaultLandingPath(payload.session)));
     },
   });
@@ -79,6 +102,12 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   const preview = previewQuery.data;
   const loginHref = buildLoginPath(invitePath);
   const emailMismatch = isAuthenticated && preview.authenticated && !preview.email_matches_session;
+  const showRegistrationForm = preview.requires_login && !isAuthenticated && !preview.account_exists;
+
+  const onRegister = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    registerMutation.mutate();
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#172554_0%,_#0f172a_38%,_#090d16_78%)] text-slate-100">
@@ -101,7 +130,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
 
           {preview.requires_login && !isAuthenticated ? (
             <div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-              Sign in with the invited email first. Alpha will return you to this invitation after login.
+              Use the invited email to continue. Alpha will return you to this invitation after authentication.
             </div>
           ) : null}
 
@@ -112,6 +141,73 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
           ) : null}
 
           {acceptMutation.error ? <p className="mt-4 text-xs text-rose-200">{acceptMutation.error.message}</p> : null}
+          {registerMutation.error ? <p className="mt-4 text-xs text-rose-200">{registerMutation.error.message}</p> : null}
+
+          {!isAuthenticated && preview.requires_login ? (
+            <div className="mt-5 grid gap-4">
+              {authProvidersQuery.data?.sso_providers?.length ? (
+                <div className="grid gap-3">
+                  {authProvidersQuery.data.sso_providers.map((provider) => (
+                    <a
+                      key={provider.key}
+                      href={buildSSOStartURL(apiBaseURL, provider.key, invitePath)}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-50 transition hover:bg-cyan-500/20"
+                    >
+                      Continue with {provider.display_name}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
+
+              {preview.account_exists ? (
+                <Link
+                  href={loginHref}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-slate-200 transition hover:bg-white/10"
+                >
+                  Sign in with email and password
+                </Link>
+              ) : null}
+
+              {showRegistrationForm ? (
+                <form className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/55 p-4" onSubmit={onRegister}>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Create your Alpha account</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Use this path if this invited email does not already have an Alpha browser account.
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-xs font-medium uppercase tracking-wider text-cyan-200">Display name</label>
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      placeholder="Your name"
+                      className="h-11 rounded-xl border border-white/20 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-xs font-medium uppercase tracking-wider text-cyan-200">Password</label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="At least 12 characters"
+                      className="h-11 rounded-xl border border-white/20 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={registerMutation.isPending || !password.trim()}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {registerMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                    Create account and join workspace
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="mt-5 flex flex-wrap gap-3">
             {!isAuthenticated || preview.requires_login ? (
@@ -145,4 +241,11 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
       </main>
     </div>
   );
+}
+
+function buildSSOStartURL(apiBaseURL: string, providerKey: string, nextPath: string): string {
+  const baseURL = apiBaseURL.replace(/\/+$/, "");
+  const url = new URL(`${baseURL}/v1/ui/auth/sso/${encodeURIComponent(providerKey)}/start`);
+  url.searchParams.set("next", normalizeNextPath(nextPath, "/"));
+  return url.toString();
 }

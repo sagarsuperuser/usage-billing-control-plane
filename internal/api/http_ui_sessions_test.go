@@ -608,6 +608,135 @@ func TestUISSOCallbackWithoutTenantContextAllowsPlatformUser(t *testing.T) {
 	}
 }
 
+func TestUISSOCallbackProvisionInvitedUserAndRedirectsBackToInvitation(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:        "tenant_invite_sso",
+		Name:      "Tenant Invite SSO",
+		Status:    domain.TenantStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	workspaceAccessSvc := service.NewWorkspaceAccessService(repo)
+	issued, err := workspaceAccessSvc.IssueWorkspaceInvitation(service.CreateWorkspaceInvitationRequest{
+		WorkspaceID: "tenant_invite_sso",
+		Email:       "invited-sso@tenant.test",
+		Role:        "writer",
+	})
+	if err != nil {
+		t.Fatalf("issue workspace invitation: %v", err)
+	}
+
+	authSvc, err := service.NewBrowserUserAuthService(repo)
+	if err != nil {
+		t.Fatalf("new browser auth service: %v", err)
+	}
+	ssoSvc, err := service.NewBrowserSSOService(
+		repo,
+		authSvc,
+		[]service.BrowserSSOProvider{
+			fakeHTTPSSOProvider{
+				definition: service.BrowserSSOProviderDefinition{
+					Key:         "google",
+					DisplayName: "Google",
+					Type:        domain.BrowserSSOProviderTypeOIDC,
+				},
+				claims: service.BrowserSSOClaims{
+					Subject:       "google-subject-invite",
+					Email:         "invited-sso@tenant.test",
+					EmailVerified: true,
+					DisplayName:   "Invited SSO",
+				},
+			},
+		},
+		service.BrowserSSOServiceConfig{},
+	)
+	if err != nil {
+		t.Fatalf("new browser sso service: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_sso_invite_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+		api.WithBrowserUserAuthService(authSvc),
+		api.WithBrowserSSOService(ssoSvc),
+		api.WithUIPublicBaseURL("http://app.example.test"),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+	startResp, err := client.Get(ts.URL + "/v1/ui/auth/sso/google/start?next=" + url.QueryEscape("/invite/"+issued.Token))
+	if err != nil {
+		t.Fatalf("sso start request: %v", err)
+	}
+	if startResp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(startResp.Body)
+		startResp.Body.Close()
+		t.Fatalf("expected 302 from start, got %d: %s", startResp.StatusCode, string(body))
+	}
+	startLocation := startResp.Header.Get("Location")
+	startResp.Body.Close()
+	startURL := mustParseURL(t, startLocation)
+	state := startURL.Query().Get("state")
+	if state == "" {
+		t.Fatalf("expected state in sso start redirect")
+	}
+
+	callbackResp, err := client.Get(ts.URL + "/v1/ui/auth/sso/google/callback?code=fake-code&state=" + state)
+	if err != nil {
+		t.Fatalf("sso callback request: %v", err)
+	}
+	if callbackResp.StatusCode != http.StatusFound {
+		body, _ := io.ReadAll(callbackResp.Body)
+		callbackResp.Body.Close()
+		t.Fatalf("expected 302 from callback, got %d: %s", callbackResp.StatusCode, string(body))
+	}
+	if got := callbackResp.Header.Get("Location"); got != "http://app.example.test/invite/"+issued.Token {
+		callbackResp.Body.Close()
+		t.Fatalf("expected redirect back to invitation, got %q", got)
+	}
+	callbackResp.Body.Close()
+
+	user, err := repo.GetUserByEmail("invited-sso@tenant.test")
+	if err != nil {
+		t.Fatalf("expected invited user to be provisioned, got %v", err)
+	}
+	if got := user.DisplayName; got != "Invited SSO" {
+		t.Fatalf("expected provisioned display name from claims, got %q", got)
+	}
+}
+
 func newSessionClient(t *testing.T) *http.Client {
 	t.Helper()
 
