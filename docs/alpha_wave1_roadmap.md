@@ -15,6 +15,7 @@ Read together with:
 - [Alpha Import Goal](./alpha_import_goal.md)
 - [Alpha Import Matrix](./alpha_import_matrix.md)
 - [Alpha Workspace Access Model](./alpha-workspace-access-model.md)
+- [Alpha Workspace Access Spec](./alpha_workspace_access_spec.md)
 - [Slice 1 Spec: Billing Connections Hardening](./alpha_slice1_billing_connections_spec.md)
 - [Slice 2 Spec: Pricing Foundation](./alpha_slice2_pricing_spec.md)
 - [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
