@@ -188,6 +188,39 @@ func TestBillingProviderConnectionService_SyncMissingLagoOrganizationID(t *testi
 	}
 }
 
+func TestBillingProviderConnectionService_SyncUsesDefaultLagoOrganizationID(t *testing.T) {
+	repo := newTestBillingProviderRepo(t)
+	secretStore := NewMemoryBillingSecretStore()
+	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
+		LagoProviderCode: "stripe_default_org",
+		ConnectedAt:      time.Now().UTC(),
+		LastSyncedAt:     time.Now().UTC(),
+	}}
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithDefaultLagoOrganizationID("org_default")
+
+	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:    "stripe",
+		Environment:     "test",
+		DisplayName:     "Stripe Default Org",
+		Scope:           "platform",
+		StripeSecretKey: "sk_test_default_org",
+	}, "platform_api_key", "pkey_default_org")
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+
+	synced, err := svc.SyncBillingProviderConnection(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("sync connection with default org: %v", err)
+	}
+	if adapter.last.LagoOrganizationID != "org_default" {
+		t.Fatalf("expected default org to be sent to adapter, got %q", adapter.last.LagoOrganizationID)
+	}
+	if synced.LagoOrganizationID != "org_default" {
+		t.Fatalf("expected synced connection to persist default org, got %q", synced.LagoOrganizationID)
+	}
+}
+
 func TestBillingProviderConnectionService_SyncFailurePersistsState(t *testing.T) {
 	repo := newTestBillingProviderRepo(t)
 	secretStore := NewMemoryBillingSecretStore()

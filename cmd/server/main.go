@@ -227,12 +227,13 @@ func main() {
 			repo,
 			billingSecretStore,
 			service.NewLagoBillingProviderAdapter(lagoTransport, cfg.BillingProviders.StripeSuccessRedirectURL),
-		)
+		).WithDefaultLagoOrganizationID(cfg.BillingProviders.DefaultLagoOrganizationID)
 		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
 		logger.Info(
 			"billing provider connections enabled",
 			"component", "server",
 			"secret_store_backend", cfg.BillingProviders.SecretStoreBackend,
+			"default_lago_organization_id", cfg.BillingProviders.DefaultLagoOrganizationID,
 			"stripe_success_redirect_url", cfg.BillingProviders.StripeSuccessRedirectURL,
 		)
 	} else {

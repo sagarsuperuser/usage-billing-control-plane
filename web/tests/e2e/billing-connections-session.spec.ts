@@ -145,11 +145,24 @@ async function createConnectionFromNewScreen(page: Page) {
   const secretInput = page.getByLabel("Stripe secret key");
   const submitButton = page.getByRole("button", { name: "Create and sync connection" });
 
+  await expect(page.getByRole("heading", { name: "New Billing Connection" })).toBeVisible();
   await expect(nameInput).toBeEditable();
-  await nameInput.fill("Stripe Sandbox");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await nameInput.fill("Stripe Sandbox");
+    if ((await nameInput.inputValue()) === "Stripe Sandbox") {
+      break;
+    }
+    await page.waitForTimeout(100);
+  }
   await expect(nameInput).toHaveValue("Stripe Sandbox");
 
-  await secretInput.fill("sk_test_123");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await secretInput.fill("sk_test_123");
+    if ((await secretInput.inputValue()) === "sk_test_123") {
+      break;
+    }
+    await page.waitForTimeout(100);
+  }
   await expect(secretInput).toHaveValue("sk_test_123");
 
   await expect(submitButton).toBeEnabled();
@@ -215,8 +228,9 @@ test("platform admin can edit billing connection detail metadata", async ({ page
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Connection name").fill("Stripe Sandbox Updated");
-  await page.getByLabel("Billing organization reference").fill("org_updated");
-  await page.getByLabel("Provider code").fill("alpha_override");
+  await page.locator("summary").filter({ hasText: "Internal overrides" }).click();
+  await page.getByLabel("Billing organization override").fill("org_updated");
+  await page.getByLabel("Provider code override").fill("alpha_override");
   await page.getByRole("button", { name: "Save changes" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");

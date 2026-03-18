@@ -37,6 +37,7 @@ type BillingProviderConnectionService struct {
 	store       store.Repository
 	secretStore BillingSecretStore
 	adapter     BillingProviderAdapter
+	defaultLagoOrganizationID string
 }
 
 type CreateBillingProviderConnectionRequest struct {
@@ -71,6 +72,14 @@ type ListBillingProviderConnectionsRequest struct {
 
 func NewBillingProviderConnectionService(repo store.Repository, secretStore BillingSecretStore, adapter BillingProviderAdapter) *BillingProviderConnectionService {
 	return &BillingProviderConnectionService{store: repo, secretStore: secretStore, adapter: adapter}
+}
+
+func (s *BillingProviderConnectionService) WithDefaultLagoOrganizationID(id string) *BillingProviderConnectionService {
+	if s == nil {
+		return nil
+	}
+	s.defaultLagoOrganizationID = strings.TrimSpace(id)
+	return s
 }
 
 func (s *BillingProviderConnectionService) CreateBillingProviderConnection(ctx context.Context, req CreateBillingProviderConnectionRequest, actorType, actorID string) (domain.BillingProviderConnection, error) {
@@ -293,7 +302,11 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	if err != nil {
 		return domain.BillingProviderConnection{}, err
 	}
-	if current.LagoOrganizationID == "" {
+	resolvedLagoOrganizationID := strings.TrimSpace(current.LagoOrganizationID)
+	if resolvedLagoOrganizationID == "" {
+		resolvedLagoOrganizationID = strings.TrimSpace(s.defaultLagoOrganizationID)
+	}
+	if resolvedLagoOrganizationID == "" {
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: lago organization id is required", ErrValidation)
 	}
 	result, syncErr := s.adapter.EnsureStripeProvider(ctx, EnsureStripeProviderInput{
@@ -301,7 +314,7 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 		DisplayName:        current.DisplayName,
 		Environment:        current.Environment,
 		SecretKey:          secret,
-		LagoOrganizationID: current.LagoOrganizationID,
+		LagoOrganizationID: resolvedLagoOrganizationID,
 		LagoProviderCode:   current.LagoProviderCode,
 		OwnerTenantID:      current.OwnerTenantID,
 	})
@@ -318,6 +331,8 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	current.Status = domain.BillingProviderConnectionStatusConnected
 	if strings.TrimSpace(result.LagoOrganizationID) != "" {
 		current.LagoOrganizationID = strings.TrimSpace(result.LagoOrganizationID)
+	} else if current.LagoOrganizationID == "" {
+		current.LagoOrganizationID = resolvedLagoOrganizationID
 	}
 	if strings.TrimSpace(result.LagoProviderCode) != "" {
 		current.LagoProviderCode = strings.TrimSpace(result.LagoProviderCode)

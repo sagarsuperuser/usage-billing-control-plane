@@ -108,11 +108,11 @@ export function BillingConnectionNewScreen() {
               </span>
             </div>
 
-            <div className="mt-6 grid gap-3 lg:grid-cols-3">
-              <StepCard index="1" title="Name the connection" body="Use a durable display name your operators can recognize later." />
-              <StepCard index="2" title="Store the Stripe secret" body="Alpha stores the secret outside the database using the billing secret store." />
-              <StepCard index="3" title="Sync the provider" body="Alpha provisions the matching provider and keeps the resulting mapping on the connection record." />
-            </div>
+              <div className="mt-6 grid gap-3 lg:grid-cols-3">
+                <StepCard index="1" title="Name the connection" body="Use a durable display name your operators can recognize later." />
+                <StepCard index="2" title="Store the Stripe secret" body="Alpha stores the secret outside the database using the billing secret store." />
+                <StepCard index="3" title="Sync the provider" body="Alpha resolves the backing billing org from platform config, then provisions the provider and keeps the resulting mapping on the connection record." />
+              </div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/55 p-5">
               <div className="grid gap-4 md:grid-cols-2">
@@ -139,13 +139,16 @@ export function BillingConnectionNewScreen() {
               </div>
 
               <details className="mt-4 rounded-2xl border border-white/10 bg-slate-950/35 p-4">
-                <summary className="cursor-pointer list-none text-sm font-semibold text-white">Advanced provider mapping</summary>
+                <summary className="cursor-pointer list-none text-sm font-semibold text-white">Internal overrides</summary>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <p className="md:col-span-2 text-xs leading-relaxed text-slate-400">
+                    Alpha should normally resolve the backing billing organization automatically from platform configuration. Only set this override if you are intentionally targeting a non-default Lago organization.
+                  </p>
                   <InputField
-                    label="Billing organization reference (optional)"
+                    label="Billing organization override"
                     value={lagoOrganizationID}
                     onChange={setLagoOrganizationID}
-                    placeholder="org_acme"
+                    placeholder="4a3951fe-09d8-40ae-8425-6a05aacbd4ea"
                   />
                 </div>
               </details>
@@ -157,7 +160,7 @@ export function BillingConnectionNewScreen() {
                 <ChecklistLine done={displayName.trim().length > 0} text="Connection name is set" />
                 <ChecklistLine done={stripeSecretKey.trim().length > 0} text="Stripe secret key is set" />
                 <ChecklistLine done text="Provider type is Stripe" />
-                <ChecklistLine done text={lagoOrganizationID.trim().length > 0 ? "Billing organization reference added" : "Billing organization reference can be added later"} />
+                <ChecklistLine done text={lagoOrganizationID.trim().length > 0 ? "Internal billing org override added" : "Billing org will resolve from platform config"} />
               </div>
             </div>
 
@@ -184,6 +187,7 @@ export function BillingConnectionNewScreen() {
                 <ChecklistLine done text="Secret stays out of tenant rows" />
                 <ChecklistLine done text="Provider sync is explicit and observable" />
                 <ChecklistLine done text="Workspaces link a stable connection record" />
+                <ChecklistLine done text="Default billing org can come from platform config" />
               </div>
             </section>
             <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl text-sm text-slate-300">

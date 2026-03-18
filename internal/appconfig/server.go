@@ -108,6 +108,7 @@ type BillingProviderConfig struct {
 	SecretStoreAccessKeyID     string
 	SecretStoreSecretAccessKey string
 	SecretStoreSessionToken    string
+	DefaultLagoOrganizationID  string
 	StripeSuccessRedirectURL   string
 }
 
@@ -211,6 +212,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		billingProviderSecretStoreSessionToken = strings.TrimSpace(os.Getenv("AWS_SESSION_TOKEN"))
 	}
 	billingProviderStripeSuccessRedirectURL := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_STRIPE_SUCCESS_REDIRECT_URL"))
+	billingProviderDefaultLagoOrganizationID := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_DEFAULT_LAGO_ORGANIZATION_ID"))
 	if billingProviderSecretStoreBackend != "" {
 		switch billingProviderSecretStoreBackend {
 		case "memory", "aws-secretsmanager":
@@ -281,6 +283,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			SecretStoreAccessKeyID:     billingProviderSecretStoreAccessKeyID,
 			SecretStoreSecretAccessKey: billingProviderSecretStoreSecretAccessKey,
 			SecretStoreSessionToken:    billingProviderSecretStoreSessionToken,
+			DefaultLagoOrganizationID:  billingProviderDefaultLagoOrganizationID,
 			StripeSuccessRedirectURL:   billingProviderStripeSuccessRedirectURL,
 		},
 		Payment: PaymentReconcileConfig{

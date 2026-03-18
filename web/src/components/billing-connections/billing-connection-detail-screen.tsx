@@ -226,7 +226,11 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                     <div className="mt-4 grid gap-3">
                       <MetaItem label="Display name" value={connection.display_name} />
                       <MetaItem label="Environment" value={connection.environment} />
-                      <MetaItem label="Billing organization reference" value={connection.lago_organization_id || "-"} mono />
+                      <MetaItem
+                        label="Billing organization"
+                        value={connection.lago_organization_id || "Resolved from platform config on next sync"}
+                        mono={Boolean(connection.lago_organization_id)}
+                      />
                       <MetaItem label="Provider code" value={connection.lago_provider_code || "-"} mono />
                     </div>
                   ) : (
@@ -244,21 +248,27 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                           <option value="live">Live</option>
                         </select>
                       </label>
-                      <InputField
-                        label="Billing organization reference"
-                        value={lagoOrganizationID}
-                        onChange={setLagoOrganizationID}
-                        placeholder="4a3951fe-09d8-40ae-8425-6a05aacbd4ea"
-                      />
-                      <InputField
-                        label="Provider code"
-                        value={lagoProviderCode}
-                        onChange={setLagoProviderCode}
-                        placeholder="alpha_stripe_test_bpc_..."
-                      />
-                      <p className="text-xs text-slate-400">
-                        Saving updates the Alpha record only. Run sync after changing provider mapping or environment.
-                      </p>
+                      <details className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                        <summary className="cursor-pointer list-none text-sm font-semibold text-white">Internal overrides</summary>
+                        <div className="mt-4 grid gap-4">
+                          <p className="text-xs leading-relaxed text-slate-400">
+                            Alpha should normally resolve the backing billing organization from platform configuration. Use these overrides only when you intentionally need to target a non-default Lago organization or provider code.
+                          </p>
+                          <InputField
+                            label="Billing organization override"
+                            value={lagoOrganizationID}
+                            onChange={setLagoOrganizationID}
+                            placeholder="4a3951fe-09d8-40ae-8425-6a05aacbd4ea"
+                          />
+                          <InputField
+                            label="Provider code override"
+                            value={lagoProviderCode}
+                            onChange={setLagoProviderCode}
+                            placeholder="alpha_stripe_test_bpc_..."
+                          />
+                        </div>
+                      </details>
+                      <p className="text-xs text-slate-400">Saving updates the Alpha record only. Run sync after changing internal overrides or environment.</p>
                       <div className="flex flex-wrap gap-3">
                         <button
                           type="button"
