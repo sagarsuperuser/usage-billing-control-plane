@@ -1374,6 +1374,36 @@ func (s *PostgresStore) UpsertUserTenantMembership(input domain.UserTenantMember
 	return out, nil
 }
 
+func (s *PostgresStore) GetUserTenantMembership(userID, tenantID string) (domain.UserTenantMembership, error) {
+	userID = strings.TrimSpace(userID)
+	tenantID = normalizeTenantID(tenantID)
+	if userID == "" || tenantID == "" {
+		return domain.UserTenantMembership{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.UserTenantMembership{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT user_id, tenant_id, role, status, created_at, updated_at FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2`, userID, tenantID)
+	out, err := scanUserTenantMembership(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.UserTenantMembership{}, ErrNotFound
+		}
+		return domain.UserTenantMembership{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.UserTenantMembership{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) ListUserTenantMemberships(userID string) ([]domain.UserTenantMembership, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
@@ -1408,6 +1438,281 @@ func (s *PostgresStore) ListUserTenantMemberships(userID string) ([]domain.UserT
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListTenantMemberships(tenantID string) ([]domain.UserTenantMembership, error) {
+	tenantID = normalizeTenantID(tenantID)
+	if tenantID == "" {
+		return nil, nil
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT user_id, tenant_id, role, status, created_at, updated_at FROM user_tenant_memberships WHERE tenant_id = $1 ORDER BY created_at ASC, user_id ASC`, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.UserTenantMembership, 0)
+	for rows.Next() {
+		item, scanErr := scanUserTenantMembership(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) CreateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.WorkspaceID = normalizeTenantID(input.WorkspaceID)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	input.Role = strings.ToLower(strings.TrimSpace(input.Role))
+	input.Status = domain.WorkspaceInvitationStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.TokenHash = strings.TrimSpace(input.TokenHash)
+	input.AcceptedByUserID = strings.TrimSpace(input.AcceptedByUserID)
+	input.InvitedByUserID = strings.TrimSpace(input.InvitedByUserID)
+	if input.WorkspaceID == "" || input.Email == "" || input.Role == "" || input.Status == "" || input.TokenHash == "" || input.ExpiresAt.IsZero() {
+		return domain.WorkspaceInvitation{}, fmt.Errorf("validation failed: workspace_id, email, role, status, token_hash, and expires_at are required")
+	}
+	if input.ID == "" {
+		input.ID = newID("wsi")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `INSERT INTO workspace_invitations (
+		id, workspace_id, email, role, status, token_hash, expires_at, accepted_at, accepted_by_user_id,
+		invited_by_user_id, invited_by_platform_user, revoked_at, created_at, updated_at
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),NULLIF($10,''),$11,$12,$13,$14)
+	RETURNING id, workspace_id, email, role, status, token_hash, expires_at, accepted_at, accepted_by_user_id,
+		invited_by_user_id, invited_by_platform_user, revoked_at, created_at, updated_at`,
+		input.ID,
+		input.WorkspaceID,
+		input.Email,
+		input.Role,
+		string(input.Status),
+		input.TokenHash,
+		input.ExpiresAt,
+		input.AcceptedAt,
+		input.AcceptedByUserID,
+		input.InvitedByUserID,
+		input.InvitedByPlatformUser,
+		input.RevokedAt,
+		input.CreatedAt,
+		input.UpdatedAt,
+	)
+	out, err := scanWorkspaceInvitation(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.WorkspaceInvitation{}, ErrAlreadyExists
+		}
+		return domain.WorkspaceInvitation{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetWorkspaceInvitation(id string) (domain.WorkspaceInvitation, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.WorkspaceInvitation{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, workspace_id, email, role, status, token_hash, expires_at, accepted_at, accepted_by_user_id,
+		invited_by_user_id, invited_by_platform_user, revoked_at, created_at, updated_at
+		FROM workspace_invitations
+		WHERE id = $1`, id)
+	out, err := scanWorkspaceInvitation(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.WorkspaceInvitation{}, ErrNotFound
+		}
+		return domain.WorkspaceInvitation{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListWorkspaceInvitations(filter WorkspaceInvitationListFilter) ([]domain.WorkspaceInvitation, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	clauses := []string{"1=1"}
+	args := []any{}
+	nextArg := 1
+	if workspaceID := normalizeTenantID(filter.WorkspaceID); workspaceID != "" {
+		clauses = append(clauses, fmt.Sprintf("workspace_id = $%d", nextArg))
+		args = append(args, workspaceID)
+		nextArg++
+	}
+	if status := strings.ToLower(strings.TrimSpace(filter.Status)); status != "" {
+		clauses = append(clauses, fmt.Sprintf("status = $%d", nextArg))
+		args = append(args, status)
+		nextArg++
+	}
+	if email := strings.ToLower(strings.TrimSpace(filter.Email)); email != "" {
+		clauses = append(clauses, fmt.Sprintf("lower(email) = lower($%d)", nextArg))
+		args = append(args, email)
+		nextArg++
+	}
+	query := fmt.Sprintf(`SELECT id, workspace_id, email, role, status, token_hash, expires_at, accepted_at, accepted_by_user_id,
+		invited_by_user_id, invited_by_platform_user, revoked_at, created_at, updated_at
+		FROM workspace_invitations
+		WHERE %s
+		ORDER BY created_at DESC, id DESC
+		LIMIT $%d OFFSET $%d`, strings.Join(clauses, " AND "), nextArg, nextArg+1)
+	args = append(args, limit, offset)
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.WorkspaceInvitation, 0)
+	for rows.Next() {
+		item, scanErr := scanWorkspaceInvitation(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.WorkspaceID = normalizeTenantID(input.WorkspaceID)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	input.Role = strings.ToLower(strings.TrimSpace(input.Role))
+	input.Status = domain.WorkspaceInvitationStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
+	input.TokenHash = strings.TrimSpace(input.TokenHash)
+	input.AcceptedByUserID = strings.TrimSpace(input.AcceptedByUserID)
+	input.InvitedByUserID = strings.TrimSpace(input.InvitedByUserID)
+	if input.ID == "" || input.WorkspaceID == "" || input.Email == "" || input.Role == "" || input.Status == "" || input.TokenHash == "" || input.ExpiresAt.IsZero() {
+		return domain.WorkspaceInvitation{}, fmt.Errorf("validation failed: id, workspace_id, email, role, status, token_hash, and expires_at are required")
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `UPDATE workspace_invitations
+		SET workspace_id = $1,
+		    email = $2,
+		    role = $3,
+		    status = $4,
+		    token_hash = $5,
+		    expires_at = $6,
+		    accepted_at = $7,
+		    accepted_by_user_id = NULLIF($8,''),
+		    invited_by_user_id = NULLIF($9,''),
+		    invited_by_platform_user = $10,
+		    revoked_at = $11,
+		    updated_at = $12
+		WHERE id = $13
+		RETURNING id, workspace_id, email, role, status, token_hash, expires_at, accepted_at, accepted_by_user_id,
+			invited_by_user_id, invited_by_platform_user, revoked_at, created_at, updated_at`,
+		input.WorkspaceID,
+		input.Email,
+		input.Role,
+		string(input.Status),
+		input.TokenHash,
+		input.ExpiresAt,
+		input.AcceptedAt,
+		input.AcceptedByUserID,
+		input.InvitedByUserID,
+		input.InvitedByPlatformUser,
+		input.RevokedAt,
+		input.UpdatedAt,
+		input.ID,
+	)
+	out, err := scanWorkspaceInvitation(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.WorkspaceInvitation{}, ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return domain.WorkspaceInvitation{}, ErrAlreadyExists
+		}
+		return domain.WorkspaceInvitation{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceInvitation{}, err
 	}
 	return out, nil
 }
@@ -5400,6 +5705,54 @@ func scanWorkspaceBillingBinding(s rowScanner) (domain.WorkspaceBillingBinding, 
 	if disabledAt.Valid {
 		t := disabledAt.Time.UTC()
 		out.DisabledAt = &t
+	}
+	return out, nil
+}
+
+func scanWorkspaceInvitation(s rowScanner) (domain.WorkspaceInvitation, error) {
+	var out domain.WorkspaceInvitation
+	var status string
+	var acceptedAt sql.NullTime
+	var acceptedByUserID sql.NullString
+	var invitedByUserID sql.NullString
+	var revokedAt sql.NullTime
+	if err := s.Scan(
+		&out.ID,
+		&out.WorkspaceID,
+		&out.Email,
+		&out.Role,
+		&status,
+		&out.TokenHash,
+		&out.ExpiresAt,
+		&acceptedAt,
+		&acceptedByUserID,
+		&invitedByUserID,
+		&out.InvitedByPlatformUser,
+		&revokedAt,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	); err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	out.ID = strings.TrimSpace(out.ID)
+	out.WorkspaceID = normalizeTenantID(out.WorkspaceID)
+	out.Email = strings.ToLower(strings.TrimSpace(out.Email))
+	out.Role = strings.ToLower(strings.TrimSpace(out.Role))
+	out.Status = domain.WorkspaceInvitationStatus(strings.ToLower(strings.TrimSpace(status)))
+	out.TokenHash = strings.TrimSpace(out.TokenHash)
+	if acceptedAt.Valid {
+		t := acceptedAt.Time.UTC()
+		out.AcceptedAt = &t
+	}
+	if acceptedByUserID.Valid {
+		out.AcceptedByUserID = strings.TrimSpace(acceptedByUserID.String)
+	}
+	if invitedByUserID.Valid {
+		out.InvitedByUserID = strings.TrimSpace(invitedByUserID.String)
+	}
+	if revokedAt.Valid {
+		t := revokedAt.Time.UTC()
+		out.RevokedAt = &t
 	}
 	return out, nil
 }

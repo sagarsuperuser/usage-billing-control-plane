@@ -62,6 +62,33 @@ export interface WorkspaceBilling {
   isolation_mode?: "shared" | "dedicated";
 }
 
+export interface WorkspaceMember {
+  user_id: string;
+  email: string;
+  display_name: string;
+  role: "reader" | "writer" | "admin";
+  status: "active" | "disabled";
+  platform_role?: "platform_admin";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceInvitation {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: "reader" | "writer" | "admin";
+  status: "pending" | "accepted" | "expired" | "revoked";
+  expires_at: string;
+  accepted_at?: string;
+  accepted_by_user_id?: string;
+  invited_by_user_id?: string;
+  invited_by_platform_user: boolean;
+  revoked_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BillingProviderConnection {
   id: string;
   provider_type: "stripe";

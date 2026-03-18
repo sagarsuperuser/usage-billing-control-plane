@@ -2,14 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Building2, CreditCard, LoaderCircle } from "lucide-react";
+import { ArrowLeft, Building2, CreditCard, LoaderCircle, MailPlus, ShieldCheck, UserRound } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { fetchBillingProviderConnection, fetchBillingProviderConnections, fetchTenantOnboardingStatus, updateTenantWorkspaceBilling } from "@/lib/api";
+import {
+  createWorkspaceInvitation,
+  fetchBillingProviderConnection,
+  fetchBillingProviderConnections,
+  fetchTenantOnboardingStatus,
+  fetchWorkspaceInvitations,
+  fetchWorkspaceMembers,
+  revokeWorkspaceInvitation,
+  updateTenantWorkspaceBilling,
+} from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -24,6 +33,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
   const [selectedConnectionID, setSelectedConnectionID] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("admin");
 
   const tenantStatusQuery = useQuery({
     queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID],
@@ -48,6 +59,16 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     queryFn: () => fetchBillingProviderConnections({ runtimeBaseURL: apiBaseURL, limit: 100, status: "connected", scope: "platform" }),
     enabled: isAuthenticated && isPlatformAdmin,
   });
+  const workspaceMembersQuery = useQuery({
+    queryKey: ["workspace-members", apiBaseURL, tenantID],
+    queryFn: () => fetchWorkspaceMembers({ runtimeBaseURL: apiBaseURL, tenantID }),
+    enabled: isAuthenticated && isPlatformAdmin && tenantID.trim().length > 0,
+  });
+  const workspaceInvitationsQuery = useQuery({
+    queryKey: ["workspace-invitations", apiBaseURL, tenantID],
+    queryFn: () => fetchWorkspaceInvitations({ runtimeBaseURL: apiBaseURL, tenantID }),
+    enabled: isAuthenticated && isPlatformAdmin && tenantID.trim().length > 0,
+  });
   useEffect(() => {
     setSelectedConnectionID(activeBillingConnectionID);
   }, [activeBillingConnectionID]);
@@ -68,13 +89,50 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
       ]);
     },
   });
+  const createInvitationMutation = useMutation({
+    mutationFn: () =>
+      createWorkspaceInvitation({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        tenantID,
+        email: inviteEmail,
+        role: inviteRole,
+      }),
+    onSuccess: async () => {
+      setInviteEmail("");
+      setInviteRole("admin");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["workspace-invitations", apiBaseURL, tenantID] }),
+        queryClient.invalidateQueries({ queryKey: ["workspace-members", apiBaseURL, tenantID] }),
+      ]);
+    },
+  });
+  const revokeInvitationMutation = useMutation({
+    mutationFn: (invitationID: string) =>
+      revokeWorkspaceInvitation({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        tenantID,
+        invitationID,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workspace-invitations", apiBaseURL, tenantID] });
+    },
+  });
   const nextActions = selectedReadiness?.missing_steps.map(describeTenantMissingStep) ?? [];
   const availableConnections = billingConnectionsQuery.data ?? [];
+  const workspaceMembers = workspaceMembersQuery.data ?? [];
+  const workspaceInvitations = workspaceInvitationsQuery.data ?? [];
+  const pendingInvitations = workspaceInvitations.filter((item) => item.status === "pending");
   const canSaveWorkspaceBilling =
     Boolean(csrfToken) &&
     !updateWorkspaceBillingMutation.isPending &&
     Boolean(selectedConnectionID) &&
     selectedConnectionID !== activeBillingConnectionID;
+  const canCreateInvitation =
+    Boolean(csrfToken) &&
+    !createInvitationMutation.isPending &&
+    inviteEmail.trim().length > 0;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1d4ed8_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
@@ -280,6 +338,108 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <MetaItem label="Updated" value={formatExactTimestamp(selectedTenant.updated_at)} />
                     <MetaItem label="Workspace status" value={formatReadinessStatus(selectedTenant.status)} />
                   </dl>
+                </section>
+
+                <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Workspace access</p>
+                  <div className="mt-4 grid gap-3">
+                    <MetaItem label="Members" value={String(workspaceMembers.length)} />
+                    <MetaItem label="Pending invites" value={String(pendingInvitations.length)} />
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+                    <p className="text-sm font-semibold text-white">Invite workspace admin</p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                      Hand off this workspace to a tenant operator through Alpha access, not backend-only provisioning.
+                    </p>
+                    <div className="mt-3 flex flex-col gap-3">
+                      <input
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(event) => setInviteEmail(event.target.value)}
+                        placeholder="tenant-admin@example.com"
+                        className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                      />
+                      <select
+                        aria-label="Workspace role"
+                        value={inviteRole}
+                        onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
+                        className="h-11 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="writer">Writer</option>
+                        <option value="reader">Reader</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => createInvitationMutation.mutate()}
+                        disabled={!canCreateInvitation}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
+                        Send invite
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+                    <p className="text-sm font-semibold text-white">Current members</p>
+                    <div className="mt-3 grid gap-3">
+                      {workspaceMembers.length > 0 ? (
+                        workspaceMembers.map((member) => (
+                          <div key={member.user_id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="flex items-center gap-2 text-sm font-medium text-white">
+                                  <UserRound className="h-4 w-4 text-cyan-300" />
+                                  <span className="truncate">{member.display_name}</span>
+                                </p>
+                                <p className="mt-1 break-all text-xs text-slate-400">{member.email}</p>
+                              </div>
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-slate-200">
+                                {member.role}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-400">No members yet. Invite the first workspace admin to complete the handoff.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+                    <p className="text-sm font-semibold text-white">Pending invites</p>
+                    <div className="mt-3 grid gap-3">
+                      {pendingInvitations.length > 0 ? (
+                        pendingInvitations.map((invite) => (
+                          <div key={invite.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="flex items-center gap-2 text-sm font-medium text-white">
+                                  <ShieldCheck className="h-4 w-4 text-amber-300" />
+                                  <span className="truncate">{invite.email}</span>
+                                </p>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {invite.role} · expires {formatExactTimestamp(invite.expires_at)}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => revokeInvitationMutation.mutate(invite.id)}
+                                disabled={!csrfToken || revokeInvitationMutation.isPending}
+                                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Revoke
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-400">No pending workspace invites.</p>
+                      )}
+                    </div>
+                  </div>
                 </section>
               </aside>
             </div>

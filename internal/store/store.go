@@ -64,6 +64,14 @@ type WorkspaceBillingBindingListFilter struct {
 	Offset                      int
 }
 
+type WorkspaceInvitationListFilter struct {
+	WorkspaceID string
+	Status      string
+	Email       string
+	Limit       int
+	Offset      int
+}
+
 type APIKeyListFilter struct {
 	TenantID      string
 	Role          string
@@ -240,7 +248,13 @@ type Repository interface {
 	UpsertUserPasswordCredential(input domain.UserPasswordCredential) (domain.UserPasswordCredential, error)
 	GetUserPasswordCredential(userID string) (domain.UserPasswordCredential, error)
 	UpsertUserTenantMembership(input domain.UserTenantMembership) (domain.UserTenantMembership, error)
+	GetUserTenantMembership(userID, tenantID string) (domain.UserTenantMembership, error)
 	ListUserTenantMemberships(userID string) ([]domain.UserTenantMembership, error)
+	ListTenantMemberships(tenantID string) ([]domain.UserTenantMembership, error)
+	CreateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error)
+	GetWorkspaceInvitation(id string) (domain.WorkspaceInvitation, error)
+	ListWorkspaceInvitations(filter WorkspaceInvitationListFilter) ([]domain.WorkspaceInvitation, error)
+	UpdateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error)
 	GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error)
 	UpsertUserFederatedIdentity(input domain.UserFederatedIdentity) (domain.UserFederatedIdentity, error)
 	CreateCustomer(input domain.Customer) (domain.Customer, error)

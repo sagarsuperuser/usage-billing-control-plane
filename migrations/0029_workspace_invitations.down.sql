@@ -1,0 +1,5 @@
+DROP INDEX IF EXISTS workspace_invitations_workspace_email_pending_idx;
+DROP INDEX IF EXISTS workspace_invitations_token_hash_idx;
+DROP INDEX IF EXISTS workspace_invitations_email_status_idx;
+DROP INDEX IF EXISTS workspace_invitations_workspace_status_idx;
+DROP TABLE IF EXISTS workspace_invitations;

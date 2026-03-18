@@ -38,6 +38,7 @@ type Server struct {
 	customerOnboardingService        *service.CustomerOnboardingService
 	billingProviderConnectionService *service.BillingProviderConnectionService
 	workspaceBillingBindingService   *service.WorkspaceBillingBindingService
+	workspaceAccessService           *service.WorkspaceAccessService
 	browserUserAuthService           *service.BrowserUserAuthService
 	browserSSOService                *service.BrowserSSOService
 	pricingMetricService             *service.PricingMetricService
@@ -86,6 +87,48 @@ type tenantResponse struct {
 	WorkspaceBilling            workspaceBillingResponse `json:"workspace_billing"`
 	CreatedAt                   time.Time                `json:"created_at"`
 	UpdatedAt                   time.Time                `json:"updated_at"`
+}
+
+type workspaceInvitationResponse struct {
+	ID                    string     `json:"id"`
+	WorkspaceID           string     `json:"workspace_id"`
+	Email                 string     `json:"email"`
+	Role                  string     `json:"role"`
+	Status                string     `json:"status"`
+	ExpiresAt             time.Time  `json:"expires_at"`
+	AcceptedAt            *time.Time `json:"accepted_at,omitempty"`
+	AcceptedByUserID      string     `json:"accepted_by_user_id,omitempty"`
+	InvitedByUserID       string     `json:"invited_by_user_id,omitempty"`
+	InvitedByPlatformUser bool       `json:"invited_by_platform_user"`
+	RevokedAt             *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+}
+
+func newWorkspaceInvitationResponse(invite domain.WorkspaceInvitation) workspaceInvitationResponse {
+	return workspaceInvitationResponse{
+		ID:                    invite.ID,
+		WorkspaceID:           invite.WorkspaceID,
+		Email:                 invite.Email,
+		Role:                  invite.Role,
+		Status:                string(invite.Status),
+		ExpiresAt:             invite.ExpiresAt,
+		AcceptedAt:            invite.AcceptedAt,
+		AcceptedByUserID:      invite.AcceptedByUserID,
+		InvitedByUserID:       invite.InvitedByUserID,
+		InvitedByPlatformUser: invite.InvitedByPlatformUser,
+		RevokedAt:             invite.RevokedAt,
+		CreatedAt:             invite.CreatedAt,
+		UpdatedAt:             invite.UpdatedAt,
+	}
+}
+
+func newWorkspaceInvitationResponses(items []domain.WorkspaceInvitation) []workspaceInvitationResponse {
+	out := make([]workspaceInvitationResponse, 0, len(items))
+	for _, item := range items {
+		out = append(out, newWorkspaceInvitationResponse(item))
+	}
+	return out
 }
 
 func (s *Server) newTenantResponse(tenant domain.Tenant) tenantResponse {
@@ -411,6 +454,12 @@ func WithBrowserSSOService(svc *service.BrowserSSOService) ServerOption {
 	}
 }
 
+func WithWorkspaceAccessService(svc *service.WorkspaceAccessService) ServerOption {
+	return func(s *Server) {
+		s.workspaceAccessService = svc
+	}
+}
+
 func WithUIPublicBaseURL(baseURL string) ServerOption {
 	return func(s *Server) {
 		s.uiPublicBaseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
@@ -472,6 +521,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	}
 	s.ratingService = service.NewRatingService(repo)
 	s.workspaceBillingBindingService = service.NewWorkspaceBillingBindingService(repo)
+	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
 	s.tenantService = service.NewTenantService(repo).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter)
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
@@ -1727,12 +1777,12 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	id, action := parseInternalTenantPath(r.URL.Path)
+	id, action, actionID, subaction := parseInternalTenantPath(r.URL.Path)
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "tenant id is required")
 		return
 	}
-	if action != "" && action != "bootstrap-admin-key" && action != "workspace-billing" {
+	if action != "" && action != "bootstrap-admin-key" && action != "workspace-billing" && action != "members" && action != "invitations" {
 		writeError(w, http.StatusBadRequest, "unsupported tenant subresource")
 		return
 	}
@@ -1742,6 +1792,14 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 	}
 	if action == "workspace-billing" {
 		s.handleInternalTenantWorkspaceBilling(w, r, id)
+		return
+	}
+	if action == "members" {
+		s.handleInternalTenantMembers(w, r, id, actionID)
+		return
+	}
+	if action == "invitations" {
+		s.handleInternalTenantInvitations(w, r, id, actionID, subaction)
 		return
 	}
 
@@ -1820,6 +1878,125 @@ func (s *Server) handleInternalTenantWorkspaceBilling(w http.ResponseWriter, r *
 		writeJSON(w, http.StatusOK, map[string]any{
 			"tenant": s.newTenantResponse(tenant),
 		})
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleInternalTenantMembers(w http.ResponseWriter, r *http.Request, tenantID, userID string) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceAccessService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		if userID != "" {
+			writeMethodNotAllowed(w)
+			return
+		}
+		items, err := s.workspaceAccessService.ListWorkspaceMembers(tenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	case http.MethodPatch:
+		if strings.TrimSpace(userID) == "" {
+			writeError(w, http.StatusBadRequest, "user id is required")
+			return
+		}
+		var req struct {
+			Role string `json:"role"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		member, err := s.workspaceAccessService.UpdateWorkspaceMemberRole(tenantID, userID, req.Role)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"member": member})
+	case http.MethodDelete:
+		if strings.TrimSpace(userID) == "" {
+			writeError(w, http.StatusBadRequest, "user id is required")
+			return
+		}
+		if err := s.workspaceAccessService.RemoveWorkspaceMember(tenantID, userID); err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleInternalTenantInvitations(w http.ResponseWriter, r *http.Request, tenantID, invitationID, subaction string) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceAccessService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		if invitationID != "" || subaction != "" {
+			writeMethodNotAllowed(w)
+			return
+		}
+		items, err := s.workspaceAccessService.ListWorkspaceInvitations(tenantID, strings.TrimSpace(r.URL.Query().Get("status")))
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": newWorkspaceInvitationResponses(items)})
+	case http.MethodPost:
+		if invitationID != "" || subaction != "" {
+			if invitationID != "" && subaction == "revoke" {
+				invite, err := s.workspaceAccessService.RevokeWorkspaceInvitation(tenantID, invitationID)
+				if err != nil {
+					writeDomainError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"invitation": newWorkspaceInvitationResponse(invite)})
+				return
+			}
+			writeMethodNotAllowed(w)
+			return
+		}
+		var req struct {
+			Email string `json:"email"`
+			Role  string `json:"role"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		principal, _ := principalFromContext(r.Context())
+		invitedByUserID := ""
+		if strings.TrimSpace(principal.SubjectType) == "user" {
+			invitedByUserID = strings.TrimSpace(principal.SubjectID)
+		}
+		invite, err := s.workspaceAccessService.CreateWorkspaceInvitation(service.CreateWorkspaceInvitationRequest{
+			WorkspaceID:           tenantID,
+			Email:                 req.Email,
+			Role:                  req.Role,
+			InvitedByUserID:       invitedByUserID,
+			InvitedByPlatformUser: principal.Scope == ScopePlatform,
+		})
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"invitation": newWorkspaceInvitationResponse(invite)})
 	default:
 		writeMethodNotAllowed(w)
 	}
@@ -2346,17 +2523,23 @@ func (s *Server) redirectUISSOFailure(w http.ResponseWriter, r *http.Request, pr
 	http.Redirect(w, r, target.String(), http.StatusFound)
 }
 
-func parseInternalTenantPath(path string) (tenantID string, action string) {
+func parseInternalTenantPath(path string) (tenantID string, action string, actionID string, subaction string) {
 	tail := strings.Trim(strings.TrimPrefix(path, "/internal/tenants/"), "/")
 	if tail == "" {
-		return "", ""
+		return "", "", "", ""
 	}
 	parts := strings.Split(tail, "/")
 	tenantID = strings.TrimSpace(parts[0])
 	if len(parts) > 1 {
 		action = strings.TrimSpace(parts[1])
 	}
-	return tenantID, action
+	if len(parts) > 2 {
+		actionID = strings.TrimSpace(parts[2])
+	}
+	if len(parts) > 3 {
+		subaction = strings.TrimSpace(parts[3])
+	}
+	return tenantID, action, actionID, subaction
 }
 
 func parseCustomerPath(path string) (externalID string, action string, subaction string) {

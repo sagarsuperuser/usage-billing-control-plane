@@ -65,6 +65,28 @@ type BillingProviderConnection = {
   lago_provider_code?: string;
 };
 
+type WorkspaceMember = {
+  user_id: string;
+  email: string;
+  display_name: string;
+  role: "reader" | "writer" | "admin";
+  status: "active" | "disabled";
+  created_at: string;
+  updated_at: string;
+};
+
+type WorkspaceInvitation = {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: "reader" | "writer" | "admin";
+  status: "pending" | "accepted" | "expired" | "revoked";
+  expires_at: string;
+  invited_by_platform_user: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 function buildReadiness(pricingReady: boolean, customerExists: boolean, connectionID: string): TenantOnboardingReadiness {
   return {
     status: pricingReady && customerExists ? "ready" : "pending",
@@ -155,6 +177,24 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
     tenant_alpha: buildReadiness(false, false, "bpc_alpha"),
     tenant_beta: buildReadiness(true, true, "bpc_beta"),
   };
+  const membersByTenant: Record<string, WorkspaceMember[]> = {
+    tenant_alpha: [
+      {
+        user_id: "usr_owner_alpha",
+        email: "owner@tenant-alpha.test",
+        display_name: "Tenant Alpha Owner",
+        role: "admin",
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ],
+    tenant_beta: [],
+  };
+  const invitationsByTenant: Record<string, WorkspaceInvitation[]> = {
+    tenant_alpha: [],
+    tenant_beta: [],
+  };
 
   await page.route("**/*", async (route) => {
     const request = route.request();
@@ -224,6 +264,46 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       readiness.billing_integration.isolation_mode = connectionID ? "shared" : undefined;
       return json(200, { tenant });
     }
+    if (path.startsWith("/internal/tenants/") && path.endsWith("/members") && method === "GET") {
+      const segments = path.split("/");
+      const tenantID = decodeURIComponent(segments[3] || "");
+      return json(200, { items: membersByTenant[tenantID] ?? [] });
+    }
+    if (path.startsWith("/internal/tenants/") && path.endsWith("/invitations") && method === "GET") {
+      const segments = path.split("/");
+      const tenantID = decodeURIComponent(segments[3] || "");
+      return json(200, { items: invitationsByTenant[tenantID] ?? [] });
+    }
+    if (path.startsWith("/internal/tenants/") && path.endsWith("/invitations") && method === "POST") {
+      const segments = path.split("/");
+      const tenantID = decodeURIComponent(segments[3] || "");
+      const body = request.postDataJSON() as { email?: string; role?: "reader" | "writer" | "admin" };
+      const invitation: WorkspaceInvitation = {
+        id: `wsi_${tenantID}_1`,
+        workspace_id: tenantID,
+        email: body.email || "",
+        role: body.role || "admin",
+        status: "pending",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        invited_by_platform_user: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      invitationsByTenant[tenantID] = [invitation, ...(invitationsByTenant[tenantID] ?? [])];
+      return json(201, { invitation });
+    }
+    if (path.startsWith("/internal/tenants/") && path.includes("/invitations/") && path.endsWith("/revoke") && method === "POST") {
+      const segments = path.split("/");
+      const tenantID = decodeURIComponent(segments[3] || "");
+      const invitationID = decodeURIComponent(segments[5] || "");
+      const invitation = (invitationsByTenant[tenantID] ?? []).find((item) => item.id === invitationID);
+      if (!invitation) {
+        return json(404, { error: "not found" });
+      }
+      invitation.status = "revoked";
+      invitation.updated_at = new Date().toISOString();
+      return json(200, { invitation });
+    }
     if (path.startsWith("/internal/billing-provider-connections/") && method === "GET") {
       const connectionID = decodeURIComponent(path.split("/").pop() || "");
       const connection = connections[connectionID];
@@ -260,6 +340,12 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
   await expect(page.getByText("No billing-ready customer has been created yet").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();
+  await expect(page.getByText("Workspace access")).toBeVisible();
+  await expect(page.getByText("Tenant Alpha Owner")).toBeVisible();
+  await page.getByPlaceholder("tenant-admin@example.com").fill("new-admin@tenant-alpha.test");
+  await page.getByLabel("Workspace role").selectOption("admin");
+  await page.getByRole("button", { name: "Send invite" }).click();
+  await expect(page.getByText("new-admin@tenant-alpha.test")).toBeVisible();
   await page.getByLabel("Active billing connection").selectOption("bpc_beta");
   await page.getByRole("button", { name: "Save active connection" }).click();
   await expect(page.getByText("bpc_beta")).toBeVisible();

@@ -167,6 +167,32 @@ type UserTenantMembership struct {
 	UpdatedAt time.Time                  `json:"updated_at"`
 }
 
+type WorkspaceInvitationStatus string
+
+const (
+	WorkspaceInvitationStatusPending  WorkspaceInvitationStatus = "pending"
+	WorkspaceInvitationStatusAccepted WorkspaceInvitationStatus = "accepted"
+	WorkspaceInvitationStatusExpired  WorkspaceInvitationStatus = "expired"
+	WorkspaceInvitationStatusRevoked  WorkspaceInvitationStatus = "revoked"
+)
+
+type WorkspaceInvitation struct {
+	ID                    string                    `json:"id"`
+	WorkspaceID           string                    `json:"workspace_id"`
+	Email                 string                    `json:"email"`
+	Role                  string                    `json:"role"`
+	Status                WorkspaceInvitationStatus `json:"status"`
+	TokenHash             string                    `json:"-"`
+	ExpiresAt             time.Time                 `json:"expires_at"`
+	AcceptedAt            *time.Time                `json:"accepted_at,omitempty"`
+	AcceptedByUserID      string                    `json:"accepted_by_user_id,omitempty"`
+	InvitedByUserID       string                    `json:"invited_by_user_id,omitempty"`
+	InvitedByPlatformUser bool                      `json:"invited_by_platform_user"`
+	RevokedAt             *time.Time                `json:"revoked_at,omitempty"`
+	CreatedAt             time.Time                 `json:"created_at"`
+	UpdatedAt             time.Time                 `json:"updated_at"`
+}
+
 type UserFederatedIdentity struct {
 	ID            string                 `json:"id"`
 	UserID        string                 `json:"user_id"`
