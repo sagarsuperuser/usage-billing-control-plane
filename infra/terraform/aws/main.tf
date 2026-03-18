@@ -377,9 +377,7 @@ data "aws_iam_policy_document" "api_billing_provider_secrets_policy" {
       "secretsmanager:PutSecretValue",
       "secretsmanager:DeleteSecret",
     ]
-    resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${local.aws_account_id}:secret:${local.name_prefix}/billing-provider-connections/*",
-    ]
+    resources = ["*"]
   }
 }
 
