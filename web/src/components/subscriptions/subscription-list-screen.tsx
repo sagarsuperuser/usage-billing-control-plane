@@ -10,7 +10,6 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchSubscriptions } from "@/lib/api";
-import { formatReadinessStatus } from "@/lib/readiness";
 import { type SubscriptionSummary } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -32,6 +31,7 @@ function formatSubscriptionPaymentSetupStatus(status: SubscriptionSummary["payme
 export function SubscriptionListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const [search, setSearch] = useState("");
+
   const subscriptionsQuery = useQuery({
     queryKey: ["subscriptions", apiBaseURL],
     queryFn: () => fetchSubscriptions({ runtimeBaseURL: apiBaseURL }),
@@ -43,9 +43,7 @@ export function SubscriptionListScreen() {
     const term = search.trim().toLowerCase();
     if (!term) return items;
     return items.filter((item) =>
-      [item.display_name, item.code, item.customer_display_name, item.customer_external_id, item.plan_name, item.plan_code].some((value) =>
-        value.toLowerCase().includes(term)
-      )
+      [item.display_name, item.code, item.customer_display_name, item.customer_external_id, item.plan_name, item.plan_code].some((value) => value.toLowerCase().includes(term)),
     );
   }, [subscriptionsQuery.data, search]);
 
@@ -57,26 +55,21 @@ export function SubscriptionListScreen() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#14532d_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-55">
-        <div className="absolute -left-24 top-4 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Tenant" }, { label: "Subscriptions" }]} />
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Subscriptions</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Customer subscriptions</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscriptions</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Customer subscriptions</h1>
+              <p className="mt-3 max-w-3xl text-sm text-slate-600">
                 Track what the customer is signing up for, whether payment setup has been requested, and whether the payer has completed billing readiness.
               </p>
             </div>
-            <Link href="/subscriptions/new" className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">
+            <Link href="/subscriptions/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
               <Plus className="h-4 w-4" />
               New subscription
             </Link>
@@ -95,22 +88,22 @@ export function SubscriptionListScreen() {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Subscriptions" value={stats.total} />
-          <MetricCard label="Active" value={stats.active} tone="success" />
-          <MetricCard label="Pending setup" value={stats.pending} tone="warn" />
-          <MetricCard label="Action required" value={stats.actionRequired} tone="danger" />
+          <MetricCard label="Active" value={stats.active} />
+          <MetricCard label="Pending setup" value={stats.pending} />
+          <MetricCard label="Action required" value={stats.actionRequired} />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Subscription inventory</p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">Browse and inspect</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription inventory</p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
             </div>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search by customer, plan, or code"
-              className="h-11 min-w-[260px] rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
+              className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
             />
           </div>
           <div className="mt-5 grid gap-3">
@@ -124,47 +117,49 @@ export function SubscriptionListScreen() {
 
 function SubscriptionRow({ item }: { item: SubscriptionSummary }) {
   return (
-    <Link href={`/subscriptions/${encodeURIComponent(item.id)}`} className="grid gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4 transition hover:border-cyan-400/40 hover:bg-cyan-500/5 lg:grid-cols-[minmax(0,1.2fr)_repeat(4,minmax(0,0.52fr))_auto] lg:items-center">
+    <Link
+      href={`/subscriptions/${encodeURIComponent(item.id)}`}
+      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.2fr)_repeat(5,minmax(0,0.48fr))_auto] lg:items-center"
+    >
       <div className="min-w-0">
-        <h3 className="truncate text-lg font-semibold text-white">{item.display_name}</h3>
-        <p className="mt-1 break-all font-mono text-xs text-slate-400">{item.code}</p>
-        <p className="mt-2 text-sm text-slate-300">{item.customer_display_name} on {item.plan_name}</p>
+        <h3 className="truncate text-base font-semibold text-slate-950">{item.display_name}</h3>
+        <p className="mt-1 break-all font-mono text-xs text-slate-500">{item.code}</p>
+        <p className="mt-2 text-sm text-slate-600">{item.customer_display_name} on {item.plan_name}</p>
       </div>
       <StatusCell label="Lifecycle" value={item.status} />
-      <StatusCell label="Payment setup" value={formatSubscriptionPaymentSetupStatus(item.payment_setup_status)} raw />
-      <StatusCell label="Plan" value={item.plan_name} raw />
-      <StatusCell label="Billing" value={`${item.billing_interval} · ${(item.base_amount_cents / 100).toFixed(2)} ${item.currency}`} raw />
-      <StatusCell label="Customer" value={item.customer_external_id} mono raw />
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-cyan-100">
+      <StatusCell label="Payment setup" value={formatSubscriptionPaymentSetupStatus(item.payment_setup_status)} />
+      <StatusCell label="Plan" value={item.plan_name} />
+      <StatusCell label="Billing" value={`${item.billing_interval} · ${(item.base_amount_cents / 100).toFixed(2)} ${item.currency}`} />
+      <StatusCell label="Customer" value={item.customer_external_id} mono />
+      <StatusCell label="Currency" value={item.currency.toUpperCase()} />
+      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
         Open <ChevronRight className="h-4 w-4" />
       </span>
     </Link>
   );
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: number; tone?: "success" | "warn" | "danger" }) {
-  const toneClass =
-    tone === "success" ? "text-emerald-100" : tone === "warn" ? "text-amber-100" : tone === "danger" ? "text-rose-100" : "text-white";
+function MetricCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 backdrop-blur-xl">
-      <p className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
     </div>
   );
 }
 
-function StatusCell({ label, value, mono, raw }: { label: string; value: string; mono?: boolean; raw?: boolean }) {
+function StatusCell({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className={`mt-2 break-all text-sm font-semibold text-white ${mono ? "font-mono" : ""}`}>{raw ? value : formatReadinessStatus(value)}</p>
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-2 break-all text-sm font-semibold text-slate-950 ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-6 text-sm text-slate-300">
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
       <LoaderCircle className="h-4 w-4 animate-spin" />
       Loading subscriptions
     </div>
@@ -173,11 +168,11 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/40 px-5 py-8 text-sm text-slate-300">
-      <p className="font-semibold text-white">No subscriptions yet.</p>
-      <p className="mt-2 text-slate-400">Create the first subscription after you have at least one customer and one plan.</p>
+    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
+      <p className="font-semibold text-slate-950">No subscriptions yet.</p>
+      <p className="mt-2">Create the first subscription after you have at least one customer and one plan.</p>
       <div className="mt-4">
-        <Link href="/subscriptions/new" className="inline-flex h-10 items-center rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/20">
+        <Link href="/subscriptions/new" className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800">
           Create subscription
         </Link>
       </div>

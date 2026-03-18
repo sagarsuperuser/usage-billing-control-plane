@@ -1,27 +1,148 @@
 "use client";
 
+import Link from "next/link";
+import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchPlan, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
-  const planQuery = useQuery({ queryKey: ["pricing-plan", apiBaseURL, planID], queryFn: () => fetchPlan({ runtimeBaseURL: apiBaseURL, planID }), enabled: isAuthenticated && scope === "tenant" && planID.trim().length > 0 });
-  const metricsQuery = useQuery({ queryKey: ["pricing-metrics", apiBaseURL], queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated && scope === "tenant" });
-  const plan = planQuery.data;
+
+  const planQuery = useQuery({
+    queryKey: ["pricing-plan", apiBaseURL, planID],
+    queryFn: () => fetchPlan({ runtimeBaseURL: apiBaseURL, planID }),
+    enabled: isAuthenticated && scope === "tenant" && planID.trim().length > 0,
+  });
+
+  const metricsQuery = useQuery({
+    queryKey: ["pricing-metrics", apiBaseURL],
+    queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
+
+  const plan = planQuery.data ?? null;
   const linkedMetrics = useMemo(() => {
     if (!plan) return [];
     const byID = new Map((metricsQuery.data ?? []).map((metric) => [metric.id, metric]));
     return plan.meter_ids.map((id) => byID.get(id)).filter(Boolean);
   }, [metricsQuery.data, plan]);
 
-  return <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#14532d_0%,_#0f172a_34%,_#070b13_78%)] text-slate-100"><div className="pointer-events-none absolute inset-0 opacity-55"><div className="absolute -left-24 top-4 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" /><div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" /></div><main className="relative mx-auto flex max-w-[1120px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10"><ControlPlaneNav /><AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/plans", label: "Plans" }, { label: plan?.name || planID }]} />{!isAuthenticated ? <LoginRedirectNotice /> : null}{isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Tenant session required" body="Plans are tenant-scoped. Sign in with a tenant account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}{!plan ? <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl"><h1 className="text-2xl font-semibold text-white">Plan not available</h1></section> : <><section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl"><p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Plan detail</p><h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">{plan.name}</h1><p className="mt-2 break-all font-mono text-sm text-slate-400">{plan.code}</p><p className="mt-3 text-sm text-slate-300">{plan.description || "No description provided."}</p></section><section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Stat label="Status" value={plan.status} /><Stat label="Interval" value={plan.billing_interval} /><Stat label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} /><Stat label="Metrics" value={String(plan.meter_ids.length)} /></section><section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl"><p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Linked metrics</p><div className="mt-4 grid gap-3">{linkedMetrics.length === 0 ? <p className="text-sm text-slate-400">No linked metrics were found for this plan.</p> : linkedMetrics.map((metric) => metric ? <div key={metric.id} className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-4"><p className="text-sm font-semibold text-white">{metric.name}</p><p className="mt-1 font-mono text-xs text-slate-400">{metric.key}</p><p className="mt-2 text-sm text-slate-300">{metric.aggregation} aggregation • {metric.unit}</p></div> : null)}</div></section></>}</main></div>;
+  return (
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+        <ControlPlaneNav />
+        <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/plans", label: "Plans" }, { label: plan?.name || planID }]} />
+
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        {isAuthenticated && scope !== "tenant" ? (
+          <ScopeNotice title="Tenant session required" body="Plans are tenant-scoped. Sign in with a tenant account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" />
+        ) : null}
+
+        {planQuery.isLoading ? (
+          <LoadingPanel label="Loading plan detail" />
+        ) : !plan ? (
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing plan</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Plan not available</h1>
+            <Link href="/pricing/plans" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+              <ArrowLeft className="h-4 w-4" />
+              Back to plans
+            </Link>
+          </section>
+        ) : (
+          <>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing plan</p>
+                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{plan.name}</h1>
+                  <p className="mt-3 break-all font-mono text-xs text-slate-500">{plan.code}</p>
+                  <p className="mt-3 max-w-3xl text-sm text-slate-600">{plan.description || "No description provided."}</p>
+                </div>
+                <Link href="/pricing/plans" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to plans
+                </Link>
+              </div>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Stat label="Status" value={plan.status} />
+              <Stat label="Interval" value={plan.billing_interval} />
+              <Stat label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} />
+              <Stat label="Metrics" value={String(plan.meter_ids.length)} />
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked metrics</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial inputs</h2>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{linkedMetrics.length} linked metric(s)</div>
+              </div>
+              <div className="mt-5 grid gap-3">
+                {linkedMetrics.length === 0 ? (
+                  <EmptyPanel message="No linked metrics were found for this plan." />
+                ) : (
+                  linkedMetrics.map((metric) =>
+                    metric ? (
+                      <div key={metric.id} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1fr)_140px_140px] lg:items-center">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-950">{metric.name}</p>
+                          <p className="mt-1 break-all font-mono text-xs text-slate-500">{metric.key}</p>
+                        </div>
+                        <InfoCell label="Aggregation" value={metric.aggregation} />
+                        <InfoCell label="Unit" value={metric.unit} />
+                      </div>
+                    ) : null,
+                  )
+                )}
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+    </div>
+  );
 }
 
-function Stat({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 backdrop-blur-xl"><p className="text-xs uppercase tracking-[0.15em] text-slate-400">{label}</p><p className="mt-2 text-sm font-semibold text-white">{value}</p></div>; }
+function LoadingPanel({ label }: { label: string }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+      <div className="flex items-center gap-2">
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+        {label}
+      </div>
+    </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function InfoCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function EmptyPanel({ message }: { message: string }) {
+  return <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">{message}</p>;
+}
