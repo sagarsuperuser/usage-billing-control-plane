@@ -15,32 +15,24 @@ func TestLagoBillingProviderAdapterCreatesStripeProvider(t *testing.T) {
 
 	calls := 0
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/graphql" || r.Method != http.MethodPost {
-			http.NotFound(w, r)
-			return
-		}
-		if got := r.Header.Get("x-lago-organization"); got != "org_test" {
-			t.Fatalf("expected x-lago-organization header, got %q", got)
-		}
 		calls++
-		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("decode graphql request: %v", err)
-		}
-		query, _ := body["query"].(string)
-		variables, _ := body["variables"].(map[string]any)
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case strings.Contains(query, "paymentProvider(code:"):
-			_, _ = w.Write([]byte(`{"data":{"paymentProvider":null}}`))
-		case strings.Contains(query, "addStripePaymentProvider"):
-			input, _ := variables["input"].(map[string]any)
-			if got := input["secretKey"]; got != "sk_test_123" {
-				t.Fatalf("expected secretKey to be forwarded, got %#v", got)
+		case r.URL.Path == "/api/v1/payment_providers/stripe/alpha_stripe_test_bpc_test" && r.Method == http.MethodGet:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"status":404,"error":"Not Found","code":"payment_provider_not_found"}`))
+		case r.URL.Path == "/api/v1/payment_providers/stripe" && r.Method == http.MethodPost:
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode request: %v", err)
 			}
-			_, _ = w.Write([]byte(`{"data":{"addStripePaymentProvider":{"id":"pp_123","code":"alpha_stripe_test_bpc_test","name":"Stripe Test"}}}`))
+			provider, _ := body["payment_provider"].(map[string]any)
+			if got := provider["secret_key"]; got != "sk_test_123" {
+				t.Fatalf("expected secret_key to be forwarded, got %#v", got)
+			}
+			_, _ = w.Write([]byte(`{"payment_provider":{"lago_id":"pp_123","lago_organization_id":"org_test","code":"alpha_stripe_test_bpc_test","name":"Stripe Test","provider_type":"stripe"}}`))
 		default:
-			t.Fatalf("unexpected graphql query: %s", query)
+			http.NotFound(w, r)
 		}
 	}))
 	defer lago.Close()
@@ -65,7 +57,7 @@ func TestLagoBillingProviderAdapterCreatesStripeProvider(t *testing.T) {
 		t.Fatalf("expected provider code to be returned, got %q", result.LagoProviderCode)
 	}
 	if calls != 2 {
-		t.Fatalf("expected 2 graphql calls, got %d", calls)
+		t.Fatalf("expected 2 rest calls, got %d", calls)
 	}
 }
 
@@ -73,31 +65,22 @@ func TestLagoBillingProviderAdapterUpdatesExistingStripeProvider(t *testing.T) {
 	t.Parallel()
 
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/graphql" || r.Method != http.MethodPost {
-			http.NotFound(w, r)
-			return
-		}
-		if got := r.Header.Get("x-lago-organization"); got != "org_test" {
-			t.Fatalf("expected x-lago-organization header, got %q", got)
-		}
-		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("decode graphql request: %v", err)
-		}
-		query, _ := body["query"].(string)
-		variables, _ := body["variables"].(map[string]any)
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case strings.Contains(query, "paymentProvider(code:"):
-			_, _ = w.Write([]byte(`{"data":{"paymentProvider":{"__typename":"StripeProvider","id":"pp_existing","code":"stripe_existing","name":"Old"}}}`))
-		case strings.Contains(query, "updateStripePaymentProvider"):
-			input, _ := variables["input"].(map[string]any)
-			if got := input["id"]; got != "pp_existing" {
-				t.Fatalf("expected existing provider id, got %#v", got)
+		case r.URL.Path == "/api/v1/payment_providers/stripe/stripe_existing" && r.Method == http.MethodGet:
+			_, _ = w.Write([]byte(`{"payment_provider":{"lago_id":"pp_existing","lago_organization_id":"org_test","code":"stripe_existing","name":"Old","provider_type":"stripe"}}`))
+		case r.URL.Path == "/api/v1/payment_providers/stripe" && r.Method == http.MethodPost:
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode request: %v", err)
 			}
-			_, _ = w.Write([]byte(`{"data":{"updateStripePaymentProvider":{"id":"pp_existing","code":"stripe_existing","name":"Updated"}}}`))
+			provider, _ := body["payment_provider"].(map[string]any)
+			if got := provider["code"]; got != "stripe_existing" {
+				t.Fatalf("expected existing provider code, got %#v", got)
+			}
+			_, _ = w.Write([]byte(`{"payment_provider":{"lago_id":"pp_existing","lago_organization_id":"org_test","code":"stripe_existing","name":"Updated","provider_type":"stripe"}}`))
 		default:
-			t.Fatalf("unexpected graphql query: %s", query)
+			http.NotFound(w, r)
 		}
 	}))
 	defer lago.Close()
@@ -121,5 +104,37 @@ func TestLagoBillingProviderAdapterUpdatesExistingStripeProvider(t *testing.T) {
 	}
 	if result.LagoProviderCode != "stripe_existing" {
 		t.Fatalf("expected existing provider code, got %q", result.LagoProviderCode)
+	}
+}
+
+func TestLagoBillingProviderAdapterRejectsUnexpectedProviderType(t *testing.T) {
+	t.Parallel()
+
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v1/payment_providers/stripe/code_taken" && r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`{"payment_provider":{"lago_id":"pp_existing","lago_organization_id":"org_test","code":"code_taken","name":"Other","provider_type":"gocardless"}}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{BaseURL: lago.URL, APIKey: "test", Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	adapter := NewLagoBillingProviderAdapter(transport, "https://alpha.example.test/return")
+	_, err = adapter.EnsureStripeProvider(context.Background(), EnsureStripeProviderInput{
+		ConnectionID:       "bpc_existing",
+		DisplayName:        "Updated",
+		Environment:        "test",
+		SecretKey:          "sk_test_123",
+		LagoOrganizationID: "org_test",
+		LagoProviderCode:   "code_taken",
+	})
+	if err == nil || !strings.Contains(err.Error(), `already exists as gocardless`) {
+		t.Fatalf("expected provider type conflict error, got %v", err)
 	}
 }

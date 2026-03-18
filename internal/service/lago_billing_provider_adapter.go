@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -22,57 +23,16 @@ func NewLagoBillingProviderAdapter(transport *LagoHTTPTransport, stripeSuccessRe
 	}
 }
 
-type lagoGraphQLRequest struct {
-	Query     string         `json:"query"`
-	Variables map[string]any `json:"variables,omitempty"`
+type lagoStripePaymentProvider struct {
+	LagoID             string `json:"lago_id"`
+	LagoOrganizationID string `json:"lago_organization_id"`
+	Code               string `json:"code"`
+	Name               string `json:"name"`
+	ProviderType       string `json:"provider_type"`
 }
 
-type lagoGraphQLError struct {
-	Message string `json:"message"`
-}
-
-func (t *LagoHTTPTransport) doGraphQLRequest(ctx context.Context, organizationID, query string, variables map[string]any, out any) error {
-	if t == nil {
-		return fmt.Errorf("%w: lago transport is required", ErrValidation)
-	}
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return fmt.Errorf("%w: graphql query is required", ErrValidation)
-	}
-	payload := lagoGraphQLRequest{Query: query, Variables: variables}
-	headers := map[string]string{}
-	if org := strings.TrimSpace(organizationID); org != "" {
-		headers["x-lago-organization"] = org
-	}
-	status, body, err := t.doJSONRequestWithHeaders(ctx, http.MethodPost, "/graphql", payload, headers)
-	if err != nil {
-		return err
-	}
-	var resp struct {
-		Data   json.RawMessage    `json:"data"`
-		Errors []lagoGraphQLError `json:"errors"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return fmt.Errorf("decode lago graphql response status=%d: %w", status, err)
-	}
-	if len(resp.Errors) > 0 {
-		parts := make([]string, 0, len(resp.Errors))
-		for _, item := range resp.Errors {
-			if msg := strings.TrimSpace(item.Message); msg != "" {
-				parts = append(parts, msg)
-			}
-		}
-		if len(parts) == 0 {
-			parts = append(parts, "unknown graphql error")
-		}
-		return fmt.Errorf("lago graphql error: %s", strings.Join(parts, "; "))
-	}
-	if out != nil && len(resp.Data) > 0 && string(resp.Data) != "null" {
-		if err := json.Unmarshal(resp.Data, out); err != nil {
-			return fmt.Errorf("decode lago graphql data: %w", err)
-		}
-	}
-	return nil
+type lagoStripePaymentProviderResponse struct {
+	PaymentProvider lagoStripePaymentProvider `json:"payment_provider"`
 }
 
 func (a *LagoBillingProviderAdapter) EnsureStripeProvider(ctx context.Context, input EnsureStripeProviderInput) (EnsureStripeProviderResult, error) {
@@ -103,125 +63,70 @@ func (a *LagoBillingProviderAdapter) EnsureStripeProvider(ctx context.Context, i
 		providerCode = defaultLagoStripeProviderCode(input.ConnectionID, input.Environment)
 	}
 
-	existing, err := a.getPaymentProviderByCode(ctx, input.LagoOrganizationID, providerCode)
+	existing, err := a.getPaymentProviderByCode(ctx, providerCode)
+	if err != nil {
+		return EnsureStripeProviderResult{}, err
+	}
+	if existing != nil && existing.ProviderType != "stripe" {
+		return EnsureStripeProviderResult{}, fmt.Errorf("lago provider code %q already exists as %s", providerCode, existing.ProviderType)
+	}
+
+	upserted, err := a.upsertStripeProvider(ctx, providerCode, input.DisplayName, input.SecretKey)
 	if err != nil {
 		return EnsureStripeProviderResult{}, err
 	}
 
 	now := time.Now().UTC()
-	if existing == nil {
-		created, err := a.addStripeProvider(ctx, input.LagoOrganizationID, providerCode, input.DisplayName, input.SecretKey)
-		if err != nil {
-			return EnsureStripeProviderResult{}, err
-		}
-		return EnsureStripeProviderResult{
-			LagoOrganizationID: input.LagoOrganizationID,
-			LagoProviderCode:   created.Code,
-			ConnectedAt:        now,
-			LastSyncedAt:       now,
-		}, nil
-	}
-	if existing.TypeName != "StripeProvider" {
-		return EnsureStripeProviderResult{}, fmt.Errorf("lago provider code %q already exists as %s", providerCode, existing.TypeName)
-	}
-	updated, err := a.updateStripeProvider(ctx, input.LagoOrganizationID, existing.ID, providerCode, input.DisplayName)
-	if err != nil {
-		return EnsureStripeProviderResult{}, err
-	}
 	return EnsureStripeProviderResult{
 		LagoOrganizationID: input.LagoOrganizationID,
-		LagoProviderCode:   updated.Code,
+		LagoProviderCode:   upserted.Code,
 		ConnectedAt:        now,
 		LastSyncedAt:       now,
 	}, nil
 }
 
-type lagoPaymentProviderLookup struct {
-	PaymentProvider *struct {
-		TypeName string `json:"__typename"`
-		ID       string `json:"id"`
-		Code     string `json:"code"`
-		Name     string `json:"name"`
-	} `json:"paymentProvider"`
-}
-
-func (a *LagoBillingProviderAdapter) getPaymentProviderByCode(ctx context.Context, organizationID, code string) (*struct {
-	TypeName string `json:"__typename"`
-	ID       string `json:"id"`
-	Code     string `json:"code"`
-	Name     string `json:"name"`
-}, error) {
-	var resp lagoPaymentProviderLookup
-	err := a.transport.doGraphQLRequest(ctx, organizationID, `query alphaPaymentProviderByCode($code: String!) {
-  paymentProvider(code: $code) {
-    __typename
-    ... on StripeProvider {
-      id
-      code
-      name
-    }
-  }
-}`, map[string]any{"code": code}, &resp)
+func (a *LagoBillingProviderAdapter) getPaymentProviderByCode(ctx context.Context, code string) (*lagoStripePaymentProvider, error) {
+	path := "/api/v1/payment_providers/stripe/" + url.PathEscape(strings.TrimSpace(code))
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("lookup lago payment provider by code %q: %w", code, err)
 	}
+	if status == http.StatusNotFound {
+		return nil, nil
+	}
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("lookup lago payment provider by code %q returned status=%d body=%s", code, status, abbrevForLog(body))
+	}
+
+	var resp lagoStripePaymentProviderResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("decode lago payment provider by code %q: %w", code, err)
+	}
+	if strings.TrimSpace(resp.PaymentProvider.LagoID) == "" {
+		return nil, nil
+	}
+	return &resp.PaymentProvider, nil
+}
+
+func (a *LagoBillingProviderAdapter) upsertStripeProvider(ctx context.Context, code, displayName, secretKey string) (lagoStripePaymentProvider, error) {
+	payload := map[string]any{"payment_provider": map[string]any{
+		"code":                 code,
+		"name":                 displayName,
+		"secret_key":           secretKey,
+		"success_redirect_url": a.stripeSuccessRedirectURL,
+	}}
+	status, body, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/payment_providers/stripe", payload)
+	if err != nil {
+		return lagoStripePaymentProvider{}, fmt.Errorf("upsert lago stripe provider %q: %w", code, err)
+	}
+	var resp lagoStripePaymentProviderResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return lagoStripePaymentProvider{}, fmt.Errorf("decode lago stripe provider %q response status=%d: %w", code, status, err)
+	}
+	if strings.TrimSpace(resp.PaymentProvider.LagoID) == "" {
+		return lagoStripePaymentProvider{}, fmt.Errorf("upsert lago stripe provider %q returned empty id", code)
+	}
 	return resp.PaymentProvider, nil
-}
-
-type lagoStripeProviderMutation struct {
-	ID   string `json:"id"`
-	Code string `json:"code"`
-	Name string `json:"name"`
-}
-
-func (a *LagoBillingProviderAdapter) addStripeProvider(ctx context.Context, organizationID, code, displayName, secretKey string) (lagoStripeProviderMutation, error) {
-	var resp struct {
-		AddStripePaymentProvider lagoStripeProviderMutation `json:"addStripePaymentProvider"`
-	}
-	err := a.transport.doGraphQLRequest(ctx, organizationID, `mutation alphaAddStripePaymentProvider($input: AddStripePaymentProviderInput!) {
-  addStripePaymentProvider(input: $input) {
-    id
-    code
-    name
-  }
-}`, map[string]any{"input": map[string]any{
-		"code":               code,
-		"name":               displayName,
-		"secretKey":          secretKey,
-		"successRedirectUrl": a.stripeSuccessRedirectURL,
-	}}, &resp)
-	if err != nil {
-		return lagoStripeProviderMutation{}, fmt.Errorf("create lago stripe provider %q: %w", code, err)
-	}
-	if strings.TrimSpace(resp.AddStripePaymentProvider.ID) == "" {
-		return lagoStripeProviderMutation{}, fmt.Errorf("create lago stripe provider %q returned empty id", code)
-	}
-	return resp.AddStripePaymentProvider, nil
-}
-
-func (a *LagoBillingProviderAdapter) updateStripeProvider(ctx context.Context, organizationID, id, code, displayName string) (lagoStripeProviderMutation, error) {
-	var resp struct {
-		UpdateStripePaymentProvider lagoStripeProviderMutation `json:"updateStripePaymentProvider"`
-	}
-	err := a.transport.doGraphQLRequest(ctx, organizationID, `mutation alphaUpdateStripePaymentProvider($input: UpdateStripePaymentProviderInput!) {
-  updateStripePaymentProvider(input: $input) {
-    id
-    code
-    name
-  }
-}`, map[string]any{"input": map[string]any{
-		"id":                 id,
-		"code":               code,
-		"name":               displayName,
-		"successRedirectUrl": a.stripeSuccessRedirectURL,
-	}}, &resp)
-	if err != nil {
-		return lagoStripeProviderMutation{}, fmt.Errorf("update lago stripe provider %q: %w", code, err)
-	}
-	if strings.TrimSpace(resp.UpdateStripePaymentProvider.ID) == "" {
-		return lagoStripeProviderMutation{}, fmt.Errorf("update lago stripe provider %q returned empty id", code)
-	}
-	return resp.UpdateStripePaymentProvider, nil
 }
 
 var lagoProviderCodeSanitizer = regexp.MustCompile(`[^a-z0-9_]+`)
