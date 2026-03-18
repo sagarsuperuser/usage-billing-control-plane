@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Activity, Building2, CreditCard, LoaderCircle, ReceiptText, UserRoundPlus, Workflow } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  Building2,
+  CreditCard,
+  LoaderCircle,
+  ReceiptText,
+  ShieldCheck,
+  UserRoundPlus,
+  Workflow,
+} from "lucide-react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
@@ -89,19 +99,22 @@ export function ControlPlaneOverviewScreen() {
 
   const platformAttention = [
     {
-      title: "Billing connections in error",
+      title: "Billing connection errors",
       value: platformMetrics.providerErrors,
-      body: "Resolve provider sync errors before assigning those connections to workspaces.",
+      body: "Fix sync issues before reusing those credentials across more workspaces.",
+      href: "/billing-connections",
     },
     {
       title: "Workspaces missing pricing",
       value: platformMetrics.missingPricing,
-      body: "Finish pricing in workspace setup before billing starts.",
+      body: "Pricing remains the most common blocker before billing can run cleanly.",
+      href: "/workspaces",
     },
     {
       title: "Workspaces missing first customer",
       value: platformMetrics.missingFirstCustomer,
-      body: "Create the first billing-ready customer to complete onboarding.",
+      body: "A workspace is still not operational until a billable customer exists inside it.",
+      href: "/workspaces",
     },
   ];
 
@@ -109,17 +122,20 @@ export function ControlPlaneOverviewScreen() {
     {
       title: "Customers waiting on payment setup",
       value: tenantMetrics.pendingPayment,
-      body: "Finish payment setup or refresh payment state to reach verified readiness.",
+      body: "Push payer-owned payment setup to completion before marking accounts active.",
+      href: "/subscriptions",
     },
     {
       title: "Customers with billing sync errors",
       value: tenantMetrics.syncErrors,
-      body: "Use customer diagnostics to retry billing sync and inspect the last sync error.",
+      body: "Use diagnostics and replay paths to repair broken billing state before retrying collection.",
+      href: "/payment-operations",
     },
     {
       title: "Billing-ready customers",
       value: tenantMetrics.billingReady,
-      body: "Customers that are ready for billing and payment operations.",
+      body: "These customers are healthy enough for subscriptions, invoices, and downstream operations.",
+      href: "/customers",
     },
   ];
 
@@ -127,25 +143,25 @@ export function ControlPlaneOverviewScreen() {
     {
       href: "/billing-connections/new",
       title: "Create billing connection",
-      description: "Store the Stripe secret in Alpha, sync the provider into Lago, and keep the connection state under one platform-owned record.",
-      icon: <CreditCard className="h-5 w-5 text-fuchsia-200" />,
-      accent: "border-fuchsia-400/40 bg-fuchsia-500/10",
+      description: "Store Stripe secrets in Alpha, sync the provider into Lago, and keep credential ownership centralized.",
+      icon: <CreditCard className="h-5 w-5 text-emerald-700" />,
+      eyebrow: "Platform setup",
       scope: "platform" as const,
     },
     {
       href: "/workspaces/new",
-      title: "Create workspace",
-      description: "Create a tenant workspace, attach a connected billing provider, and hand off the first admin credential.",
-      icon: <Building2 className="h-5 w-5 text-sky-200" />,
-      accent: "border-sky-400/40 bg-sky-500/10",
+      title: "Launch workspace",
+      description: "Create a workspace, attach one active billing path, and hand off the first workspace admin cleanly.",
+      icon: <Building2 className="h-5 w-5 text-emerald-700" />,
+      eyebrow: "Platform rollout",
       scope: "platform" as const,
     },
     {
       href: "/customers/new",
-      title: "Onboard customer",
-      description: "Create the first billable customer, sync the billing profile, and start payment setup.",
-      icon: <UserRoundPlus className="h-5 w-5 text-teal-200" />,
-      accent: "border-teal-400/40 bg-teal-500/10",
+      title: "Create first customer",
+      description: "Open the workspace, create the first billable customer, and start subscription and payment setup.",
+      icon: <UserRoundPlus className="h-5 w-5 text-emerald-700" />,
+      eyebrow: "Workspace onboarding",
       scope: "tenant" as const,
     },
   ].filter((item) => item.scope === scopeKey);
@@ -154,102 +170,126 @@ export function ControlPlaneOverviewScreen() {
     {
       href: "/billing-connections",
       title: "Billing Connections",
-      description: "Browse Stripe connection health, sync status, and operational mapping owned by Alpha.",
-      icon: <CreditCard className="h-5 w-5 text-fuchsia-200" />,
-      accent: "border-fuchsia-400/40 bg-fuchsia-500/10",
+      description: "Provider credentials, sync health, and workspace reuse live here.",
+      icon: <CreditCard className="h-5 w-5 text-emerald-700" />,
       scope: "platform" as const,
     },
     {
       href: "/workspaces",
       title: "Workspaces",
-      description: "Browse workspace health, billing connection state, and onboarding readiness from one platform directory.",
-      icon: <Building2 className="h-5 w-5 text-sky-200" />,
-      accent: "border-sky-400/40 bg-sky-500/10",
+      description: "See which workspaces are launched, blocked, or missing operational setup.",
+      icon: <Building2 className="h-5 w-5 text-emerald-700" />,
       scope: "platform" as const,
     },
     {
       href: "/customers",
       title: "Customers",
-      description: "Browse customer billing readiness, payment setup state, and recovery needs from one tenant directory.",
-      icon: <UserRoundPlus className="h-5 w-5 text-teal-200" />,
-      accent: "border-teal-400/40 bg-teal-500/10",
+      description: "Track readiness, sync health, and payment setup progression inside the workspace.",
+      icon: <UserRoundPlus className="h-5 w-5 text-emerald-700" />,
+      scope: "tenant" as const,
+    },
+    {
+      href: "/subscriptions",
+      title: "Subscriptions",
+      description: "Own activation state and payer-owned payment setup as one operating flow.",
+      icon: <ShieldCheck className="h-5 w-5 text-emerald-700" />,
       scope: "tenant" as const,
     },
     {
       href: "/payment-operations",
       title: "Payments",
-      description: "Monitor invoice payment failures, inspect webhook history, and trigger payment retries.",
-      icon: <Activity className="h-5 w-5 text-cyan-200" />,
-      accent: "border-cyan-400/40 bg-cyan-500/10",
+      description: "Investigate failed collections, retries, and operational follow-up.",
+      icon: <Activity className="h-5 w-5 text-emerald-700" />,
+      scope: "tenant" as const,
+    },
+    {
+      href: "/invoice-explainability",
+      title: "Explainability",
+      description: "Show how invoice outcomes were computed when finance or support needs evidence.",
+      icon: <ReceiptText className="h-5 w-5 text-emerald-700" />,
       scope: "tenant" as const,
     },
     {
       href: "/replay-operations",
       title: "Recovery",
-      description: "Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.",
-      icon: <Workflow className="h-5 w-5 text-amber-200" />,
-      accent: "border-amber-400/40 bg-amber-500/10",
-      scope: "tenant" as const,
-    },
-    {
-      href: "/invoice-explainability",
-      title: "Invoice Explainability",
-      description: "Show deterministic line-item computation trace and digest for financial correctness workflows.",
-      icon: <ReceiptText className="h-5 w-5 text-emerald-200" />,
-      accent: "border-emerald-400/40 bg-emerald-500/10",
+      description: "Repair failed processing runs without dropping to backend-only operational tooling.",
+      icon: <Workflow className="h-5 w-5 text-emerald-700" />,
       scope: "tenant" as const,
     },
   ].filter((item) => item.scope === scopeKey);
 
   const sessionHeadline =
     scope === "platform"
-      ? "Platform control view"
-      : `Tenant workspace view${session?.tenant_id ? ` · ${session.tenant_id}` : ""}`;
+      ? "Platform operating surface"
+      : `Workspace operating surface${session?.tenant_id ? ` · ${session.tenant_id}` : ""}`;
   const sessionSubcopy =
     scope === "platform"
-      ? "Create billing connections first, then assign them to workspaces and complete tenant onboarding with clean ownership boundaries."
-      : "Use this view to onboard customers, verify payment readiness, and keep billing operations healthy inside one workspace.";
+      ? "Use Alpha to manage reusable billing credentials, launch workspaces, and hand ownership off without exposing Lago internals."
+      : "Use Alpha to run pricing, customer onboarding, subscriptions, and payment operations inside one workspace boundary.";
+
+  const heroMetrics =
+    scope === "platform"
+      ? [
+          { label: "Workspaces", value: platformMetrics.total, detail: "Active workspace directory" },
+          { label: "Connected credentials", value: platformMetrics.connectedProviders, detail: "Healthy billing connections" },
+          { label: "Missing billing", value: platformMetrics.missingBilling, detail: "Workspaces not yet attached" },
+        ]
+      : [
+          { label: "Customers", value: tenantMetrics.total, detail: "Accounts visible in this workspace" },
+          { label: "Billing-ready", value: tenantMetrics.billingReady, detail: "Customers ready for operations" },
+          { label: "Pending payment setup", value: tenantMetrics.pendingPayment, detail: "Action still required" },
+        ];
+
   const primaryAction = guidedJourneys[0] ?? workspaceModules[0] ?? null;
+  const attentionCards = scope === "platform" ? platformAttention : tenantAttention;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#172554_0%,_#0f172a_38%,_#090d16_78%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-60">
-        <div className="absolute -left-20 top-0 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-orange-500/10 blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#dfeee3_0%,#f5efe4_18%,#f7f3eb_100%)] text-slate-900">
+      <main className="mx-auto flex max-w-[1360px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
-        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Alpha Admin</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">
-              Billing operations that feel product-first
+        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-[32px] border border-emerald-900/10 bg-white/88 p-6 shadow-[0_25px_70px_rgba(15,23,42,0.08)] backdrop-blur">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/70">Alpha operating system</p>
+            <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+              Billing operations should read like a product, not like engine wiring.
             </h1>
-            <p className="mt-3 max-w-3xl text-sm text-slate-300 md:text-base">
-              Run billing connections, workspace setup, customer onboarding, payment recovery, and diagnostics from Alpha.
-              Lago stays behind the scenes as the billing engine.
+            <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
+              Alpha owns the control plane. Billing connections, workspaces, customers, subscriptions, recovery, and access all stay visible as product modules while Lago remains internal execution infrastructure.
             </p>
+
+            <div className="mt-6 grid gap-3 md:grid-cols-3">
+              {heroMetrics.map((metric) => (
+                <div key={metric.label} className="rounded-[24px] border border-stone-200 bg-stone-50/85 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{metric.label}</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{metric.value}</p>
+                  <p className="mt-2 text-sm text-slate-600">{metric.detail}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="rounded-3xl border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.72),rgba(15,23,42,0.9))] p-6 backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Current session</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">{sessionHeadline}</h2>
-            <p className="mt-3 text-sm text-slate-300">{sessionSubcopy}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em]">
-              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-cyan-100">
+
+          <div className="rounded-[32px] border border-emerald-900/10 bg-[linear-gradient(160deg,#0f3b2f_0%,#1b5a45_100%)] p-6 text-emerald-50 shadow-[0_25px_70px_rgba(15,23,42,0.12)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-100/70">Current session</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight">{sessionHeadline}</h2>
+            <p className="mt-4 text-sm leading-7 text-emerald-50/78">{sessionSubcopy}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-50">
                 {scope === "platform" ? platformRole ?? "platform" : session?.role ?? "reader"}
               </span>
               {session?.tenant_id ? (
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">{session.tenant_id}</span>
+                <span className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-50">
+                  {session.tenant_id}
+                </span>
               ) : null}
             </div>
             {primaryAction ? (
               <Link
                 href={primaryAction.href}
-                className="mt-5 inline-flex rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20"
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-50"
               >
                 Open {primaryAction.title}
+                <ArrowRight className="h-4 w-4" />
               </Link>
             ) : null}
           </div>
@@ -257,67 +297,66 @@ export function ControlPlaneOverviewScreen() {
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
-        <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Get Started</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Primary onboarding journeys</h2>
-            <p className="mt-3 max-w-2xl text-sm text-slate-300">
-              Start with the guided flow for this session. Recovery and diagnostics stay available, but they should not be the
-              first stop for normal onboarding.
-            </p>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              {guidedJourneys.map((item) => (
-                <Card
-                  key={item.href}
-                  href={item.href}
-                  title={item.title}
-                  description={item.description}
-                  icon={item.icon}
-                  accent={item.accent}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Needs Attention</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Operational focus</h2>
+        <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-[32px] border border-emerald-900/10 bg-white/88 p-6 shadow-[0_25px_70px_rgba(15,23,42,0.08)] backdrop-blur">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700/70">Immediate focus</p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">Signals that need action</h2>
             {isLoading || attentionLoading ? (
-              <div className="mt-5 flex items-center gap-2 text-sm text-slate-300">
+              <div className="mt-5 flex items-center gap-2 text-sm text-slate-600">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading live attention data
+                Loading live operating signals
               </div>
             ) : (
               <div className="mt-5 grid gap-3">
-                {(scope === "platform" ? platformAttention : tenantAttention).map((item) => (
-                  <div key={item.title} className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                    <div className="flex items-end justify-between gap-3">
+                {attentionCards.map((item) => (
+                  <Link
+                    key={item.title}
+                    href={item.href}
+                    className="rounded-[24px] border border-stone-200 bg-stone-50/85 p-4 transition hover:border-emerald-200 hover:bg-white"
+                  >
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{item.title}</p>
-                        <p className="mt-2 text-3xl font-semibold text-white">{item.value}</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{item.title}</p>
+                        <p className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">{item.value}</p>
                       </div>
+                      <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
+                        Open
+                      </span>
                     </div>
-                    <p className="mt-3 text-sm text-slate-300">{item.body}</p>
-                  </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">{item.body}</p>
+                  </Link>
                 ))}
               </div>
             )}
           </div>
+
+          <div className="rounded-[32px] border border-emerald-900/10 bg-white/88 p-6 shadow-[0_25px_70px_rgba(15,23,42,0.08)] backdrop-blur">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700/70">Guided work</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Start with the right operational loop</h2>
+              </div>
+              <p className="text-sm text-slate-500">Alpha should show ownership boundaries clearly, not force users through engine terminology.</p>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {guidedJourneys.map((item) => (
+                <GuidedCard key={item.href} href={item.href} title={item.title} description={item.description} eyebrow={item.eyebrow} icon={item.icon} />
+              ))}
+            </div>
+          </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Modules</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">Role-aware product surfaces</h2>
+        <section className="rounded-[32px] border border-emerald-900/10 bg-white/88 p-6 shadow-[0_25px_70px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700/70">Modules</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Browse the product by operational surface</h2>
+            </div>
+            <p className="text-sm text-slate-500">The shell should feel closer to a product catalogue than a flat list of routes.</p>
+          </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {workspaceModules.map((item) => (
-              <Card
-                key={item.href}
-                href={item.href}
-                title={item.title}
-                description={item.description}
-                icon={item.icon}
-                accent={item.accent}
-              />
+              <ModuleCard key={item.href} href={item.href} title={item.title} description={item.description} icon={item.icon} />
             ))}
           </div>
         </section>
@@ -326,27 +365,50 @@ export function ControlPlaneOverviewScreen() {
   );
 }
 
-function Card({
+function GuidedCard({
+  href,
+  title,
+  description,
+  eyebrow,
+  icon,
+}: {
+  href: string;
+  title: string;
+  description: string;
+  eyebrow: string;
+  icon: ReactNode;
+}) {
+  return (
+    <Link href={href} className="rounded-[24px] border border-stone-200 bg-stone-50/85 p-4 transition hover:border-emerald-200 hover:bg-white">
+      <span className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 p-3">{icon}</span>
+      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700/70">{eyebrow}</p>
+      <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+    </Link>
+  );
+}
+
+function ModuleCard({
   href,
   title,
   description,
   icon,
-  accent,
 }: {
   href: string;
   title: string;
   description: string;
   icon: ReactNode;
-  accent: string;
 }) {
   return (
-    <Link
-      href={href}
-      className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-white/20 ${accent}`}
-    >
-      <span className="inline-flex rounded-xl border border-white/10 bg-slate-950/60 p-3">{icon}</span>
-      <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
-      <p className="mt-2 text-sm text-slate-300">{description}</p>
+    <Link href={href} className="rounded-[24px] border border-stone-200 bg-[#fbfaf6] p-5 transition hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-white">
+      <div className="flex items-start justify-between gap-4">
+        <span className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 p-3">{icon}</span>
+        <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+          Open
+        </span>
+      </div>
+      <h3 className="mt-5 text-xl font-semibold tracking-tight text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
     </Link>
   );
 }
