@@ -30,6 +30,15 @@ type fakeHTTPSSOProvider struct {
 	claims     service.BrowserSSOClaims
 }
 
+type fakePasswordResetEmailSender struct {
+	inputs []service.PasswordResetEmail
+}
+
+func (s *fakePasswordResetEmailSender) SendPasswordReset(input service.PasswordResetEmail) error {
+	s.inputs = append(s.inputs, input)
+	return nil
+}
+
 func (p fakeHTTPSSOProvider) Definition() service.BrowserSSOProviderDefinition {
 	return p.definition
 }
@@ -735,6 +744,104 @@ func TestUISSOCallbackProvisionInvitedUserAndRedirectsBackToInvitation(t *testin
 	if got := user.DisplayName; got != "Invited SSO" {
 		t.Fatalf("expected provisioned display name from claims, got %q", got)
 	}
+}
+
+func TestUIPasswordForgotAndResetFlow(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:    "reset-user@tenant.test",
+		password: "old password 123",
+		role:     "writer",
+		tenantID: "tenant_reset",
+	})
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_password_reset_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	resetSender := &fakePasswordResetEmailSender{}
+	client := newSessionClient(t)
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+		api.WithBrowserUserAuthService(mustNewBrowserUserAuthService(t, repo)),
+		api.WithPasswordResetService(service.NewPasswordResetService(repo, time.Hour)),
+		api.WithPasswordResetEmailSender(resetSender),
+		api.WithUIPublicBaseURL("http://app.example.test"),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	resp := sessionPostJSON(t, client, ts.URL+"/v1/ui/password/forgot", map[string]any{
+		"email": "reset-user@tenant.test",
+	}, "", http.StatusAccepted)
+	if requested, _ := resp["requested"].(bool); !requested {
+		t.Fatalf("expected password reset request to be accepted")
+	}
+	if len(resetSender.inputs) != 1 {
+		t.Fatalf("expected one password reset email, got %d", len(resetSender.inputs))
+	}
+	resetURL, err := url.Parse(resetSender.inputs[0].ResetURL)
+	if err != nil {
+		t.Fatalf("parse reset url: %v", err)
+	}
+	token := strings.TrimSpace(resetURL.Query().Get("token"))
+	if token == "" {
+		t.Fatalf("expected reset token in password reset email")
+	}
+
+	resetResult := sessionPostJSON(t, client, ts.URL+"/v1/ui/password/reset", map[string]any{
+		"token":    token,
+		"password": "new password 123",
+	}, "", http.StatusCreated)
+	if reset, _ := resetResult["reset"].(bool); !reset {
+		t.Fatalf("expected reset result true")
+	}
+
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":    "reset-user@tenant.test",
+		"password": "new password 123",
+	}, "", http.StatusCreated)
+	if got, _ := loginResp["tenant_id"].(string); got != "tenant_reset" {
+		t.Fatalf("expected tenant_reset after login with new password, got %q", got)
+	}
+
+	sessionPostJSON(t, client, ts.URL+"/v1/ui/password/reset", map[string]any{
+		"token":    token,
+		"password": "another password 123",
+	}, "", http.StatusGone)
+}
+
+func mustNewBrowserUserAuthService(t *testing.T, repo *store.PostgresStore) *service.BrowserUserAuthService {
+	t.Helper()
+	authSvc, err := service.NewBrowserUserAuthService(repo)
+	if err != nil {
+		t.Fatalf("new browser user auth service: %v", err)
+	}
+	return authSvc
 }
 
 func newSessionClient(t *testing.T) *http.Client {

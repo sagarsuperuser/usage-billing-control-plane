@@ -40,6 +40,8 @@ type Server struct {
 	workspaceBillingBindingService   *service.WorkspaceBillingBindingService
 	workspaceAccessService           *service.WorkspaceAccessService
 	workspaceInvitationEmailSender   service.WorkspaceInvitationEmailSender
+	passwordResetService             *service.PasswordResetService
+	passwordResetEmailSender         service.PasswordResetEmailSender
 	browserUserAuthService           *service.BrowserUserAuthService
 	browserSSOService                *service.BrowserSSOService
 	pricingMetricService             *service.PricingMetricService
@@ -123,6 +125,10 @@ type workspaceSelectionResponse struct {
 type pendingInvitationLoginResponse struct {
 	PendingInvitation bool   `json:"pending_invitation"`
 	NextPath          string `json:"next_path,omitempty"`
+}
+
+type passwordResetRequestedResponse struct {
+	Requested bool `json:"requested"`
 }
 
 type workspaceInvitationPreviewResponse struct {
@@ -515,6 +521,18 @@ func WithWorkspaceAccessService(svc *service.WorkspaceAccessService) ServerOptio
 func WithWorkspaceInvitationEmailSender(sender service.WorkspaceInvitationEmailSender) ServerOption {
 	return func(s *Server) {
 		s.workspaceInvitationEmailSender = sender
+	}
+}
+
+func WithPasswordResetService(svc *service.PasswordResetService) ServerOption {
+	return func(s *Server) {
+		s.passwordResetService = svc
+	}
+}
+
+func WithPasswordResetEmailSender(sender service.PasswordResetEmailSender) ServerOption {
+	return func(s *Server) {
+		s.passwordResetEmailSender = sender
 	}
 }
 
@@ -1363,6 +1381,12 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/v1/ui/auth/providers" {
 		return "", false
 	}
+	if path == "/v1/ui/password/forgot" {
+		return "", false
+	}
+	if path == "/v1/ui/password/reset" {
+		return "", false
+	}
 	if path == "/v1/ui/workspaces/pending" {
 		return "", false
 	}
@@ -1593,6 +1617,10 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/ui/sessions/login"
 	case path == "/v1/ui/auth/providers":
 		return "/v1/ui/auth/providers"
+	case path == "/v1/ui/password/forgot":
+		return "/v1/ui/password/forgot"
+	case path == "/v1/ui/password/reset":
+		return "/v1/ui/password/reset"
 	case strings.HasPrefix(path, "/v1/ui/auth/sso/"):
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/ui/auth/sso/"), "/")
 		if strings.HasSuffix(tail, "/start") {
@@ -1759,6 +1787,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/ui/workspaces/select", s.handleUIWorkspaceSelectionSelect)
 	s.mux.HandleFunc("/v1/ui/invitations/", s.handleUIInvitations)
 	s.mux.HandleFunc("/v1/ui/auth/sso/", s.handleUISSO)
+	s.mux.HandleFunc("/v1/ui/password/forgot", s.handleUIPasswordForgot)
+	s.mux.HandleFunc("/v1/ui/password/reset", s.handleUIPasswordReset)
 	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
 	s.mux.HandleFunc("/v1/ui/sessions/rate-limit-probe", s.handleUIPreAuthRateLimitProbe)
 	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
@@ -2372,6 +2402,15 @@ type uiInvitationRegisterRequest struct {
 	Password    string `json:"password"`
 }
 
+type uiPasswordForgotRequest struct {
+	Email string `json:"email"`
+}
+
+type uiPasswordResetRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
 type uiWorkspaceSelectRequest struct {
 	TenantID string `json:"tenant_id"`
 }
@@ -2453,8 +2492,94 @@ func (s *Server) handleUIAuthProviders(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"password_enabled": true,
-		"sso_providers":    providers,
+		"password_enabled":       true,
+		"password_reset_enabled": s.passwordResetService != nil && s.passwordResetEmailSender != nil,
+		"sso_providers":          providers,
+	})
+}
+
+func (s *Server) handleUIPasswordForgot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.rateLimiter != nil {
+		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
+			return
+		}
+	}
+	if s.passwordResetService == nil || s.passwordResetEmailSender == nil {
+		writeError(w, http.StatusServiceUnavailable, "password reset is not configured")
+		return
+	}
+	var req uiPasswordForgotRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	if req.Email == "" {
+		writeError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+	issued, err := s.passwordResetService.IssuePasswordReset(req.Email)
+	switch {
+	case err == nil:
+		s.sendPasswordResetEmail(issued)
+	case errors.Is(err, store.ErrNotFound):
+		// Keep the response neutral to avoid leaking account existence.
+	default:
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, passwordResetRequestedResponse{Requested: true})
+}
+
+func (s *Server) handleUIPasswordReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.rateLimiter != nil {
+		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
+			return
+		}
+	}
+	if s.passwordResetService == nil {
+		writeError(w, http.StatusServiceUnavailable, "password reset is not configured")
+		return
+	}
+	var req uiPasswordResetRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.Token = strings.TrimSpace(req.Token)
+	req.Password = strings.TrimSpace(req.Password)
+	if req.Token == "" || req.Password == "" {
+		writeError(w, http.StatusBadRequest, "token and password are required")
+		return
+	}
+	user, err := s.passwordResetService.ResetPassword(req.Token, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			writeError(w, http.StatusNotFound, "password reset token not found")
+		case errors.Is(err, service.ErrPasswordResetTokenExpired):
+			writeError(w, http.StatusGone, "password reset token expired")
+		case errors.Is(err, service.ErrPasswordResetTokenUsed):
+			writeError(w, http.StatusGone, "password reset token already used")
+		default:
+			writeDomainError(w, err)
+		}
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"reset": true,
+		"user": map[string]any{
+			"email":        user.Email,
+			"display_name": user.DisplayName,
+		},
 	})
 }
 
@@ -3122,6 +3247,17 @@ func (s *Server) workspaceInvitationAcceptURL(token string) (string, string) {
 	return acceptPath, acceptURL
 }
 
+func (s *Server) uiPasswordResetURL(token string) string {
+	target, err := url.Parse(strings.TrimRight(s.uiPublicBaseURL, "/") + "/reset-password")
+	if err != nil {
+		return "/reset-password?token=" + url.QueryEscape(strings.TrimSpace(token))
+	}
+	query := target.Query()
+	query.Set("token", strings.TrimSpace(token))
+	target.RawQuery = query.Encode()
+	return target.String()
+}
+
 func normalizeUINextPath(nextPath string) string {
 	nextPath = strings.TrimSpace(nextPath)
 	if nextPath == "" || nextPath == "/" {
@@ -3225,6 +3361,25 @@ func (s *Server) sendWorkspaceInvitationEmail(workspaceID, invitedByEmail string
 			"workspace_id", workspaceID,
 			"invitation_id", issued.Invitation.ID,
 			"email", issued.Invitation.Email,
+			"error", err,
+		)
+	}
+}
+
+func (s *Server) sendPasswordResetEmail(issued service.PasswordResetIssueResult) {
+	if s == nil || s.passwordResetEmailSender == nil {
+		return
+	}
+	if err := s.passwordResetEmailSender.SendPasswordReset(service.PasswordResetEmail{
+		ToEmail:   issued.UserEmail,
+		ResetURL:  s.uiPasswordResetURL(issued.RawToken),
+		ExpiresAt: issued.Token.ExpiresAt,
+	}); err != nil && s.logger != nil {
+		s.logger.Warn(
+			"password reset email delivery failed",
+			"component", "server",
+			"user_email", issued.UserEmail,
+			"reset_token_id", issued.Token.ID,
 			"error", err,
 		)
 	}

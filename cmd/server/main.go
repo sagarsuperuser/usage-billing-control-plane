@@ -330,14 +330,36 @@ func main() {
 			fatal(logger, "initialize workspace invitation email sender", "error", err)
 		}
 		serverOpts = append(serverOpts, api.WithWorkspaceInvitationEmailSender(invitationEmailSender))
+
+		passwordResetEmailSender, err := service.NewSMTPPasswordResetEmailSender(service.SMTPPasswordResetEmailConfig{
+			Host:      cfg.Email.SMTPHost,
+			Port:      cfg.Email.SMTPPort,
+			Username:  cfg.Email.SMTPUsername,
+			Password:  cfg.Email.SMTPPassword,
+			FromEmail: cfg.Email.FromEmail,
+			FromName:  cfg.Email.FromName,
+		})
+		if err != nil {
+			fatal(logger, "initialize password reset email sender", "error", err)
+		}
+		serverOpts = append(serverOpts, api.WithPasswordResetEmailSender(passwordResetEmailSender))
+		serverOpts = append(serverOpts, api.WithPasswordResetService(service.NewPasswordResetService(repo, cfg.Email.ResetTokenTTL)))
 		logger.Info(
 			"workspace invitation email enabled",
 			"component", "server",
 			"smtp_host", cfg.Email.SMTPHost,
 			"from_email", cfg.Email.FromEmail,
 		)
+		logger.Info(
+			"password reset email enabled",
+			"component", "server",
+			"smtp_host", cfg.Email.SMTPHost,
+			"from_email", cfg.Email.FromEmail,
+			"reset_ttl", cfg.Email.ResetTokenTTL.String(),
+		)
 	} else {
 		logger.Info("workspace invitation email disabled", "component", "server")
+		logger.Info("password reset email disabled", "component", "server")
 	}
 
 	if len(cfg.SSO.OIDCProviders) > 0 {

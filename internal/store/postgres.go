@@ -1331,6 +1331,115 @@ func (s *PostgresStore) GetUserPasswordCredential(userID string) (domain.UserPas
 	return out, nil
 }
 
+func (s *PostgresStore) CreatePasswordResetToken(input domain.PasswordResetToken) (domain.PasswordResetToken, error) {
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.TokenHash = strings.TrimSpace(input.TokenHash)
+	if input.UserID == "" || input.TokenHash == "" || input.ExpiresAt.IsZero() {
+		return domain.PasswordResetToken{}, fmt.Errorf("validation failed: user_id, token_hash, and expires_at are required")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.PasswordResetToken{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, used_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, user_id, token_hash, expires_at, used_at, created_at, updated_at`,
+		input.UserID, input.TokenHash, input.ExpiresAt, input.UsedAt, input.CreatedAt, input.UpdatedAt)
+	out, err := scanPasswordResetToken(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.PasswordResetToken{}, ErrAlreadyExists
+		}
+		return domain.PasswordResetToken{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.PasswordResetToken{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetPasswordResetTokenByTokenHash(tokenHash string) (domain.PasswordResetToken, error) {
+	tokenHash = strings.TrimSpace(tokenHash)
+	if tokenHash == "" {
+		return domain.PasswordResetToken{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.PasswordResetToken{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, user_id, token_hash, expires_at, used_at, created_at, updated_at FROM password_reset_tokens WHERE token_hash = $1`, tokenHash)
+	out, err := scanPasswordResetToken(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.PasswordResetToken{}, ErrNotFound
+		}
+		return domain.PasswordResetToken{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.PasswordResetToken{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdatePasswordResetToken(input domain.PasswordResetToken) (domain.PasswordResetToken, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.TokenHash = strings.TrimSpace(input.TokenHash)
+	if input.ID == "" || input.UserID == "" || input.TokenHash == "" || input.ExpiresAt.IsZero() {
+		return domain.PasswordResetToken{}, fmt.Errorf("validation failed: id, user_id, token_hash, and expires_at are required")
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = time.Now().UTC()
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.PasswordResetToken{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `UPDATE password_reset_tokens SET user_id = $1, token_hash = $2, expires_at = $3, used_at = $4, updated_at = $5
+		WHERE id = $6
+		RETURNING id, user_id, token_hash, expires_at, used_at, created_at, updated_at`,
+		input.UserID, input.TokenHash, input.ExpiresAt, input.UsedAt, input.UpdatedAt, input.ID)
+	out, err := scanPasswordResetToken(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.PasswordResetToken{}, ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return domain.PasswordResetToken{}, ErrAlreadyExists
+		}
+		return domain.PasswordResetToken{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.PasswordResetToken{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) UpsertUserTenantMembership(input domain.UserTenantMembership) (domain.UserTenantMembership, error) {
 	input.UserID = strings.TrimSpace(input.UserID)
 	input.TenantID = normalizeTenantID(input.TenantID)
@@ -5888,6 +5997,17 @@ func scanUserPasswordCredential(s rowScanner) (domain.UserPasswordCredential, er
 	}
 	out.UserID = strings.TrimSpace(out.UserID)
 	out.PasswordHash = strings.TrimSpace(out.PasswordHash)
+	return out, nil
+}
+
+func scanPasswordResetToken(s rowScanner) (domain.PasswordResetToken, error) {
+	var out domain.PasswordResetToken
+	if err := s.Scan(&out.ID, &out.UserID, &out.TokenHash, &out.ExpiresAt, &out.UsedAt, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.PasswordResetToken{}, err
+	}
+	out.ID = strings.TrimSpace(out.ID)
+	out.UserID = strings.TrimSpace(out.UserID)
+	out.TokenHash = strings.TrimSpace(out.TokenHash)
 	return out, nil
 }
 

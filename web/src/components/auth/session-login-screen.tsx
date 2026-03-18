@@ -23,6 +23,7 @@ export function SessionLoginScreen() {
   const requestedNext = searchParams.get("next");
   const providerKey = searchParams.get("provider");
   const authError = searchParams.get("error");
+  const resetState = searchParams.get("reset");
   const authProvidersQuery = useQuery({
     queryKey: ["ui-auth-providers", apiBaseURL],
     queryFn: () => fetchUIAuthProviders({ runtimeBaseURL: apiBaseURL }),
@@ -83,10 +84,16 @@ export function SessionLoginScreen() {
         </section>
 
         <section className="flex items-center">
+          {resetState === "success" ? (
+            <div className="mr-6 w-full max-w-md rounded-3xl border border-emerald-400/30 bg-emerald-500/10 p-5 text-sm text-emerald-100 backdrop-blur-xl">
+              Password updated. Sign in with your new password.
+            </div>
+          ) : null}
           {authError ? (
             <div className="sr-only">{authError}</div>
           ) : null}
           <SessionLoginCard
+            passwordResetEnabled={Boolean(authProvidersQuery.data?.password_reset_enabled)}
             nextPath={requestedNext}
             onSuccess={(nextSession) => {
               router.replace(resolveTarget(nextSession, requestedNext));

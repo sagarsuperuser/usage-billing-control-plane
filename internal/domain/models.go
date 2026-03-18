@@ -158,6 +158,16 @@ type UserPasswordCredential struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
+type PasswordResetToken struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	TokenHash string     `json:"-"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
 type UserTenantMembership struct {
 	UserID    string                     `json:"user_id"`
 	TenantID  string                     `json:"tenant_id"`

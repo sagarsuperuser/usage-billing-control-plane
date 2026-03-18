@@ -129,12 +129,13 @@ type AuditExportConfig struct {
 }
 
 type InvitationEmailConfig struct {
-	SMTPHost     string
-	SMTPPort     int
-	SMTPUsername string
-	SMTPPassword string
-	FromEmail    string
-	FromName     string
+	SMTPHost      string
+	SMTPPort      int
+	SMTPUsername  string
+	SMTPPassword  string
+	FromEmail     string
+	FromName      string
+	ResetTokenTTL time.Duration
 }
 
 func LoadServerConfigFromEnv() (ServerConfig, error) {
@@ -251,6 +252,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	inviteSMTPPassword := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_SMTP_PASSWORD"))
 	inviteFromEmail := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_FROM_EMAIL"))
 	inviteFromName := strings.TrimSpace(os.Getenv("INVITATION_EMAIL_FROM_NAME"))
+	passwordResetTTL := getDurationEnv("PASSWORD_RESET_TOKEN_TTL", time.Hour)
 	if inviteSMTPHost != "" {
 		if inviteFromEmail == "" {
 			return ServerConfig{}, fmt.Errorf("INVITATION_EMAIL_FROM_EMAIL is required when invitation email delivery is configured")
@@ -330,12 +332,13 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			WorkerPoll:  time.Duration(getIntEnv("AUDIT_EXPORT_WORKER_POLL_MS", 500)) * time.Millisecond,
 		},
 		Email: InvitationEmailConfig{
-			SMTPHost:     inviteSMTPHost,
-			SMTPPort:     inviteSMTPPort,
-			SMTPUsername: inviteSMTPUsername,
-			SMTPPassword: inviteSMTPPassword,
-			FromEmail:    inviteFromEmail,
-			FromName:     inviteFromName,
+			SMTPHost:      inviteSMTPHost,
+			SMTPPort:      inviteSMTPPort,
+			SMTPUsername:  inviteSMTPUsername,
+			SMTPPassword:  inviteSMTPPassword,
+			FromEmail:     inviteFromEmail,
+			FromName:      inviteFromName,
+			ResetTokenTTL: passwordResetTTL,
 		},
 	}
 

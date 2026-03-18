@@ -226,6 +226,42 @@ export async function fetchUIAuthProviders(input: {
   return payload;
 }
 
+export async function requestPasswordReset(input: {
+  runtimeBaseURL?: string;
+  email: string;
+}): Promise<{ requested: boolean }> {
+  const payload = await apiRequest<{ requested: boolean }>("/v1/ui/password/forgot", {
+    method: "POST",
+    runtimeBaseURL: input.runtimeBaseURL,
+    body: {
+      email: input.email,
+    },
+  });
+  if (!payload) {
+    throw new Error("password reset request failed");
+  }
+  return payload;
+}
+
+export async function resetPassword(input: {
+  runtimeBaseURL?: string;
+  token: string;
+  password: string;
+}): Promise<{ reset: boolean; user: { email: string; display_name: string } }> {
+  const payload = await apiRequest<{ reset: boolean; user: { email: string; display_name: string } }>("/v1/ui/password/reset", {
+    method: "POST",
+    runtimeBaseURL: input.runtimeBaseURL,
+    body: {
+      token: input.token,
+      password: input.password,
+    },
+  });
+  if (!payload) {
+    throw new Error("password reset failed");
+  }
+  return payload;
+}
+
 export async function logoutUISession(input: {
   runtimeBaseURL?: string;
   csrfToken: string;

@@ -53,6 +53,7 @@ export interface UIAuthProvider {
 
 export interface UIAuthProviderList {
   password_enabled: boolean;
+  password_reset_enabled: boolean;
   sso_providers: UIAuthProvider[];
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { LoaderCircle, LogIn } from "lucide-react";
 
 import type { UISession } from "@/lib/types";
@@ -8,11 +9,13 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { isInvitationPendingLoginError, isWorkspaceSelectionRequiredError } from "@/lib/api";
 
 export function SessionLoginCard({
+  passwordResetEnabled,
   onSuccess,
   onSelectionRequired,
   onInvitationPending,
   nextPath,
 }: {
+  passwordResetEnabled?: boolean;
   onSuccess?: (session: UISession) => void;
   onSelectionRequired?: () => void;
   onInvitationPending?: (nextPath: string) => void;
@@ -105,6 +108,13 @@ export function SessionLoginCard({
             Start session
           </button>
         </div>
+        {passwordResetEnabled ? (
+          <div className="flex justify-end">
+            <Link href="/forgot-password" className="text-xs text-cyan-200 transition hover:text-cyan-100">
+              Forgot password?
+            </Link>
+          </div>
+        ) : null}
       </form>
 
       <p className="mt-3 text-[11px] uppercase tracking-[0.14em] text-cyan-200/80">
