@@ -18,6 +18,68 @@ function formatState(value?: string): string {
   return value.replaceAll("_", " ");
 }
 
+type PaymentActionInput = {
+  lifecycle: {
+    recommended_action: "none" | "monitor_processing" | "retry_payment" | "collect_payment" | "investigate";
+    recommended_action_note: string;
+  };
+};
+
+function paymentActionConfig(payment: PaymentActionInput) {
+  switch (payment.lifecycle.recommended_action) {
+    case "retry_payment":
+      return {
+        title: "Retry payment collection",
+        body:
+          payment.lifecycle.recommended_action_note ||
+          "Recent failures look retryable. Retry collection first, then escalate to recovery or explainability only if the state does not move.",
+        emphasizeRetry: true,
+        showRecovery: false,
+        showExplainability: false,
+      };
+    case "collect_payment":
+      return {
+        title: "Collect payment before replaying",
+        body:
+          payment.lifecycle.recommended_action_note ||
+          "The main issue is missing or incomplete payment collection. Use customer and invoice flows to collect payment before running deeper recovery.",
+        emphasizeRetry: false,
+        showRecovery: false,
+        showExplainability: false,
+      };
+    case "investigate":
+      return {
+        title: "Investigate before retrying",
+        body:
+          payment.lifecycle.recommended_action_note ||
+          "The signal points to a state or projection issue rather than a simple transient failure. Use explainability and replay recovery before retrying collection.",
+        emphasizeRetry: false,
+        showRecovery: true,
+        showExplainability: true,
+      };
+    case "monitor_processing":
+      return {
+        title: "Monitor processing state",
+        body:
+          payment.lifecycle.recommended_action_note ||
+          "Payment processing is still in flight. Monitor the event timeline before taking manual recovery action.",
+        emphasizeRetry: false,
+        showRecovery: false,
+        showExplainability: false,
+      };
+    default:
+      return {
+        title: "No action required",
+        body:
+          payment.lifecycle.recommended_action_note ||
+          "Payment activity currently looks healthy. Use linked invoice, customer, and event timelines for normal inspection.",
+        emphasizeRetry: false,
+        showRecovery: false,
+        showExplainability: false,
+      };
+  }
+}
+
 export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
   const [eventLimit, setEventLimit] = useState(25);
@@ -50,6 +112,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
   });
 
   const payment = paymentQuery.data;
+  const actionConfig = payment ? paymentActionConfig(payment) : null;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -201,18 +264,21 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Recommended action" value={formatState(payment.lifecycle.recommended_action)} />
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                      {payment.lifecycle.recommended_action_note || "Use retry for transient payment failures. Use replay recovery and explainability when invoice-state drift or webhook projection issues need investigation."}
+                      <p className="font-semibold text-slate-950">{actionConfig?.title || "No action required"}</p>
+                      <p className="mt-2">{actionConfig?.body || "No payment action guidance is currently available."}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => retryMutation.mutate()}
-                      disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Retry collection
-                    </button>
-                    {payment.customer_external_id ? (
+                    {actionConfig?.emphasizeRetry ? (
+                      <button
+                        type="button"
+                        onClick={() => retryMutation.mutate()}
+                        disabled={!canWrite || !csrfToken || retryMutation.isPending}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        Retry collection
+                      </button>
+                    ) : null}
+                    {payment.customer_external_id && actionConfig?.showRecovery ? (
                       <Link
                         href={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
                         className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
@@ -220,12 +286,22 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                         Open recovery tools
                       </Link>
                     ) : null}
-                    <Link
-                      href={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
-                      className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                    >
-                      Open explainability
-                    </Link>
+                    {actionConfig?.showExplainability ? (
+                      <Link
+                        href={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      >
+                        Open explainability
+                      </Link>
+                    ) : null}
+                    {!actionConfig?.emphasizeRetry && payment.customer_external_id ? (
+                      <Link
+                        href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      >
+                        Open customer payment context
+                      </Link>
+                    ) : null}
                   </div>
                 </section>
 
