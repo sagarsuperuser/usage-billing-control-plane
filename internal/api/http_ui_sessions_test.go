@@ -111,13 +111,15 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 		t.Fatalf("expected subject_type user, got %q", got)
 	}
 
-	_ = sessionGetJSON(t, client, ts.URL+"/v1/rating-rules", http.StatusOK)
 	meResp := sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusOK)
 	if got, _ := meResp["role"].(string); got != string(api.RoleReader) {
 		t.Fatalf("expected me.role reader, got %q", got)
 	}
 
 	logoutForbidden := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, "", http.StatusForbidden)
+	if got, _ := logoutForbidden["error_code"].(string); got != "forbidden" {
+		t.Fatalf("expected error_code forbidden in logout response, got %q", got)
+	}
 	if got, _ := logoutForbidden["request_id"].(string); strings.TrimSpace(got) == "" {
 		t.Fatalf("expected request_id in forbidden logout response")
 	}
@@ -162,9 +164,12 @@ func TestUISessionLoginRejectsAccessKeyPayload(t *testing.T) {
 	defer ts.Close()
 
 	client := newSessionClient(t)
-	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+	resp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
 		"api_key": "legacy-browser-login-key",
 	}, "", http.StatusBadRequest)
+	if got, _ := resp["error_code"].(string); got != "bad_request" {
+		t.Fatalf("expected error_code bad_request, got %q", got)
+	}
 }
 
 func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {

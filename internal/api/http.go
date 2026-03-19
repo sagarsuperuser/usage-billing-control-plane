@@ -5108,7 +5108,14 @@ func writeJSONRaw(w http.ResponseWriter, status int, body []byte) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
+	writeErrorCode(w, status, message, defaultErrorCodeForStatus(status))
+}
+
+func writeErrorCode(w http.ResponseWriter, status int, message, code string) {
 	body := map[string]string{"error": message}
+	if strings.TrimSpace(code) != "" {
+		body["error_code"] = strings.TrimSpace(code)
+	}
 	if requestID := strings.TrimSpace(w.Header().Get(requestIDHeaderKey)); requestID != "" {
 		body["request_id"] = requestID
 	}
@@ -5124,7 +5131,7 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusInternalServerError, "unknown error")
 		return
 	}
-	writeError(w, classifyDomainErrorStatus(err), err.Error())
+	writeErrorCode(w, classifyDomainErrorStatus(err), err.Error(), classifyDomainErrorCode(err))
 }
 
 func classifyDomainErrorStatus(err error) int {
@@ -5151,6 +5158,62 @@ func classifyDomainErrorStatus(err error) int {
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
+	}
+}
+
+func classifyDomainErrorCode(err error) string {
+	switch {
+	case err == nil:
+		return "internal_error"
+	case errors.Is(err, store.ErrNotFound):
+		return "not_found"
+	case errors.Is(err, store.ErrAlreadyExists), errors.Is(err, store.ErrDuplicateKey):
+		return "already_exists"
+	case errors.Is(err, service.ErrValidation):
+		return "validation_error"
+	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
+		return "tenant_access_denied"
+	case errors.Is(err, service.ErrBrowserTenantSelection):
+		return "workspace_selection_required"
+	default:
+		return defaultErrorCodeForStatus(classifyDomainErrorStatus(err))
+	}
+}
+
+func defaultErrorCodeForStatus(status int) string {
+	switch status {
+	case http.StatusBadRequest:
+		return "bad_request"
+	case http.StatusUnauthorized:
+		return "unauthorized"
+	case http.StatusForbidden:
+		return "forbidden"
+	case http.StatusNotFound:
+		return "not_found"
+	case http.StatusMethodNotAllowed:
+		return "method_not_allowed"
+	case http.StatusConflict:
+		return "conflict"
+	case http.StatusGone:
+		return "gone"
+	case http.StatusTooManyRequests:
+		return "rate_limited"
+	case http.StatusNotImplemented:
+		return "not_implemented"
+	case http.StatusBadGateway:
+		return "bad_gateway"
+	case http.StatusServiceUnavailable:
+		return "service_unavailable"
+	case http.StatusInternalServerError:
+		return "internal_error"
+	default:
+		if status >= http.StatusInternalServerError {
+			return "internal_error"
+		}
+		if status >= http.StatusBadRequest {
+			return "request_error"
+		}
+		return ""
 	}
 }
 
