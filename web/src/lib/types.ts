@@ -57,6 +57,14 @@ export interface InvoiceDetail extends InvoiceSummary {
   applied_taxes?: unknown[];
 }
 
+export interface NotificationDispatchResult {
+  dispatched_at: string;
+  dispatched: boolean;
+  action: string;
+  domain: string;
+  backend: string;
+}
+
 
 export interface PaymentSummary {
   invoice_id: string;

@@ -38,6 +38,7 @@ type InvoiceBillingAdapter interface {
 	PreviewInvoice(ctx context.Context, payload []byte) (int, []byte, error)
 	RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error)
 	GetInvoice(ctx context.Context, invoiceID string) (int, []byte, error)
+	ResendInvoiceEmail(ctx context.Context, invoiceID string, input BillingDocumentEmail) error
 }
 
 type CustomerBillingAdapter interface {
@@ -231,6 +232,46 @@ func (a *LagoInvoiceAdapter) GetInvoice(ctx context.Context, invoiceID string) (
 		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))
 	}
 	return status, body, nil
+}
+
+func (a *LagoInvoiceAdapter) ResendInvoiceEmail(ctx context.Context, invoiceID string, input BillingDocumentEmail) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago invoice adapter is required", ErrValidation)
+	}
+	invoiceID = strings.TrimSpace(invoiceID)
+	if invoiceID == "" {
+		return fmt.Errorf("%w: invoice id is required", ErrValidation)
+	}
+
+	payload := map[string]any{}
+	if items := normalizeEmailRecipientList(input.To); len(items) > 0 {
+		payload["to"] = items
+	}
+	if items := normalizeEmailRecipientList(input.Cc); len(items) > 0 {
+		payload["cc"] = items
+	}
+	if items := normalizeEmailRecipientList(input.Bcc); len(items) > 0 {
+		payload["bcc"] = items
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	path := "/api/v1/invoices/" + url.PathEscape(invoiceID) + "/resend_email"
+	status, respBody, err := a.transport.doRawRequest(ctx, http.MethodPost, path, body)
+	if err != nil {
+		return err
+	}
+	if status >= 200 && status < 300 {
+		return nil
+	}
+	return &NotificationDispatchError{
+		StatusCode: status,
+		Backend:    "lago",
+		Message:    lagoNotificationErrorMessage(respBody),
+	}
 }
 
 type LagoCustomerBillingAdapter struct {
@@ -438,6 +479,39 @@ func (t *LagoHTTPTransport) doRawRequestWithHeaders(ctx context.Context, method,
 	}
 
 	return resp.StatusCode, body, nil
+}
+
+func normalizeEmailRecipientList(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		out = append(out, item)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func lagoNotificationErrorMessage(body []byte) string {
+	if len(body) == 0 {
+		return "billing notification dispatch failed"
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err == nil {
+		for _, key := range []string{"error", "message"} {
+			if value := strings.TrimSpace(stringValue(payload[key])); value != "" {
+				return value
+			}
+		}
+	}
+	return fmt.Sprintf("billing notification dispatch failed: %s", abbrevForLog(body))
 }
 func mapAggregationToLago(v string) (string, error) {
 	switch strings.TrimSpace(strings.ToLower(v)) {

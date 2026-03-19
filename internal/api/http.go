@@ -40,6 +40,7 @@ type Server struct {
 	workspaceBillingBindingService   *service.WorkspaceBillingBindingService
 	workspaceAccessService           *service.WorkspaceAccessService
 	serviceAccountService            *service.ServiceAccountService
+	notificationService              *service.NotificationService
 	workspaceInvitationEmailSender   service.WorkspaceInvitationEmailSender
 	passwordResetService             *service.PasswordResetService
 	passwordResetEmailSender         service.PasswordResetEmailSender
@@ -184,6 +185,20 @@ type pendingInvitationLoginResponse struct {
 
 type passwordResetRequestedResponse struct {
 	Requested bool `json:"requested"`
+}
+
+type billingNotificationDispatchResponse struct {
+	DispatchedAt time.Time `json:"dispatched_at"`
+	Dispatched   bool      `json:"dispatched"`
+	Action       string    `json:"action"`
+	Domain       string    `json:"domain"`
+	Backend      string    `json:"backend"`
+}
+
+type resendInvoiceEmailRequest struct {
+	To  []string `json:"to"`
+	Cc  []string `json:"cc"`
+	Bcc []string `json:"bcc"`
 }
 
 type workspaceInvitationPreviewResponse struct {
@@ -576,6 +591,12 @@ func WithWorkspaceAccessService(svc *service.WorkspaceAccessService) ServerOptio
 func WithWorkspaceInvitationEmailSender(sender service.WorkspaceInvitationEmailSender) ServerOption {
 	return func(s *Server) {
 		s.workspaceInvitationEmailSender = sender
+	}
+}
+
+func WithNotificationService(svc *service.NotificationService) ServerOption {
+	return func(s *Server) {
+		s.notificationService = svc
 	}
 }
 
@@ -1613,7 +1634,7 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	case path == "/v1/invoices/preview":
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/invoices/"):
-		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/retry-payment") {
+		if r.Method == http.MethodPost && (strings.HasSuffix(strings.Trim(path, "/"), "/retry-payment") || strings.HasSuffix(strings.Trim(path, "/"), "/resend-email")) {
 			return RoleWriter, true
 		}
 		return RoleReader, true
@@ -1812,6 +1833,9 @@ func normalizeMetricsRoute(path string) string {
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/invoices/"), "/")
 		if strings.HasSuffix(tail, "/retry-payment") {
 			return "/v1/invoices/{id}/retry-payment"
+		}
+		if strings.HasSuffix(tail, "/resend-email") {
+			return "/v1/invoices/{id}/resend-email"
 		}
 		if strings.HasSuffix(tail, "/explainability") {
 			return "/v1/invoices/{id}/explainability"
@@ -2958,7 +2982,7 @@ func (s *Server) handleUIAuthProviders(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"password_enabled":       true,
-		"password_reset_enabled": s.passwordResetService != nil && s.passwordResetEmailSender != nil,
+		"password_reset_enabled": s.passwordResetService != nil && s.canSendPasswordResetEmail(),
 		"sso_providers":          providers,
 	})
 }
@@ -2973,7 +2997,7 @@ func (s *Server) handleUIPasswordForgot(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	if s.passwordResetService == nil || s.passwordResetEmailSender == nil {
+	if s.passwordResetService == nil || !s.canSendPasswordResetEmail() {
 		writeError(w, http.StatusServiceUnavailable, "password reset is not configured")
 		return
 	}
@@ -3799,8 +3823,28 @@ func (s *Server) beginUIPendingWorkspaceSelection(r *http.Request, user domain.U
 	return s.buildWorkspaceSelectionResponse(r, user.ID, user.Email)
 }
 
+func (s *Server) canSendWorkspaceInvitationEmail() bool {
+	if s == nil {
+		return false
+	}
+	if s.notificationService != nil && s.notificationService.CanSendWorkspaceInvitations() {
+		return true
+	}
+	return s.workspaceInvitationEmailSender != nil
+}
+
+func (s *Server) canSendPasswordResetEmail() bool {
+	if s == nil {
+		return false
+	}
+	if s.notificationService != nil && s.notificationService.CanSendPasswordReset() {
+		return true
+	}
+	return s.passwordResetEmailSender != nil
+}
+
 func (s *Server) sendWorkspaceInvitationEmail(workspaceID, invitedByEmail string, issued service.IssuedWorkspaceInvitation) {
-	if s == nil || s.workspaceInvitationEmailSender == nil {
+	if s == nil || !s.canSendWorkspaceInvitationEmail() {
 		return
 	}
 	workspaceName := workspaceID
@@ -3812,14 +3856,21 @@ func (s *Server) sendWorkspaceInvitationEmail(workspaceID, invitedByEmail string
 		}
 	}
 	_, acceptURL := s.workspaceInvitationAcceptURL(issued.Token)
-	if err := s.workspaceInvitationEmailSender.SendWorkspaceInvitation(service.WorkspaceInvitationEmail{
+	input := service.WorkspaceInvitationEmail{
 		ToEmail:        issued.Invitation.Email,
 		WorkspaceName:  workspaceName,
 		Role:           issued.Invitation.Role,
 		AcceptURL:      acceptURL,
 		ExpiresAt:      issued.Invitation.ExpiresAt,
 		InvitedByEmail: invitedByEmail,
-	}); err != nil && s.logger != nil {
+	}
+	var err error
+	if s.notificationService != nil && s.notificationService.CanSendWorkspaceInvitations() {
+		err = s.notificationService.SendWorkspaceInvitation(input)
+	} else {
+		err = s.workspaceInvitationEmailSender.SendWorkspaceInvitation(input)
+	}
+	if err != nil && s.logger != nil {
 		s.logger.Warn(
 			"workspace invitation email delivery failed",
 			"component", "server",
@@ -3832,14 +3883,21 @@ func (s *Server) sendWorkspaceInvitationEmail(workspaceID, invitedByEmail string
 }
 
 func (s *Server) sendPasswordResetEmail(issued service.PasswordResetIssueResult) {
-	if s == nil || s.passwordResetEmailSender == nil {
+	if s == nil || !s.canSendPasswordResetEmail() {
 		return
 	}
-	if err := s.passwordResetEmailSender.SendPasswordReset(service.PasswordResetEmail{
+	input := service.PasswordResetEmail{
 		ToEmail:   issued.UserEmail,
 		ResetURL:  s.uiPasswordResetURL(issued.RawToken),
 		ExpiresAt: issued.Token.ExpiresAt,
-	}); err != nil && s.logger != nil {
+	}
+	var err error
+	if s.notificationService != nil && s.notificationService.CanSendPasswordReset() {
+		err = s.notificationService.SendPasswordReset(input)
+	} else {
+		err = s.passwordResetEmailSender.SendPasswordReset(input)
+	}
+	if err != nil && s.logger != nil {
 		s.logger.Warn(
 			"password reset email delivery failed",
 			"component", "server",
@@ -4556,6 +4614,57 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSONRaw(w, statusCode, body)
+		return
+	}
+	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "resend-email") {
+		if s.notificationService == nil || !s.notificationService.CanResendInvoiceEmail() {
+			writeError(w, http.StatusServiceUnavailable, "invoice notification delivery is not configured")
+			return
+		}
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		var req resendInvoiceEmailRequest
+		rawBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if len(strings.TrimSpace(string(rawBody))) > 0 {
+			if err := json.Unmarshal(rawBody, &req); err != nil {
+				writeError(w, http.StatusBadRequest, "request body must be valid json")
+				return
+			}
+		}
+
+		dispatched, err := s.notificationService.ResendInvoiceEmail(r.Context(), invoiceID, service.BillingDocumentEmail{
+			To:  req.To,
+			Cc:  req.Cc,
+			Bcc: req.Bcc,
+		})
+		if err != nil {
+			var dispatchErr *service.NotificationDispatchError
+			if errors.As(err, &dispatchErr) {
+				status := dispatchErr.StatusCode
+				if status <= 0 {
+					status = http.StatusBadGateway
+				}
+				writeError(w, status, dispatchErr.Message)
+				return
+			}
+			writeDomainError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusAccepted, billingNotificationDispatchResponse{
+			DispatchedAt: dispatched.DispatchedAt,
+			Dispatched:   true,
+			Action:       dispatched.Action,
+			Domain:       dispatched.Domain,
+			Backend:      dispatched.Backend,
+		})
 		return
 	}
 	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "explainability") {

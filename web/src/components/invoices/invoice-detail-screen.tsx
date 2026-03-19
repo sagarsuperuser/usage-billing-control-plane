@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, LoaderCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, LoaderCircle, Mail, RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchInvoiceDetail, retryInvoicePayment } from "@/lib/api";
+import { fetchInvoiceDetail, resendInvoiceEmail, retryInvoicePayment } from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -31,6 +31,9 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
     onSuccess: async () => {
       await invoiceQuery.refetch();
     },
+  });
+  const resendEmailMutation = useMutation({
+    mutationFn: () => resendInvoiceEmail({ runtimeBaseURL: apiBaseURL, csrfToken, invoiceID }),
   });
 
   const invoice = invoiceQuery.data;
@@ -96,6 +99,15 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   </Link>
                   <button
                     type="button"
+                    onClick={() => resendEmailMutation.mutate()}
+                    disabled={!canWrite || !csrfToken || resendEmailMutation.isPending}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {resendEmailMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    Resend invoice email
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => retryMutation.mutate()}
                     disabled={!canWrite || !csrfToken || retryMutation.isPending}
                     className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -134,6 +146,18 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Advanced actions</p>
+                  {resendEmailMutation.isSuccess ? (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                      <p className="font-semibold text-emerald-900">Invoice email dispatched</p>
+                      <p className="mt-2">Alpha accepted the resend action and delegated document delivery through Lago.</p>
+                    </div>
+                  ) : null}
+                  {resendEmailMutation.isError ? (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                      <p className="font-semibold text-amber-900">Invoice email could not be dispatched</p>
+                      <p className="mt-2">{resendEmailMutation.error instanceof Error ? resendEmailMutation.error.message : "Invoice resend failed."}</p>
+                    </div>
+                  ) : null}
                   <div className="mt-4 flex flex-wrap gap-3">
                     <Link
                       href={`/invoice-explainability?invoice_id=${encodeURIComponent(invoice.invoice_id)}`}

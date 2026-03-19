@@ -14,6 +14,7 @@ import {
   CustomerReadiness,
   InvoiceExplainability,
   InvoiceDetail,
+  NotificationDispatchResult,
   PaymentDetail,
   PaymentFilters,
   PaymentSummary,
@@ -1511,6 +1512,33 @@ export async function retryInvoicePayment(input: {
       method: "POST",
       csrfToken: input.csrfToken,
       body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function resendInvoiceEmail(input: {
+  runtimeBaseURL?: string;
+  invoiceID: string;
+  csrfToken: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+}): Promise<NotificationDispatchResult> {
+  const payload = await apiRequest<NotificationDispatchResult>(
+    `/v1/invoices/${encodeURIComponent(input.invoiceID)}/resend-email`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        to: input.to,
+        cc: input.cc,
+        bcc: input.bcc,
+      },
     }
   );
   if (!payload) {

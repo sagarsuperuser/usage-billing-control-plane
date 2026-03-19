@@ -209,11 +209,12 @@ func main() {
 	if err != nil {
 		fatal(logger, "initialize lago client", "error", err)
 	}
+	invoiceBillingAdapter := service.NewLagoInvoiceAdapter(lagoTransport)
 	customerBillingAdapter := service.NewLagoCustomerBillingAdapter(lagoTransport)
 	serverOpts = append(
 		serverOpts,
 		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
-		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+		api.WithInvoiceBillingAdapter(invoiceBillingAdapter),
 		api.WithCustomerBillingAdapter(customerBillingAdapter),
 	)
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL)
@@ -317,8 +318,12 @@ func main() {
 	}
 	serverOpts = append(serverOpts, api.WithBrowserUserAuthService(browserUserAuthService))
 
+	var (
+		invitationEmailSender    service.WorkspaceInvitationEmailSender
+		passwordResetEmailSender service.PasswordResetEmailSender
+	)
 	if strings.TrimSpace(cfg.Email.SMTPHost) != "" {
-		invitationEmailSender, err := service.NewSMTPWorkspaceInvitationEmailSender(service.SMTPWorkspaceInvitationEmailConfig{
+		invitationEmailSender, err = service.NewSMTPWorkspaceInvitationEmailSender(service.SMTPWorkspaceInvitationEmailConfig{
 			Host:      cfg.Email.SMTPHost,
 			Port:      cfg.Email.SMTPPort,
 			Username:  cfg.Email.SMTPUsername,
@@ -329,9 +334,8 @@ func main() {
 		if err != nil {
 			fatal(logger, "initialize workspace invitation email sender", "error", err)
 		}
-		serverOpts = append(serverOpts, api.WithWorkspaceInvitationEmailSender(invitationEmailSender))
 
-		passwordResetEmailSender, err := service.NewSMTPPasswordResetEmailSender(service.SMTPPasswordResetEmailConfig{
+		passwordResetEmailSender, err = service.NewSMTPPasswordResetEmailSender(service.SMTPPasswordResetEmailConfig{
 			Host:      cfg.Email.SMTPHost,
 			Port:      cfg.Email.SMTPPort,
 			Username:  cfg.Email.SMTPUsername,
@@ -342,10 +346,9 @@ func main() {
 		if err != nil {
 			fatal(logger, "initialize password reset email sender", "error", err)
 		}
-		serverOpts = append(serverOpts, api.WithPasswordResetEmailSender(passwordResetEmailSender))
 		serverOpts = append(serverOpts, api.WithPasswordResetService(service.NewPasswordResetService(repo, cfg.Email.ResetTokenTTL)))
 		logger.Info(
-			"workspace invitation email enabled",
+			"alpha notification service enabled",
 			"component", "server",
 			"smtp_host", cfg.Email.SMTPHost,
 			"from_email", cfg.Email.FromEmail,
@@ -361,6 +364,16 @@ func main() {
 		logger.Info("workspace invitation email disabled", "component", "server")
 		logger.Info("password reset email disabled", "component", "server")
 	}
+	serverOpts = append(serverOpts, api.WithNotificationService(service.NewNotificationService(
+		invitationEmailSender,
+		passwordResetEmailSender,
+		invoiceBillingAdapter,
+	)))
+	logger.Info(
+		"billing notification delegation enabled",
+		"component", "server",
+		"backend", "lago",
+	)
 
 	if len(cfg.SSO.OIDCProviders) > 0 {
 		oidcProviders := make([]service.BrowserSSOProvider, 0, len(cfg.SSO.OIDCProviders))

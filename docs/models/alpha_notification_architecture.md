@@ -263,9 +263,15 @@ Alpha already owns direct mail delivery for:
 
 That is correct and should stay Alpha-owned.
 
-Alpha currently does **not** yet have a unified notification service. It has point mailers.
+Alpha now has an initial unified notification boundary in `NotificationService`.
 
-That is acceptable as an intermediate state, but not the final design.
+Today it routes:
+
+- Alpha-owned workspace invitations
+- Alpha-owned password reset emails
+- Alpha-owned invoice resend actions delegated to Lago
+
+That is the correct first implementation step, but it is still not the final design.
 
 ---
 
@@ -279,13 +285,13 @@ Keep:
 
 Do not move these into Lago.
 
-### Phase 2. Introduce Alpha notification boundary
+### Phase 2. Expand Alpha notification boundary
 
 Add:
-- notification intent model
+- broader notification intent model
 - notification classification
 - structured delivery audit
-- backend dispatch abstraction
+- more backend dispatch coverage beyond invoice resend
 
 ### Phase 3. Route billing-document flows intentionally
 

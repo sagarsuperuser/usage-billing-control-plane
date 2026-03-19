@@ -3528,6 +3528,97 @@ func envIntOrDefault(t *testing.T, key string, defaultValue int) int {
 	return parsed
 }
 
+func TestInvoiceResendEmailDelegatesThroughNotificationService(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "tenant_a")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	var (
+		resendCalls int
+		lastBody    map[string]any
+	)
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/invoices/inv_123/resend_email" {
+			resendCalls++
+			defer r.Body.Close()
+			rawBody, _ := io.ReadAll(r.Body)
+			if len(rawBody) > 0 {
+				_ = json.Unmarshal(rawBody, &lastBody)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer lagoMock.Close()
+
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	invoiceAdapter := service.NewLagoInvoiceAdapter(lagoTransport)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithInvoiceBillingAdapter(invoiceAdapter),
+		api.WithNotificationService(service.NewNotificationService(nil, nil, invoiceAdapter)),
+	).Handler())
+	defer ts.Close()
+
+	resp := postJSON(
+		t,
+		ts.URL+"/v1/invoices/inv_123/resend-email",
+		map[string]any{"to": []string{"billing@acme.test"}},
+		"tenant-a-writer",
+		http.StatusAccepted,
+	)
+
+	if resendCalls != 1 {
+		t.Fatalf("expected exactly one resend call to lago, got %d", resendCalls)
+	}
+	if got, _ := resp["action"].(string); got != "resend_invoice_email" {
+		t.Fatalf("expected action resend_invoice_email, got %q", got)
+	}
+	if got, _ := resp["backend"].(string); got != "lago" {
+		t.Fatalf("expected backend lago, got %q", got)
+	}
+	if got, _ := resp["dispatched"].(bool); !got {
+		t.Fatalf("expected dispatched=true")
+	}
+	toRaw, ok := lastBody["to"].([]any)
+	if !ok || len(toRaw) != 1 {
+		t.Fatalf("expected one custom recipient, got %#v", lastBody["to"])
+	}
+	if got, _ := toRaw[0].(string); got != "billing@acme.test" {
+		t.Fatalf("expected recipient billing@acme.test, got %q", got)
+	}
+}
+
 func envInt64OrDefault(t *testing.T, key string, defaultValue int64) int64 {
 	t.Helper()
 
