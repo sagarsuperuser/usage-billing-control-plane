@@ -29,6 +29,16 @@ import (
 	"usage-billing-control-plane/internal/temporalutil"
 )
 
+type fakeCustomerPaymentSetupRequestEmailSender struct {
+	inputs []service.CustomerPaymentSetupRequestEmail
+	err    error
+}
+
+func (s *fakeCustomerPaymentSetupRequestEmailSender) SendCustomerPaymentSetupRequest(input service.CustomerPaymentSetupRequestEmail) error {
+	s.inputs = append(s.inputs, input)
+	return s.err
+}
+
 func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -3041,6 +3051,161 @@ func TestCustomerOnboardingWorkflow(t *testing.T) {
 	}
 }
 
+func TestCustomerPaymentSetupRequestAndResend(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "customer-reader-key", api.RoleReader, "default")
+	mustCreateAPIKey(t, repo, "customer-writer-key", api.RoleWriter, "default")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	customerPaymentMethodReady := false
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_alpha","external_id":"cust_alpha","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_123","provider_payment_methods":["card"]}}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_alpha/payment_methods":
+			w.Header().Set("Content-Type", "application/json")
+			if customerPaymentMethodReady {
+				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_alpha","is_default":true,"provider_method_id":"pm_123"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_alpha/checkout_url":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_alpha","checkout_url":"https://checkout.example.test/cust_alpha"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
+
+	emailSender := &fakeCustomerPaymentSetupRequestEmailSender{}
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+		api.WithNotificationService(service.NewNotificationService(nil, nil, emailSender, nil)),
+	).Handler())
+	defer ts.Close()
+
+	_ = postJSON(t, ts.URL+"/v1/customers", map[string]any{
+		"external_id":  "cust_alpha",
+		"display_name": "Alpha Co",
+		"email":        "billing@alpha.test",
+	}, "customer-writer-key", http.StatusCreated)
+	_ = putJSON(t, ts.URL+"/v1/customers/cust_alpha/billing-profile", map[string]any{
+		"legal_name":            "Alpha Company Pvt Ltd",
+		"email":                 "billing@alpha.test",
+		"billing_address_line1": "1 Billing St",
+		"billing_city":          "Bengaluru",
+		"billing_postal_code":   "560001",
+		"billing_country":       "IN",
+		"currency":              "USD",
+		"provider_code":         "stripe_test",
+	}, "customer-writer-key", http.StatusOK)
+
+	requested := postJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup/request", map[string]any{
+		"payment_method_type": "card",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := requested["action"].(string); got != "requested" {
+		t.Fatalf("expected action requested, got %q", got)
+	}
+	if got, _ := requested["checkout_url"].(string); got != "https://checkout.example.test/cust_alpha" {
+		t.Fatalf("expected checkout_url from request flow, got %q", got)
+	}
+	if len(emailSender.inputs) != 1 {
+		t.Fatalf("expected one payment setup request email, got %d", len(emailSender.inputs))
+	}
+	if got := emailSender.inputs[0].ToEmail; got != "billing@alpha.test" {
+		t.Fatalf("expected request recipient billing@alpha.test, got %q", got)
+	}
+	if got := emailSender.inputs[0].RequestKind; got != "requested" {
+		t.Fatalf("expected request kind requested, got %q", got)
+	}
+
+	resent := postJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup/resend", map[string]any{
+		"payment_method_type": "card",
+	}, "customer-writer-key", http.StatusOK)
+	if got, _ := resent["action"].(string); got != "resent" {
+		t.Fatalf("expected action resent, got %q", got)
+	}
+	if len(emailSender.inputs) != 2 {
+		t.Fatalf("expected two payment setup request emails after resend, got %d", len(emailSender.inputs))
+	}
+	if got := emailSender.inputs[1].RequestKind; got != "resent" {
+		t.Fatalf("expected resend request kind resent, got %q", got)
+	}
+
+	setup := getJSON(t, ts.URL+"/v1/customers/cust_alpha/payment-setup", "customer-reader-key", http.StatusOK)
+	if got, _ := setup["last_request_status"].(string); got != "sent" {
+		t.Fatalf("expected last_request_status sent, got %q", got)
+	}
+	if got, _ := setup["last_request_kind"].(string); got != "resent" {
+		t.Fatalf("expected last_request_kind resent, got %q", got)
+	}
+	if got, _ := setup["last_request_to_email"].(string); got != "billing@alpha.test" {
+		t.Fatalf("expected last_request_to_email billing@alpha.test, got %q", got)
+	}
+	if got, _ := setup["last_request_sent_at"].(string); strings.TrimSpace(got) == "" {
+		t.Fatalf("expected last_request_sent_at to be set")
+	}
+
+	auditPage, err := repo.ListTenantAuditEvents(store.TenantAuditFilter{TenantID: "default", Limit: 20})
+	if err != nil {
+		t.Fatalf("list tenant audit events: %v", err)
+	}
+	var sawRequested, sawResent bool
+	for _, item := range auditPage.Items {
+		if item.TenantID != "default" {
+			continue
+		}
+		if item.Action == "payment_setup_requested" {
+			sawRequested = true
+		}
+		if item.Action == "payment_setup_resent" {
+			sawResent = true
+		}
+	}
+	if !sawRequested {
+		t.Fatalf("expected payment_setup_requested tenant audit event")
+	}
+	if !sawResent {
+		t.Fatalf("expected payment_setup_resent tenant audit event")
+	}
+}
+
 func TestCustomerBillingProfileRetrySync(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -3586,7 +3751,7 @@ func TestInvoiceResendEmailDelegatesThroughNotificationService(t *testing.T) {
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithInvoiceBillingAdapter(invoiceAdapter),
-		api.WithNotificationService(service.NewNotificationService(nil, nil, invoiceAdapter)),
+		api.WithNotificationService(service.NewNotificationService(nil, nil, nil, invoiceAdapter)),
 	).Handler())
 	defer ts.Close()
 
@@ -3688,7 +3853,7 @@ func TestBillingDocumentResendEmailDelegatesThroughNotificationService(t *testin
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithInvoiceBillingAdapter(invoiceAdapter),
-		api.WithNotificationService(service.NewNotificationService(nil, nil, invoiceAdapter)),
+		api.WithNotificationService(service.NewNotificationService(nil, nil, nil, invoiceAdapter)),
 	).Handler())
 	defer ts.Close()
 

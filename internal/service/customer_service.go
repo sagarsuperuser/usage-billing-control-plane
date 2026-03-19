@@ -857,12 +857,13 @@ func defaultCustomerPaymentSetup(customer domain.Customer) domain.CustomerPaymen
 		now = time.Now().UTC()
 	}
 	return domain.CustomerPaymentSetup{
-		CustomerID:     customer.ID,
-		TenantID:       customer.TenantID,
-		SetupStatus:    domain.PaymentSetupStatusMissing,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		LastVerifiedAt: nil,
+		CustomerID:        customer.ID,
+		TenantID:          customer.TenantID,
+		SetupStatus:       domain.PaymentSetupStatusMissing,
+		LastRequestStatus: domain.PaymentSetupRequestStatusNotRequested,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		LastVerifiedAt:    nil,
 	}
 }
 

@@ -507,6 +507,11 @@ export interface CustomerPaymentSetup {
   last_verified_at?: string;
   last_verification_result?: string;
   last_verification_error?: string;
+  last_request_status?: "not_requested" | "sent" | "failed";
+  last_request_kind?: "requested" | "resent";
+  last_request_to_email?: string;
+  last_request_sent_at?: string;
+  last_request_error?: string;
   created_at: string;
   updated_at: string;
 }
@@ -553,6 +558,20 @@ export interface BeginCustomerPaymentSetupResult {
   external_id: string;
   checkout_url: string;
   payment_setup: CustomerPaymentSetup;
+}
+
+export interface CustomerPaymentSetupRequestResult {
+  action: "requested" | "resent";
+  external_id: string;
+  checkout_url: string;
+  payment_setup: CustomerPaymentSetup;
+  readiness: CustomerReadiness;
+  dispatch: {
+    dispatched_at: string;
+    action: string;
+    domain: string;
+    backend: string;
+  };
 }
 
 export interface LagoWebhookEvent {

@@ -207,6 +207,8 @@ Recommended first endpoints:
 - `GET /v1/customers/{external_id}/billing-profile`
 - `POST /v1/customers/{external_id}/billing-profile/retry-sync`
 - `GET /v1/customers/{external_id}/payment-setup`
+- `POST /v1/customers/{external_id}/payment-setup/request`
+- `POST /v1/customers/{external_id}/payment-setup/resend`
 - `POST /v1/customers/{external_id}/payment-setup/checkout-url`
 - `POST /v1/customers/{external_id}/payment-setup/refresh`
 - `GET /v1/customers/{external_id}/readiness`
@@ -233,12 +235,18 @@ Current implementation note:
 - Alpha now syncs customer billing configuration to Lago through a dedicated adapter when billing-profile data is complete
 - Alpha exposes an explicit billing-profile retry action for transient external sync failures
 - Alpha initiates provider setup through an Alpha-owned checkout action instead of asking callers to submit provider references manually
+- Alpha now supports a first-class `send payment setup request` flow from customer detail:
+  - generate hosted setup link
+  - deliver it through Alpha email
+  - persist latest delivery status on `customer_payment_setup`
+  - allow resend from the same surface
 - Alpha verifies customer payment-method readiness through an explicit refresh action, not a mutating GET
 - Alpha also refreshes customer payment setup automatically when Lago emits customer payment-provider lifecycle webhooks
 - Alpha persists sync and verification results back into:
   - `customers.lago_customer_id`
   - `customer_billing_profiles.last_synced_at`
   - `customer_billing_profiles.last_sync_error`
+  - `customer_payment_setup.last_request_*`
 
 ## Initial Status Enums
 

@@ -2252,6 +2252,10 @@ func (s *PostgresStore) UpsertCustomerPaymentSetup(input domain.CustomerPaymentS
 	input.ProviderPaymentMethodReference = normalizeOptionalText(input.ProviderPaymentMethodReference)
 	input.LastVerificationResult = normalizeOptionalText(input.LastVerificationResult)
 	input.LastVerificationError = normalizeOptionalText(input.LastVerificationError)
+	input.LastRequestStatus = normalizePaymentSetupRequestStatus(input.LastRequestStatus)
+	input.LastRequestKind = normalizeOptionalText(input.LastRequestKind)
+	input.LastRequestToEmail = strings.ToLower(normalizeOptionalText(input.LastRequestToEmail))
+	input.LastRequestError = normalizeOptionalText(input.LastRequestError)
 	if input.CustomerID == "" {
 		return domain.CustomerPaymentSetup{}, fmt.Errorf("validation failed: customer_id is required")
 	}
@@ -2269,8 +2273,8 @@ func (s *PostgresStore) UpsertCustomerPaymentSetup(input domain.CustomerPaymentS
 		return domain.CustomerPaymentSetup{}, err
 	}
 	defer rollbackSilently(tx)
-	row := tx.QueryRowContext(ctx, `INSERT INTO customer_payment_setup (customer_id, tenant_id, setup_status, default_payment_method_present, payment_method_type, provider_customer_reference, provider_payment_method_reference, last_verified_at, last_verification_result, last_verification_error, created_at, updated_at)
-	VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,NULLIF($9,''),NULLIF($10,''),$11,$12)
+	row := tx.QueryRowContext(ctx, `INSERT INTO customer_payment_setup (customer_id, tenant_id, setup_status, default_payment_method_present, payment_method_type, provider_customer_reference, provider_payment_method_reference, last_verified_at, last_verification_result, last_verification_error, last_request_status, last_request_kind, last_request_to_email, last_request_sent_at, last_request_error, created_at, updated_at)
+	VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,NULLIF($9,''),NULLIF($10,''),$11,NULLIF($12,''),NULLIF($13,''),$14,NULLIF($15,''),$16,$17)
 	ON CONFLICT (customer_id) DO UPDATE SET
 	 setup_status = EXCLUDED.setup_status,
 	 default_payment_method_present = EXCLUDED.default_payment_method_present,
@@ -2280,9 +2284,14 @@ func (s *PostgresStore) UpsertCustomerPaymentSetup(input domain.CustomerPaymentS
 	 last_verified_at = EXCLUDED.last_verified_at,
 	 last_verification_result = EXCLUDED.last_verification_result,
 	 last_verification_error = EXCLUDED.last_verification_error,
+	 last_request_status = EXCLUDED.last_request_status,
+	 last_request_kind = EXCLUDED.last_request_kind,
+	 last_request_to_email = EXCLUDED.last_request_to_email,
+	 last_request_sent_at = EXCLUDED.last_request_sent_at,
+	 last_request_error = EXCLUDED.last_request_error,
 	 updated_at = EXCLUDED.updated_at
-	RETURNING customer_id, tenant_id, setup_status, default_payment_method_present, payment_method_type, provider_customer_reference, provider_payment_method_reference, last_verified_at, last_verification_result, last_verification_error, created_at, updated_at`,
-		input.CustomerID, input.TenantID, string(input.SetupStatus), input.DefaultPaymentMethodPresent, input.PaymentMethodType, input.ProviderCustomerReference, input.ProviderPaymentMethodReference, input.LastVerifiedAt, input.LastVerificationResult, input.LastVerificationError, input.CreatedAt, input.UpdatedAt)
+	RETURNING customer_id, tenant_id, setup_status, default_payment_method_present, payment_method_type, provider_customer_reference, provider_payment_method_reference, last_verified_at, last_verification_result, last_verification_error, last_request_status, last_request_kind, last_request_to_email, last_request_sent_at, last_request_error, created_at, updated_at`,
+		input.CustomerID, input.TenantID, string(input.SetupStatus), input.DefaultPaymentMethodPresent, input.PaymentMethodType, input.ProviderCustomerReference, input.ProviderPaymentMethodReference, input.LastVerifiedAt, input.LastVerificationResult, input.LastVerificationError, string(input.LastRequestStatus), input.LastRequestKind, input.LastRequestToEmail, input.LastRequestSentAt, input.LastRequestError, input.CreatedAt, input.UpdatedAt)
 	out, err := scanCustomerPaymentSetup(row)
 	if err != nil {
 		if isForeignKeyViolation(err) {
@@ -2306,7 +2315,7 @@ func (s *PostgresStore) GetCustomerPaymentSetup(tenantID, customerID string) (do
 		return domain.CustomerPaymentSetup{}, err
 	}
 	defer rollbackSilently(tx)
-	row := tx.QueryRowContext(ctx, `SELECT customer_id, tenant_id, setup_status, default_payment_method_present, payment_method_type, provider_customer_reference, provider_payment_method_reference, last_verified_at, last_verification_result, last_verification_error, created_at, updated_at FROM customer_payment_setup WHERE tenant_id = $1 AND customer_id = $2`, tenantID, customerID)
+	row := tx.QueryRowContext(ctx, `SELECT customer_id, tenant_id, setup_status, default_payment_method_present, payment_method_type, provider_customer_reference, provider_payment_method_reference, last_verified_at, last_verification_result, last_verification_error, last_request_status, last_request_kind, last_request_to_email, last_request_sent_at, last_request_error, created_at, updated_at FROM customer_payment_setup WHERE tenant_id = $1 AND customer_id = $2`, tenantID, customerID)
 	out, err := scanCustomerPaymentSetup(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -6014,9 +6023,9 @@ func finalizeCustomerBillingProfile(out domain.CustomerBillingProfile, legalName
 func scanCustomerPaymentSetup(s rowScanner) (domain.CustomerPaymentSetup, error) {
 	var out domain.CustomerPaymentSetup
 	var status string
-	var paymentMethodType, providerCustomerRef, providerPaymentMethodRef, lastVerificationResult, lastVerificationError sql.NullString
-	var lastVerifiedAt sql.NullTime
-	if err := s.Scan(&out.CustomerID, &out.TenantID, &status, &out.DefaultPaymentMethodPresent, &paymentMethodType, &providerCustomerRef, &providerPaymentMethodRef, &lastVerifiedAt, &lastVerificationResult, &lastVerificationError, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	var paymentMethodType, providerCustomerRef, providerPaymentMethodRef, lastVerificationResult, lastVerificationError, lastRequestStatus, lastRequestKind, lastRequestToEmail, lastRequestError sql.NullString
+	var lastVerifiedAt, lastRequestSentAt sql.NullTime
+	if err := s.Scan(&out.CustomerID, &out.TenantID, &status, &out.DefaultPaymentMethodPresent, &paymentMethodType, &providerCustomerRef, &providerPaymentMethodRef, &lastVerifiedAt, &lastVerificationResult, &lastVerificationError, &lastRequestStatus, &lastRequestKind, &lastRequestToEmail, &lastRequestSentAt, &lastRequestError, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.CustomerPaymentSetup{}, err
 	}
 	out.TenantID = normalizeTenantID(out.TenantID)
@@ -6039,6 +6048,24 @@ func scanCustomerPaymentSetup(s rowScanner) (domain.CustomerPaymentSetup, error)
 	if lastVerifiedAt.Valid {
 		t := lastVerifiedAt.Time.UTC()
 		out.LastVerifiedAt = &t
+	}
+	if lastRequestStatus.Valid {
+		out.LastRequestStatus = normalizePaymentSetupRequestStatus(domain.PaymentSetupRequestStatus(lastRequestStatus.String))
+	} else {
+		out.LastRequestStatus = domain.PaymentSetupRequestStatusNotRequested
+	}
+	if lastRequestKind.Valid {
+		out.LastRequestKind = normalizeOptionalText(lastRequestKind.String)
+	}
+	if lastRequestToEmail.Valid {
+		out.LastRequestToEmail = strings.ToLower(normalizeOptionalText(lastRequestToEmail.String))
+	}
+	if lastRequestSentAt.Valid {
+		t := lastRequestSentAt.Time.UTC()
+		out.LastRequestSentAt = &t
+	}
+	if lastRequestError.Valid {
+		out.LastRequestError = normalizeOptionalText(lastRequestError.String)
 	}
 	out.SetupStatus = normalizePaymentSetupStatus(domain.PaymentSetupStatus(status))
 	return out, nil
@@ -7048,6 +7075,17 @@ func normalizePaymentSetupStatus(v domain.PaymentSetupStatus) domain.PaymentSetu
 		return domain.PaymentSetupStatusError
 	default:
 		return domain.PaymentSetupStatusMissing
+	}
+}
+
+func normalizePaymentSetupRequestStatus(v domain.PaymentSetupRequestStatus) domain.PaymentSetupRequestStatus {
+	switch strings.ToLower(strings.TrimSpace(string(v))) {
+	case string(domain.PaymentSetupRequestStatusSent):
+		return domain.PaymentSetupRequestStatusSent
+	case string(domain.PaymentSetupRequestStatusFailed):
+		return domain.PaymentSetupRequestStatusFailed
+	default:
+		return domain.PaymentSetupRequestStatusNotRequested
 	}
 }
 

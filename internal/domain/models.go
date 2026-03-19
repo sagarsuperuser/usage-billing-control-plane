@@ -242,6 +242,14 @@ const (
 	PaymentSetupStatusError   PaymentSetupStatus = "error"
 )
 
+type PaymentSetupRequestStatus string
+
+const (
+	PaymentSetupRequestStatusNotRequested PaymentSetupRequestStatus = "not_requested"
+	PaymentSetupRequestStatusSent         PaymentSetupRequestStatus = "sent"
+	PaymentSetupRequestStatusFailed       PaymentSetupRequestStatus = "failed"
+)
+
 type Customer struct {
 	ID             string         `json:"id"`
 	TenantID       string         `json:"tenant_id,omitempty"`
@@ -277,18 +285,23 @@ type CustomerBillingProfile struct {
 }
 
 type CustomerPaymentSetup struct {
-	CustomerID                     string             `json:"customer_id"`
-	TenantID                       string             `json:"tenant_id,omitempty"`
-	SetupStatus                    PaymentSetupStatus `json:"setup_status"`
-	DefaultPaymentMethodPresent    bool               `json:"default_payment_method_present"`
-	PaymentMethodType              string             `json:"payment_method_type,omitempty"`
-	ProviderCustomerReference      string             `json:"provider_customer_reference,omitempty"`
-	ProviderPaymentMethodReference string             `json:"provider_payment_method_reference,omitempty"`
-	LastVerifiedAt                 *time.Time         `json:"last_verified_at,omitempty"`
-	LastVerificationResult         string             `json:"last_verification_result,omitempty"`
-	LastVerificationError          string             `json:"last_verification_error,omitempty"`
-	CreatedAt                      time.Time          `json:"created_at"`
-	UpdatedAt                      time.Time          `json:"updated_at"`
+	CustomerID                     string                    `json:"customer_id"`
+	TenantID                       string                    `json:"tenant_id,omitempty"`
+	SetupStatus                    PaymentSetupStatus        `json:"setup_status"`
+	DefaultPaymentMethodPresent    bool                      `json:"default_payment_method_present"`
+	PaymentMethodType              string                    `json:"payment_method_type,omitempty"`
+	ProviderCustomerReference      string                    `json:"provider_customer_reference,omitempty"`
+	ProviderPaymentMethodReference string                    `json:"provider_payment_method_reference,omitempty"`
+	LastVerifiedAt                 *time.Time                `json:"last_verified_at,omitempty"`
+	LastVerificationResult         string                    `json:"last_verification_result,omitempty"`
+	LastVerificationError          string                    `json:"last_verification_error,omitempty"`
+	LastRequestStatus              PaymentSetupRequestStatus `json:"last_request_status,omitempty"`
+	LastRequestKind                string                    `json:"last_request_kind,omitempty"`
+	LastRequestToEmail             string                    `json:"last_request_to_email,omitempty"`
+	LastRequestSentAt              *time.Time                `json:"last_request_sent_at,omitempty"`
+	LastRequestError               string                    `json:"last_request_error,omitempty"`
+	CreatedAt                      time.Time                 `json:"created_at"`
+	UpdatedAt                      time.Time                 `json:"updated_at"`
 }
 
 type RatingTier struct {

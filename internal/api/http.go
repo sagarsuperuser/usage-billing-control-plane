@@ -31,48 +31,49 @@ import (
 )
 
 type Server struct {
-	repo                             store.Repository
-	ratingService                    *service.RatingService
-	tenantService                    *service.TenantService
-	customerService                  *service.CustomerService
-	customerOnboardingService        *service.CustomerOnboardingService
-	billingProviderConnectionService *service.BillingProviderConnectionService
-	workspaceBillingBindingService   *service.WorkspaceBillingBindingService
-	workspaceAccessService           *service.WorkspaceAccessService
-	serviceAccountService            *service.ServiceAccountService
-	notificationService              *service.NotificationService
-	workspaceInvitationEmailSender   service.WorkspaceInvitationEmailSender
-	passwordResetService             *service.PasswordResetService
-	passwordResetEmailSender         service.PasswordResetEmailSender
-	browserUserAuthService           *service.BrowserUserAuthService
-	browserSSOService                *service.BrowserSSOService
-	pricingMetricService             *service.PricingMetricService
-	planService                      *service.PlanService
-	subscriptionService              *service.SubscriptionService
-	meterService                     *service.MeterService
-	usageService                     *service.UsageService
-	apiKeyService                    *service.APIKeyService
-	onboardingService                *service.TenantOnboardingService
-	auditExportSvc                   *service.AuditExportService
-	meterSyncAdapter                 service.MeterSyncAdapter
-	invoiceBillingAdapter            service.InvoiceBillingAdapter
-	customerBillingAdapter           service.CustomerBillingAdapter
-	lagoWebhookSvc                   *service.LagoWebhookService
-	replayService                    *replay.Service
-	recService                       *reconcile.Service
-	authorizer                       APIKeyAuthorizer
-	sessionManager                   *scs.SessionManager
-	metricsFn                        func() map[string]any
-	readinessFn                      func() error
-	requestMetrics                   *requestMetricsCollector
-	logger                           *slog.Logger
-	rateLimiter                      RateLimiter
-	rateLimitFailOpen                bool
-	rateLimitLoginFailOpen           bool
-	requireSessionOriginCheck        bool
-	allowedSessionOrigins            map[string]struct{}
-	uiPublicBaseURL                  string
-	mux                              *http.ServeMux
+	repo                               store.Repository
+	ratingService                      *service.RatingService
+	tenantService                      *service.TenantService
+	customerService                    *service.CustomerService
+	customerPaymentSetupRequestService *service.CustomerPaymentSetupRequestService
+	customerOnboardingService          *service.CustomerOnboardingService
+	billingProviderConnectionService   *service.BillingProviderConnectionService
+	workspaceBillingBindingService     *service.WorkspaceBillingBindingService
+	workspaceAccessService             *service.WorkspaceAccessService
+	serviceAccountService              *service.ServiceAccountService
+	notificationService                *service.NotificationService
+	workspaceInvitationEmailSender     service.WorkspaceInvitationEmailSender
+	passwordResetService               *service.PasswordResetService
+	passwordResetEmailSender           service.PasswordResetEmailSender
+	browserUserAuthService             *service.BrowserUserAuthService
+	browserSSOService                  *service.BrowserSSOService
+	pricingMetricService               *service.PricingMetricService
+	planService                        *service.PlanService
+	subscriptionService                *service.SubscriptionService
+	meterService                       *service.MeterService
+	usageService                       *service.UsageService
+	apiKeyService                      *service.APIKeyService
+	onboardingService                  *service.TenantOnboardingService
+	auditExportSvc                     *service.AuditExportService
+	meterSyncAdapter                   service.MeterSyncAdapter
+	invoiceBillingAdapter              service.InvoiceBillingAdapter
+	customerBillingAdapter             service.CustomerBillingAdapter
+	lagoWebhookSvc                     *service.LagoWebhookService
+	replayService                      *replay.Service
+	recService                         *reconcile.Service
+	authorizer                         APIKeyAuthorizer
+	sessionManager                     *scs.SessionManager
+	metricsFn                          func() map[string]any
+	readinessFn                        func() error
+	requestMetrics                     *requestMetricsCollector
+	logger                             *slog.Logger
+	rateLimiter                        RateLimiter
+	rateLimitFailOpen                  bool
+	rateLimitLoginFailOpen             bool
+	requireSessionOriginCheck          bool
+	allowedSessionOrigins              map[string]struct{}
+	uiPublicBaseURL                    string
+	mux                                *http.ServeMux
 }
 
 type workspaceBillingResponse struct {
@@ -676,6 +677,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
 	s.tenantService = service.NewTenantService(repo).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter)
+	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)
 	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)
@@ -1570,6 +1572,12 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 			}
 			return RoleReader, true
 		}
+		if strings.HasSuffix(tail, "/payment-setup/request") || strings.HasSuffix(tail, "/payment-setup/resend") {
+			if r.Method == http.MethodPost {
+				return RoleWriter, true
+			}
+			return RoleReader, true
+		}
 		if strings.HasSuffix(tail, "/payment-setup/refresh") {
 			if r.Method == http.MethodPost {
 				return RoleWriter, true
@@ -1795,6 +1803,12 @@ func normalizeMetricsRoute(path string) string {
 		}
 		if strings.HasSuffix(tail, "/payment-setup/checkout-url") {
 			return "/v1/customers/{id}/payment-setup/checkout-url"
+		}
+		if strings.HasSuffix(tail, "/payment-setup/request") {
+			return "/v1/customers/{id}/payment-setup/request"
+		}
+		if strings.HasSuffix(tail, "/payment-setup/resend") {
+			return "/v1/customers/{id}/payment-setup/resend"
 		}
 		if strings.HasSuffix(tail, "/payment-setup/refresh") {
 			return "/v1/customers/{id}/payment-setup/refresh"
@@ -4157,6 +4171,58 @@ func (s *Server) handleCustomerByExternalID(w http.ResponseWriter, r *http.Reque
 			writeMethodNotAllowed(w)
 		}
 	case "payment-setup":
+		if subaction == "request" || subaction == "resend" {
+			if r.Method != http.MethodPost {
+				writeMethodNotAllowed(w)
+				return
+			}
+			if s.customerPaymentSetupRequestService == nil || s.notificationService == nil || !s.notificationService.CanSendCustomerPaymentSetupRequest() {
+				writeError(w, http.StatusNotImplemented, "payment setup request delivery is not configured")
+				return
+			}
+			var req service.BeginCustomerPaymentSetupRequest
+			if err := decodeJSON(r, &req); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			principal, _ := principalFromContext(r.Context())
+			actor := service.CustomerPaymentSetupRequestActor{
+				SubjectType:   strings.TrimSpace(principal.SubjectType),
+				SubjectID:     strings.TrimSpace(principal.SubjectID),
+				UserEmail:     strings.TrimSpace(principal.UserEmail),
+				ActorAPIKeyID: strings.TrimSpace(principal.APIKeyID),
+			}
+			var (
+				result service.CustomerPaymentSetupRequestResult
+				err    error
+			)
+			if subaction == "resend" {
+				result, err = s.customerPaymentSetupRequestService.Resend(tenantID, externalID, actor, req.PaymentMethodType)
+			} else {
+				result, err = s.customerPaymentSetupRequestService.Request(tenantID, externalID, actor, req.PaymentMethodType)
+			}
+			attrs := []any{
+				"request_id", requestIDFromContext(r.Context()),
+				"tenant_id", tenantID,
+				"customer_external_id", externalID,
+				"request_kind", subaction,
+			}
+			if err != nil {
+				attrs = append(attrs, "error", err.Error())
+				s.logger.Warn("customer payment setup request dispatch failed", attrs...)
+				writeDomainError(w, err)
+				return
+			}
+			attrs = append(attrs,
+				"recipient_email", strings.TrimSpace(result.PaymentSetup.LastRequestToEmail),
+				"backend", result.Dispatch.Backend,
+				"action", result.Dispatch.Action,
+				"domain", result.Dispatch.Domain,
+			)
+			s.logger.Info("customer payment setup request dispatched", attrs...)
+			writeJSON(w, http.StatusOK, result)
+			return
+		}
 		if subaction == "checkout-url" {
 			if r.Method != http.MethodPost {
 				writeMethodNotAllowed(w)

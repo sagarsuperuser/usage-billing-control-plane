@@ -321,6 +321,7 @@ func main() {
 	var (
 		invitationEmailSender    service.WorkspaceInvitationEmailSender
 		passwordResetEmailSender service.PasswordResetEmailSender
+		paymentSetupEmailSender  service.CustomerPaymentSetupRequestEmailSender
 	)
 	if strings.TrimSpace(cfg.Email.SMTPHost) != "" {
 		invitationEmailSender, err = service.NewSMTPWorkspaceInvitationEmailSender(service.SMTPWorkspaceInvitationEmailConfig{
@@ -346,6 +347,18 @@ func main() {
 		if err != nil {
 			fatal(logger, "initialize password reset email sender", "error", err)
 		}
+
+		paymentSetupEmailSender, err = service.NewSMTPPaymentSetupRequestEmailSender(service.SMTPPaymentSetupRequestEmailConfig{
+			Host:      cfg.Email.SMTPHost,
+			Port:      cfg.Email.SMTPPort,
+			Username:  cfg.Email.SMTPUsername,
+			Password:  cfg.Email.SMTPPassword,
+			FromEmail: cfg.Email.FromEmail,
+			FromName:  cfg.Email.FromName,
+		})
+		if err != nil {
+			fatal(logger, "initialize payment setup request email sender", "error", err)
+		}
 		serverOpts = append(serverOpts, api.WithPasswordResetService(service.NewPasswordResetService(repo, cfg.Email.ResetTokenTTL)))
 		logger.Info(
 			"alpha notification service enabled",
@@ -360,13 +373,21 @@ func main() {
 			"from_email", cfg.Email.FromEmail,
 			"reset_ttl", cfg.Email.ResetTokenTTL.String(),
 		)
+		logger.Info(
+			"payment setup request email enabled",
+			"component", "server",
+			"smtp_host", cfg.Email.SMTPHost,
+			"from_email", cfg.Email.FromEmail,
+		)
 	} else {
 		logger.Info("workspace invitation email disabled", "component", "server")
 		logger.Info("password reset email disabled", "component", "server")
+		logger.Info("payment setup request email disabled", "component", "server")
 	}
 	serverOpts = append(serverOpts, api.WithNotificationService(service.NewNotificationService(
 		invitationEmailSender,
 		passwordResetEmailSender,
+		paymentSetupEmailSender,
 		invoiceBillingAdapter,
 	)))
 	logger.Info(

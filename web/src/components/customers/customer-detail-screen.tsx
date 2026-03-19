@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw } from "lucide-react";
+import { ArrowLeft, CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { beginCustomerPaymentSetup, fetchCustomerReadiness, fetchCustomers, refreshCustomerPaymentSetup, retryCustomerBillingSync } from "@/lib/api";
+import { beginCustomerPaymentSetup, fetchCustomerReadiness, fetchCustomers, refreshCustomerPaymentSetup, requestCustomerPaymentSetup, resendCustomerPaymentSetup, retryCustomerBillingSync } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -62,6 +62,18 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
     },
   });
+  const requestSetupMutation = useMutation({
+    mutationFn: () => requestCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
+    onSuccess: async () => {
+      await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
+    },
+  });
+  const resendSetupMutation = useMutation({
+    mutationFn: () => resendCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
+    onSuccess: async () => {
+      await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
+    },
+  });
 
   const customer = customersQuery.data?.[0] ?? null;
   const readiness = readinessQuery.data ?? null;
@@ -73,7 +85,9 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
       readiness?.billing_profile_status === "ready" &&
       readiness?.payment_setup_status !== "ready",
   );
+  const showResendRequest = readiness?.payment_setup.last_request_status === "sent" || readiness?.payment_setup.last_request_status === "failed";
   const latestCheckoutURL = beginSetupMutation.data?.checkout_url;
+  const latestRequestedCheckoutURL = requestSetupMutation.data?.checkout_url || resendSetupMutation.data?.checkout_url;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -178,13 +192,44 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   <div className="mt-5 flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={() => beginSetupMutation.mutate()}
-                      disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
+                      onClick={() => requestSetupMutation.mutate()}
+                      disabled={!canBeginPaymentSetup || requestSetupMutation.isPending}
                       className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {beginSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      Request payment setup
+                      {requestSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      Send payment setup request
                     </button>
+                    {showResendRequest ? (
+                      <button
+                        type="button"
+                        onClick={() => resendSetupMutation.mutate()}
+                        disabled={!canBeginPaymentSetup || resendSetupMutation.isPending}
+                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {resendSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        Resend request
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => beginSetupMutation.mutate()}
+                      disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {beginSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                      Generate hosted setup link
+                    </button>
+                    {latestRequestedCheckoutURL ? (
+                      <a
+                        href={latestRequestedCheckoutURL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open latest sent link
+                      </a>
+                    ) : null}
                     {latestCheckoutURL ? (
                       <a
                         href={latestCheckoutURL}
@@ -227,10 +272,34 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       <p className="mt-2">{beginSetupMutation.error instanceof Error ? beginSetupMutation.error.message : "Customer payment setup request failed."}</p>
                     </div>
                   ) : null}
+                  {requestSetupMutation.isError || resendSetupMutation.isError ? (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                      <p className="font-semibold text-amber-900">Payment setup request could not be sent</p>
+                      <p className="mt-2">
+                        {(requestSetupMutation.error instanceof Error && requestSetupMutation.error.message) ||
+                          (resendSetupMutation.error instanceof Error && resendSetupMutation.error.message) ||
+                          "Customer payment setup email delivery failed."}
+                      </p>
+                    </div>
+                  ) : null}
+                  {readiness.payment_setup.last_request_status === "sent" ? (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                      <p className="font-semibold text-emerald-900">Payment setup request sent</p>
+                      <p className="mt-2">
+                        Sent to {readiness.payment_setup.last_request_to_email || "the customer"} on {formatExactTimestamp(readiness.payment_setup.last_request_sent_at)}.
+                      </p>
+                    </div>
+                  ) : null}
+                  {readiness.payment_setup.last_request_status === "failed" ? (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                      <p className="font-semibold text-amber-900">Latest payment setup request failed</p>
+                      <p className="mt-2">{readiness.payment_setup.last_request_error || "Email delivery failed. You can resend or fall back to the hosted link."}</p>
+                    </div>
+                  ) : null}
                   {latestCheckoutURL ? (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
                       <p className="font-semibold text-emerald-900">Hosted payment setup link ready</p>
-                      <p className="mt-2">Send the payer through the hosted setup link, then refresh verification once setup is complete.</p>
+                      <p className="mt-2">Use this fallback when you need to share the link manually, then refresh verification once setup is complete.</p>
                     </div>
                   ) : null}
                   {!canBeginPaymentSetup && readiness.payment_setup_status !== "ready" ? (

@@ -52,17 +52,20 @@ type BillingNotificationAdapter interface {
 type NotificationService struct {
 	workspaceInvitationSender WorkspaceInvitationEmailSender
 	passwordResetSender       PasswordResetEmailSender
+	paymentSetupRequestSender CustomerPaymentSetupRequestEmailSender
 	billingAdapter            BillingNotificationAdapter
 }
 
 func NewNotificationService(
 	workspaceInvitationSender WorkspaceInvitationEmailSender,
 	passwordResetSender PasswordResetEmailSender,
+	paymentSetupRequestSender CustomerPaymentSetupRequestEmailSender,
 	billingAdapter BillingNotificationAdapter,
 ) *NotificationService {
 	return &NotificationService{
 		workspaceInvitationSender: workspaceInvitationSender,
 		passwordResetSender:       passwordResetSender,
+		paymentSetupRequestSender: paymentSetupRequestSender,
 		billingAdapter:            billingAdapter,
 	}
 }
@@ -73,6 +76,10 @@ func (s *NotificationService) CanSendWorkspaceInvitations() bool {
 
 func (s *NotificationService) CanSendPasswordReset() bool {
 	return s != nil && s.passwordResetSender != nil
+}
+
+func (s *NotificationService) CanSendCustomerPaymentSetupRequest() bool {
+	return s != nil && s.paymentSetupRequestSender != nil
 }
 
 func (s *NotificationService) CanResendInvoiceEmail() bool {
@@ -99,6 +106,21 @@ func (s *NotificationService) SendPasswordReset(input PasswordResetEmail) error 
 		return fmt.Errorf("%w: password reset notification backend is required", ErrValidation)
 	}
 	return s.passwordResetSender.SendPasswordReset(input)
+}
+
+func (s *NotificationService) SendCustomerPaymentSetupRequest(input CustomerPaymentSetupRequestEmail) (NotificationDispatchResult, error) {
+	if s == nil || s.paymentSetupRequestSender == nil {
+		return NotificationDispatchResult{}, fmt.Errorf("%w: payment setup request notification backend is required", ErrValidation)
+	}
+	if err := s.paymentSetupRequestSender.SendCustomerPaymentSetupRequest(input); err != nil {
+		return NotificationDispatchResult{}, err
+	}
+	return NotificationDispatchResult{
+		DispatchedAt: time.Now().UTC(),
+		Action:       "send_customer_payment_setup_request",
+		Domain:       "product_workflow",
+		Backend:      "alpha_email",
+	}, nil
 }
 
 func (s *NotificationService) ResendInvoiceEmail(ctx context.Context, invoiceID string, input BillingDocumentEmail) (NotificationDispatchResult, error) {

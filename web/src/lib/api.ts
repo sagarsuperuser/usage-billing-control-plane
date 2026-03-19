@@ -4,6 +4,7 @@ import {
   APIKeyAuditExportJobResponse,
   BillingProviderConnection,
   BeginCustomerPaymentSetupResult,
+  CustomerPaymentSetupRequestResult,
   CreateSubscriptionResult,
   Customer,
   Plan,
@@ -1274,6 +1275,52 @@ export async function beginCustomerPaymentSetup(input: {
 }): Promise<BeginCustomerPaymentSetupResult> {
   const payload = await apiRequest<BeginCustomerPaymentSetupResult>(
     `/v1/customers/${encodeURIComponent(input.externalID)}/payment-setup/checkout-url`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        payment_method_type: input.paymentMethodType,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function requestCustomerPaymentSetup(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  externalID: string;
+  paymentMethodType?: string;
+}): Promise<CustomerPaymentSetupRequestResult> {
+  const payload = await apiRequest<CustomerPaymentSetupRequestResult>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/payment-setup/request`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        payment_method_type: input.paymentMethodType,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function resendCustomerPaymentSetup(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  externalID: string;
+  paymentMethodType?: string;
+}): Promise<CustomerPaymentSetupRequestResult> {
+  const payload = await apiRequest<CustomerPaymentSetupRequestResult>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/payment-setup/resend`,
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "POST",
