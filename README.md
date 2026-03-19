@@ -629,6 +629,7 @@ Architecture and rollout docs:
 - `docs/alpha_workspace_access_spec.md`
 - `docs/alpha_api_credentials_model.md`
 - `docs/alpha_api_credentials_spec.md`
+- `docs/alpha_notification_architecture.md`
 - `docs/alpha_workspace_billing_binding_spec.md`
 - `docs/alpha_import_goal.md`
 - `docs/alpha_import_matrix.md`
