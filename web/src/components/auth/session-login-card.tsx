@@ -51,27 +51,32 @@ export function SessionLoginCard({
 
   return (
     <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 text-sm text-slate-800 shadow-sm">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5">
         <div className="max-w-2xl">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Browser sign-in</p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Browser sign-in</p>
+            <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+              Password
+            </span>
+          </div>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">Start with your account credentials</h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm leading-7 text-slate-600">
             Human browser sessions now use email and password. Platform accounts open cross-workspace administration. Tenant accounts open assigned workspace surfaces.
           </p>
         </div>
         <div className="grid gap-3 text-xs text-slate-600 sm:grid-cols-2">
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
             <p className="font-semibold uppercase tracking-[0.14em] text-slate-900">Platform account</p>
-            <p className="mt-1">Billing connections, workspaces, and cross-workspace readiness.</p>
+            <p className="mt-1 leading-6">Billing connections, workspaces, and cross-workspace readiness.</p>
           </div>
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
             <p className="font-semibold uppercase tracking-[0.14em] text-slate-900">Workspace account</p>
-            <p className="mt-1">Customers, payments, recovery, and explainability inside assigned workspaces.</p>
+            <p className="mt-1 leading-6">Customers, payments, recovery, and explainability inside assigned workspaces.</p>
           </div>
         </div>
       </div>
 
-      <form className="mt-5 grid gap-3" onSubmit={onSubmit}>
+      <form className="mt-5 grid gap-4" onSubmit={onSubmit}>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="grid gap-2">
             <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Email</label>

@@ -51,21 +51,24 @@ export function SessionLoginScreen() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto grid min-h-screen max-w-[1280px] gap-8 px-4 py-10 md:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-10">
-        <section className="flex flex-col justify-center">
+      <main className="mx-auto grid min-h-screen max-w-[1360px] gap-10 px-4 py-10 md:px-8 xl:grid-cols-[minmax(0,1fr)_460px] xl:gap-12 xl:px-10">
+        <section className="flex flex-col justify-center xl:pr-8">
           <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Alpha Control Plane</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+          <h1 className="mt-3 max-w-[11ch] text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl xl:text-6xl">
             Role-aware billing operations without exposing the engine behind it
           </h1>
-          <p className="mt-4 max-w-2xl text-base text-slate-600">
+          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
             Sign in with your account credentials to open the correct control surface. Platform accounts cover billing connections and workspaces. Tenant accounts cover customers, payments, recovery, and explainability inside assigned workspaces.
           </p>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <FeatureCard icon={<CreditCard className="h-5 w-5" />} title="Platform billing" body="Own Stripe connection records in Alpha, then assign those connections to workspaces." />
-            <FeatureCard icon={<Building2 className="h-5 w-5" />} title="Workspace setup" body="Create workspace boundaries, attach connected billing, and hand off the first admin credential." />
-            <FeatureCard icon={<UserRoundPlus className="h-5 w-5" />} title="Tenant operations" body="Run customer onboarding, payment setup, diagnostics, and recovery inside one workspace surface." />
-          </div>
+          <section className="mt-8 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Operating surfaces</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+              <FeatureCard icon={<CreditCard className="h-5 w-5" />} title="Platform billing" body="Own Stripe connection records in Alpha, then assign those connections to workspaces." />
+              <FeatureCard icon={<Building2 className="h-5 w-5" />} title="Workspace setup" body="Create workspace boundaries, attach connected billing, and hand off the first admin credential." />
+              <FeatureCard icon={<UserRoundPlus className="h-5 w-5" />} title="Tenant operations" body="Run customer onboarding, payment setup, diagnostics, and recovery inside one workspace surface." />
+            </div>
+          </section>
 
           <p className="mt-6 text-xs uppercase tracking-[0.14em] text-slate-500">
             API keys remain for API and integration traffic only. Browser sessions are now derived from human account credentials.
@@ -78,9 +81,9 @@ export function SessionLoginScreen() {
           </Link>
         </section>
 
-        <section className="flex items-center">
+        <section className="flex flex-col justify-center gap-4 xl:max-w-[460px] xl:justify-center">
           {resetState === "success" ? (
-            <div className="mr-6 w-full max-w-md rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-700 shadow-sm">
+            <div className="w-full rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-700 shadow-sm">
               Password updated. Sign in with your new password.
             </div>
           ) : null}
@@ -101,9 +104,16 @@ export function SessionLoginScreen() {
             }}
           />
           {authProvidersQuery.data?.sso_providers?.length ? (
-            <div className="ml-6 w-full max-w-md rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Single sign-on</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Continue with your identity provider</h2>
+            <div className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-4 border-b border-stone-200 pb-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Single sign-on</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Continue with your identity provider</h2>
+                </div>
+                <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                  Recommended
+                </span>
+              </div>
               <p className="mt-2 text-sm text-slate-600">
                 Use SSO for browser sessions. API keys stay on API and integration traffic only.
               </p>
@@ -133,10 +143,14 @@ export function SessionLoginScreen() {
 
 function FeatureCard({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
-    <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-      <span className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">{icon}</span>
-      <h2 className="mt-4 text-lg font-semibold text-slate-950">{title}</h2>
-      <p className="mt-2 text-sm text-slate-600">{body}</p>
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">{icon}</span>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+          <p className="mt-2 text-sm leading-7 text-slate-600">{body}</p>
+        </div>
+      </div>
     </div>
   );
 }
