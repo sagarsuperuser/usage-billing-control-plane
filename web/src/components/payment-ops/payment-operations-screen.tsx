@@ -46,18 +46,18 @@ function paymentBadgeClass(status?: string): string {
     case "succeeded":
       return "bg-emerald-600/20 text-emerald-200 border border-emerald-500/40";
     case "pending":
-      return "bg-amber-500/20 text-amber-100 border border-amber-400/40";
+      return "bg-amber-500/20 text-amber-700 border border-amber-400/40";
     default:
-      return "bg-slate-600/20 text-slate-100 border border-slate-500/40";
+      return "bg-slate-600/20 text-slate-700 border border-slate-500/40";
   }
 }
 
 function invoiceBadgeClass(status?: string): string {
   switch ((status || "").toLowerCase()) {
     case "voided":
-      return "bg-slate-500/20 text-slate-200 border border-slate-400/40";
+      return "bg-slate-500/20 text-slate-700 border border-slate-400/40";
     case "finalized":
-      return "bg-cyan-600/20 text-cyan-100 border border-cyan-500/40";
+      return "bg-cyan-600/20 text-emerald-700 border border-cyan-500/40";
     case "draft":
       return "bg-indigo-500/20 text-indigo-100 border border-indigo-400/40";
     default:
@@ -198,21 +198,16 @@ export function PaymentOperationsScreen() {
   const resetStatusOffset = () => setStatusOffset(0);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#1f2937_0%,_#0f172a_32%,_#090d16_74%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-50">
-        <div className="absolute -left-32 top-8 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-orange-500/10 blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+        <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Payment Operations Console</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">Failed Payment Triage</h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-300 md:text-base">
+              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Payment Operations Console</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Failed Payment Triage</h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
                 Inspect failed/pending/overdue invoices, open webhook timeline drawer, and trigger safe payment retries.
               </p>
             </div>
@@ -249,9 +244,9 @@ export function PaymentOperationsScreen() {
 
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Payment Overdue</label>
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Payment Overdue</label>
               <select
-                className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
                 value={overdue}
                 onChange={(event) => {
                   setOverdue(event.target.value as "all" | "true" | "false");
@@ -265,9 +260,9 @@ export function PaymentOperationsScreen() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Sort By</label>
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Sort By</label>
               <select
-                className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
                 value={statusSortBy}
                 onChange={(event) => {
                   setStatusSortBy(event.target.value as (typeof statusSortOptions)[number]["value"]);
@@ -283,9 +278,9 @@ export function PaymentOperationsScreen() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Order</label>
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Order</label>
               <select
-                className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
                 value={statusOrder}
                 onChange={(event) => {
                   setStatusOrder(event.target.value as (typeof orderOptions)[number]["value"]);
@@ -301,9 +296,9 @@ export function PaymentOperationsScreen() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Rows</label>
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Rows</label>
               <select
-                className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
                 value={String(statusLimit)}
                 onChange={(event) => {
                   setStatusLimit(Number(event.target.value));
@@ -317,12 +312,12 @@ export function PaymentOperationsScreen() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Actions</label>
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Actions</label>
               <button
                 type="button"
                 onClick={() => statusesQuery.refetch()}
                 disabled={statusesQuery.isFetching || !isAuthenticated}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {statusesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
@@ -369,18 +364,18 @@ export function PaymentOperationsScreen() {
         ) : null}
 
         {isTenantSession && statusesQuery.error ? (
-          <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <section className="rounded-2xl border border-rose-200 bg-rose-500/10 p-4 text-sm text-rose-700">
             {(statusesQuery.error as Error).message}
           </section>
         ) : null}
 
         {isTenantSession ? (
           <>
-        <section className="rounded-2xl border border-white/10 bg-slate-900/75 p-3 backdrop-blur">
+        <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
           <div className="overflow-auto">
             <table className="w-full min-w-[1140px] border-separate border-spacing-y-2 text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-slate-400">
+                <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
                   <th className="px-3 py-1">Invoice</th>
                   <th className="px-3 py-1">Organization</th>
                   <th className="px-3 py-1">Customer</th>
@@ -400,15 +395,15 @@ export function PaymentOperationsScreen() {
                       key={item.invoice_id}
                       onClick={() => openTimeline(item.invoice_id, item.organization_id)}
                       className={`cursor-pointer transition ${
-                        selected ? "bg-cyan-500/15" : "bg-slate-950/70 hover:bg-slate-800/90"
+                        selected ? "bg-emerald-50" : "bg-stone-50 hover:bg-slate-800/90"
                       }`}
                     >
                       <td className="rounded-l-xl px-3 py-3 align-top">
                         <p className="font-medium text-cyan-200">{item.invoice_number || item.invoice_id}</p>
-                        <p className="text-xs text-slate-400">{item.invoice_id}</p>
+                        <p className="text-xs text-slate-500">{item.invoice_id}</p>
                       </td>
-                      <td className="px-3 py-3 align-top text-slate-200">{item.organization_id || "-"}</td>
-                      <td className="px-3 py-3 align-top text-slate-200">{item.customer_external_id || "-"}</td>
+                      <td className="px-3 py-3 align-top text-slate-700">{item.organization_id || "-"}</td>
+                      <td className="px-3 py-3 align-top text-slate-700">{item.customer_external_id || "-"}</td>
                       <td className="px-3 py-3 align-top">
                         <span className={`inline-flex rounded-lg px-2 py-1 text-xs font-medium ${paymentBadgeClass(item.payment_status)}`}>
                           {item.payment_status || "unknown"}
@@ -424,17 +419,17 @@ export function PaymentOperationsScreen() {
                         <span className={`inline-flex rounded-lg px-2 py-1 text-xs font-medium ${invoiceBadgeClass(item.invoice_status)}`}>
                           {item.invoice_status || "unknown"}
                         </span>
-                        <p className="mt-1 text-xs text-slate-400">Overdue: {String(item.payment_overdue ?? false)}</p>
+                        <p className="mt-1 text-xs text-slate-500">Overdue: {String(item.payment_overdue ?? false)}</p>
                       </td>
                       <td className="px-3 py-3 align-top">
                         <p>{formatMoney(item.total_due_amount_cents, item.currency || "USD")}</p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-slate-500">
                           Paid {formatMoney(item.total_paid_amount_cents, item.currency || "USD")}
                         </p>
                       </td>
                       <td className="px-3 py-3 align-top">
-                        <p className="text-slate-200">{item.last_event_type || "-"}</p>
-                        <p className="text-xs text-slate-400" title={formatExactTimestamp(item.last_event_at)}>
+                        <p className="text-slate-700">{item.last_event_type || "-"}</p>
+                        <p className="text-xs text-slate-500" title={formatExactTimestamp(item.last_event_at)}>
                           {formatRelativeTimestamp(item.last_event_at)}
                         </p>
                       </td>
@@ -446,7 +441,7 @@ export function PaymentOperationsScreen() {
                               event.stopPropagation();
                               openTimeline(item.invoice_id, item.organization_id);
                             }}
-                            className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/50 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/25"
+                            className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/50 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-cyan-500/25"
                           >
                             Timeline
                           </button>
@@ -457,7 +452,7 @@ export function PaymentOperationsScreen() {
                               retryMutation.mutate(item.invoice_id);
                             }}
                             disabled={!isAuthenticated || !csrfToken || !canWrite || retrying}
-                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                             title={!canWrite ? "Writer or admin role required" : undefined}
                           >
                             {retrying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
@@ -472,7 +467,7 @@ export function PaymentOperationsScreen() {
             </table>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-1 pt-3 text-xs text-slate-300">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 px-1 pt-3 text-xs text-slate-600">
             <p>
               Page {Math.floor(statusOffset / statusLimit) + 1}, showing {items.length} row(s)
             </p>
@@ -481,7 +476,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => setStatusOffset(Math.max(0, statusOffset - statusLimit))}
                 disabled={!canGoPrevStatuses || statusesQuery.isFetching}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> Prev
               </button>
@@ -489,7 +484,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => setStatusOffset(statusOffset + statusLimit)}
                 disabled={!canGoNextStatuses || statusesQuery.isFetching}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -498,19 +493,19 @@ export function PaymentOperationsScreen() {
         </section>
 
         {retryMutation.error ? (
-          <section className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <section className="rounded-2xl border border-rose-200 bg-rose-500/10 p-4 text-sm text-rose-700">
             {(retryMutation.error as Error).message}
           </section>
         ) : null}
 
         {retryMutation.isSuccess ? (
-          <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
             Retry request sent to billing engine for invoice <strong>{retryMutation.variables}</strong>.
           </section>
         ) : null}
 
         {isAuthenticated && !canWrite ? (
-          <section className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <section className="rounded-2xl border border-amber-200 bg-amber-500/10 p-4 text-sm text-amber-700">
             Current session role <strong>{role ?? "reader"}</strong> is read-only for payment retry operations. Use a writer or admin key to trigger retries.
           </section>
         ) : null}
@@ -522,20 +517,20 @@ export function PaymentOperationsScreen() {
         <div className="fixed inset-0 z-50 flex justify-end">
           <button
             aria-label="Close timeline"
-            className="h-full flex-1 bg-slate-950/70 backdrop-blur-[2px]"
+            className="h-full flex-1 bg-stone-50 backdrop-blur-[2px]"
             onClick={() => setTimelineOpen(false)}
           />
-          <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-slate-900/95 p-5 shadow-2xl">
+          <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-stone-200 bg-white p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold tracking-tight text-white">Invoice Timeline</h2>
-                <p className="mt-1 text-xs text-slate-300">{selectedItem?.invoice_number || selectedInvoiceID}</p>
-                <p className="text-[11px] text-slate-400">{selectedInvoiceID}</p>
+                <h2 className="text-xl font-semibold tracking-tight text-slate-900">Invoice Timeline</h2>
+                <p className="mt-1 text-xs text-slate-600">{selectedItem?.invoice_number || selectedInvoiceID}</p>
+                <p className="text-[11px] text-slate-500">{selectedInvoiceID}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setTimelineOpen(false)}
-                className="rounded-lg border border-white/15 bg-white/5 p-2 text-slate-200 transition hover:bg-white/10"
+                className="rounded-lg border border-stone-200 bg-stone-50 p-2 text-slate-700 transition hover:bg-white/10"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -552,9 +547,9 @@ export function PaymentOperationsScreen() {
                 }}
               />
               <div className="grid gap-2">
-                <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Sort</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Sort</label>
                 <select
-                  className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                  className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
                   value={eventSortBy}
                   onChange={(event) => {
                     setEventSortBy(event.target.value as (typeof eventSortOptions)[number]["value"]);
@@ -569,9 +564,9 @@ export function PaymentOperationsScreen() {
                 </select>
               </div>
               <div className="grid gap-2">
-                <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Order</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Order</label>
                 <select
-                  className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                  className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
                   value={eventOrder}
                   onChange={(event) => {
                     setEventOrder(event.target.value as (typeof orderOptions)[number]["value"]);
@@ -586,9 +581,9 @@ export function PaymentOperationsScreen() {
                 </select>
               </div>
               <div className="grid gap-2">
-                <label className="text-xs font-medium uppercase tracking-wider text-slate-300">Rows</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Rows</label>
                 <select
-                  className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                  className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
                   value={String(eventLimit)}
                   onChange={(event) => {
                     setEventLimit(Number(event.target.value));
@@ -607,21 +602,21 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => eventsQuery.refetch()}
                 disabled={eventsQuery.isFetching || !isAuthenticated}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 text-sm text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eventsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh timeline
               </button>
             </div>
 
-            <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/60 p-4">
+            <section className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-200">Lifecycle Summary</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Lifecycle Summary</h3>
                 <button
                   type="button"
                   onClick={() => lifecycleQuery.refetch()}
                   disabled={lifecycleQuery.isFetching || !isAuthenticated}
-                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 text-xs text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs text-emerald-700 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {lifecycleQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   Refresh
@@ -641,11 +636,11 @@ export function PaymentOperationsScreen() {
                     <MetricCard label="Overdue signals" value={lifecycleQuery.data.overdue_signal_count} tone="danger" />
                     <MetricCard label="Events analyzed" value={lifecycleQuery.data.events_analyzed} />
                   </div>
-                  <div className="rounded-lg border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-200">
-                    <p className="font-semibold uppercase tracking-wider text-slate-300">Recommended Action</p>
-                    <p className="mt-1 text-sm text-white">{lifecycleQuery.data.recommended_action}</p>
-                    <p className="mt-1 text-slate-300">{lifecycleQuery.data.recommended_action_note}</p>
-                    <p className="mt-2 text-[11px] text-slate-400">
+                  <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs text-slate-700">
+                    <p className="font-semibold uppercase tracking-wider text-slate-600">Recommended Action</p>
+                    <p className="mt-1 text-sm text-slate-900">{lifecycleQuery.data.recommended_action}</p>
+                    <p className="mt-1 text-slate-600">{lifecycleQuery.data.recommended_action_note}</p>
+                    <p className="mt-2 text-[11px] text-slate-500">
                       Last failure: {lifecycleQuery.data.last_failure_at ? formatExactTimestamp(lifecycleQuery.data.last_failure_at) : "-"} | Last success:{" "}
                       {lifecycleQuery.data.last_success_at ? formatExactTimestamp(lifecycleQuery.data.last_success_at) : "-"}
                     </p>
@@ -675,30 +670,30 @@ export function PaymentOperationsScreen() {
               ) : null}
 
               {(eventsQuery.data?.items || []).map((event) => (
-                <article key={event.id} className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
+                <article key={event.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-white">{event.webhook_type}</p>
-                      <p className="text-xs text-slate-400">Occurred {formatExactTimestamp(event.occurred_at)}</p>
+                      <p className="text-sm font-medium text-slate-900">{event.webhook_type}</p>
+                      <p className="text-xs text-slate-500">Occurred {formatExactTimestamp(event.occurred_at)}</p>
                       <p className="text-[11px] text-slate-500">Received {formatExactTimestamp(event.received_at)}</p>
                     </div>
                     <span className={`rounded-md px-2 py-1 text-[11px] ${paymentBadgeClass(event.payment_status)}`}>
                       {event.payment_status || "n/a"}
                     </span>
                   </div>
-                  <dl className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-300">
+                  <dl className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-600">
                     <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-400">Object</dt>
+                      <dt className="text-slate-500">Object</dt>
                       <dd>{event.object_type}</dd>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-400">Webhook key</dt>
+                      <dt className="text-slate-500">Webhook key</dt>
                       <dd className="max-w-[62%] truncate" title={event.webhook_key}>
                         {event.webhook_key}
                       </dd>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-400">Relative time</dt>
+                      <dt className="text-slate-500">Relative time</dt>
                       <dd>{formatRelativeTimestamp(event.received_at)}</dd>
                     </div>
                   </dl>
@@ -706,7 +701,7 @@ export function PaymentOperationsScreen() {
               ))}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs text-slate-300">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3 text-xs text-slate-600">
               <p>
                 Page {Math.floor(eventOffset / eventLimit) + 1}, showing {(eventsQuery.data?.items || []).length} event(s)
               </p>
@@ -715,7 +710,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => setEventOffset(Math.max(0, eventOffset - eventLimit))}
                   disabled={!canGoPrevEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" /> Prev
                 </button>
@@ -723,7 +718,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => setEventOffset(eventOffset + eventLimit)}
                   disabled={!canGoNextEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -745,13 +740,13 @@ function InputField(props: {
 }) {
   return (
     <div className="grid gap-2">
-      <label className="text-xs font-medium uppercase tracking-wider text-slate-300">{props.label}</label>
+      <label className="text-xs font-medium uppercase tracking-wider text-slate-600">{props.label}</label>
       <input
         type={props.sensitive ? "password" : "text"}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
         placeholder={props.placeholder}
-        className="h-10 rounded-xl border border-white/15 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none ring-cyan-400 transition placeholder:text-slate-500 focus:ring-2"
+        className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition placeholder:text-slate-500 focus:ring-2"
       />
     </div>
   );
@@ -767,7 +762,7 @@ function QuickFilterChip(props: {
       type="button"
       onClick={props.onClick}
       className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-        props.active ? "border-cyan-400/60 bg-cyan-500/20 text-cyan-100" : "border-white/15 bg-white/5 text-slate-200 hover:bg-white/10"
+        props.active ? "border-cyan-400/60 bg-cyan-500/20 text-emerald-700" : "border-stone-200 bg-stone-50 text-slate-700 hover:bg-white/10"
       }`}
     >
       {props.label}
@@ -783,7 +778,7 @@ function EmptyState(props: {
   return (
     <div
       className={`rounded-xl border p-4 text-sm ${
-        props.tone === "danger" ? "border-rose-400/40 bg-rose-500/10 text-rose-100" : "border-white/10 bg-slate-950/60 text-slate-300"
+        props.tone === "danger" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-stone-200 bg-stone-50 text-slate-600"
       }`}
     >
       <div className="flex items-center gap-2">
@@ -800,9 +795,9 @@ function MetricCard(props: {
   tone?: "default" | "danger";
 }) {
   return (
-    <article className={`rounded-xl border px-3 py-2 ${props.tone === "danger" ? "border-rose-400/30 bg-rose-500/10" : "border-white/15 bg-white/5"}`}>
-      <p className="text-[11px] uppercase tracking-wider text-slate-400">{props.label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{props.value}</p>
+    <article className={`rounded-xl border px-3 py-2 ${props.tone === "danger" ? "border-rose-400/30 bg-rose-500/10" : "border-stone-200 bg-stone-50"}`}>
+      <p className="text-[11px] uppercase tracking-wider text-slate-500">{props.label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-900">{props.value}</p>
     </article>
   );
 }
