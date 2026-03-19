@@ -165,7 +165,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section id="payment-collection" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment collection</p>
                   <p className="mt-3 text-sm text-slate-600">
                     Use this customer page as the primary collection path when payment setup is missing or incomplete. Generate the hosted payer setup link here, then refresh verification before retrying collection elsewhere.

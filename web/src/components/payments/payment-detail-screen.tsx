@@ -294,7 +294,17 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                         Open explainability
                       </Link>
                     ) : null}
-                    {!actionConfig?.emphasizeRetry && payment.customer_external_id ? (
+                    {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
+                      <Link
+                        href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      >
+                        Open customer payment setup
+                      </Link>
+                    ) : null}
+                    {!actionConfig?.emphasizeRetry &&
+                    payment.lifecycle.recommended_action !== "collect_payment" &&
+                    payment.customer_external_id ? (
                       <Link
                         href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
                         className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
