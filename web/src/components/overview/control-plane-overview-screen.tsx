@@ -238,11 +238,11 @@ export function ControlPlaneOverviewScreen() {
   const primaryAction = actionItems[0] ?? moduleItems[0] ?? null;
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#eef4ef_0%,#f6f2eb_100%)] text-slate-900">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
-        <section className="rounded-3xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        <section className="rounded-3xl border border-stone-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Overview</p>

@@ -50,19 +50,14 @@ export function SessionLoginScreen() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_#172554_0%,_#0f172a_38%,_#090d16_78%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 opacity-60">
-        <div className="absolute -left-20 top-0 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-orange-500/10 blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto grid min-h-screen max-w-[1280px] gap-8 px-4 py-10 md:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-10">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <main className="mx-auto grid min-h-screen max-w-[1280px] gap-8 px-4 py-10 md:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-10">
         <section className="flex flex-col justify-center">
-          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Alpha Control Plane</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white md:text-5xl">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Alpha Control Plane</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
             Role-aware billing operations without exposing the engine behind it
           </h1>
-          <p className="mt-4 max-w-2xl text-base text-slate-300">
+          <p className="mt-4 max-w-2xl text-base text-slate-600">
             Sign in with your account credentials to open the correct control surface. Platform accounts cover billing connections and workspaces. Tenant accounts cover customers, payments, recovery, and explainability inside assigned workspaces.
           </p>
 
@@ -72,12 +67,12 @@ export function SessionLoginScreen() {
             <FeatureCard icon={<UserRoundPlus className="h-5 w-5" />} title="Tenant operations" body="Run customer onboarding, payment setup, diagnostics, and recovery inside one workspace surface." />
           </div>
 
-          <p className="mt-6 text-xs uppercase tracking-[0.14em] text-slate-400">
+          <p className="mt-6 text-xs uppercase tracking-[0.14em] text-slate-500">
             API keys remain for API and integration traffic only. Browser sessions are now derived from human account credentials.
           </p>
           <Link
             href="/control-plane"
-            className="mt-6 inline-flex h-10 w-fit items-center rounded-xl border border-white/10 bg-white/5 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-100 transition hover:bg-white/10"
+            className="mt-6 inline-flex h-10 w-fit items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:border-stone-300 hover:bg-white"
           >
             Open product overview
           </Link>
@@ -85,7 +80,7 @@ export function SessionLoginScreen() {
 
         <section className="flex items-center">
           {resetState === "success" ? (
-            <div className="mr-6 w-full max-w-md rounded-3xl border border-emerald-400/30 bg-emerald-500/10 p-5 text-sm text-emerald-100 backdrop-blur-xl">
+            <div className="mr-6 w-full max-w-md rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-700 shadow-sm">
               Password updated. Sign in with your new password.
             </div>
           ) : null}
@@ -106,10 +101,10 @@ export function SessionLoginScreen() {
             }}
           />
           {authProvidersQuery.data?.sso_providers?.length ? (
-            <div className="ml-6 w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/55 p-5 backdrop-blur-xl">
-              <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/80">Single sign-on</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Continue with your identity provider</h2>
-              <p className="mt-2 text-sm text-slate-300">
+            <div className="ml-6 w-full max-w-md rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Single sign-on</p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">Continue with your identity provider</h2>
+              <p className="mt-2 text-sm text-slate-600">
                 Use SSO for browser sessions. API keys stay on API and integration traffic only.
               </p>
               <div className="mt-4 grid gap-3">
@@ -117,14 +112,14 @@ export function SessionLoginScreen() {
                   <a
                     key={provider.key}
                     href={buildSSOStartURL(apiBaseURL, provider.key, requestedNext)}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-50 transition hover:bg-cyan-500/20"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm font-medium text-slate-800 transition hover:border-stone-300 hover:bg-white"
                   >
                     Continue with {provider.display_name}
                   </a>
                 ))}
               </div>
               {(providerKey || authError) && (
-                <p className="mt-3 text-xs text-amber-200">
+                <p className="mt-3 text-xs text-amber-700">
                   {resolveAuthErrorMessage(providerKey, authError)}
                 </p>
               )}
@@ -138,10 +133,10 @@ export function SessionLoginScreen() {
 
 function FeatureCard({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-900/55 p-5 backdrop-blur-xl">
-      <span className="inline-flex rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 text-cyan-100">{icon}</span>
-      <h2 className="mt-4 text-lg font-semibold text-white">{title}</h2>
-      <p className="mt-2 text-sm text-slate-300">{body}</p>
+    <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+      <span className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">{icon}</span>
+      <h2 className="mt-4 text-lg font-semibold text-slate-950">{title}</h2>
+      <p className="mt-2 text-sm text-slate-600">{body}</p>
     </div>
   );
 }
