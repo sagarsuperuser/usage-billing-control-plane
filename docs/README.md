@@ -29,6 +29,7 @@ If you are starting cold, read in this order:
 ### Core architecture
 
 - [Production Architecture](./production-architecture.md)
+- [Engineering Standards](./engineering-standards.md)
 - [Alpha Lago Boundary](./alpha-lago-boundary.md)
 - [Alpha Billing Execution Model](./alpha-billing-execution-model.md)
 - [Alpha Notification Architecture](./alpha_notification_architecture.md)
