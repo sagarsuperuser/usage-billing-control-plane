@@ -33,9 +33,16 @@ const (
 )
 
 type CreateAPIKeyRequest struct {
-	Name      string     `json:"name"`
-	Role      string     `json:"role"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Name                  string     `json:"name"`
+	Role                  string     `json:"role"`
+	ExpiresAt             *time.Time `json:"expires_at,omitempty"`
+	OwnerType             string     `json:"owner_type,omitempty"`
+	OwnerID               string     `json:"owner_id,omitempty"`
+	Purpose               string     `json:"purpose,omitempty"`
+	Environment           string     `json:"environment,omitempty"`
+	CreatedByUserID       string     `json:"created_by_user_id,omitempty"`
+	CreatedByPlatformUser bool       `json:"created_by_platform_user,omitempty"`
+	ActorPlatformAPIKeyID string     `json:"actor_platform_api_key_id,omitempty"`
 }
 
 type CreateAPIKeyResult struct {
@@ -110,6 +117,15 @@ func (s *APIKeyService) CreateAPIKey(tenantID, actorAPIKeyID string, req CreateA
 	if name == "" {
 		return CreateAPIKeyResult{}, fmt.Errorf("%w: name is required", ErrValidation)
 	}
+	ownerType, err := normalizeWorkspaceCredentialOwnerType(req.OwnerType)
+	if err != nil {
+		return CreateAPIKeyResult{}, err
+	}
+	ownerID := strings.TrimSpace(req.OwnerID)
+	purpose := strings.TrimSpace(req.Purpose)
+	environment := strings.TrimSpace(req.Environment)
+	createdByUserID := strings.TrimSpace(req.CreatedByUserID)
+	actorPlatformAPIKeyID := strings.TrimSpace(req.ActorPlatformAPIKeyID)
 
 	secret, err := generateAPIKeySecret()
 	if err != nil {
@@ -119,13 +135,19 @@ func (s *APIKeyService) CreateAPIKey(tenantID, actorAPIKeyID string, req CreateA
 	prefix := keyPrefixFromHash(hashed)
 
 	created, err := s.store.CreateAPIKey(domain.APIKey{
-		KeyPrefix: prefix,
-		KeyHash:   hashed,
-		Name:      name,
-		Role:      role,
-		TenantID:  tenantID,
-		CreatedAt: time.Now().UTC(),
-		ExpiresAt: req.ExpiresAt,
+		KeyPrefix:             prefix,
+		KeyHash:               hashed,
+		Name:                  name,
+		Role:                  role,
+		TenantID:              tenantID,
+		OwnerType:             ownerType,
+		OwnerID:               ownerID,
+		Purpose:               purpose,
+		Environment:           environment,
+		CreatedByUserID:       createdByUserID,
+		CreatedByPlatformUser: req.CreatedByPlatformUser,
+		CreatedAt:             time.Now().UTC(),
+		ExpiresAt:             req.ExpiresAt,
 	})
 	if err != nil {
 		if err == store.ErrAlreadyExists || err == store.ErrDuplicateKey {
@@ -134,16 +156,34 @@ func (s *APIKeyService) CreateAPIKey(tenantID, actorAPIKeyID string, req CreateA
 		return CreateAPIKeyResult{}, err
 	}
 
+	metadata := map[string]any{
+		"role":        role,
+		"name":        name,
+		"owner_type":  ownerType,
+		"owner_id":    ownerID,
+		"purpose":     purpose,
+		"environment": environment,
+	}
+	if createdByUserID != "" {
+		metadata["created_by_user_id"] = createdByUserID
+	}
+	if req.CreatedByPlatformUser {
+		metadata["created_by_platform_user"] = true
+	}
+	if actorPlatformAPIKeyID != "" {
+		metadata["actor_platform_api_key_id"] = actorPlatformAPIKeyID
+	}
+	if req.ExpiresAt != nil {
+		metadata["expires_at"] = req.ExpiresAt.UTC().Format(time.RFC3339Nano)
+	}
+
 	_, err = s.store.CreateAPIKeyAuditEvent(domain.APIKeyAuditEvent{
 		TenantID:      tenantID,
 		APIKeyID:      created.ID,
 		ActorAPIKeyID: actorAPIKeyID,
 		Action:        apiKeyAuditActionCreated,
-		Metadata: map[string]any{
-			"role": role,
-			"name": name,
-		},
-		CreatedAt: time.Now().UTC(),
+		Metadata:      metadata,
+		CreatedAt:     time.Now().UTC(),
 	})
 	if err != nil {
 		return CreateAPIKeyResult{}, fmt.Errorf("create api key audit event: %w", err)
@@ -207,6 +247,10 @@ func (s *APIKeyService) RevokeAPIKey(tenantID, actorAPIKeyID, id string) (domain
 	tenantID = normalizeTenantID(tenantID)
 	actorAPIKeyID = strings.TrimSpace(actorAPIKeyID)
 	id = strings.TrimSpace(id)
+	current, err := s.store.GetAPIKeyByID(tenantID, id)
+	if err != nil {
+		return domain.APIKey{}, err
+	}
 	key, err := s.store.RevokeAPIKey(tenantID, id, time.Now().UTC())
 	if err != nil {
 		return domain.APIKey{}, err
@@ -216,7 +260,14 @@ func (s *APIKeyService) RevokeAPIKey(tenantID, actorAPIKeyID, id string) (domain
 		APIKeyID:      key.ID,
 		ActorAPIKeyID: actorAPIKeyID,
 		Action:        apiKeyAuditActionRevoked,
-		CreatedAt:     time.Now().UTC(),
+		Metadata: map[string]any{
+			"owner_type":        current.OwnerType,
+			"owner_id":          current.OwnerID,
+			"purpose":           current.Purpose,
+			"environment":       current.Environment,
+			"revocation_reason": current.RevocationReason,
+		},
+		CreatedAt: time.Now().UTC(),
 	})
 	if err != nil {
 		return domain.APIKey{}, fmt.Errorf("create api key audit event: %w", err)
@@ -242,9 +293,15 @@ func (s *APIKeyService) RotateAPIKey(tenantID, actorAPIKeyID, id string) (Create
 	}
 
 	rotated, err := s.CreateAPIKey(tenantID, actorAPIKeyID, CreateAPIKeyRequest{
-		Name:      current.Name,
-		Role:      current.Role,
-		ExpiresAt: current.ExpiresAt,
+		Name:                  current.Name,
+		Role:                  current.Role,
+		ExpiresAt:             current.ExpiresAt,
+		OwnerType:             current.OwnerType,
+		OwnerID:               current.OwnerID,
+		Purpose:               current.Purpose,
+		Environment:           current.Environment,
+		CreatedByUserID:       current.CreatedByUserID,
+		CreatedByPlatformUser: current.CreatedByPlatformUser,
 	})
 	if err != nil {
 		return CreateAPIKeyResult{}, err
@@ -256,6 +313,10 @@ func (s *APIKeyService) RotateAPIKey(tenantID, actorAPIKeyID, id string) (Create
 		Action:        apiKeyAuditActionRotated,
 		Metadata: map[string]any{
 			"new_api_key_id": rotated.APIKey.ID,
+			"owner_type":     current.OwnerType,
+			"owner_id":       current.OwnerID,
+			"purpose":        current.Purpose,
+			"environment":    current.Environment,
 		},
 		CreatedAt: time.Now().UTC(),
 	})
@@ -372,6 +433,18 @@ func generateAPIKeySecret() (string, error) {
 		return "", fmt.Errorf("generate api key secret: %w", err)
 	}
 	return "lgo_" + hex.EncodeToString(buf), nil
+}
+
+func normalizeWorkspaceCredentialOwnerType(raw string) (string, error) {
+	ownerType := strings.ToLower(strings.TrimSpace(raw))
+	switch ownerType {
+	case "", "workspace_credential":
+		return "workspace_credential", nil
+	case "bootstrap", "break_glass", "service_account":
+		return ownerType, nil
+	default:
+		return "", fmt.Errorf("%w: invalid owner_type", ErrValidation)
+	}
 }
 
 func normalizeAPIKeyRole(raw string) (string, error) {

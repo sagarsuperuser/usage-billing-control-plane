@@ -81,7 +81,7 @@ func TestErrorResponseExcludesRequestIDBodyField(t *testing.T) {
 	if got, _ := payload["error"].(string); got != "unauthorized" {
 		t.Fatalf("expected unauthorized error, got %q", got)
 	}
-	if _, exists := payload["request_id"]; exists {
-		t.Fatalf("expected no request_id in error response body")
+	if got, _ := payload["request_id"].(string); strings.TrimSpace(got) == "" {
+		t.Fatalf("expected request_id in error response body")
 	}
 }

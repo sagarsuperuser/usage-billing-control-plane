@@ -574,28 +574,45 @@ type InvoicePaymentStatusView struct {
 }
 
 type APIKey struct {
-	ID         string     `json:"id"`
-	KeyPrefix  string     `json:"key_prefix"`
-	KeyHash    string     `json:"-"`
-	Name       string     `json:"name"`
-	Role       string     `json:"role"`
-	TenantID   string     `json:"tenant_id"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	ID                    string     `json:"id"`
+	KeyPrefix             string     `json:"key_prefix"`
+	KeyHash               string     `json:"-"`
+	Name                  string     `json:"name"`
+	Role                  string     `json:"role"`
+	TenantID              string     `json:"tenant_id"`
+	OwnerType             string     `json:"owner_type,omitempty"`
+	OwnerID               string     `json:"owner_id,omitempty"`
+	Purpose               string     `json:"purpose,omitempty"`
+	Environment           string     `json:"environment,omitempty"`
+	CreatedByUserID       string     `json:"created_by_user_id,omitempty"`
+	CreatedByPlatformUser bool       `json:"created_by_platform_user,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	ExpiresAt             *time.Time `json:"expires_at,omitempty"`
+	RevokedAt             *time.Time `json:"revoked_at,omitempty"`
+	LastUsedAt            *time.Time `json:"last_used_at,omitempty"`
+	LastRotatedAt         *time.Time `json:"last_rotated_at,omitempty"`
+	RotationRequiredAt    *time.Time `json:"rotation_required_at,omitempty"`
+	RevocationReason      string     `json:"revocation_reason,omitempty"`
 }
 
 type PlatformAPIKey struct {
-	ID         string     `json:"id"`
-	KeyPrefix  string     `json:"key_prefix"`
-	KeyHash    string     `json:"-"`
-	Name       string     `json:"name"`
-	Role       string     `json:"role"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	ID                 string     `json:"id"`
+	KeyPrefix          string     `json:"key_prefix"`
+	KeyHash            string     `json:"-"`
+	Name               string     `json:"name"`
+	Role               string     `json:"role"`
+	OwnerType          string     `json:"owner_type,omitempty"`
+	OwnerID            string     `json:"owner_id,omitempty"`
+	Purpose            string     `json:"purpose,omitempty"`
+	Environment        string     `json:"environment,omitempty"`
+	CreatedByUserID    string     `json:"created_by_user_id,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	RevokedAt          *time.Time `json:"revoked_at,omitempty"`
+	LastUsedAt         *time.Time `json:"last_used_at,omitempty"`
+	LastRotatedAt      *time.Time `json:"last_rotated_at,omitempty"`
+	RotationRequiredAt *time.Time `json:"rotation_required_at,omitempty"`
+	RevocationReason   string     `json:"revocation_reason,omitempty"`
 }
 
 type APIKeyAuditEvent struct {

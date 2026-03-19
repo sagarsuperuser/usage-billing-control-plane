@@ -223,10 +223,19 @@ export interface APIKey {
   name: string;
   role: string;
   tenant_id: string;
+  owner_type?: string;
+  owner_id?: string;
+  purpose?: string;
+  environment?: string;
+  created_by_user_id?: string;
+  created_by_platform_user?: boolean;
   created_at: string;
   expires_at?: string;
   revoked_at?: string;
   last_used_at?: string;
+  last_rotated_at?: string;
+  rotation_required_at?: string;
+  revocation_reason?: string;
 }
 
 export interface TenantCoreReadiness {

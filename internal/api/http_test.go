@@ -1818,6 +1818,9 @@ func TestAPIKeyLifecycleEndpoints(t *testing.T) {
 	if createdAPIKey["tenant_id"] != "tenant_a" {
 		t.Fatalf("expected created key tenant tenant_a, got %v", createdAPIKey["tenant_id"])
 	}
+	if createdAPIKey["owner_type"] != "workspace_credential" {
+		t.Fatalf("expected created key owner_type workspace_credential, got %v", createdAPIKey["owner_type"])
+	}
 
 	tenantAList := getJSON(t, ts.URL+"/v1/api-keys", "tenant-a-admin", http.StatusOK)
 	tenantAKeys := listItemsFromResponse(t, tenantAList)
@@ -2078,6 +2081,9 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	}
 	if gotTenant, _ := apiKey["tenant_id"].(string); gotTenant != "tenant_ops" {
 		t.Fatalf("expected bootstrapped tenant admin tenant_id tenant_ops, got %q", gotTenant)
+	}
+	if gotOwnerType, _ := apiKey["owner_type"].(string); gotOwnerType != "bootstrap" {
+		t.Fatalf("expected bootstrapped tenant admin owner_type bootstrap, got %q", gotOwnerType)
 	}
 	if secret, _ := bootstrapped["secret"].(string); strings.TrimSpace(secret) == "" {
 		t.Fatalf("expected bootstrap response secret")

@@ -2324,10 +2324,14 @@ func (s *Server) handleInternalTenantBootstrapAdminKey(w http.ResponseWriter, r 
 		return
 	}
 
-	created, err := s.apiKeyService.CreateAPIKey(tenantID, requestActorAPIKeyID(r), service.CreateAPIKeyRequest{
-		Name:      req.Name,
-		Role:      string(RoleAdmin),
-		ExpiresAt: req.ExpiresAt,
+	created, err := s.apiKeyService.CreateAPIKey(tenantID, "", service.CreateAPIKeyRequest{
+		Name:                  req.Name,
+		Role:                  string(RoleAdmin),
+		ExpiresAt:             req.ExpiresAt,
+		OwnerType:             "bootstrap",
+		Purpose:               "Workspace bootstrap admin credential",
+		CreatedByPlatformUser: true,
+		ActorPlatformAPIKeyID: requestActorAPIKeyID(r),
 	})
 	if err != nil {
 		writeDomainError(w, err)

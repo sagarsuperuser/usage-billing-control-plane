@@ -14,9 +14,14 @@ type PlatformAPIKeyService struct {
 }
 
 type CreatePlatformAPIKeyRequest struct {
-	Name      string     `json:"name"`
-	Role      string     `json:"role"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Name            string     `json:"name"`
+	Role            string     `json:"role"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
+	OwnerType       string     `json:"owner_type,omitempty"`
+	OwnerID         string     `json:"owner_id,omitempty"`
+	Purpose         string     `json:"purpose,omitempty"`
+	Environment     string     `json:"environment,omitempty"`
+	CreatedByUserID string     `json:"created_by_user_id,omitempty"`
 }
 
 type CreatePlatformAPIKeyResult struct {
@@ -42,6 +47,10 @@ func (s *PlatformAPIKeyService) CreatePlatformAPIKey(req CreatePlatformAPIKeyReq
 	if name == "" {
 		return CreatePlatformAPIKeyResult{}, fmt.Errorf("%w: name is required", ErrValidation)
 	}
+	ownerType, err := normalizePlatformCredentialOwnerType(req.OwnerType)
+	if err != nil {
+		return CreatePlatformAPIKeyResult{}, err
+	}
 
 	secret, err := generateAPIKeySecret()
 	if err != nil {
@@ -51,12 +60,17 @@ func (s *PlatformAPIKeyService) CreatePlatformAPIKey(req CreatePlatformAPIKeyReq
 	prefix := keyPrefixFromHash(hashed)
 
 	created, err := s.store.CreatePlatformAPIKey(domain.PlatformAPIKey{
-		KeyPrefix: prefix,
-		KeyHash:   hashed,
-		Name:      name,
-		Role:      role,
-		CreatedAt: time.Now().UTC(),
-		ExpiresAt: req.ExpiresAt,
+		KeyPrefix:       prefix,
+		KeyHash:         hashed,
+		Name:            name,
+		Role:            role,
+		OwnerType:       ownerType,
+		OwnerID:         strings.TrimSpace(req.OwnerID),
+		Purpose:         strings.TrimSpace(req.Purpose),
+		Environment:     strings.TrimSpace(req.Environment),
+		CreatedByUserID: strings.TrimSpace(req.CreatedByUserID),
+		CreatedAt:       time.Now().UTC(),
+		ExpiresAt:       req.ExpiresAt,
 	})
 	if err != nil {
 		if err == store.ErrAlreadyExists || err == store.ErrDuplicateKey {
@@ -87,6 +101,18 @@ func (s *PlatformAPIKeyService) RevokeActivePlatformAPIKeysByName(name string) (
 		return 0, fmt.Errorf("%w: name is required", ErrValidation)
 	}
 	return s.store.RevokeActivePlatformAPIKeysByName(name, time.Now().UTC())
+}
+
+func normalizePlatformCredentialOwnerType(raw string) (string, error) {
+	ownerType := strings.ToLower(strings.TrimSpace(raw))
+	switch ownerType {
+	case "", "platform_credential":
+		return "platform_credential", nil
+	case "bootstrap", "break_glass", "platform_service_account":
+		return ownerType, nil
+	default:
+		return "", fmt.Errorf("%w: invalid owner_type", ErrValidation)
+	}
 }
 
 func normalizePlatformAPIKeyRole(raw string) (string, error) {

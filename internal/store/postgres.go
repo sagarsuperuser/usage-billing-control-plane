@@ -4302,19 +4302,27 @@ func (s *PostgresStore) CreateAPIKey(input domain.APIKey) (domain.APIKey, error)
 	row := tx.QueryRowContext(
 		ctx,
 		`INSERT INTO api_keys (
-			id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-		RETURNING id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at`,
+			id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULLIF($11,''),$12,$13,$14,$15,$16,$17,$18,$19)
+		RETURNING id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason`,
 		input.ID,
 		input.KeyPrefix,
 		input.KeyHash,
 		input.Name,
 		input.Role,
 		input.TenantID,
+		input.OwnerType,
+		input.OwnerID,
+		input.Purpose,
+		input.Environment,
+		input.CreatedByUserID,
 		input.CreatedAt,
 		input.ExpiresAt,
 		input.RevokedAt,
 		input.LastUsedAt,
+		input.LastRotatedAt,
+		input.RotationRequiredAt,
+		input.RevocationReason,
 	)
 	key, err := scanAPIKey(row)
 	if err != nil {
@@ -4360,18 +4368,26 @@ func (s *PostgresStore) CreatePlatformAPIKey(input domain.PlatformAPIKey) (domai
 	row := tx.QueryRowContext(
 		ctx,
 		`INSERT INTO platform_api_keys (
-			id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-		RETURNING id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at`,
+			id, key_prefix, key_hash, name, role, owner_type, owner_id, purpose, environment, created_by_user_id, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULLIF($10,''),$11,$12,$13,$14,$15,$16,$17)
+		RETURNING id, key_prefix, key_hash, name, role, owner_type, owner_id, purpose, environment, created_by_user_id, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason`,
 		input.ID,
 		input.KeyPrefix,
 		input.KeyHash,
 		input.Name,
 		input.Role,
+		input.OwnerType,
+		input.OwnerID,
+		input.Purpose,
+		input.Environment,
+		input.CreatedByUserID,
 		input.CreatedAt,
 		input.ExpiresAt,
 		input.RevokedAt,
 		input.LastUsedAt,
+		input.LastRotatedAt,
+		input.RotationRequiredAt,
+		input.RevocationReason,
 	)
 	key, err := scanPlatformAPIKey(row)
 	if err != nil {
@@ -4399,7 +4415,7 @@ func (s *PostgresStore) GetAPIKeyByID(tenantID, id string) (domain.APIKey, error
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		`SELECT id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
 		FROM api_keys
 		WHERE tenant_id = $1 AND id = $2`,
 		tenantID,
@@ -4495,14 +4511,14 @@ func (s *PostgresStore) ListAPIKeys(filter APIKeyListFilter) (APIKeyListResult, 
 		queryArgs []any
 	)
 	if useCursor {
-		listQuery = fmt.Sprintf(`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		listQuery = fmt.Sprintf(`SELECT id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
 			FROM api_keys
 			WHERE %s
 			ORDER BY created_at DESC, id DESC
 			LIMIT $%d`, listWhere, listArgPos)
 		queryArgs = append(listArgs, limitWithPeek)
 	} else {
-		listQuery = fmt.Sprintf(`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		listQuery = fmt.Sprintf(`SELECT id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
 			FROM api_keys
 			WHERE %s
 			ORDER BY created_at DESC, id DESC
@@ -4576,7 +4592,7 @@ func (s *PostgresStore) RevokeAPIKey(tenantID, id string, revokedAt time.Time) (
 		`UPDATE api_keys
 		SET revoked_at = COALESCE(revoked_at, $1)
 		WHERE tenant_id = $2 AND id = $3
-		RETURNING id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at`,
+		RETURNING id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason`,
 		revokedAt,
 		tenantID,
 		id,
@@ -5187,7 +5203,7 @@ func (s *PostgresStore) GetAPIKeyByPrefix(prefix string) (domain.APIKey, error) 
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		`SELECT id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
 		FROM api_keys
 		WHERE key_prefix = $1`,
 		prefix,
@@ -5222,7 +5238,7 @@ func (s *PostgresStore) GetPlatformAPIKeyByPrefix(prefix string) (domain.Platfor
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at
+		`SELECT id, key_prefix, key_hash, name, role, owner_type, owner_id, purpose, environment, created_by_user_id, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
 		FROM platform_api_keys
 		WHERE key_prefix = $1`,
 		prefix,
@@ -5261,7 +5277,7 @@ func (s *PostgresStore) GetActiveAPIKeyByPrefix(prefix string, at time.Time) (do
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, key_prefix, key_hash, name, role, tenant_id, created_at, expires_at, revoked_at, last_used_at
+		`SELECT id, key_prefix, key_hash, name, role, tenant_id, owner_type, owner_id, purpose, environment, created_by_user_id, created_by_platform_user, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
 		FROM api_keys
 		WHERE key_prefix = $1
 		  AND revoked_at IS NULL
@@ -5302,7 +5318,7 @@ func (s *PostgresStore) GetActivePlatformAPIKeyByPrefix(prefix string, at time.T
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, key_prefix, key_hash, name, role, created_at, expires_at, revoked_at, last_used_at
+		`SELECT id, key_prefix, key_hash, name, role, owner_type, owner_id, purpose, environment, created_by_user_id, created_at, expires_at, revoked_at, last_used_at, last_rotated_at, rotation_required_at, revocation_reason
 		FROM platform_api_keys
 		WHERE key_prefix = $1
 		  AND revoked_at IS NULL
@@ -6042,9 +6058,18 @@ func scanUserFederatedIdentity(s rowScanner) (domain.UserFederatedIdentity, erro
 func scanAPIKey(s rowScanner) (domain.APIKey, error) {
 	var out domain.APIKey
 	var tenantID sql.NullString
+	var ownerType sql.NullString
+	var ownerID sql.NullString
+	var purpose sql.NullString
+	var environment sql.NullString
+	var createdByUserID sql.NullString
+	var createdByPlatformUser sql.NullBool
 	var expiresAt sql.NullTime
 	var revokedAt sql.NullTime
 	var lastUsedAt sql.NullTime
+	var lastRotatedAt sql.NullTime
+	var rotationRequiredAt sql.NullTime
+	var revocationReason sql.NullString
 
 	if err := s.Scan(
 		&out.ID,
@@ -6053,10 +6078,19 @@ func scanAPIKey(s rowScanner) (domain.APIKey, error) {
 		&out.Name,
 		&out.Role,
 		&tenantID,
+		&ownerType,
+		&ownerID,
+		&purpose,
+		&environment,
+		&createdByUserID,
+		&createdByPlatformUser,
 		&out.CreatedAt,
 		&expiresAt,
 		&revokedAt,
 		&lastUsedAt,
+		&lastRotatedAt,
+		&rotationRequiredAt,
+		&revocationReason,
 	); err != nil {
 		return domain.APIKey{}, err
 	}
@@ -6066,6 +6100,12 @@ func scanAPIKey(s rowScanner) (domain.APIKey, error) {
 	} else {
 		out.TenantID = defaultTenantID
 	}
+	out.OwnerType = strings.TrimSpace(ownerType.String)
+	out.OwnerID = strings.TrimSpace(ownerID.String)
+	out.Purpose = strings.TrimSpace(purpose.String)
+	out.Environment = strings.TrimSpace(environment.String)
+	out.CreatedByUserID = strings.TrimSpace(createdByUserID.String)
+	out.CreatedByPlatformUser = createdByPlatformUser.Valid && createdByPlatformUser.Bool
 	if expiresAt.Valid {
 		t := expiresAt.Time.UTC()
 		out.ExpiresAt = &t
@@ -6078,14 +6118,31 @@ func scanAPIKey(s rowScanner) (domain.APIKey, error) {
 		t := lastUsedAt.Time.UTC()
 		out.LastUsedAt = &t
 	}
+	if lastRotatedAt.Valid {
+		t := lastRotatedAt.Time.UTC()
+		out.LastRotatedAt = &t
+	}
+	if rotationRequiredAt.Valid {
+		t := rotationRequiredAt.Time.UTC()
+		out.RotationRequiredAt = &t
+	}
+	out.RevocationReason = strings.TrimSpace(revocationReason.String)
 	return out, nil
 }
 
 func scanPlatformAPIKey(s rowScanner) (domain.PlatformAPIKey, error) {
 	var out domain.PlatformAPIKey
+	var ownerType sql.NullString
+	var ownerID sql.NullString
+	var purpose sql.NullString
+	var environment sql.NullString
+	var createdByUserID sql.NullString
 	var expiresAt sql.NullTime
 	var revokedAt sql.NullTime
 	var lastUsedAt sql.NullTime
+	var lastRotatedAt sql.NullTime
+	var rotationRequiredAt sql.NullTime
+	var revocationReason sql.NullString
 
 	if err := s.Scan(
 		&out.ID,
@@ -6093,14 +6150,27 @@ func scanPlatformAPIKey(s rowScanner) (domain.PlatformAPIKey, error) {
 		&out.KeyHash,
 		&out.Name,
 		&out.Role,
+		&ownerType,
+		&ownerID,
+		&purpose,
+		&environment,
+		&createdByUserID,
 		&out.CreatedAt,
 		&expiresAt,
 		&revokedAt,
 		&lastUsedAt,
+		&lastRotatedAt,
+		&rotationRequiredAt,
+		&revocationReason,
 	); err != nil {
 		return domain.PlatformAPIKey{}, err
 	}
 
+	out.OwnerType = strings.TrimSpace(ownerType.String)
+	out.OwnerID = strings.TrimSpace(ownerID.String)
+	out.Purpose = strings.TrimSpace(purpose.String)
+	out.Environment = strings.TrimSpace(environment.String)
+	out.CreatedByUserID = strings.TrimSpace(createdByUserID.String)
 	if expiresAt.Valid {
 		t := expiresAt.Time.UTC()
 		out.ExpiresAt = &t
@@ -6113,6 +6183,15 @@ func scanPlatformAPIKey(s rowScanner) (domain.PlatformAPIKey, error) {
 		t := lastUsedAt.Time.UTC()
 		out.LastUsedAt = &t
 	}
+	if lastRotatedAt.Valid {
+		t := lastRotatedAt.Time.UTC()
+		out.LastRotatedAt = &t
+	}
+	if rotationRequiredAt.Valid {
+		t := rotationRequiredAt.Time.UTC()
+		out.RotationRequiredAt = &t
+	}
+	out.RevocationReason = strings.TrimSpace(revocationReason.String)
 	return out, nil
 }
 
