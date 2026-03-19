@@ -68,7 +68,7 @@ export function useUISession() {
     }
   }, [sessionQuery.data, sessionQuery.isSuccess, setSession]);
 
-  const scope = session?.scope ?? "tenant";
+  const scope = session?.scope ?? null;
   const role = scope === "tenant" ? (session?.role ?? null) : null;
   const platformRole = scope === "platform" ? (session?.platform_role ?? null) : null;
   const canWrite = role === "writer" || role === "admin";

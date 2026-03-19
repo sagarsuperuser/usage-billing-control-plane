@@ -103,17 +103,18 @@ function NavSection({
 
 export function ControlPlaneNav() {
   const pathname = usePathname();
-  const { isAuthenticated, session, scope } = useUISession();
+  const { isAuthenticated, isLoading, session, scope } = useUISession();
 
-  const contextLabel =
-    scope === "platform"
+  const contextLabel = isLoading
+    ? "Restoring session"
+    : scope === "platform"
       ? "Platform operator"
       : session?.tenant_id
         ? `Workspace ${session.tenant_id}`
         : "Workspace operator";
 
-  const showPlatform = !isAuthenticated || scope === "platform";
-  const showTenant = !isAuthenticated || scope === "tenant";
+  const showPlatform = !isLoading && (!isAuthenticated || scope === "platform");
+  const showTenant = !isLoading && (!isAuthenticated || scope === "tenant");
 
   return (
     <nav className="rounded-3xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur">
@@ -133,6 +134,11 @@ export function ControlPlaneNav() {
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
                 Product-owned billing administration on top of Lago. Platform configures reusable billing assets. Workspaces run pricing, customer, and subscription operations.
               </p>
+              {isLoading ? (
+                <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">
+                  Restoring browser session before resolving platform or workspace navigation.
+                </p>
+              ) : null}
             </div>
           </div>
           {isAuthenticated ? (
@@ -142,10 +148,16 @@ export function ControlPlaneNav() {
           ) : null}
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          {showPlatform ? <NavSection title="Platform" items={platformItems} pathname={pathname} /> : null}
-          {showTenant ? <NavSection title="Workspace" items={tenantItems} pathname={pathname} /> : null}
-        </div>
+        {isLoading ? (
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-slate-600">
+            Loading navigation context
+          </div>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            {showPlatform ? <NavSection title="Platform" items={platformItems} pathname={pathname} /> : null}
+            {showTenant ? <NavSection title="Workspace" items={tenantItems} pathname={pathname} /> : null}
+          </div>
+        )}
       </div>
     </nav>
   );
