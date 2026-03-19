@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -51,6 +52,45 @@ func TestLagoInvoiceAdapterGetInvoice(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "inv_123") {
 		t.Fatalf("expected invoice body to contain invoice id, got %s", string(body))
+	}
+}
+
+func TestLagoInvoiceAdapterListInvoices(t *testing.T) {
+	t.Parallel()
+
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/invoices" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("customer_external_id"); got != "cust_123" {
+			t.Fatalf("expected customer_external_id filter, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"invoices":[{"lago_id":"inv_123","number":"INV-123"}],"meta":{"current_page":1}}`))
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	query := url.Values{}
+	query.Set("customer_external_id", "cust_123")
+	status, body, err := NewLagoInvoiceAdapter(transport).ListInvoices(context.Background(), query)
+	if err != nil {
+		t.Fatalf("list invoices: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", status)
+	}
+	if !strings.Contains(string(body), "INV-123") {
+		t.Fatalf("expected invoice body to contain invoice number, got %s", string(body))
 	}
 }
 

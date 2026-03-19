@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
@@ -21,14 +22,16 @@ const sortOptions = [
 type ExplainabilitySort = (typeof sortOptions)[number];
 
 export function InvoiceExplainabilityScreen() {
+  const searchParams = useSearchParams();
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
-  const [invoiceID, setInvoiceID] = useState("");
+  const initialInvoiceID = searchParams.get("invoice_id") || "";
+  const [invoiceID, setInvoiceID] = useState(initialInvoiceID);
   const [feeTypesInput, setFeeTypesInput] = useState("");
   const [lineItemSort, setLineItemSort] = useState<ExplainabilitySort>("created_at_asc");
   const [page, setPage] = useState("1");
   const [limit, setLimit] = useState("50");
-  const [submittedInvoiceID, setSubmittedInvoiceID] = useState("");
+  const [submittedInvoiceID, setSubmittedInvoiceID] = useState(initialInvoiceID);
 
   const normalizedFeeTypes = useMemo(
     () =>

@@ -3874,6 +3874,11 @@ func (s *PostgresStore) ListInvoicePaymentStatusViews(filter InvoicePaymentStatu
 		args = append(args, organizationID)
 		argPos++
 	}
+	if customerExternalID := strings.TrimSpace(filter.CustomerExternalID); customerExternalID != "" {
+		clauses = append(clauses, fmt.Sprintf("customer_external_id = $%d", argPos))
+		args = append(args, customerExternalID)
+		argPos++
+	}
 	if paymentStatus := strings.TrimSpace(filter.PaymentStatus); paymentStatus != "" {
 		clauses = append(clauses, fmt.Sprintf("payment_status = $%d", argPos))
 		args = append(args, paymentStatus)

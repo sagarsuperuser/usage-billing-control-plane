@@ -98,14 +98,15 @@ func (s *LagoWebhookService) applyCustomerWebhookEffects(event domain.LagoWebhoo
 }
 
 type ListInvoicePaymentStatusViewsRequest struct {
-	OrganizationID string
-	PaymentStatus  string
-	InvoiceStatus  string
-	PaymentOverdue *bool
-	SortBy         string
-	Order          string
-	Limit          int
-	Offset         int
+	OrganizationID     string
+	CustomerExternalID string
+	PaymentStatus      string
+	InvoiceStatus      string
+	PaymentOverdue     *bool
+	SortBy             string
+	Order              string
+	Limit              int
+	Offset             int
 }
 
 type GetInvoicePaymentStatusSummaryRequest struct {
@@ -171,15 +172,16 @@ func (s *LagoWebhookService) ListInvoicePaymentStatusViews(tenantID string, req 
 		return nil, err
 	}
 	return s.repo.ListInvoicePaymentStatusViews(store.InvoicePaymentStatusListFilter{
-		TenantID:       normalizeTenantID(tenantID),
-		OrganizationID: strings.TrimSpace(req.OrganizationID),
-		PaymentStatus:  strings.TrimSpace(req.PaymentStatus),
-		InvoiceStatus:  strings.TrimSpace(req.InvoiceStatus),
-		PaymentOverdue: req.PaymentOverdue,
-		SortBy:         sortBy,
-		SortDesc:       sortDesc,
-		Limit:          limit,
-		Offset:         offset,
+		TenantID:           normalizeTenantID(tenantID),
+		OrganizationID:     strings.TrimSpace(req.OrganizationID),
+		CustomerExternalID: strings.TrimSpace(req.CustomerExternalID),
+		PaymentStatus:      strings.TrimSpace(req.PaymentStatus),
+		InvoiceStatus:      strings.TrimSpace(req.InvoiceStatus),
+		PaymentOverdue:     req.PaymentOverdue,
+		SortBy:             sortBy,
+		SortDesc:           sortDesc,
+		Limit:              limit,
+		Offset:             offset,
 	})
 }
 

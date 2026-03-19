@@ -13,9 +13,11 @@ import {
   CustomerOnboardingResult,
   CustomerReadiness,
   InvoiceExplainability,
+  InvoiceDetail,
   InvoicePaymentLifecycle,
   InvoicePaymentStatusView,
   InvoicePaymentStatusSummary,
+  InvoiceSummary,
   InvoiceStatusFilters,
   LagoWebhookEvent,
   ListResponse,
@@ -1251,6 +1253,46 @@ export async function refreshCustomerPaymentSetup(input: {
       body: {},
     }
   );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchInvoices(input: {
+  runtimeBaseURL?: string;
+  filters: InvoiceStatusFilters;
+}): Promise<ListResponse<InvoiceSummary>> {
+  const query = toQuery({
+    organization_id: input.filters.organization_id,
+    customer_external_id: input.filters.customer_external_id,
+    payment_status: input.filters.payment_status,
+    invoice_status: input.filters.invoice_status,
+    payment_overdue: input.filters.payment_overdue,
+    sort_by: input.filters.sort_by,
+    order: input.filters.order,
+    limit: input.filters.limit,
+    offset: input.filters.offset,
+  });
+
+  const payload = await apiRequest<ListResponse<InvoiceSummary>>(`/v1/invoices${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchInvoiceDetail(input: {
+  runtimeBaseURL?: string;
+  invoiceID: string;
+}): Promise<InvoiceDetail> {
+  const payload = await apiRequest<InvoiceDetail>(`/v1/invoices/${encodeURIComponent(input.invoiceID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
   if (!payload) {
     throw new Error("unauthorized");
   }

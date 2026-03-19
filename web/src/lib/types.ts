@@ -18,6 +18,45 @@ export interface InvoicePaymentStatusView {
   updated_at: string;
 }
 
+export interface InvoiceSummary {
+  invoice_id: string;
+  invoice_number?: string;
+  customer_external_id?: string;
+  customer_display_name?: string;
+  organization_id?: string;
+  currency?: string;
+  invoice_status?: string;
+  payment_status?: string;
+  payment_overdue?: boolean;
+  total_amount_cents?: number;
+  total_due_amount_cents?: number;
+  total_paid_amount_cents?: number;
+  last_payment_error?: string;
+  issuing_date?: string;
+  payment_due_date?: string;
+  created_at?: string;
+  updated_at?: string;
+  last_event_at?: string;
+}
+
+export interface InvoiceDetail extends InvoiceSummary {
+  lago_id?: string;
+  billing_entity_code?: string;
+  sequential_id?: unknown;
+  invoice_type?: string;
+  net_payment_term?: unknown;
+  file_url?: string;
+  xml_url?: string;
+  version_number?: unknown;
+  self_billed?: boolean;
+  voided_at?: string;
+  customer?: Record<string, unknown>;
+  subscriptions?: unknown[];
+  fees?: unknown[];
+  metadata?: unknown[];
+  applied_taxes?: unknown[];
+}
+
 export interface UISession {
   authenticated: boolean;
   subject_type?: "user" | "api_key";
@@ -479,6 +518,7 @@ export interface ListResponse<T> {
 
 export interface InvoiceStatusFilters {
   organization_id?: string;
+  customer_external_id?: string;
   payment_status?: string;
   invoice_status?: string;
   payment_overdue?: boolean;

@@ -1606,6 +1606,8 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 			return RoleWriter, true
 		}
 		return RoleReader, true
+	case path == "/v1/invoices":
+		return RoleReader, true
 	case path == "/v1/invoices/preview":
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/invoices/"):
@@ -1793,6 +1795,8 @@ func normalizeMetricsRoute(path string) string {
 			return "/v1/subscriptions/{id}/payment-setup/resend"
 		}
 		return "/v1/subscriptions/{id}"
+	case path == "/v1/invoices":
+		return "/v1/invoices"
 	case path == "/v1/invoices/preview":
 		return "/v1/invoices/preview"
 	case strings.HasPrefix(path, "/v1/invoices/"):
@@ -1941,6 +1945,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/subscriptions", s.handleSubscriptions)
 	s.mux.HandleFunc("/v1/subscriptions/", s.handleSubscriptionByID)
 
+	s.mux.HandleFunc("/v1/invoices", s.handleInvoices)
 	s.mux.HandleFunc("/v1/invoices/preview", s.handleInvoicePreview)
 	s.mux.HandleFunc("/v1/invoices/", s.handleInvoiceByID)
 
@@ -4498,11 +4503,6 @@ func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
-	if s.invoiceBillingAdapter == nil {
-		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
-		return
-	}
-
 	tail := strings.TrimPrefix(r.URL.Path, "/v1/invoices/")
 	parts := strings.Split(strings.Trim(tail, "/"), "/")
 	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
@@ -4512,6 +4512,10 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 
 	invoiceID := strings.TrimSpace(parts[0])
 	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "retry-payment") {
+		if s.invoiceBillingAdapter == nil {
+			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
+			return
+		}
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
 			return
@@ -4535,6 +4539,10 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "explainability") {
+		if s.invoiceBillingAdapter == nil {
+			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
+			return
+		}
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w)
 			return
@@ -4576,6 +4584,28 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, explainability)
+		return
+	}
+
+	if len(parts) == 1 {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+		if s.invoiceBillingAdapter == nil {
+			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
+			return
+		}
+		statusCode, body, detail, err := s.loadInvoiceDetail(r.Context(), requestTenantID(r), invoiceID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		if statusCode < 200 || statusCode >= 300 {
+			writeJSONRaw(w, statusCode, body)
+			return
+		}
+		writeJSON(w, http.StatusOK, detail)
 		return
 	}
 

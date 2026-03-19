@@ -573,6 +573,54 @@ type InvoicePaymentStatusView struct {
 	UpdatedAt            time.Time `json:"updated_at"`
 }
 
+type InvoiceSummary struct {
+	InvoiceID            string     `json:"invoice_id"`
+	InvoiceNumber        string     `json:"invoice_number,omitempty"`
+	CustomerExternalID   string     `json:"customer_external_id,omitempty"`
+	CustomerDisplayName  string     `json:"customer_display_name,omitempty"`
+	OrganizationID       string     `json:"organization_id,omitempty"`
+	Currency             string     `json:"currency,omitempty"`
+	InvoiceStatus        string     `json:"invoice_status,omitempty"`
+	PaymentStatus        string     `json:"payment_status,omitempty"`
+	PaymentOverdue       *bool      `json:"payment_overdue,omitempty"`
+	TotalAmountCents     *int64     `json:"total_amount_cents,omitempty"`
+	TotalDueAmountCents  *int64     `json:"total_due_amount_cents,omitempty"`
+	TotalPaidAmountCents *int64     `json:"total_paid_amount_cents,omitempty"`
+	LastPaymentError     string     `json:"last_payment_error,omitempty"`
+	IssuingDate          *time.Time `json:"issuing_date,omitempty"`
+	PaymentDueDate       *time.Time `json:"payment_due_date,omitempty"`
+	CreatedAt            *time.Time `json:"created_at,omitempty"`
+	UpdatedAt            *time.Time `json:"updated_at,omitempty"`
+	LastEventAt          *time.Time `json:"last_event_at,omitempty"`
+}
+
+type InvoiceSummaryList struct {
+	Items   []InvoiceSummary `json:"items"`
+	Limit   int              `json:"limit,omitempty"`
+	Offset  int              `json:"offset,omitempty"`
+	Filters map[string]any   `json:"filters,omitempty"`
+}
+
+type InvoiceDetail struct {
+	InvoiceSummary
+	LagoID            string         `json:"lago_id,omitempty"`
+	BillingEntityCode string         `json:"billing_entity_code,omitempty"`
+	SequentialID      any            `json:"sequential_id,omitempty"`
+	InvoiceType       string         `json:"invoice_type,omitempty"`
+	NetPaymentTerm    any            `json:"net_payment_term,omitempty"`
+	FileURL           string         `json:"file_url,omitempty"`
+	XMLURL            string         `json:"xml_url,omitempty"`
+	VersionNumber     any            `json:"version_number,omitempty"`
+	SelfBilled        *bool          `json:"self_billed,omitempty"`
+	VoidedAt          *time.Time     `json:"voided_at,omitempty"`
+	Customer          map[string]any `json:"customer,omitempty"`
+	Subscriptions     []any          `json:"subscriptions,omitempty"`
+	Fees              []any          `json:"fees,omitempty"`
+	Metadata          []any          `json:"metadata,omitempty"`
+	AppliedTaxes      []any          `json:"applied_taxes,omitempty"`
+	Raw               map[string]any `json:"raw,omitempty"`
+}
+
 type ServiceAccount struct {
 	ID                    string     `json:"id"`
 	TenantID              string     `json:"tenant_id"`

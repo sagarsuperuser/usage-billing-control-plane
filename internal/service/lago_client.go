@@ -34,6 +34,7 @@ type MeterSyncAdapter interface {
 }
 
 type InvoiceBillingAdapter interface {
+	ListInvoices(ctx context.Context, query url.Values) (int, []byte, error)
 	PreviewInvoice(ctx context.Context, payload []byte) (int, []byte, error)
 	RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error)
 	GetInvoice(ctx context.Context, invoiceID string) (int, []byte, error)
@@ -134,6 +135,29 @@ type LagoInvoiceAdapter struct {
 
 func NewLagoInvoiceAdapter(transport *LagoHTTPTransport) *LagoInvoiceAdapter {
 	return &LagoInvoiceAdapter{transport: transport}
+}
+
+func (a *LagoInvoiceAdapter) ListInvoices(ctx context.Context, query url.Values) (int, []byte, error) {
+	if a == nil || a.transport == nil {
+		return 0, nil, fmt.Errorf("%w: lago invoice adapter is required", ErrValidation)
+	}
+
+	path := "/api/v1/invoices"
+	if encoded := strings.TrimSpace(query.Encode()); encoded != "" {
+		path += "?" + encoded
+	}
+
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(body) == 0 {
+		body = []byte(`{"invoices":[]}`)
+	}
+	if !json.Valid(body) {
+		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))
+	}
+	return status, body, nil
 }
 
 func (a *LagoInvoiceAdapter) PreviewInvoice(ctx context.Context, payload []byte) (int, []byte, error) {

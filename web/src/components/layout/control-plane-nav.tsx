@@ -39,8 +39,9 @@ const tenantItems: NavItem[] = [
   { href: "/pricing", label: "Pricing", scope: "tenant", icon: CircleDollarSign },
   { href: "/customers", label: "Customers", scope: "tenant", icon: UserRoundPlus },
   { href: "/subscriptions", label: "Subscriptions", scope: "tenant", icon: ArrowRightLeft },
+  { href: "/invoices", label: "Invoices", scope: "tenant", icon: ReceiptText },
   { href: "/workspace-access", label: "Access", scope: "tenant", icon: ShieldCheck },
-  { href: "/payment-operations", label: "Payments", scope: "tenant", icon: ReceiptText },
+  { href: "/payment-operations", label: "Payments", scope: "tenant", icon: CreditCard },
   { href: "/replay-operations", label: "Recovery", scope: "tenant", icon: Workflow },
   { href: "/invoice-explainability", label: "Explainability", scope: "tenant", icon: Layers3 },
 ];
@@ -57,6 +58,9 @@ function isActivePath(pathname: string, href: string): boolean {
   }
   if (href === "/subscriptions") {
     return pathname === "/subscriptions" || pathname.startsWith("/subscriptions/");
+  }
+  if (href === "/invoices") {
+    return pathname === "/invoices" || pathname.startsWith("/invoices/");
   }
   if (href === "/pricing") {
     return pathname === "/pricing" || pathname.startsWith("/pricing/");

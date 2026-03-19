@@ -182,15 +182,16 @@ type ReplayJobListResult struct {
 }
 
 type InvoicePaymentStatusListFilter struct {
-	TenantID       string
-	OrganizationID string
-	PaymentStatus  string
-	InvoiceStatus  string
-	PaymentOverdue *bool
-	SortBy         string
-	SortDesc       bool
-	Limit          int
-	Offset         int
+	TenantID           string
+	OrganizationID     string
+	CustomerExternalID string
+	PaymentStatus      string
+	InvoiceStatus      string
+	PaymentOverdue     *bool
+	SortBy             string
+	SortDesc           bool
+	Limit              int
+	Offset             int
 }
 
 type InvoicePaymentStatusSummaryFilter struct {
