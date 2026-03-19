@@ -1608,10 +1608,17 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		return RoleReader, true
 	case path == "/v1/invoices":
 		return RoleReader, true
+	case path == "/v1/payments":
+		return RoleReader, true
 	case path == "/v1/invoices/preview":
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/invoices/"):
 		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/retry-payment") {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/payments/"):
+		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/retry") {
 			return RoleWriter, true
 		}
 		return RoleReader, true
@@ -1797,6 +1804,8 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/subscriptions/{id}"
 	case path == "/v1/invoices":
 		return "/v1/invoices"
+	case path == "/v1/payments":
+		return "/v1/payments"
 	case path == "/v1/invoices/preview":
 		return "/v1/invoices/preview"
 	case strings.HasPrefix(path, "/v1/invoices/"):
@@ -1808,6 +1817,15 @@ func normalizeMetricsRoute(path string) string {
 			return "/v1/invoices/{id}/explainability"
 		}
 		return "/v1/invoices/{id}"
+	case strings.HasPrefix(path, "/v1/payments/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/payments/"), "/")
+		if strings.HasSuffix(tail, "/events") {
+			return "/v1/payments/{id}/events"
+		}
+		if strings.HasSuffix(tail, "/retry") {
+			return "/v1/payments/{id}/retry"
+		}
+		return "/v1/payments/{id}"
 	case path == "/v1/usage-events":
 		return "/v1/usage-events"
 	case path == "/v1/billed-entries":
@@ -1948,6 +1966,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/invoices", s.handleInvoices)
 	s.mux.HandleFunc("/v1/invoices/preview", s.handleInvoicePreview)
 	s.mux.HandleFunc("/v1/invoices/", s.handleInvoiceByID)
+	s.mux.HandleFunc("/v1/payments", s.handlePayments)
+	s.mux.HandleFunc("/v1/payments/", s.handlePaymentByID)
 
 	s.mux.HandleFunc("/v1/usage-events", s.handleUsageEvents)
 	s.mux.HandleFunc("/v1/billed-entries", s.handleBilledEntries)

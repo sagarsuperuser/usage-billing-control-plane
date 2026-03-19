@@ -142,7 +142,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                       Open explainability
                     </Link>
                     <Link
-                      href="/payment-operations"
+                      href={`/payments/${encodeURIComponent(invoice.invoice_id)}`}
                       className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
                     >
                       Open payment operations

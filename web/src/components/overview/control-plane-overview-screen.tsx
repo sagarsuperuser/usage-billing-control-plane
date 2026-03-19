@@ -149,7 +149,7 @@ export function ControlPlaneOverviewScreen() {
             title: "Customers with billing sync errors",
             value: tenantMetrics.syncErrors,
             body: "Use diagnostics and recovery paths before retrying collection or invoice actions.",
-            href: "/payment-operations",
+            href: "/payments",
           },
           {
             title: "Billing-ready customers",
@@ -213,7 +213,7 @@ export function ControlPlaneOverviewScreen() {
       scope: "tenant" as const,
     },
     {
-      href: "/payment-operations",
+      href: "/payments",
       title: "Payments",
       body: "Operational follow-up for payment failures and retries.",
       icon: <Activity className="h-4 w-4 text-emerald-700" />,

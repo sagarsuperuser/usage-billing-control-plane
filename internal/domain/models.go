@@ -601,6 +601,7 @@ type InvoiceSummaryList struct {
 	Filters map[string]any   `json:"filters,omitempty"`
 }
 
+
 type InvoiceDetail struct {
 	InvoiceSummary
 	LagoID            string         `json:"lago_id,omitempty"`

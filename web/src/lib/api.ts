@@ -14,6 +14,9 @@ import {
   CustomerReadiness,
   InvoiceExplainability,
   InvoiceDetail,
+  PaymentDetail,
+  PaymentFilters,
+  PaymentSummary,
   InvoicePaymentLifecycle,
   InvoicePaymentStatusView,
   InvoicePaymentStatusSummary,
@@ -1246,6 +1249,99 @@ export async function refreshCustomerPaymentSetup(input: {
 }): Promise<RefreshCustomerPaymentSetupResult> {
   const payload = await apiRequest<RefreshCustomerPaymentSetupResult>(
     `/v1/customers/${encodeURIComponent(input.externalID)}/payment-setup/refresh`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+
+export async function fetchPayments(input: {
+  runtimeBaseURL?: string;
+  filters: PaymentFilters;
+}): Promise<ListResponse<PaymentSummary>> {
+  const query = toQuery({
+    organization_id: input.filters.organization_id,
+    customer_external_id: input.filters.customer_external_id,
+    payment_status: input.filters.payment_status,
+    invoice_status: input.filters.invoice_status,
+    payment_overdue: input.filters.payment_overdue,
+    sort_by: input.filters.sort_by,
+    order: input.filters.order,
+    limit: input.filters.limit,
+    offset: input.filters.offset,
+  });
+
+  const payload = await apiRequest<ListResponse<PaymentSummary>>(`/v1/payments${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchPaymentDetail(input: {
+  runtimeBaseURL?: string;
+  paymentID: string;
+}): Promise<PaymentDetail> {
+  const payload = await apiRequest<PaymentDetail>(`/v1/payments/${encodeURIComponent(input.paymentID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchPaymentEvents(input: {
+  runtimeBaseURL?: string;
+  paymentID: string;
+  organizationID?: string;
+  webhookType?: string;
+  sortBy?: "received_at" | "occurred_at";
+  order?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}): Promise<ListResponse<LagoWebhookEvent>> {
+  const query = toQuery({
+    organization_id: input.organizationID,
+    webhook_type: input.webhookType,
+    sort_by: input.sortBy,
+    order: input.order,
+    limit: input.limit,
+    offset: input.offset,
+  });
+
+  const payload = await apiRequest<ListResponse<LagoWebhookEvent>>(
+    `/v1/payments/${encodeURIComponent(input.paymentID)}/events${query}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function retryPayment(input: {
+  runtimeBaseURL?: string;
+  paymentID: string;
+  csrfToken: string;
+}): Promise<Record<string, unknown>> {
+  const payload = await apiRequest<Record<string, unknown>>(
+    `/v1/payments/${encodeURIComponent(input.paymentID)}/retry`,
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "POST",

@@ -1,5 +1,5 @@
-import { PaymentOperationsScreen } from "@/components/payment-ops/payment-operations-screen";
+import { redirect } from "next/navigation";
 
 export default function PaymentOperationsPage() {
-  return <PaymentOperationsScreen />;
+  redirect("/payments");
 }

@@ -57,6 +57,32 @@ export interface InvoiceDetail extends InvoiceSummary {
   applied_taxes?: unknown[];
 }
 
+
+export interface PaymentSummary {
+  invoice_id: string;
+  invoice_number?: string;
+  customer_external_id?: string;
+  customer_display_name?: string;
+  organization_id?: string;
+  currency?: string;
+  invoice_status?: string;
+  payment_status?: string;
+  payment_overdue?: boolean;
+  total_amount_cents?: number;
+  total_due_amount_cents?: number;
+  total_paid_amount_cents?: number;
+  last_payment_error?: string;
+  last_event_type?: string;
+  last_event_at?: string;
+  updated_at?: string;
+}
+
+export interface PaymentDetail extends PaymentSummary {
+  lifecycle: InvoicePaymentLifecycle;
+}
+
+export type PaymentFilters = InvoiceStatusFilters;
+
 export interface UISession {
   authenticated: boolean;
   subject_type?: "user" | "api_key";
