@@ -17,6 +17,7 @@ import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryReplayJob } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
@@ -41,15 +42,15 @@ function normalizeDateTimeToISOString(value: string): string | undefined {
 function replayBadgeClass(status?: string): string {
   switch ((status || "").toLowerCase()) {
     case "queued":
-      return "border border-indigo-200 bg-indigo-500/15 text-indigo-700";
+      return "border border-indigo-200 bg-indigo-50 text-indigo-700";
     case "running":
       return "border border-amber-200 bg-amber-50 text-amber-700";
     case "done":
       return "border border-emerald-200 bg-emerald-50 text-emerald-700";
     case "failed":
-      return "border border-rose-200 bg-rose-500/15 text-rose-700";
+      return "border border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return "border border-stone-200 bg-slate-600/20 text-slate-700";
+      return "border border-stone-200 bg-slate-50 text-slate-700";
   }
 }
 
@@ -178,13 +179,20 @@ export function ReplayOperationsScreen() {
       <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
+        <AppBreadcrumbs
+          items={[
+            { href: "/control-plane", label: "Workspace" },
+            { label: "Recovery" },
+          ]}
+        />
+
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Replay Recovery Console</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Replay + Reprocess Operations</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Queue replay jobs, inspect diagnostics, and retry failed workflow executions without leaving the control plane.
+                Coordinate replay jobs, inspect diagnostics, and recover failed usage processing without dropping into raw backend tooling.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
@@ -196,251 +204,278 @@ export function ReplayOperationsScreen() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
-            <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Replay Filters</p>
-                  <h2 className="mt-1 text-lg font-semibold text-slate-900">Inspect queued, running, done, and failed jobs</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => jobsQuery.refetch()}
-                  disabled={jobsQuery.isFetching || !isAuthenticated}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {jobsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  Refresh
-                </button>
-              </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            <InfoCard
+              title="Queue work"
+              body="Create replay jobs with deterministic idempotency keys so operational retries do not fork duplicate workflow runs."
+            />
+            <InfoCard
+              title="Inspect telemetry"
+              body="Use diagnostics to compare workflow status, processed records, and usage-to-billing artifacts before retrying failed work."
+            />
+            <InfoCard
+              title="Operator posture"
+              body="This is a controlled recovery surface. Filter jobs first, inspect the diagnostics drawer, then retry only when the failure mode is understood."
+            />
+          </div>
+        </section>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <InputField
-                  label="Customer ID"
-                  placeholder="cust_123"
-                  value={customerFilter}
-                  onChange={(value) => {
-                    setCustomerFilter(value);
-                    setOffset(0);
-                  }}
-                />
-                <InputField
-                  label="Meter ID"
-                  placeholder="meter_abc"
-                  value={meterFilter}
-                  onChange={(value) => {
-                    setMeterFilter(value);
-                    setOffset(0);
-                  }}
-                />
-                <div className="grid gap-2">
-                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Status</label>
-                  <select
-                    className="h-11 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
-                    value={statusFilter}
-                    onChange={(event) => {
-                      setStatusFilter(event.target.value as ReplayStatusFilter);
-                      setOffset(0);
-                    }}
-                  >
-                    <option value="">All</option>
-                    <option value="queued">Queued</option>
-                    <option value="running">Running</option>
-                    <option value="done">Done</option>
-                    <option value="failed">Failed</option>
-                  </select>
-                </div>
-                <InputField
-                  label="Limit"
-                  placeholder="20"
-                  value={String(limit)}
-                  onChange={(value) => {
-                    const next = Number(value);
-                    if (Number.isFinite(next) && next > 0) {
-                      setLimit(Math.min(100, Math.floor(next)));
-                      setOffset(0);
-                    }
-                  }}
-                />
-              </div>
-
-              <div className="mt-4 overflow-auto">
-                <table className="w-full min-w-[1080px] border-separate border-spacing-y-2 text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
-                      <th className="px-3 py-1">Job</th>
-                      <th className="px-3 py-1">Scope</th>
-                      <th className="px-3 py-1">Telemetry</th>
-                      <th className="px-3 py-1">Attempts</th>
-                      <th className="px-3 py-1">Created</th>
-                      <th className="px-3 py-1">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobs.map((job) => (
-                      <tr key={job.id} data-testid={`replay-job-row-${job.id}`} className="bg-stone-50/80">
-                        <td className="rounded-l-xl px-3 py-3 align-top">
-                          <p className="font-medium text-emerald-700">{job.id}</p>
-                          <p className={`mt-1 inline-flex rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${replayBadgeClass(job.status)}`}>
-                            {job.status}
-                          </p>
-                          <p className="mt-2 text-xs text-slate-500">{job.idempotency_key}</p>
-                          {job.error ? <p className="mt-2 text-xs text-rose-700">{job.error}</p> : null}
-                        </td>
-                        <td className="px-3 py-3 align-top text-xs text-slate-600">
-                          <p>Customer: {job.customer_id || "-"}</p>
-                          <p className="mt-1">Meter: {job.meter_id || "-"}</p>
-                          <p className="mt-1">From: {job.from ? formatExactTimestamp(job.from) : "-"}</p>
-                          <p className="mt-1">To: {job.to ? formatExactTimestamp(job.to) : "-"}</p>
-                        </td>
-                        <td className="px-3 py-3 align-top text-xs text-slate-600">
-                          <p>Step: {job.workflow_telemetry?.current_step || job.status}</p>
-                          <p className="mt-1">Progress: {job.workflow_telemetry?.progress_percent ?? 0}%</p>
-                          <p className="mt-1">Processed: {job.workflow_telemetry?.processed_records ?? job.processed_records}</p>
-                        </td>
-                        <td className="px-3 py-3 align-top text-xs text-slate-600">
-                          <p>Count: {job.attempt_count}</p>
-                          <p className="mt-1">Last attempt: {job.last_attempt_at ? formatRelativeTimestamp(job.last_attempt_at) : "-"}</p>
-                        </td>
-                        <td className="px-3 py-3 align-top text-xs text-slate-600">
-                          <p>{formatRelativeTimestamp(job.created_at)}</p>
-                          <p className="mt-1 text-slate-500">{formatExactTimestamp(job.created_at)}</p>
-                        </td>
-                        <td className="rounded-r-xl px-3 py-3 align-top">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              data-testid={`replay-open-diagnostics-${job.id}`}
-                              onClick={() => openDiagnostics(job)}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.14em] text-emerald-700 transition hover:bg-cyan-500/20"
-                            >
-                              <Workflow className="h-3.5 w-3.5" />
-                              Diagnostics
-                            </button>
-                            <button
-                              type="button"
-                              data-testid={`replay-retry-job-${job.id}`}
-                              disabled={!canWrite || !csrfToken || job.status !== "failed" || retryMutation.isPending}
-                              onClick={() => retryMutation.mutate(job.id)}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs uppercase tracking-[0.14em] text-amber-700 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-45"
-                            >
-                              {retryMutation.isPending && retryMutation.variables === job.id ? (
-                                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              )}
-                              Retry
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {jobs.length === 0 && !jobsQuery.isLoading ? (
-                  <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-slate-500">
-                    No replay jobs matched the current filters.
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-                <p>
-                  Offset {offset} • showing {jobs.length} rows
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOffset((current) => Math.max(0, current - limit))}
-                    disabled={!canGoPrev}
-                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-slate-700 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Prev
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOffset((current) => current + limit)}
-                    disabled={!canGoNext}
-                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-slate-700 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Queue Replay Job</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">Launch customer/meter reprocessing</h2>
-                <p className="mt-2 text-sm text-slate-600">
-                  Use a deterministic idempotency key so retries do not fork duplicate replay workflows.
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Recovery Workbench</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Inspect queued, running, done, and failed jobs</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                  Filter the replay queue before opening diagnostics so recovery decisions stay scoped to the exact customer or meter issue.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => jobsQuery.refetch()}
+                disabled={jobsQuery.isFetching || !isAuthenticated}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {jobsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Refresh
+              </button>
+            </div>
 
-              {!canWrite && isAuthenticated ? (
-                <div
-                  data-testid="replay-read-only-notice"
-                  className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <InputField
+                label="Customer ID"
+                placeholder="cust_123"
+                value={customerFilter}
+                onChange={(value) => {
+                  setCustomerFilter(value);
+                  setOffset(0);
+                }}
+              />
+              <InputField
+                label="Meter ID"
+                placeholder="meter_abc"
+                value={meterFilter}
+                onChange={(value) => {
+                  setMeterFilter(value);
+                  setOffset(0);
+                }}
+              />
+              <div className="grid gap-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Status</label>
+                <select
+                  className="h-11 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value as ReplayStatusFilter);
+                    setOffset(0);
+                  }}
                 >
-                  Current session role {role} is read-only for replay queue and recovery actions.
+                  <option value="">All</option>
+                  <option value="queued">Queued</option>
+                  <option value="running">Running</option>
+                  <option value="done">Done</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+              <InputField
+                label="Limit"
+                placeholder="20"
+                value={String(limit)}
+                onChange={(value) => {
+                  const next = Number(value);
+                  if (Number.isFinite(next) && next > 0) {
+                    setLimit(Math.min(100, Math.floor(next)));
+                    setOffset(0);
+                  }
+                }}
+              />
+            </div>
+
+            <div className="mt-4 overflow-auto">
+              <table className="w-full min-w-[1080px] border-separate border-spacing-y-2 text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                    <th className="px-3 py-1">Job</th>
+                    <th className="px-3 py-1">Scope</th>
+                    <th className="px-3 py-1">Telemetry</th>
+                    <th className="px-3 py-1">Attempts</th>
+                    <th className="px-3 py-1">Created</th>
+                    <th className="px-3 py-1">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map((job) => (
+                    <tr key={job.id} data-testid={`replay-job-row-${job.id}`} className="bg-stone-50/80">
+                      <td className="rounded-l-xl px-3 py-3 align-top">
+                        <p className="font-medium text-emerald-700">{job.id}</p>
+                        <p className={`mt-1 inline-flex rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${replayBadgeClass(job.status)}`}>
+                          {job.status}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">{job.idempotency_key}</p>
+                        {job.error ? <p className="mt-2 text-xs text-rose-700">{job.error}</p> : null}
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-600">
+                        <p>Customer: {job.customer_id || "-"}</p>
+                        <p className="mt-1">Meter: {job.meter_id || "-"}</p>
+                        <p className="mt-1">From: {job.from ? formatExactTimestamp(job.from) : "-"}</p>
+                        <p className="mt-1">To: {job.to ? formatExactTimestamp(job.to) : "-"}</p>
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-600">
+                        <p>Step: {job.workflow_telemetry?.current_step || job.status}</p>
+                        <p className="mt-1">Progress: {job.workflow_telemetry?.progress_percent ?? 0}%</p>
+                        <p className="mt-1">Processed: {job.workflow_telemetry?.processed_records ?? job.processed_records}</p>
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-600">
+                        <p>Count: {job.attempt_count}</p>
+                        <p className="mt-1">Last attempt: {job.last_attempt_at ? formatRelativeTimestamp(job.last_attempt_at) : "-"}</p>
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-600">
+                        <p>{formatRelativeTimestamp(job.created_at)}</p>
+                        <p className="mt-1 text-slate-500">{formatExactTimestamp(job.created_at)}</p>
+                      </td>
+                      <td className="rounded-r-xl px-3 py-3 align-top">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            data-testid={`replay-open-diagnostics-${job.id}`}
+                            onClick={() => openDiagnostics(job)}
+                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.14em] text-emerald-700 transition hover:bg-emerald-100"
+                          >
+                            <Workflow className="h-3.5 w-3.5" />
+                            Diagnostics
+                          </button>
+                          <button
+                            type="button"
+                            data-testid={`replay-retry-job-${job.id}`}
+                            disabled={!canWrite || !csrfToken || job.status !== "failed" || retryMutation.isPending}
+                            onClick={() => retryMutation.mutate(job.id)}
+                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs uppercase tracking-[0.14em] text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            {retryMutation.isPending && retryMutation.variables === job.id ? (
+                              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            )}
+                            Retry
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {jobs.length === 0 && !jobsQuery.isLoading ? (
+                <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-slate-500">
+                  No replay jobs matched the current filters.
                 </div>
               ) : null}
+            </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <InputField
-                  label="Customer ID"
-                  placeholder="cust_123"
-                  value={createCustomerID}
-                  onChange={setCreateCustomerID}
-                  dataTestID="replay-create-customer-id"
-                />
-                <InputField
-                  label="Meter ID"
-                  placeholder="meter_abc"
-                  value={createMeterID}
-                  onChange={setCreateMeterID}
-                  dataTestID="replay-create-meter-id"
-                />
-                <InputField label="From" type="datetime-local" value={createFrom} onChange={setCreateFrom} dataTestID="replay-create-from" />
-                <InputField label="To" type="datetime-local" value={createTo} onChange={setCreateTo} dataTestID="replay-create-to" />
-              </div>
-              <div className="mt-3">
-                <InputField
-                  label="Idempotency Key"
-                  placeholder="replay-..."
-                  value={idempotencyKey}
-                  onChange={setIdempotencyKey}
-                  dataTestID="replay-create-idempotency-key"
-                />
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  data-testid="replay-create-submit"
-                  disabled={createDisabled}
-                  onClick={() => createMutation.mutate()}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm text-emerald-700 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
-                  Queue replay job
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIdempotencyKey(generateReplayIdempotencyKey())}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:bg-white/10"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Regenerate key
-                </button>
-              </div>
-              <p className="mt-3 text-xs text-slate-500">
-                Local datetime inputs are converted to UTC ISO-8601 before submission.
+            <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
+              <p>
+                Offset {offset} • showing {jobs.length} rows
               </p>
-            </section>
-          </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOffset((current) => Math.max(0, current - limit))}
+                  disabled={!canGoPrev}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOffset((current) => current + limit)}
+                  disabled={!canGoNext}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Queue Replay Job</p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">Launch customer or meter reprocessing</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Create a replay job only after confirming the scope and failure mode. Deterministic idempotency keys keep recovery controlled.
+              </p>
+            </div>
+
+            {!canWrite && isAuthenticated ? (
+              <div
+                data-testid="replay-read-only-notice"
+                className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
+              >
+                Current session role {role} is read-only for replay queue and recovery actions.
+              </div>
+            ) : null}
+
+            <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Operator checklist</p>
+              <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                <li>Confirm the customer or meter scope from diagnostics before queuing another run.</li>
+                <li>Use the same idempotency key only when intentionally reusing an existing replay request.</li>
+                <li>Prefer retrying failed jobs from the table when a replay already exists.</li>
+              </ul>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <InputField
+                label="Customer ID"
+                placeholder="cust_123"
+                value={createCustomerID}
+                onChange={setCreateCustomerID}
+                dataTestID="replay-create-customer-id"
+              />
+              <InputField
+                label="Meter ID"
+                placeholder="meter_abc"
+                value={createMeterID}
+                onChange={setCreateMeterID}
+                dataTestID="replay-create-meter-id"
+              />
+              <InputField label="From" type="datetime-local" value={createFrom} onChange={setCreateFrom} dataTestID="replay-create-from" />
+              <InputField label="To" type="datetime-local" value={createTo} onChange={setCreateTo} dataTestID="replay-create-to" />
+            </div>
+            <div className="mt-3">
+              <InputField
+                label="Idempotency Key"
+                placeholder="replay-..."
+                value={idempotencyKey}
+                onChange={setIdempotencyKey}
+                dataTestID="replay-create-idempotency-key"
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                data-testid="replay-create-submit"
+                disabled={createDisabled}
+                onClick={() => createMutation.mutate()}
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
+                Queue replay job
+              </button>
+              <button
+                type="button"
+                onClick={() => setIdempotencyKey(generateReplayIdempotencyKey())}
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:bg-stone-100"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Regenerate key
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Local datetime inputs are converted to UTC ISO-8601 before submission.
+            </p>
+          </section>
         </section>
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -460,17 +495,17 @@ export function ReplayOperationsScreen() {
         ) : null}
 
         {isTenantSession && jobsQuery.error ? (
-          <section className="rounded-2xl border border-rose-200 bg-rose-500/10 p-4 text-sm text-rose-700">
+          <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
             {(jobsQuery.error as Error).message}
           </section>
         ) : null}
         {isTenantSession && createMutation.error ? (
-          <section className="rounded-2xl border border-rose-200 bg-rose-500/10 p-4 text-sm text-rose-700">
+          <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
             {(createMutation.error as Error).message}
           </section>
         ) : null}
         {isTenantSession && retryMutation.error ? (
-          <section className="rounded-2xl border border-rose-200 bg-rose-500/10 p-4 text-sm text-rose-700">
+          <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
             {(retryMutation.error as Error).message}
           </section>
         ) : null}
@@ -492,7 +527,7 @@ export function ReplayOperationsScreen() {
                 type="button"
                 aria-label="Close replay diagnostics"
                 onClick={() => setDrawerOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-slate-700 transition hover:bg-white/10"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-slate-700 transition hover:bg-stone-100"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -508,7 +543,7 @@ export function ReplayOperationsScreen() {
                     retryMutation.mutate(selectedJob.id);
                   }
                 }}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs uppercase tracking-[0.14em] text-amber-700 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs uppercase tracking-[0.14em] text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {retryMutation.isPending && retryMutation.variables === selectedJob?.id ? (
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -531,7 +566,7 @@ export function ReplayOperationsScreen() {
               </div>
             ) : null}
             {diagnosticsQuery.error ? (
-              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-500/10 p-4 text-sm text-rose-700">
+              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                 {(diagnosticsQuery.error as Error).message}
               </div>
             ) : null}
@@ -558,7 +593,7 @@ export function ReplayOperationsScreen() {
                     <MetaRow label="Meter" value={diagnosticsQuery.data.job.meter_id || "-"} />
                   </div>
                   {diagnosticsQuery.data.job.error ? (
-                    <div className="mt-4 rounded-xl border border-rose-200 bg-rose-500/10 p-3 text-sm text-rose-700">
+                    <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
                       {diagnosticsQuery.data.job.error}
                     </div>
                   ) : null}
@@ -587,13 +622,22 @@ export function ReplayOperationsScreen() {
   );
 }
 
+function InfoCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+    </div>
+  );
+}
+
 function ArtifactLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.14em] text-emerald-700 transition hover:bg-cyan-500/20"
+      className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.14em] text-emerald-700 transition hover:bg-emerald-100"
     >
       <Download className="h-3.5 w-3.5" />
       {label}
@@ -604,13 +648,13 @@ function ArtifactLink({ href, label }: { href: string; label: string }) {
 function MetricCard({ label, value, tone = "normal" }: { label: string; value: ReactNode; tone?: "normal" | "info" | "warn" | "danger" | "success" }) {
   const toneClass =
     tone === "danger"
-      ? "border-rose-400/35 bg-rose-500/10 text-rose-700"
+      ? "border-rose-400/35 bg-rose-50 text-rose-700"
       : tone === "warn"
-        ? "border-amber-400/35 bg-amber-50 text-amber-700"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
         : tone === "success"
-          ? "border-emerald-400/35 bg-emerald-50 text-emerald-700"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
           : tone === "info"
-            ? "border-cyan-400/35 bg-emerald-50 text-emerald-700"
+            ? "border-indigo-200 bg-indigo-50 text-indigo-700"
             : "border-stone-200 bg-stone-50 text-slate-900";
   return (
     <div className={`rounded-2xl border px-3 py-3 ${toneClass}`}>

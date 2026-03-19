@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
+import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchInvoiceExplainability } from "@/lib/api";
@@ -83,6 +84,14 @@ export function InvoiceExplainabilityScreen() {
       <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
+        <AppBreadcrumbs
+          items={[
+            { href: "/control-plane", label: "Workspace" },
+            { href: "/invoices", label: "Invoices" },
+            { label: "Explainability" },
+          ]}
+        />
+
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -91,16 +100,12 @@ export function InvoiceExplainabilityScreen() {
                 Line Item Computation Trace
               </h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Explain how each invoice line was computed from Lago fees with deterministic digest output.
+                Review the deterministic digest behind each invoice line before escalating billing disputes or replay work.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
               <MetricCard label="Line items" value={explainabilityQuery.data?.line_items_count ?? 0} />
-              <MetricCard
-                label="Displayed"
-                value={lineItems.length}
-                tone={lineItems.length > 0 ? "normal" : "muted"}
-              />
+              <MetricCard label="Displayed" value={lineItems.length} tone={lineItems.length > 0 ? "normal" : "muted"} />
               <MetricCard
                 label="Status"
                 value={explainabilityQuery.data?.invoice_status || "idle"}
@@ -109,79 +114,19 @@ export function InvoiceExplainabilityScreen() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <InputField
-              label="Invoice ID"
-              value={invoiceID}
-              onChange={setInvoiceID}
-              placeholder="inv_123"
-              dataTestID="explainability-invoice-id"
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            <InfoCard
+              title="Trace source"
+              body="Load one invoice and inspect the normalized fee, rule, and period data that produced the final line items."
             />
-            <InputField
-              label="Fee Types"
-              value={feeTypesInput}
-              onChange={setFeeTypesInput}
-              placeholder="charge,subscription"
-              dataTestID="explainability-fee-types"
+            <InfoCard
+              title="Operational use"
+              body="Use this surface to validate disputed amounts, confirm fee selection, and prepare a clean handoff into replay or billing support."
             />
-            <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Sort</label>
-              <select
-                data-testid="explainability-sort"
-                className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2"
-                value={lineItemSort}
-                onChange={(event) => setLineItemSort(event.target.value as ExplainabilitySort)}
-              >
-                {sortOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <InputField
-              label="Page"
-              value={page}
-              onChange={setPage}
-              placeholder="1"
-              className="w-[120px]"
-              dataTestID="explainability-page"
+            <InfoCard
+              title="Output shape"
+              body="Digest metadata stays separate from the raw line-item table so operators can verify scope before reading low-level properties."
             />
-            <InputField
-              label="Limit"
-              value={limit}
-              onChange={setLimit}
-              placeholder="50"
-              className="w-[120px]"
-              dataTestID="explainability-limit"
-            />
-            <button
-              type="button"
-              data-testid="explainability-load"
-              onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
-              disabled={!isTenantSession || !invoiceID.trim()}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Search className="h-4 w-4" />
-              Load Explainability
-            </button>
-            <button
-              type="button"
-              data-testid="explainability-refresh"
-              onClick={() => explainabilityQuery.refetch()}
-              disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !isTenantSession}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {explainabilityQuery.isFetching ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Refresh
-            </button>
           </div>
         </section>
 
@@ -201,8 +146,123 @@ export function InvoiceExplainabilityScreen() {
           </section>
         ) : null}
 
+        <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Trace Query</p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">Control the invoice slice you want to inspect</h2>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                Narrow the digest by fee type, sort order, and pagination before loading or refreshing the computation trace.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-slate-600 xl:max-w-sm">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current target</p>
+              <p className="mt-2 font-medium text-slate-900">{submittedInvoiceID || invoiceID.trim() || "No invoice selected"}</p>
+              <p className="mt-1 text-xs text-slate-500">Load an invoice first, then use refresh to re-run the same trace parameters.</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="grid gap-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <InputField
+                  label="Invoice ID"
+                  value={invoiceID}
+                  onChange={setInvoiceID}
+                  placeholder="inv_123"
+                  dataTestID="explainability-invoice-id"
+                />
+                <InputField
+                  label="Fee Types"
+                  value={feeTypesInput}
+                  onChange={setFeeTypesInput}
+                  placeholder="charge,subscription"
+                  dataTestID="explainability-fee-types"
+                />
+                <div className="grid gap-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Sort</label>
+                  <select
+                    data-testid="explainability-sort"
+                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2"
+                    value={lineItemSort}
+                    onChange={(event) => setLineItemSort(event.target.value as ExplainabilitySort)}
+                  >
+                    {sortOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <InputField
+                  label="Page"
+                  value={page}
+                  onChange={setPage}
+                  placeholder="1"
+                  className="w-full xl:max-w-[120px]"
+                  dataTestID="explainability-page"
+                />
+                <InputField
+                  label="Limit"
+                  value={limit}
+                  onChange={setLimit}
+                  placeholder="50"
+                  className="w-full xl:max-w-[120px]"
+                  dataTestID="explainability-limit"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-end gap-3">
+                <button
+                  type="button"
+                  data-testid="explainability-load"
+                  onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
+                  disabled={!isTenantSession || !invoiceID.trim()}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Search className="h-4 w-4" />
+                  Load Explainability
+                </button>
+                <button
+                  type="button"
+                  data-testid="explainability-refresh"
+                  onClick={() => explainabilityQuery.refetch()}
+                  disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !isTenantSession}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {explainabilityQuery.isFetching ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Operator Guidance</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-900">Use explainability before replaying or escalating</h3>
+              <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                <li>Confirm the invoice scope and fee filters before reading the raw properties payload.</li>
+                <li>Use the digest and generated timestamp to verify the exact computation snapshot under review.</li>
+                <li>Escalate to replay or payment recovery only after validating that the billing logic itself is incorrect.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Digest Summary</p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">Invoice metadata and trace fingerprint</h2>
+            </div>
+            <p className="max-w-xl text-sm text-slate-600">
+              Validate the invoice identity, currency totals, and digest version before using the detailed line-item breakdown.
+            </p>
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
             <MetaRow label="Invoice" value={explainabilityQuery.data?.invoice_number || submittedInvoiceID || "-"} dataTestID="explainability-meta-invoice" />
             <MetaRow label="Invoice ID" value={explainabilityQuery.data?.invoice_id || "-"} dataTestID="explainability-meta-invoice-id" />
             <MetaRow
@@ -230,7 +290,16 @@ export function InvoiceExplainabilityScreen() {
         </section>
 
         <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
-          <div className="overflow-auto">
+          <div className="flex flex-col gap-3 border-b border-stone-200 px-3 pb-4 pt-1 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Computation Breakdown</p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">Line items, rules, and raw properties</h2>
+            </div>
+            <p className="max-w-2xl text-sm text-slate-600">
+              Review the billable item, rule reference, units, and raw properties together so debugging stays tied to the actual amount outcome.
+            </p>
+          </div>
+          <div className="mt-3 overflow-auto">
             <table className="w-full min-w-[1180px] border-separate border-spacing-y-2 text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
@@ -311,6 +380,15 @@ function MetricCard({
     >
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-600">{label}</p>
       <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function InfoCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
     </div>
   );
 }

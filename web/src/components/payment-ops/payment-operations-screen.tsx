@@ -317,7 +317,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => statusesQuery.refetch()}
                 disabled={statusesQuery.isFetching || !isAuthenticated}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {statusesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
@@ -476,7 +476,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => setStatusOffset(Math.max(0, statusOffset - statusLimit))}
                 disabled={!canGoPrevStatuses || statusesQuery.isFetching}
-                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> Prev
               </button>
@@ -484,7 +484,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => setStatusOffset(statusOffset + statusLimit)}
                 disabled={!canGoNextStatuses || statusesQuery.isFetching}
-                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -530,7 +530,7 @@ export function PaymentOperationsScreen() {
               <button
                 type="button"
                 onClick={() => setTimelineOpen(false)}
-                className="rounded-lg border border-stone-200 bg-stone-50 p-2 text-slate-700 transition hover:bg-white/10"
+                className="rounded-lg border border-stone-200 bg-stone-50 p-2 text-slate-700 transition hover:bg-stone-100"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -602,7 +602,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => eventsQuery.refetch()}
                 disabled={eventsQuery.isFetching || !isAuthenticated}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eventsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh timeline
@@ -616,7 +616,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => lifecycleQuery.refetch()}
                   disabled={lifecycleQuery.isFetching || !isAuthenticated}
-                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs text-emerald-700 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {lifecycleQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   Refresh
@@ -710,7 +710,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => setEventOffset(Math.max(0, eventOffset - eventLimit))}
                   disabled={!canGoPrevEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" /> Prev
                 </button>
@@ -718,7 +718,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => setEventOffset(eventOffset + eventLimit)}
                   disabled={!canGoNextEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -762,7 +762,7 @@ function QuickFilterChip(props: {
       type="button"
       onClick={props.onClick}
       className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-        props.active ? "border-cyan-400/60 bg-cyan-500/20 text-emerald-700" : "border-stone-200 bg-stone-50 text-slate-700 hover:bg-white/10"
+        props.active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-stone-200 bg-stone-50 text-slate-700 hover:bg-stone-100"
       }`}
     >
       {props.label}
