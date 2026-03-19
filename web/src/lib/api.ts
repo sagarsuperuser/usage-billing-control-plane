@@ -3,6 +3,7 @@ import {
   APIKeyAuditEvent,
   APIKeyAuditExportJobResponse,
   BillingProviderConnection,
+  BeginCustomerPaymentSetupResult,
   CreateSubscriptionResult,
   Customer,
   Plan,
@@ -1257,6 +1258,29 @@ export async function refreshCustomerPaymentSetup(input: {
       method: "POST",
       csrfToken: input.csrfToken,
       body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function beginCustomerPaymentSetup(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  externalID: string;
+  paymentMethodType?: string;
+}): Promise<BeginCustomerPaymentSetupResult> {
+  const payload = await apiRequest<BeginCustomerPaymentSetupResult>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/payment-setup/checkout-url`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        payment_method_type: input.paymentMethodType,
+      },
     }
   );
   if (!payload) {

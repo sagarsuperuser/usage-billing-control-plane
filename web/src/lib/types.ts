@@ -549,6 +549,12 @@ export interface RefreshCustomerPaymentSetupResult {
   readiness: CustomerReadiness;
 }
 
+export interface BeginCustomerPaymentSetupResult {
+  external_id: string;
+  checkout_url: string;
+  payment_setup: CustomerPaymentSetup;
+}
+
 export interface LagoWebhookEvent {
   id: string;
   tenant_id: string;

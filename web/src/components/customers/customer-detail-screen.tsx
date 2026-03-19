@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CreditCard, LoaderCircle, RefreshCw, RotateCcw } from "lucide-react";
+import { ArrowLeft, CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchCustomerReadiness, fetchCustomers, refreshCustomerPaymentSetup, retryCustomerBillingSync } from "@/lib/api";
+import { beginCustomerPaymentSetup, fetchCustomerReadiness, fetchCustomers, refreshCustomerPaymentSetup, retryCustomerBillingSync } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -56,10 +56,24 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
     },
   });
+  const beginSetupMutation = useMutation({
+    mutationFn: () => beginCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
+    onSuccess: async () => {
+      await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
+    },
+  });
 
   const customer = customersQuery.data?.[0] ?? null;
   const readiness = readinessQuery.data ?? null;
   const nextActions = readiness?.missing_steps.map(describeCustomerMissingStep) ?? [];
+  const canBeginPaymentSetup = Boolean(
+    canWrite &&
+      csrfToken &&
+      readiness?.customer_active &&
+      readiness?.billing_profile_status === "ready" &&
+      readiness?.payment_setup_status !== "ready",
+  );
+  const latestCheckoutURL = beginSetupMutation.data?.checkout_url;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -152,9 +166,36 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recovery actions</p>
-                  <p className="mt-3 text-sm text-slate-600">Retry billing synchronization or refresh payment-method verification when a customer is blocked.</p>
-                  <div className="mt-4 flex flex-wrap gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment collection</p>
+                  <p className="mt-3 text-sm text-slate-600">
+                    Use this customer page as the primary collection path when payment setup is missing or incomplete. Generate the hosted payer setup link here, then refresh verification before retrying collection elsewhere.
+                  </p>
+                  <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                    <StatusCard title="Customer active" value={readiness.customer_active ? "ready" : "pending"} />
+                    <StatusCard title="Billing profile" value={readiness.billing_profile_status} />
+                    <StatusCard title="Payment setup" value={readiness.payment_setup_status} />
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => beginSetupMutation.mutate()}
+                      disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {beginSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                      Request payment setup
+                    </button>
+                    {latestCheckoutURL ? (
+                      <a
+                        href={latestCheckoutURL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open latest setup link
+                      </a>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => retryMutation.mutate()}
@@ -173,7 +214,30 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       {refreshMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                       Refresh payment setup
                     </button>
+                    <Link
+                      href={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Open subscriptions
+                    </Link>
                   </div>
+                  {beginSetupMutation.isError ? (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                      <p className="font-semibold text-amber-900">Payment setup link could not be generated</p>
+                      <p className="mt-2">{beginSetupMutation.error instanceof Error ? beginSetupMutation.error.message : "Customer payment setup request failed."}</p>
+                    </div>
+                  ) : null}
+                  {latestCheckoutURL ? (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                      <p className="font-semibold text-emerald-900">Hosted payment setup link ready</p>
+                      <p className="mt-2">Send the payer through the hosted setup link, then refresh verification once setup is complete.</p>
+                    </div>
+                  ) : null}
+                  {!canBeginPaymentSetup && readiness.payment_setup_status !== "ready" ? (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                      Payment setup can be requested only after the customer is active and the billing profile is ready.
+                    </div>
+                  ) : null}
                 </section>
               </div>
 
