@@ -10,10 +10,11 @@ RUN pnpm install --frozen-lockfile
 FROM node:20-alpine AS builder
 WORKDIR /app
 RUN corepack enable
+ENV NODE_OPTIONS=--max-old-space-size=3072
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm build
+RUN pnpm exec next build --webpack
 
 FROM node:20-alpine AS runner
 WORKDIR /app
