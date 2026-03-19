@@ -4363,6 +4363,39 @@ func (s *PostgresStore) GetServiceAccount(tenantID, id string) (domain.ServiceAc
 	return account, nil
 }
 
+func (s *PostgresStore) GetServiceAccountByName(tenantID, name string) (domain.ServiceAccount, error) {
+	tenantID = normalizeTenantID(tenantID)
+	name = strings.TrimSpace(name)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.ServiceAccount{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT id, tenant_id, name, description, role, purpose, environment, created_by_user_id, created_by_platform_user, created_at, updated_at
+		FROM service_accounts
+		WHERE tenant_id = $1 AND lower(name) = lower($2)`,
+		tenantID,
+		name,
+	)
+	account, err := scanServiceAccount(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.ServiceAccount{}, ErrNotFound
+		}
+		return domain.ServiceAccount{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.ServiceAccount{}, err
+	}
+	return account, nil
+}
+
 func (s *PostgresStore) ListServiceAccounts(filter ServiceAccountListFilter) ([]domain.ServiceAccount, error) {
 	tenantID := normalizeTenantID(filter.TenantID)
 	limit := filter.Limit

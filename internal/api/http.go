@@ -657,7 +657,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	if s.browserUserAuthService == nil {
 		s.browserUserAuthService, _ = service.NewBrowserUserAuthService(repo)
 	}
-	s.onboardingService = service.NewTenantOnboardingService(s.tenantService, s.workspaceBillingBindingService, s.customerService, s.apiKeyService, s.ratingService, s.meterService)
+	s.onboardingService = service.NewTenantOnboardingService(s.tenantService, s.workspaceBillingBindingService, s.customerService, s.apiKeyService, s.serviceAccountService, s.ratingService, s.meterService)
 	s.registerRoutes()
 	return s
 }
@@ -2496,21 +2496,17 @@ func (s *Server) handleInternalTenantBootstrapAdminKey(w http.ResponseWriter, r 
 		return
 	}
 
-	created, err := s.apiKeyService.CreateAPIKey(tenantID, "", service.CreateAPIKeyRequest{
-		Name:                  req.Name,
-		Role:                  string(RoleAdmin),
-		ExpiresAt:             req.ExpiresAt,
-		OwnerType:             "bootstrap",
-		Purpose:               "Workspace bootstrap admin credential",
-		CreatedByPlatformUser: true,
-		ActorPlatformAPIKeyID: requestActorAPIKeyID(r),
-	})
+	created, err := s.serviceAccountService.IssueBootstrapWorkspaceServiceAccountCredential(tenantID, req.Name, service.APICredentialActor{
+		PlatformAPIKeyID:  requestActorAPIKeyID(r),
+		CreatedByPlatform: true,
+	}, req.ExpiresAt)
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"api_key":              created.APIKey,
+		"service_account":      created.ServiceAccount,
+		"credential":           created.Credential,
 		"secret":               created.Secret,
 		"existing_active_keys": activeKeys.Total,
 	})

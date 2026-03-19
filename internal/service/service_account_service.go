@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ type serviceAccountStore interface {
 	GetTenant(id string) (domain.Tenant, error)
 	CreateServiceAccount(input domain.ServiceAccount) (domain.ServiceAccount, error)
 	GetServiceAccount(tenantID, id string) (domain.ServiceAccount, error)
+	GetServiceAccountByName(tenantID, name string) (domain.ServiceAccount, error)
 	ListServiceAccounts(filter store.ServiceAccountListFilter) ([]domain.ServiceAccount, error)
 	ListAPIKeys(filter store.APIKeyListFilter) (store.APIKeyListResult, error)
 	GetAPIKeyByID(tenantID, id string) (domain.APIKey, error)
@@ -47,8 +49,11 @@ type CreateServiceAccountResult struct {
 }
 
 type IssueServiceAccountCredentialRequest struct {
-	Name      string     `json:"name,omitempty"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Name        string     `json:"name,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	OwnerType   string     `json:"owner_type,omitempty"`
+	Purpose     string     `json:"purpose,omitempty"`
+	Environment string     `json:"environment,omitempty"`
 }
 
 func NewServiceAccountService(repo serviceAccountStore, apiKeys *APIKeyService) *ServiceAccountService {
@@ -75,7 +80,6 @@ func (s *ServiceAccountService) ListWorkspaceServiceAccounts(workspaceID string)
 	for _, account := range accounts {
 		keys, err := s.store.ListAPIKeys(store.APIKeyListFilter{
 			TenantID:      workspaceID,
-			OwnerType:     "service_account",
 			OwnerID:       account.ID,
 			Limit:         100,
 			Offset:        0,
@@ -85,16 +89,17 @@ func (s *ServiceAccountService) ListWorkspaceServiceAccounts(workspaceID string)
 			return nil, err
 		}
 		active := 0
+		filtered := make([]domain.APIKey, 0, len(keys.Items))
 		for _, item := range keys.Items {
+			if item.OwnerType != "service_account" && item.OwnerType != "bootstrap" && item.OwnerType != "break_glass" {
+				continue
+			}
+			filtered = append(filtered, item)
 			if item.RevokedAt == nil && (item.ExpiresAt == nil || item.ExpiresAt.After(now)) {
 				active++
 			}
 		}
-		out = append(out, WorkspaceServiceAccount{
-			ServiceAccount:        account,
-			Credentials:           keys.Items,
-			ActiveCredentialCount: active,
-		})
+		out = append(out, WorkspaceServiceAccount{ServiceAccount: account, Credentials: filtered, ActiveCredentialCount: active})
 	}
 	return out, nil
 }
@@ -145,6 +150,52 @@ func (s *ServiceAccountService) CreateWorkspaceServiceAccount(workspaceID string
 	return result, nil
 }
 
+func (s *ServiceAccountService) EnsureBootstrapServiceAccount(workspaceID, name string, actor APICredentialActor) (domain.ServiceAccount, error) {
+	if s == nil || s.store == nil {
+		return domain.ServiceAccount{}, fmt.Errorf("%w: service account service is required", ErrValidation)
+	}
+	workspaceID = normalizeTenantID(workspaceID)
+	name = strings.TrimSpace(name)
+	if workspaceID == "" || name == "" {
+		return domain.ServiceAccount{}, fmt.Errorf("%w: workspace_id and name are required", ErrValidation)
+	}
+	account, err := s.store.GetServiceAccountByName(workspaceID, name)
+	if err == nil {
+		return account, nil
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return domain.ServiceAccount{}, err
+	}
+	return s.store.CreateServiceAccount(domain.ServiceAccount{
+		TenantID:              workspaceID,
+		Name:                  name,
+		Description:           "Bootstrap admin machine identity",
+		Role:                  string(domainTenantAdminRole),
+		Purpose:               "Workspace bootstrap admin credential",
+		CreatedByUserID:       strings.TrimSpace(actor.UserID),
+		CreatedByPlatformUser: true,
+		CreatedAt:             time.Now().UTC(),
+		UpdatedAt:             time.Now().UTC(),
+	})
+}
+
+func (s *ServiceAccountService) IssueBootstrapWorkspaceServiceAccountCredential(workspaceID, serviceAccountName string, actor APICredentialActor, expiresAt *time.Time) (CreateServiceAccountResult, error) {
+	account, err := s.EnsureBootstrapServiceAccount(workspaceID, serviceAccountName, actor)
+	if err != nil {
+		return CreateServiceAccountResult{}, err
+	}
+	issued, err := s.IssueWorkspaceServiceAccountCredential(workspaceID, account.ID, actor, IssueServiceAccountCredentialRequest{
+		Name:      serviceAccountName,
+		ExpiresAt: expiresAt,
+		OwnerType: "bootstrap",
+		Purpose:   "Workspace bootstrap admin credential",
+	})
+	if err != nil {
+		return CreateServiceAccountResult{}, err
+	}
+	return CreateServiceAccountResult{ServiceAccount: account, Credential: &issued.APIKey, Secret: issued.Secret}, nil
+}
+
 func (s *ServiceAccountService) IssueWorkspaceServiceAccountCredential(workspaceID, serviceAccountID string, actor APICredentialActor, req IssueServiceAccountCredentialRequest) (CreateAPIKeyResult, error) {
 	if s == nil || s.store == nil || s.apiKeys == nil {
 		return CreateAPIKeyResult{}, fmt.Errorf("%w: service account service is required", ErrValidation)
@@ -157,14 +208,26 @@ func (s *ServiceAccountService) IssueWorkspaceServiceAccountCredential(workspace
 	if name == "" {
 		name = account.Name + " credential " + time.Now().UTC().Format("20060102-150405")
 	}
+	ownerType := strings.TrimSpace(req.OwnerType)
+	if ownerType == "" {
+		ownerType = "service_account"
+	}
+	purpose := strings.TrimSpace(req.Purpose)
+	if purpose == "" {
+		purpose = account.Purpose
+	}
+	environment := strings.TrimSpace(req.Environment)
+	if environment == "" {
+		environment = account.Environment
+	}
 	return s.apiKeys.CreateAPIKey(normalizeTenantID(workspaceID), strings.TrimSpace(actor.APIKeyID), CreateAPIKeyRequest{
 		Name:                  name,
 		Role:                  account.Role,
 		ExpiresAt:             req.ExpiresAt,
-		OwnerType:             "service_account",
+		OwnerType:             ownerType,
 		OwnerID:               account.ID,
-		Purpose:               account.Purpose,
-		Environment:           account.Environment,
+		Purpose:               purpose,
+		Environment:           environment,
 		CreatedByUserID:       strings.TrimSpace(actor.UserID),
 		CreatedByPlatformUser: actor.CreatedByPlatform,
 		ActorPlatformAPIKeyID: strings.TrimSpace(actor.PlatformAPIKeyID),
@@ -202,7 +265,10 @@ func (s *ServiceAccountService) ensureServiceAccountCredential(workspaceID, serv
 	if err != nil {
 		return domain.APIKey{}, err
 	}
-	if key.OwnerType != "service_account" || strings.TrimSpace(key.OwnerID) != strings.TrimSpace(serviceAccountID) {
+	if strings.TrimSpace(key.OwnerID) != strings.TrimSpace(serviceAccountID) {
+		return domain.APIKey{}, fmt.Errorf("%w: credential does not belong to service account", ErrValidation)
+	}
+	if key.OwnerType != "service_account" && key.OwnerType != "bootstrap" && key.OwnerType != "break_glass" {
 		return domain.APIKey{}, fmt.Errorf("%w: credential does not belong to service account", ErrValidation)
 	}
 	return key, nil

@@ -271,6 +271,7 @@ type Repository interface {
 	UpdateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error)
 	CreateServiceAccount(input domain.ServiceAccount) (domain.ServiceAccount, error)
 	GetServiceAccount(tenantID, id string) (domain.ServiceAccount, error)
+	GetServiceAccountByName(tenantID, name string) (domain.ServiceAccount, error)
 	ListServiceAccounts(filter ServiceAccountListFilter) ([]domain.ServiceAccount, error)
 	GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error)
 	UpsertUserFederatedIdentity(input domain.UserFederatedIdentity) (domain.UserFederatedIdentity, error)

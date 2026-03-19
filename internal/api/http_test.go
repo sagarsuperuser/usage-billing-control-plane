@@ -2072,17 +2072,24 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	bootstrapped := postJSON(t, ts.URL+"/internal/tenants/tenant_ops/bootstrap-admin-key", map[string]any{
 		"name": "tenant-ops-bootstrap",
 	}, "platform-admin", http.StatusCreated)
-	apiKey, ok := bootstrapped["api_key"].(map[string]any)
+	serviceAccount, ok := bootstrapped["service_account"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected bootstrap response api_key object")
+		t.Fatalf("expected bootstrap response service_account object")
 	}
-	if gotRole, _ := apiKey["role"].(string); gotRole != "admin" {
+	if gotName, _ := serviceAccount["name"].(string); gotName != "tenant-ops-bootstrap" {
+		t.Fatalf("expected bootstrap service account name tenant-ops-bootstrap, got %q", gotName)
+	}
+	credential, ok := bootstrapped["credential"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected bootstrap response credential object")
+	}
+	if gotRole, _ := credential["role"].(string); gotRole != "admin" {
 		t.Fatalf("expected bootstrapped tenant admin role admin, got %q", gotRole)
 	}
-	if gotTenant, _ := apiKey["tenant_id"].(string); gotTenant != "tenant_ops" {
+	if gotTenant, _ := credential["tenant_id"].(string); gotTenant != "tenant_ops" {
 		t.Fatalf("expected bootstrapped tenant admin tenant_id tenant_ops, got %q", gotTenant)
 	}
-	if gotOwnerType, _ := apiKey["owner_type"].(string); gotOwnerType != "bootstrap" {
+	if gotOwnerType, _ := credential["owner_type"].(string); gotOwnerType != "bootstrap" {
 		t.Fatalf("expected bootstrapped tenant admin owner_type bootstrap, got %q", gotOwnerType)
 	}
 	if secret, _ := bootstrapped["secret"].(string); strings.TrimSpace(secret) == "" {
@@ -2151,7 +2158,15 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 		t.Fatalf("expected tenant_admin_bootstrap object")
 	}
 	if created, _ := bootstrap["created"].(bool); !created {
-		t.Fatalf("expected tenant admin bootstrap to create a key")
+		t.Fatalf("expected tenant admin bootstrap to create a credential")
+	}
+	if _, ok := bootstrap["service_account"].(map[string]any); !ok {
+		t.Fatalf("expected tenant_admin_bootstrap service_account object")
+	}
+	if credential, ok := bootstrap["credential"].(map[string]any); !ok {
+		t.Fatalf("expected tenant_admin_bootstrap credential object")
+	} else if got, _ := credential["owner_type"].(string); got != "bootstrap" {
+		t.Fatalf("expected tenant_admin_bootstrap credential owner_type bootstrap, got %q", got)
 	}
 	adminSecret, _ := bootstrap["secret"].(string)
 	if strings.TrimSpace(adminSecret) == "" {
@@ -2327,6 +2342,9 @@ func TestInternalTenantOnboardingStatusPagesCustomers(t *testing.T) {
 	bootstrap, ok := onboarded["tenant_admin_bootstrap"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected tenant_admin_bootstrap object")
+	}
+	if _, ok := bootstrap["service_account"].(map[string]any); !ok {
+		t.Fatalf("expected tenant_admin_bootstrap service_account object")
 	}
 	adminSecret, _ := bootstrap["secret"].(string)
 	if strings.TrimSpace(adminSecret) == "" {

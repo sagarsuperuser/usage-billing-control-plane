@@ -13,6 +13,7 @@ type TenantOnboardingService struct {
 	workspaceBillingBindingService *WorkspaceBillingBindingService
 	customerService                *CustomerService
 	apiKeyService                  *APIKeyService
+	serviceAccountService          *ServiceAccountService
 	ratingService                  *RatingService
 	meterService                   *MeterService
 }
@@ -89,10 +90,11 @@ type FirstCustomerBillingReadiness struct {
 }
 
 type TenantAdminBootstrapResult struct {
-	Created            bool           `json:"created"`
-	ExistingActiveKeys int            `json:"existing_active_keys"`
-	APIKey             *domain.APIKey `json:"api_key,omitempty"`
-	Secret             string         `json:"secret,omitempty"`
+	Created            bool                   `json:"created"`
+	ExistingActiveKeys int                    `json:"existing_active_keys"`
+	ServiceAccount     *domain.ServiceAccount `json:"service_account,omitempty"`
+	Credential         *domain.APIKey         `json:"credential,omitempty"`
+	Secret             string                 `json:"secret,omitempty"`
 }
 
 type TenantOnboardingResult struct {
@@ -102,19 +104,20 @@ type TenantOnboardingResult struct {
 	Readiness            TenantOnboardingReadiness  `json:"readiness"`
 }
 
-func NewTenantOnboardingService(tenantSvc *TenantService, workspaceBindingSvc *WorkspaceBillingBindingService, customerSvc *CustomerService, apiKeySvc *APIKeyService, ratingSvc *RatingService, meterSvc *MeterService) *TenantOnboardingService {
+func NewTenantOnboardingService(tenantSvc *TenantService, workspaceBindingSvc *WorkspaceBillingBindingService, customerSvc *CustomerService, apiKeySvc *APIKeyService, serviceAccountSvc *ServiceAccountService, ratingSvc *RatingService, meterSvc *MeterService) *TenantOnboardingService {
 	return &TenantOnboardingService{
 		tenantService:                  tenantSvc,
 		workspaceBillingBindingService: workspaceBindingSvc,
 		customerService:                customerSvc,
 		apiKeyService:                  apiKeySvc,
+		serviceAccountService:          serviceAccountSvc,
 		ratingService:                  ratingSvc,
 		meterService:                   meterSvc,
 	}
 }
 
 func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, actorAPIKeyID string) (TenantOnboardingResult, error) {
-	if s == nil || s.tenantService == nil || s.customerService == nil || s.apiKeyService == nil || s.ratingService == nil || s.meterService == nil {
+	if s == nil || s.tenantService == nil || s.customerService == nil || s.apiKeyService == nil || s.serviceAccountService == nil || s.ratingService == nil || s.meterService == nil {
 		return TenantOnboardingResult{}, ErrValidation
 	}
 
@@ -149,16 +152,16 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 			if name == "" {
 				name = "bootstrap-admin-" + normalizeTenantID(tenant.ID)
 			}
-			created, err := s.apiKeyService.CreateAPIKey(tenant.ID, actorAPIKeyID, CreateAPIKeyRequest{
-				Name:      name,
-				Role:      string(domainTenantAdminRole),
-				ExpiresAt: req.AdminKeyExpiresAt,
-			})
+			created, err := s.serviceAccountService.IssueBootstrapWorkspaceServiceAccountCredential(tenant.ID, name, APICredentialActor{
+				PlatformAPIKeyID:  strings.TrimSpace(actorAPIKeyID),
+				CreatedByPlatform: true,
+			}, req.AdminKeyExpiresAt)
 			if err != nil {
 				return TenantOnboardingResult{}, wrapTenantOnboardingStage("bootstrap_admin_key", err)
 			}
 			bootstrapResult.Created = true
-			bootstrapResult.APIKey = &created.APIKey
+			bootstrapResult.ServiceAccount = &created.ServiceAccount
+			bootstrapResult.Credential = created.Credential
 			bootstrapResult.Secret = created.Secret
 			bootstrapResult.ExistingActiveKeys = activeKeys.Total
 		}
@@ -192,7 +195,7 @@ func wrapTenantOnboardingStage(stage string, err error) error {
 }
 
 func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardingReadiness, error) {
-	if s == nil || s.tenantService == nil || s.customerService == nil || s.apiKeyService == nil || s.ratingService == nil || s.meterService == nil {
+	if s == nil || s.tenantService == nil || s.customerService == nil || s.apiKeyService == nil || s.serviceAccountService == nil || s.ratingService == nil || s.meterService == nil {
 		return TenantOnboardingReadiness{}, ErrValidation
 	}
 

@@ -303,7 +303,8 @@ export interface TenantOnboardingReadiness {
 export interface TenantAdminBootstrapResult {
   created: boolean;
   existing_active_keys: number;
-  api_key?: APIKey;
+  service_account?: ServiceAccount;
+  credential?: APIKey;
   secret?: string;
 }
 

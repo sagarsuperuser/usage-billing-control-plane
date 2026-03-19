@@ -603,4 +603,5 @@ Current migration intent:
 This is intentionally incremental:
 - runtime API authentication continues to validate `api_keys`
 - browser admins now manage machine identity separately from individual secret rows
+- workspace bootstrap now issues a bootstrap-classified credential attached to a service account instead of a bare key
 - a later slice can enforce service-account status in runtime auth once service-account lifecycle controls are expanded

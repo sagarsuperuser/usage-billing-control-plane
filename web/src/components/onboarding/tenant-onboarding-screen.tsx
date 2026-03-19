@@ -86,7 +86,7 @@ export function TenantOnboardingScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace setup</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create workspace</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Create a workspace, attach one active billing connection, and optionally mint the first admin credential. Billing connection lifecycle stays on dedicated billing pages.
+                Create a workspace, attach one active billing connection, and optionally mint the first admin service account credential. Billing connection lifecycle stays on dedicated billing pages.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -124,7 +124,7 @@ export function TenantOnboardingScreen() {
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
               <StepCard index="1" title="Name the workspace" body="Use a stable ID and a display name operators will recognize later." />
               <StepCard index="2" title="Select active billing" body="Choose the one connection this workspace should use for billing execution." />
-              <StepCard index="3" title="Bootstrap admin access" body="Generate the first admin credential now or leave it for a controlled handoff." />
+              <StepCard index="3" title="Bootstrap admin access" body="Generate the first admin service account credential now or leave it for a controlled handoff." />
             </div>
 
             <div className="mt-5 grid gap-5">
@@ -192,14 +192,14 @@ export function TenantOnboardingScreen() {
 
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 3</p>
-                <h3 className="mt-2 text-lg font-semibold text-slate-950">Admin bootstrap</h3>
+                <h3 className="mt-2 text-lg font-semibold text-slate-950">Admin bootstrap service account</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
-                  <InputField label="Admin credential name" value={adminKeyName} onChange={setAdminKeyName} placeholder="bootstrap-admin-tenant_acme" />
+                  <InputField label="Bootstrap service account name" value={adminKeyName} onChange={setAdminKeyName} placeholder="bootstrap-admin-tenant_acme" />
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Advanced controls</p>
                     <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
                       <input type="checkbox" checked={bootstrapAdminKey} onChange={(event) => setBootstrapAdminKey(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-                      Generate first admin credential
+                      Generate first admin service account credential
                     </label>
                     <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
                       <input type="checkbox" checked={allowExistingActiveKeys} onChange={(event) => setAllowExistingActiveKeys(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
@@ -255,7 +255,7 @@ export function TenantOnboardingScreen() {
               <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
                 <div className="flex items-center gap-2 font-semibold text-amber-800">
                   <KeyRound className="h-4 w-4" />
-                  First admin credential
+                  First admin service account credential
                 </div>
                 <p className="mt-2">Capture this one-time credential now and hand it off through your secure admin bootstrap path.</p>
                 <p className="mt-3 break-all rounded-lg border border-amber-200 bg-white px-3 py-3 font-mono text-xs text-amber-800">{createdSecret}</p>
