@@ -636,6 +636,7 @@ Architecture and rollout docs:
 - `docs/alpha_slice1_billing_connections_spec.md`
 - `docs/alpha_slice2_pricing_spec.md`
 - `docs/alpha_slice3_subscriptions_spec.md`
+- `docs/alpha_slice4_invoices_spec.md`
 - `docs/ui-redesign-plan.md`
 - `docs/ui-information-architecture-plan.md`
 - `docs/infra-rollout-runbook.md`

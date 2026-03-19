@@ -21,6 +21,7 @@ Read together with:
 - [Slice 1 Spec: Billing Connections Hardening](./alpha_slice1_billing_connections_spec.md)
 - [Slice 2 Spec: Pricing Foundation](./alpha_slice2_pricing_spec.md)
 - [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
+- [Slice 4 Spec: Invoices Visibility](./alpha_slice4_invoices_spec.md)
 
 ---
 
@@ -266,6 +267,10 @@ UI:
 Outcome:
 
 - core invoice visibility exists fully in Alpha
+
+Detailed implementation spec:
+
+- [Slice 4 Spec: Invoices Visibility](./alpha_slice4_invoices_spec.md)
 
 ### Slice 5. Payments visibility
 
