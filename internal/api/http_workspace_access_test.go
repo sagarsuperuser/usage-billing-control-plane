@@ -451,6 +451,20 @@ func TestTenantWorkspaceServiceAccountLifecycle(t *testing.T) {
 	if revokedCredential["revoked_at"] == nil {
 		t.Fatalf("expected revoked_at on revoked credential")
 	}
+
+	auditResp := sessionGetJSON(t, client, ts.URL+"/v1/workspace/service-accounts/"+url.PathEscape(serviceAccountID)+"/audit?limit=10", http.StatusOK)
+	auditItems := auditResp["items"].([]any)
+	if len(auditItems) < 3 {
+		t.Fatalf("expected at least 3 audit events for service account lifecycle, got %d", len(auditItems))
+	}
+	firstEvent := auditItems[0].(map[string]any)
+	metadata, ok := firstEvent["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected metadata on service account audit event")
+	}
+	if metadata["owner_id"] != serviceAccountID {
+		t.Fatalf("expected audit metadata owner_id %q, got %#v", serviceAccountID, metadata["owner_id"])
+	}
 }
 
 func mustNewDBAuthorizer(t *testing.T, repo *store.PostgresStore) *api.DBAPIKeyAuthorizer {

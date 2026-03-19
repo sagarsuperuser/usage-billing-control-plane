@@ -4906,6 +4906,28 @@ func (s *PostgresStore) ListAPIKeyAuditEvents(filter APIKeyAuditFilter) (APIKeyA
 		baseArgs = append(baseArgs, action)
 		nextArg++
 	}
+	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf(`EXISTS (
+			SELECT 1
+			FROM api_keys k
+			WHERE k.tenant_id = api_key_audit_events.tenant_id
+				AND k.id = api_key_audit_events.api_key_id
+				AND k.owner_type = $%d
+		)`, nextArg))
+		baseArgs = append(baseArgs, ownerType)
+		nextArg++
+	}
+	if ownerID := strings.TrimSpace(filter.OwnerID); ownerID != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf(`EXISTS (
+			SELECT 1
+			FROM api_keys k
+			WHERE k.tenant_id = api_key_audit_events.tenant_id
+				AND k.id = api_key_audit_events.api_key_id
+				AND k.owner_id = $%d
+		)`, nextArg))
+		baseArgs = append(baseArgs, ownerID)
+		nextArg++
+	}
 
 	baseWhere := strings.Join(baseClauses, " AND ")
 
@@ -5166,6 +5188,16 @@ func (s *PostgresStore) ListAPIKeyAuditExportJobs(filter APIKeyAuditExportFilter
 	if requestedBy := strings.TrimSpace(filter.RequestedByAPIKeyID); requestedBy != "" {
 		baseClauses = append(baseClauses, fmt.Sprintf("requested_by_api_key_id = $%d", nextArg))
 		baseArgs = append(baseArgs, requestedBy)
+		nextArg++
+	}
+	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("filters->>'owner_type' = $%d", nextArg))
+		baseArgs = append(baseArgs, ownerType)
+		nextArg++
+	}
+	if ownerID := strings.TrimSpace(filter.OwnerID); ownerID != "" {
+		baseClauses = append(baseClauses, fmt.Sprintf("filters->>'owner_id' = $%d", nextArg))
+		baseArgs = append(baseArgs, ownerID)
 		nextArg++
 	}
 

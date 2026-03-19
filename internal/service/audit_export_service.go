@@ -25,6 +25,8 @@ type CreateAuditExportJobRequest struct {
 	APIKeyID       string `json:"api_key_id,omitempty"`
 	ActorAPIKeyID  string `json:"actor_api_key_id,omitempty"`
 	Action         string `json:"action,omitempty"`
+	OwnerType      string `json:"owner_type,omitempty"`
+	OwnerID        string `json:"owner_id,omitempty"`
 }
 
 type AuditExportJobResponse struct {
@@ -35,6 +37,8 @@ type AuditExportJobResponse struct {
 type ListAuditExportJobsRequest struct {
 	Status              string `json:"status,omitempty"`
 	RequestedByAPIKeyID string `json:"requested_by_api_key_id,omitempty"`
+	OwnerType           string `json:"owner_type,omitempty"`
+	OwnerID             string `json:"owner_id,omitempty"`
 	Limit               int    `json:"limit,omitempty"`
 	Offset              int    `json:"offset,omitempty"`
 	Cursor              string `json:"cursor,omitempty"`
@@ -87,6 +91,8 @@ func (s *AuditExportService) CreateJob(tenantID, actorAPIKeyID string, req Creat
 			APIKeyID:      strings.TrimSpace(req.APIKeyID),
 			ActorAPIKeyID: strings.TrimSpace(req.ActorAPIKeyID),
 			Action:        action,
+			OwnerType:     strings.TrimSpace(req.OwnerType),
+			OwnerID:       strings.TrimSpace(req.OwnerID),
 		},
 	}
 
@@ -141,6 +147,8 @@ func (s *AuditExportService) ListJobs(tenantID string, req ListAuditExportJobsRe
 		TenantID:            normalizeTenantID(tenantID),
 		Status:              status,
 		RequestedByAPIKeyID: strings.TrimSpace(req.RequestedByAPIKeyID),
+		OwnerType:           strings.TrimSpace(req.OwnerType),
+		OwnerID:             strings.TrimSpace(req.OwnerID),
 		Limit:               limit,
 		Offset:              offset,
 		CursorID:            cursorID,
@@ -191,6 +199,8 @@ func (s *AuditExportService) ProcessNext(ctx context.Context) (bool, error) {
 		APIKeyID:      job.Filters.APIKeyID,
 		ActorAPIKeyID: job.Filters.ActorAPIKeyID,
 		Action:        job.Filters.Action,
+		OwnerType:     job.Filters.OwnerType,
+		OwnerID:       job.Filters.OwnerID,
 		Limit:         maxListLimit,
 	})
 	if err != nil {

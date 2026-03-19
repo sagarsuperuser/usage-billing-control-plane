@@ -71,6 +71,8 @@ type ListAPIKeyAuditEventsRequest struct {
 	APIKeyID      string `json:"api_key_id,omitempty"`
 	ActorAPIKeyID string `json:"actor_api_key_id,omitempty"`
 	Action        string `json:"action,omitempty"`
+	OwnerType     string `json:"owner_type,omitempty"`
+	OwnerID       string `json:"owner_id,omitempty"`
 	Limit         int    `json:"limit,omitempty"`
 	Offset        int    `json:"offset,omitempty"`
 	Cursor        string `json:"cursor,omitempty"`
@@ -348,6 +350,8 @@ func (s *APIKeyService) ListAPIKeyAuditEvents(tenantID string, req ListAPIKeyAud
 		APIKeyID:      strings.TrimSpace(req.APIKeyID),
 		ActorAPIKeyID: strings.TrimSpace(req.ActorAPIKeyID),
 		Action:        action,
+		OwnerType:     strings.TrimSpace(req.OwnerType),
+		OwnerID:       strings.TrimSpace(req.OwnerID),
 		Limit:         limit,
 		Offset:        offset,
 		CursorID:      cursorID,
@@ -387,6 +391,8 @@ func (s *APIKeyService) GenerateAPIKeyAuditCSV(tenantID string, req ListAPIKeyAu
 			APIKeyID:      req.APIKeyID,
 			ActorAPIKeyID: req.ActorAPIKeyID,
 			Action:        req.Action,
+			OwnerType:     req.OwnerType,
+			OwnerID:       req.OwnerID,
 			Limit:         chunkSize,
 			Cursor:        cursor,
 		})

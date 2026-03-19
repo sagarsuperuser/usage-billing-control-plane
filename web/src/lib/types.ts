@@ -132,6 +132,46 @@ export interface ServiceAccountCredentialIssueResult {
   secret: string;
 }
 
+export interface APIKeyAuditEvent {
+  id: string;
+  tenant_id: string;
+  api_key_id: string;
+  actor_api_key_id?: string;
+  action: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface APIKeyAuditExportJobFilters {
+  api_key_id?: string;
+  actor_api_key_id?: string;
+  action?: string;
+  owner_type?: string;
+  owner_id?: string;
+}
+
+export interface APIKeyAuditExportJob {
+  id: string;
+  tenant_id: string;
+  requested_by_api_key_id?: string;
+  idempotency_key: string;
+  status: "queued" | "running" | "done" | "failed";
+  filters: APIKeyAuditExportJobFilters;
+  object_key?: string;
+  row_count: number;
+  error?: string;
+  attempt_count: number;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  expires_at?: string;
+}
+
+export interface APIKeyAuditExportJobResponse {
+  job: APIKeyAuditExportJob;
+  download_url?: string;
+}
+
 export interface WorkspaceInvitationPreview {
   invitation: WorkspaceInvitation;
   workspace_name: string;

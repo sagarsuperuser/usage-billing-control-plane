@@ -109,6 +109,11 @@ type workspaceServiceAccountResponse struct {
 	Credentials           []domain.APIKey `json:"credentials"`
 }
 
+type workspaceServiceAccountAuditExportJobResponse struct {
+	Job         domain.APIKeyAuditExportJob `json:"job"`
+	DownloadURL string                      `json:"download_url,omitempty"`
+}
+
 func newWorkspaceServiceAccountResponse(item service.WorkspaceServiceAccount) workspaceServiceAccountResponse {
 	return workspaceServiceAccountResponse{
 		ID:                    item.ServiceAccount.ID,
@@ -1838,6 +1843,26 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/api-keys/audit/exports/{id}"
 	case strings.HasPrefix(path, "/v1/api-keys/"):
 		return "/v1/api-keys/{id}/{action}"
+	case path == "/v1/workspace/service-accounts":
+		return "/v1/workspace/service-accounts"
+	case strings.HasPrefix(path, "/v1/workspace/service-accounts/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/workspace/service-accounts/"), "/")
+		if strings.HasSuffix(tail, "/audit/exports") {
+			return "/v1/workspace/service-accounts/{id}/audit/exports"
+		}
+		if strings.Contains(tail, "/audit/exports/") {
+			return "/v1/workspace/service-accounts/{id}/audit/exports/{job_id}"
+		}
+		if strings.HasSuffix(tail, "/audit") {
+			return "/v1/workspace/service-accounts/{id}/audit"
+		}
+		if strings.Contains(tail, "/credentials/") {
+			return "/v1/workspace/service-accounts/{id}/credentials/{credential_id}/{action}"
+		}
+		if strings.HasSuffix(tail, "/credentials") {
+			return "/v1/workspace/service-accounts/{id}/credentials"
+		}
+		return "/v1/workspace/service-accounts/{id}"
 	case strings.HasPrefix(path, "/v1/"):
 		return "/v1/*"
 	default:
@@ -2286,16 +2311,137 @@ func (s *Server) handleTenantWorkspaceServiceAccounts(w http.ResponseWriter, r *
 	serviceAccountID, remainder := parseTenantWorkspaceServiceAccountSubresource(r.URL.Path)
 	switch r.Method {
 	case http.MethodGet:
-		if serviceAccountID != "" || len(remainder) > 0 {
-			writeMethodNotAllowed(w)
+		if serviceAccountID == "" && len(remainder) == 0 {
+			items, err := s.serviceAccountService.ListWorkspaceServiceAccounts(principal.TenantID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"items": newWorkspaceServiceAccountResponses(items)})
 			return
 		}
-		items, err := s.serviceAccountService.ListWorkspaceServiceAccounts(principal.TenantID)
-		if err != nil {
-			writeDomainError(w, err)
+		if serviceAccountID != "" && len(remainder) == 1 && remainder[0] == "audit" {
+			account, err := s.serviceAccountService.GetWorkspaceServiceAccount(principal.TenantID, serviceAccountID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			limit, err := parseQueryInt(r, "limit")
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			offset, err := parseQueryInt(r, "offset")
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			req := service.ListAPIKeyAuditEventsRequest{
+				Action:  r.URL.Query().Get("action"),
+				OwnerID: serviceAccountID,
+				Limit:   limit,
+				Offset:  offset,
+				Cursor:  r.URL.Query().Get("cursor"),
+			}
+			if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("format")), "csv") {
+				csvData, err := s.apiKeyService.GenerateAPIKeyAuditCSV(principal.TenantID, req)
+				if err != nil {
+					writeDomainError(w, err)
+					return
+				}
+				w.Header().Set("Content-Type", "text/csv")
+				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=service_account_%s_audit.csv", account.ID))
+				_, _ = w.Write([]byte(csvData))
+				return
+			}
+			events, err := s.apiKeyService.ListAPIKeyAuditEvents(principal.TenantID, req)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"service_account": newWorkspaceServiceAccountResponse(service.WorkspaceServiceAccount{ServiceAccount: account}),
+				"items":           events.Items,
+				"total":           events.Total,
+				"limit":           events.Limit,
+				"offset":          events.Offset,
+				"next_cursor":     events.NextCursor,
+			})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": newWorkspaceServiceAccountResponses(items)})
+		if serviceAccountID != "" && len(remainder) == 2 && remainder[0] == "audit" && remainder[1] == "exports" {
+			if s.auditExportSvc == nil {
+				writeError(w, http.StatusNotImplemented, "audit export service not configured")
+				return
+			}
+			account, err := s.serviceAccountService.GetWorkspaceServiceAccount(principal.TenantID, serviceAccountID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			limit, err := parseQueryInt(r, "limit")
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			offset, err := parseQueryInt(r, "offset")
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			list, err := s.auditExportSvc.ListJobs(principal.TenantID, service.ListAuditExportJobsRequest{
+				Status:  r.URL.Query().Get("status"),
+				OwnerID: serviceAccountID,
+				Limit:   limit,
+				Offset:  offset,
+				Cursor:  r.URL.Query().Get("cursor"),
+			})
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"service_account": newWorkspaceServiceAccountResponse(service.WorkspaceServiceAccount{ServiceAccount: account}),
+				"items":           list.Items,
+				"total":           list.Total,
+				"limit":           list.Limit,
+				"offset":          list.Offset,
+				"next_cursor":     list.NextCursor,
+			})
+			return
+		}
+		if serviceAccountID != "" && len(remainder) == 3 && remainder[0] == "audit" && remainder[1] == "exports" {
+			if s.auditExportSvc == nil {
+				writeError(w, http.StatusNotImplemented, "audit export service not configured")
+				return
+			}
+			account, err := s.serviceAccountService.GetWorkspaceServiceAccount(principal.TenantID, serviceAccountID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			jobID := strings.TrimSpace(remainder[2])
+			if jobID == "" {
+				writeError(w, http.StatusBadRequest, "id is required")
+				return
+			}
+			resp, err := s.auditExportSvc.GetJob(principal.TenantID, jobID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			if strings.TrimSpace(resp.Job.Filters.OwnerID) != serviceAccountID {
+				writeError(w, http.StatusNotFound, "audit export job not found")
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"service_account": newWorkspaceServiceAccountResponse(service.WorkspaceServiceAccount{ServiceAccount: account}),
+				"job":             resp.Job,
+				"download_url":    resp.DownloadURL,
+			})
+			return
+		}
+		writeMethodNotAllowed(w)
 	case http.MethodPost:
 		if serviceAccountID == "" {
 			var req struct {
@@ -2338,6 +2484,44 @@ func (s *Server) handleTenantWorkspaceServiceAccounts(w http.ResponseWriter, r *
 				payload["secret"] = created.Secret
 			}
 			writeJSON(w, http.StatusCreated, payload)
+			return
+		}
+		if len(remainder) == 2 && remainder[0] == "audit" && remainder[1] == "exports" {
+			if s.auditExportSvc == nil {
+				writeError(w, http.StatusNotImplemented, "audit export service not configured")
+				return
+			}
+			account, err := s.serviceAccountService.GetWorkspaceServiceAccount(principal.TenantID, serviceAccountID)
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			var req struct {
+				IdempotencyKey string `json:"idempotency_key"`
+				Action         string `json:"action,omitempty"`
+			}
+			if err := decodeJSON(r, &req); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			job, idempotent, err := s.auditExportSvc.CreateJob(principal.TenantID, requestActorAPIKeyID(r), service.CreateAuditExportJobRequest{
+				IdempotencyKey: req.IdempotencyKey,
+				Action:         req.Action,
+				OwnerID:        serviceAccountID,
+			})
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			status := http.StatusCreated
+			if idempotent {
+				status = http.StatusOK
+			}
+			writeJSON(w, status, map[string]any{
+				"service_account":    newWorkspaceServiceAccountResponse(service.WorkspaceServiceAccount{ServiceAccount: account}),
+				"idempotent_request": idempotent,
+				"job":                job,
+			})
 			return
 		}
 		if len(remainder) == 1 && remainder[0] == "credentials" {
@@ -4565,6 +4749,7 @@ func (s *Server) handleReplayJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAPIKeys(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts")
 	tenantID := requestTenantID(r)
 	actorAPIKeyID := requestActorAPIKeyID(r)
 
@@ -4611,6 +4796,7 @@ func (s *Server) handleAPIKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAPIKeyAuditEvents(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit")
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w)
 		return
@@ -4632,6 +4818,8 @@ func (s *Server) handleAPIKeyAuditEvents(w http.ResponseWriter, r *http.Request)
 		APIKeyID:      r.URL.Query().Get("api_key_id"),
 		ActorAPIKeyID: r.URL.Query().Get("actor_api_key_id"),
 		Action:        r.URL.Query().Get("action"),
+		OwnerType:     r.URL.Query().Get("owner_type"),
+		OwnerID:       r.URL.Query().Get("owner_id"),
 		Limit:         limit,
 		Offset:        offset,
 		Cursor:        r.URL.Query().Get("cursor"),
@@ -4657,6 +4845,7 @@ func (s *Server) handleAPIKeyAuditEvents(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleAPIKeyAuditExports(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit/exports")
 	if s.auditExportSvc == nil {
 		writeError(w, http.StatusNotImplemented, "audit export service not configured")
 		return
@@ -4696,6 +4885,8 @@ func (s *Server) handleAPIKeyAuditExports(w http.ResponseWriter, r *http.Request
 		list, err := s.auditExportSvc.ListJobs(requestTenantID(r), service.ListAuditExportJobsRequest{
 			Status:              r.URL.Query().Get("status"),
 			RequestedByAPIKeyID: r.URL.Query().Get("requested_by_api_key_id"),
+			OwnerType:           r.URL.Query().Get("owner_type"),
+			OwnerID:             r.URL.Query().Get("owner_id"),
 			Limit:               limit,
 			Offset:              offset,
 			Cursor:              r.URL.Query().Get("cursor"),
@@ -4711,6 +4902,7 @@ func (s *Server) handleAPIKeyAuditExports(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleAPIKeyAuditExportByID(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit/exports/{job_id}")
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w)
 		return
@@ -4736,6 +4928,7 @@ func (s *Server) handleAPIKeyAuditExportByID(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleAPIKeyByID(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts")
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
 		return
@@ -5290,6 +5483,13 @@ func writeJSONRaw(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
+}
+
+func setCompatibilityDeprecationHeaders(w http.ResponseWriter, successor string) {
+	w.Header().Set("Deprecation", "true")
+	if successor != "" {
+		w.Header().Add("Link", fmt.Sprintf("<%s>; rel=\"successor-version\"", successor))
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {

@@ -248,6 +248,10 @@ func (s *ServiceAccountService) RevokeWorkspaceServiceAccountCredential(workspac
 	return s.apiKeys.RevokeAPIKey(normalizeTenantID(workspaceID), strings.TrimSpace(actor.APIKeyID), strings.TrimSpace(credentialID))
 }
 
+func (s *ServiceAccountService) GetWorkspaceServiceAccount(workspaceID, serviceAccountID string) (domain.ServiceAccount, error) {
+	return s.getServiceAccount(workspaceID, serviceAccountID)
+}
+
 func (s *ServiceAccountService) getServiceAccount(workspaceID, serviceAccountID string) (domain.ServiceAccount, error) {
 	workspaceID = normalizeTenantID(workspaceID)
 	serviceAccountID = strings.TrimSpace(serviceAccountID)

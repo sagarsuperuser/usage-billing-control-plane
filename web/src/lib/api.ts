@@ -1,5 +1,7 @@
 import {
   APIKey,
+  APIKeyAuditEvent,
+  APIKeyAuditExportJobResponse,
   BillingProviderConnection,
   CreateSubscriptionResult,
   Customer,
@@ -936,6 +938,77 @@ export async function revokeTenantWorkspaceServiceAccountCredential(input: {
     throw new Error("unauthorized");
   }
   return payload.credential;
+}
+
+export async function fetchTenantWorkspaceServiceAccountAudit(input: {
+  runtimeBaseURL?: string;
+  serviceAccountID: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<{ service_account: ServiceAccount; items: APIKeyAuditEvent[]; total: number; limit: number; offset: number; next_cursor?: string }> {
+  const query = toQuery({
+    limit: input.limit,
+    cursor: input.cursor,
+  });
+  const payload = await apiRequest<{ service_account: ServiceAccount; items: APIKeyAuditEvent[]; total: number; limit: number; offset: number; next_cursor?: string }>(
+    `/v1/workspace/service-accounts/${encodeURIComponent(input.serviceAccountID)}/audit${query ? `?${query}` : ""}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchTenantWorkspaceServiceAccountAuditExports(input: {
+  runtimeBaseURL?: string;
+  serviceAccountID: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<{ service_account: ServiceAccount; items: APIKeyAuditExportJobResponse[]; total: number; limit: number; offset: number; next_cursor?: string }> {
+  const query = toQuery({
+    limit: input.limit,
+    cursor: input.cursor,
+  });
+  const payload = await apiRequest<{ service_account: ServiceAccount; items: APIKeyAuditExportJobResponse[]; total: number; limit: number; offset: number; next_cursor?: string }>(
+    `/v1/workspace/service-accounts/${encodeURIComponent(input.serviceAccountID)}/audit/exports${query ? `?${query}` : ""}`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createTenantWorkspaceServiceAccountAuditExport(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  serviceAccountID: string;
+  idempotencyKey: string;
+  action?: string;
+}): Promise<{ service_account: ServiceAccount; idempotent_request: boolean; job: APIKeyAuditExportJobResponse["job"] }> {
+  const payload = await apiRequest<{ service_account: ServiceAccount; idempotent_request: boolean; job: APIKeyAuditExportJobResponse["job"] }>(
+    `/v1/workspace/service-accounts/${encodeURIComponent(input.serviceAccountID)}/audit/exports`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        idempotency_key: input.idempotencyKey,
+        action: input.action,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
 }
 
 export async function fetchPendingWorkspaceSelection(input: {

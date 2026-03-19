@@ -331,6 +331,13 @@ Keep:
 But reposition them as:
 - compatibility/runtime API for machine clients
 - not the preferred browser-admin product surface
+- explicitly deprecated in HTTP responses with successor links to service-account routes
+
+Preferred browser-admin audit surface:
+- `GET /v1/workspace/service-accounts/{id}/audit`
+- `GET /v1/workspace/service-accounts/{id}/audit/exports`
+- `POST /v1/workspace/service-accounts/{id}/audit/exports`
+- `GET /v1/workspace/service-accounts/{id}/audit/exports/{job_id}`
 
 ---
 
@@ -604,4 +611,5 @@ This is intentionally incremental:
 - runtime API authentication continues to validate `api_keys`
 - browser admins now manage machine identity separately from individual secret rows
 - workspace bootstrap now issues a bootstrap-classified credential attached to a service account instead of a bare key
+- service-account audit and export are now expressed through service-account routes while the old raw `/v1/api-keys*` endpoints remain compatibility-only
 - a later slice can enforce service-account status in runtime auth once service-account lifecycle controls are expanded

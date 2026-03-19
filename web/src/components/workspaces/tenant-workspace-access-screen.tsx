@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Copy,
+  Download,
   KeyRound,
   LoaderCircle,
   MailPlus,
@@ -20,7 +21,10 @@ import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import {
   createTenantWorkspaceInvitation,
+  createTenantWorkspaceServiceAccountAuditExport,
   createTenantWorkspaceServiceAccount,
+  fetchTenantWorkspaceServiceAccountAudit,
+  fetchTenantWorkspaceServiceAccountAuditExports,
   fetchTenantWorkspaceInvitations,
   fetchTenantWorkspaceMembers,
   fetchTenantWorkspaceServiceAccounts,
@@ -45,6 +49,7 @@ export function TenantWorkspaceAccessScreen() {
   const [serviceAccountPurpose, setServiceAccountPurpose] = useState("");
   const [serviceAccountEnvironment, setServiceAccountEnvironment] = useState("prod");
   const [latestCredentialSecret, setLatestCredentialSecret] = useState<{ label: string; secret: string } | null>(null);
+  const [selectedAuditServiceAccountID, setSelectedAuditServiceAccountID] = useState("");
 
   const workspaceQueryKey = ["tenant-workspace-members", apiBaseURL, session?.tenant_id];
   const invitationQueryKey = ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id];
@@ -130,6 +135,7 @@ export function TenantWorkspaceAccessScreen() {
       setServiceAccountDescription("");
       setServiceAccountPurpose("");
       setServiceAccountEnvironment("prod");
+      setSelectedAuditServiceAccountID(payload.service_account.id);
       if (payload.secret) {
         setLatestCredentialSecret({ label: payload.service_account.name, secret: payload.secret });
       }
@@ -177,8 +183,47 @@ export function TenantWorkspaceAccessScreen() {
   const members = membersQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
   const serviceAccounts = serviceAccountsQuery.data ?? [];
+  const selectedAuditServiceAccountIDValue =
+    selectedAuditServiceAccountID || serviceAccounts[0]?.id || "";
+  const selectedAuditServiceAccount =
+    serviceAccounts.find((item) => item.id === selectedAuditServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
   const pendingInvitations = invitations.filter((item) => item.status === "pending");
   const latestInviteURL = createInvitationMutation.data?.accept_url ?? "";
+
+  const serviceAccountAuditQuery = useQuery({
+    queryKey: ["tenant-workspace-service-account-audit", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
+    queryFn: () =>
+      fetchTenantWorkspaceServiceAccountAudit({
+        runtimeBaseURL: apiBaseURL,
+        serviceAccountID: selectedAuditServiceAccountIDValue,
+        limit: 10,
+      }),
+    enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
+  });
+  const serviceAccountAuditExportsQuery = useQuery({
+    queryKey: ["tenant-workspace-service-account-audit-exports", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
+    queryFn: () =>
+      fetchTenantWorkspaceServiceAccountAuditExports({
+        runtimeBaseURL: apiBaseURL,
+        serviceAccountID: selectedAuditServiceAccountIDValue,
+        limit: 5,
+      }),
+    enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
+  });
+  const createAuditExportMutation = useMutation({
+    mutationFn: () =>
+      createTenantWorkspaceServiceAccountAuditExport({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        serviceAccountID: selectedAuditServiceAccountIDValue,
+        idempotencyKey: `svcacct-${selectedAuditServiceAccountIDValue}-${Date.now()}`,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["tenant-workspace-service-account-audit-exports", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
+      });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -364,6 +409,14 @@ export function TenantWorkspaceAccessScreen() {
                           {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
                           Issue credential
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAuditServiceAccountID(account.id)}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          View audit
+                        </button>
                       </div>
                       <div className="mt-4 grid gap-3">
                         {account.credentials.length > 0 ? (
@@ -411,6 +464,101 @@ export function TenantWorkspaceAccessScreen() {
                   <p className="text-sm text-slate-500">No service accounts yet.</p>
                 )}
               </div>
+            </section>
+
+            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Credential audit</p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Audit stays attached to the machine identity. Review recent credential activity and export a CSV for compliance or incident response.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    aria-label="Audit service account"
+                    value={selectedAuditServiceAccountIDValue}
+                    onChange={(event) => setSelectedAuditServiceAccountID(event.target.value)}
+                    className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
+                  >
+                    {serviceAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => createAuditExportMutation.mutate()}
+                    disabled={!csrfToken || !selectedAuditServiceAccountIDValue || createAuditExportMutation.isPending}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {createAuditExportMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    Export audit CSV
+                  </button>
+                </div>
+              </div>
+              {selectedAuditServiceAccount ? (
+                <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                  <p className="text-sm font-medium text-slate-950">{selectedAuditServiceAccount.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {selectedAuditServiceAccount.role} · {selectedAuditServiceAccount.environment || "unspecified"} · {selectedAuditServiceAccount.active_credential_count} active credential(s)
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-500">Create a service account first to inspect machine-credential audit.</p>
+              )}
+              {selectedAuditServiceAccount ? (
+                <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
+                    <div className="mt-3 grid gap-3">
+                      {(serviceAccountAuditQuery.data?.items ?? []).length > 0 ? (
+                        (serviceAccountAuditQuery.data?.items ?? []).map((event) => (
+                          <div key={event.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-slate-950">{event.action}</p>
+                              <p className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</p>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-500">{event.api_key_id}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No audit events yet.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Audit exports</p>
+                    <div className="mt-3 grid gap-3">
+                      {(serviceAccountAuditExportsQuery.data?.items ?? []).length > 0 ? (
+                        (serviceAccountAuditExportsQuery.data?.items ?? []).map((item) => (
+                          <div key={item.job.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-slate-950">{item.job.status}</p>
+                              <p className="text-xs text-slate-500">{formatExactTimestamp(item.job.created_at)}</p>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-500">{item.job.row_count} row(s)</p>
+                            {item.download_url ? (
+                              <a
+                                href={item.download_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                Download CSV
+                              </a>
+                            ) : null}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No audit exports created yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section className="grid gap-4 md:grid-cols-2">

@@ -1827,6 +1827,13 @@ func TestAPIKeyLifecycleEndpoints(t *testing.T) {
 	if !containsID(tenantAKeys, createdID) {
 		t.Fatalf("expected tenant-a list to include created key id=%s", createdID)
 	}
+	_, deprecatedHeaders := getRaw(t, ts.URL+"/v1/api-keys", "tenant-a-admin", http.StatusOK)
+	if got := deprecatedHeaders.Get("Deprecation"); got != "true" {
+		t.Fatalf("expected deprecation header on raw api-keys endpoint, got %q", got)
+	}
+	if got := deprecatedHeaders.Get("Link"); !strings.Contains(got, "/v1/workspace/service-accounts") {
+		t.Fatalf("expected successor Link header on raw api-keys endpoint, got %q", got)
+	}
 
 	pagedWriters := getJSON(t, ts.URL+"/v1/api-keys?role=writer&limit=2", "tenant-a-admin", http.StatusOK)
 	pageOneItems := listItemsFromResponse(t, pagedWriters)

@@ -661,6 +661,8 @@ type APIKeyAuditExportFilters struct {
 	APIKeyID      string `json:"api_key_id,omitempty"`
 	ActorAPIKeyID string `json:"actor_api_key_id,omitempty"`
 	Action        string `json:"action,omitempty"`
+	OwnerType     string `json:"owner_type,omitempty"`
+	OwnerID       string `json:"owner_id,omitempty"`
 }
 
 type APIKeyAuditExportJob struct {

@@ -108,6 +108,8 @@ type APIKeyAuditFilter struct {
 	APIKeyID      string
 	ActorAPIKeyID string
 	Action        string
+	OwnerType     string
+	OwnerID       string
 	Limit         int
 	Offset        int
 	CursorID      string
@@ -142,6 +144,8 @@ type APIKeyAuditExportFilter struct {
 	TenantID            string
 	Status              string
 	RequestedByAPIKeyID string
+	OwnerType           string
+	OwnerID             string
 	Limit               int
 	Offset              int
 	CursorID            string
