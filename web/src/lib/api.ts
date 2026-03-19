@@ -1,4 +1,5 @@
 import {
+  APIKey,
   BillingProviderConnection,
   CreateSubscriptionResult,
   Customer,
@@ -30,6 +31,8 @@ import {
   WorkspaceInvitation,
   WorkspaceMember,
   WorkspaceSelectionState,
+  ServiceAccount,
+  ServiceAccountCredentialIssueResult,
 } from "@/lib/types";
 
 function trimTrailingSlash(value: string): string {
@@ -833,6 +836,106 @@ export async function revokeTenantWorkspaceInvitation(input: {
     throw new Error("unauthorized");
   }
   return payload.invitation;
+}
+
+export async function fetchTenantWorkspaceServiceAccounts(input: {
+  runtimeBaseURL?: string;
+}): Promise<ServiceAccount[]> {
+  const payload = await apiRequest<{ items: ServiceAccount[] }>("/v1/workspace/service-accounts", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.items;
+}
+
+export async function createTenantWorkspaceServiceAccount(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  name: string;
+  description?: string;
+  role: "reader" | "writer" | "admin";
+  purpose?: string;
+  environment?: string;
+  issueInitialCredential?: boolean;
+  credentialName?: string;
+}): Promise<{ service_account: ServiceAccount; credential?: APIKey; secret?: string }> {
+  const payload = await apiRequest<{ service_account: ServiceAccount; credential?: APIKey; secret?: string }>("/v1/workspace/service-accounts", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: {
+      name: input.name,
+      description: input.description,
+      role: input.role,
+      purpose: input.purpose,
+      environment: input.environment,
+      issue_initial_credential: input.issueInitialCredential,
+      credential_name: input.credentialName,
+    },
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function issueTenantWorkspaceServiceAccountCredential(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  serviceAccountID: string;
+  name?: string;
+}): Promise<ServiceAccountCredentialIssueResult> {
+  const payload = await apiRequest<ServiceAccountCredentialIssueResult>(`/v1/workspace/service-accounts/${encodeURIComponent(input.serviceAccountID)}/credentials`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: {
+      name: input.name,
+    },
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function rotateTenantWorkspaceServiceAccountCredential(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  serviceAccountID: string;
+  credentialID: string;
+}): Promise<ServiceAccountCredentialIssueResult> {
+  const payload = await apiRequest<ServiceAccountCredentialIssueResult>(`/v1/workspace/service-accounts/${encodeURIComponent(input.serviceAccountID)}/credentials/${encodeURIComponent(input.credentialID)}/rotate`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: {},
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function revokeTenantWorkspaceServiceAccountCredential(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  serviceAccountID: string;
+  credentialID: string;
+}): Promise<APIKey> {
+  const payload = await apiRequest<{ credential: APIKey }>(`/v1/workspace/service-accounts/${encodeURIComponent(input.serviceAccountID)}/credentials/${encodeURIComponent(input.credentialID)}/revoke`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: {},
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.credential;
 }
 
 export async function fetchPendingWorkspaceSelection(input: {

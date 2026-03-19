@@ -587,3 +587,20 @@ That means:
 - API keys begin evolving toward service-account-backed credentials
 
 This gives Alpha the right long-term enterprise posture without breaking the current machine integration surface.
+
+## Migration note: service_accounts
+
+`0032_service_accounts` introduces the first-class machine identity layer.
+It does not replace `api_keys` yet.
+
+Current migration intent:
+- create a durable workspace-scoped machine identity record in `service_accounts`
+- keep credential secrets in the existing `api_keys` table
+- bind credentials to machine identities with:
+  - `owner_type=service_account`
+  - `owner_id=<service_account_id>`
+
+This is intentionally incremental:
+- runtime API authentication continues to validate `api_keys`
+- browser admins now manage machine identity separately from individual secret rows
+- a later slice can enforce service-account status in runtime auth once service-account lifecycle controls are expanded

@@ -72,11 +72,21 @@ type WorkspaceInvitationListFilter struct {
 	Offset      int
 }
 
+type ServiceAccountListFilter struct {
+	TenantID     string
+	Role         string
+	NameContains string
+	Limit        int
+	Offset       int
+}
+
 type APIKeyListFilter struct {
 	TenantID      string
 	Role          string
 	State         string
 	NameContains  string
+	OwnerType     string
+	OwnerID       string
 	Limit         int
 	Offset        int
 	CursorID      string
@@ -259,6 +269,9 @@ type Repository interface {
 	GetWorkspaceInvitationByTokenHash(tokenHash string) (domain.WorkspaceInvitation, error)
 	ListWorkspaceInvitations(filter WorkspaceInvitationListFilter) ([]domain.WorkspaceInvitation, error)
 	UpdateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error)
+	CreateServiceAccount(input domain.ServiceAccount) (domain.ServiceAccount, error)
+	GetServiceAccount(tenantID, id string) (domain.ServiceAccount, error)
+	ListServiceAccounts(filter ServiceAccountListFilter) ([]domain.ServiceAccount, error)
 	GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error)
 	UpsertUserFederatedIdentity(input domain.UserFederatedIdentity) (domain.UserFederatedIdentity, error)
 	CreateCustomer(input domain.Customer) (domain.Customer, error)

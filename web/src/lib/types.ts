@@ -110,6 +110,28 @@ export interface WorkspaceInvitationIssueResult {
   accept_path: string;
 }
 
+export interface ServiceAccount {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description?: string;
+  role: "reader" | "writer" | "admin";
+  purpose?: string;
+  environment?: string;
+  created_by_user_id?: string;
+  created_by_platform_user?: boolean;
+  created_at: string;
+  updated_at: string;
+  active_credential_count: number;
+  credentials: APIKey[];
+}
+
+export interface ServiceAccountCredentialIssueResult {
+  service_account?: ServiceAccount;
+  credential: APIKey;
+  secret: string;
+}
+
 export interface WorkspaceInvitationPreview {
   invitation: WorkspaceInvitation;
   workspace_name: string;

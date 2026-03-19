@@ -328,6 +328,131 @@ func TestWorkspaceInvitationRegisterFlow(t *testing.T) {
 	}
 }
 
+func TestTenantWorkspaceServiceAccountLifecycle(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:        "tenant_service_accounts",
+		Name:      "Tenant Service Accounts",
+		Status:    domain.TenantStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:    "admin@tenant.test",
+		password: "tenant admin password 123",
+	})
+	user, err := repo.GetUserByEmail("admin@tenant.test")
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if _, err := repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+		UserID:    user.ID,
+		TenantID:  "tenant_service_accounts",
+		Role:      "admin",
+		Status:    domain.UserTenantMembershipStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create membership: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_service_account_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(mustNewDBAuthorizer(t, repo)),
+		api.WithSessionManager(sessionManager),
+	).Handler())
+	defer ts.Close()
+
+	client := newSessionClient(t)
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":     "admin@tenant.test",
+		"password":  "tenant admin password 123",
+		"tenant_id": "tenant_service_accounts",
+	}, "", http.StatusCreated)
+	csrfToken, _ := loginResp["csrf_token"].(string)
+
+	created := sessionPostJSON(t, client, ts.URL+"/v1/workspace/service-accounts", map[string]any{
+		"name":                     "Acme ERP Sync",
+		"role":                     "writer",
+		"description":              "ERP integration worker",
+		"purpose":                  "erp-sync",
+		"environment":              "prod",
+		"issue_initial_credential": true,
+	}, csrfToken, http.StatusCreated)
+	serviceAccount := created["service_account"].(map[string]any)
+	serviceAccountID, _ := serviceAccount["id"].(string)
+	if serviceAccountID == "" {
+		t.Fatalf("expected service account id")
+	}
+	credential := created["credential"].(map[string]any)
+	credentialID, _ := credential["id"].(string)
+	if credential["owner_type"] != "service_account" {
+		t.Fatalf("expected service_account owner type, got %#v", credential["owner_type"])
+	}
+	if credential["owner_id"] != serviceAccountID {
+		t.Fatalf("expected owner_id %q, got %#v", serviceAccountID, credential["owner_id"])
+	}
+	if secret, _ := created["secret"].(string); secret == "" {
+		t.Fatalf("expected initial secret")
+	}
+
+	listed := sessionGetJSON(t, client, ts.URL+"/v1/workspace/service-accounts", http.StatusOK)
+	items := listed["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 service account, got %d", len(items))
+	}
+	listedAccount := items[0].(map[string]any)
+	if listedAccount["active_credential_count"].(float64) < 1 {
+		t.Fatalf("expected active credential count")
+	}
+
+	rotated := sessionPostJSON(t, client, ts.URL+"/v1/workspace/service-accounts/"+url.PathEscape(serviceAccountID)+"/credentials/"+url.PathEscape(credentialID)+"/rotate", map[string]any{}, csrfToken, http.StatusOK)
+	rotatedCredential := rotated["credential"].(map[string]any)
+	rotatedID, _ := rotatedCredential["id"].(string)
+	if rotatedID == "" || rotatedID == credentialID {
+		t.Fatalf("expected new rotated credential id, got %q", rotatedID)
+	}
+	if secret, _ := rotated["secret"].(string); secret == "" {
+		t.Fatalf("expected rotated secret")
+	}
+
+	revokeResp := sessionPostJSON(t, client, ts.URL+"/v1/workspace/service-accounts/"+url.PathEscape(serviceAccountID)+"/credentials/"+url.PathEscape(rotatedID)+"/revoke", map[string]any{}, csrfToken, http.StatusOK)
+	revokedCredential := revokeResp["credential"].(map[string]any)
+	if revokedCredential["revoked_at"] == nil {
+		t.Fatalf("expected revoked_at on revoked credential")
+	}
+}
+
 func mustNewDBAuthorizer(t *testing.T, repo *store.PostgresStore) *api.DBAPIKeyAuthorizer {
 	t.Helper()
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)

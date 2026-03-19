@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, LoaderCircle, MailPlus, ShieldCheck, UserRound, UserX } from "lucide-react";
+import {
+  Copy,
+  KeyRound,
+  LoaderCircle,
+  MailPlus,
+  RefreshCw,
+  ServerCog,
+  ShieldCheck,
+  UserRound,
+  UserX,
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -10,10 +20,15 @@ import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import {
   createTenantWorkspaceInvitation,
+  createTenantWorkspaceServiceAccount,
   fetchTenantWorkspaceInvitations,
   fetchTenantWorkspaceMembers,
+  fetchTenantWorkspaceServiceAccounts,
+  issueTenantWorkspaceServiceAccountCredential,
   removeTenantWorkspaceMember,
   revokeTenantWorkspaceInvitation,
+  revokeTenantWorkspaceServiceAccountCredential,
+  rotateTenantWorkspaceServiceAccountCredential,
   updateTenantWorkspaceMember,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
@@ -24,15 +39,30 @@ export function TenantWorkspaceAccessScreen() {
   const { apiBaseURL, csrfToken, isAuthenticated, scope, role, isAdmin, session } = useUISession();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("writer");
+  const [serviceAccountName, setServiceAccountName] = useState("");
+  const [serviceAccountDescription, setServiceAccountDescription] = useState("");
+  const [serviceAccountRole, setServiceAccountRole] = useState<"reader" | "writer" | "admin">("writer");
+  const [serviceAccountPurpose, setServiceAccountPurpose] = useState("");
+  const [serviceAccountEnvironment, setServiceAccountEnvironment] = useState("prod");
+  const [latestCredentialSecret, setLatestCredentialSecret] = useState<{ label: string; secret: string } | null>(null);
+
+  const workspaceQueryKey = ["tenant-workspace-members", apiBaseURL, session?.tenant_id];
+  const invitationQueryKey = ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id];
+  const serviceAccountQueryKey = ["tenant-workspace-service-accounts", apiBaseURL, session?.tenant_id];
 
   const membersQuery = useQuery({
-    queryKey: ["tenant-workspace-members", apiBaseURL, session?.tenant_id],
+    queryKey: workspaceQueryKey,
     queryFn: () => fetchTenantWorkspaceMembers({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin,
   });
   const invitationsQuery = useQuery({
-    queryKey: ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id],
+    queryKey: invitationQueryKey,
     queryFn: () => fetchTenantWorkspaceInvitations({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant" && isAdmin,
+  });
+  const serviceAccountsQuery = useQuery({
+    queryKey: serviceAccountQueryKey,
+    queryFn: () => fetchTenantWorkspaceServiceAccounts({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin,
   });
 
@@ -46,7 +76,7 @@ export function TenantWorkspaceAccessScreen() {
       }),
     onSuccess: async () => {
       setInviteEmail("");
-      await queryClient.invalidateQueries({ queryKey: ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id] });
+      await queryClient.invalidateQueries({ queryKey: invitationQueryKey });
     },
   });
   const revokeInvitationMutation = useMutation({
@@ -57,7 +87,7 @@ export function TenantWorkspaceAccessScreen() {
         invitationID,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id] });
+      await queryClient.invalidateQueries({ queryKey: invitationQueryKey });
     },
   });
   const updateMemberMutation = useMutation({
@@ -69,7 +99,7 @@ export function TenantWorkspaceAccessScreen() {
         role: input.role,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["tenant-workspace-members", apiBaseURL, session?.tenant_id] });
+      await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
     },
   });
   const removeMemberMutation = useMutation({
@@ -80,12 +110,73 @@ export function TenantWorkspaceAccessScreen() {
         userID,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["tenant-workspace-members", apiBaseURL, session?.tenant_id] });
+      await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
+    },
+  });
+  const createServiceAccountMutation = useMutation({
+    mutationFn: () =>
+      createTenantWorkspaceServiceAccount({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        name: serviceAccountName,
+        description: serviceAccountDescription,
+        role: serviceAccountRole,
+        purpose: serviceAccountPurpose,
+        environment: serviceAccountEnvironment,
+        issueInitialCredential: true,
+      }),
+    onSuccess: async (payload) => {
+      setServiceAccountName("");
+      setServiceAccountDescription("");
+      setServiceAccountPurpose("");
+      setServiceAccountEnvironment("prod");
+      if (payload.secret) {
+        setLatestCredentialSecret({ label: payload.service_account.name, secret: payload.secret });
+      }
+      await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
+    },
+  });
+  const issueCredentialMutation = useMutation({
+    mutationFn: (serviceAccountID: string) =>
+      issueTenantWorkspaceServiceAccountCredential({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        serviceAccountID,
+      }),
+    onSuccess: async (payload) => {
+      setLatestCredentialSecret({ label: payload.credential.name, secret: payload.secret });
+      await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
+    },
+  });
+  const rotateCredentialMutation = useMutation({
+    mutationFn: (input: { serviceAccountID: string; credentialID: string }) =>
+      rotateTenantWorkspaceServiceAccountCredential({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        serviceAccountID: input.serviceAccountID,
+        credentialID: input.credentialID,
+      }),
+    onSuccess: async (payload) => {
+      setLatestCredentialSecret({ label: payload.credential.name, secret: payload.secret });
+      await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
+    },
+  });
+  const revokeCredentialMutation = useMutation({
+    mutationFn: (input: { serviceAccountID: string; credentialID: string }) =>
+      revokeTenantWorkspaceServiceAccountCredential({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        serviceAccountID: input.serviceAccountID,
+        credentialID: input.credentialID,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
   });
 
   const members = membersQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
+  const serviceAccounts = serviceAccountsQuery.data ?? [];
   const pendingInvitations = invitations.filter((item) => item.status === "pending");
   const latestInviteURL = createInvitationMutation.data?.accept_url ?? "";
 
@@ -99,7 +190,7 @@ export function TenantWorkspaceAccessScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
-            body="Workspace access management belongs inside a tenant workspace. Switch to a tenant session to manage members and invitations."
+            body="Workspace access management belongs inside a tenant workspace. Switch to a tenant session to manage members, invitations, and machine credentials."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
@@ -107,7 +198,7 @@ export function TenantWorkspaceAccessScreen() {
         {isAuthenticated && scope === "tenant" && !isAdmin ? (
           <ScopeNotice
             title="Workspace admin role required"
-            body={`You are signed in as ${role || "reader"}. Only workspace admins can manage invitations, roles, and member removal.`}
+            body={`You are signed in as ${role || "reader"}. Only workspace admins can manage invitations, service accounts, roles, and member removal.`}
             actionHref="/customers"
             actionLabel="Open workspace home"
           />
@@ -117,13 +208,83 @@ export function TenantWorkspaceAccessScreen() {
           <>
             <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
-              <h1 className="mt-2 text-3xl font-semibold text-slate-950">Members and invitations</h1>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-950">Members, invitations, and machine credentials</h1>
               <p className="mt-3 text-sm text-slate-600">
-                Tenant admins own ongoing access for this workspace. Platform setup hands off here; day-to-day member changes happen here.
+                Tenant admins own workspace access after platform handoff. Human access stays on membership; machine access should move through named service accounts.
               </p>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2">
+            <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <input
+                    type="text"
+                    value={serviceAccountName}
+                    onChange={(event) => setServiceAccountName(event.target.value)}
+                    placeholder="Acme ERP Sync"
+                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  />
+                  <select
+                    aria-label="Service account role"
+                    value={serviceAccountRole}
+                    onChange={(event) => setServiceAccountRole(event.target.value as "reader" | "writer" | "admin")}
+                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="writer">Writer</option>
+                    <option value="reader">Reader</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={serviceAccountPurpose}
+                    onChange={(event) => setServiceAccountPurpose(event.target.value)}
+                    placeholder="erp-sync"
+                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  />
+                  <input
+                    type="text"
+                    value={serviceAccountEnvironment}
+                    onChange={(event) => setServiceAccountEnvironment(event.target.value)}
+                    placeholder="prod"
+                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  />
+                  <textarea
+                    value={serviceAccountDescription}
+                    onChange={(event) => setServiceAccountDescription(event.target.value)}
+                    placeholder="Describe the automation that will own this credential"
+                    rows={3}
+                    className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => createServiceAccountMutation.mutate()}
+                    disabled={!csrfToken || !serviceAccountName.trim() || createServiceAccountMutation.isPending}
+                    className="md:col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
+                    Create and issue first credential
+                  </button>
+                </div>
+                {latestCredentialSecret ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-700">Latest credential secret</p>
+                    <p className="mt-2 text-xs font-medium text-slate-800">{latestCredentialSecret.label}</p>
+                    <p className="mt-2 break-all font-mono text-xs text-slate-700">{latestCredentialSecret.secret}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(latestCredentialSecret.secret);
+                      }}
+                      className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy secret
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
               <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Invite member</p>
                 <div className="mt-4 grid gap-3">
@@ -171,7 +332,88 @@ export function TenantWorkspaceAccessScreen() {
                   </div>
                 ) : null}
               </div>
+            </section>
 
+            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current service accounts</p>
+                  <p className="mt-2 text-sm text-slate-600">Each machine identity owns one or more API credentials. Rotate credentials without losing the machine identity record.</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-4">
+                {serviceAccounts.length > 0 ? (
+                  serviceAccounts.map((account) => (
+                    <div key={account.id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                      <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                            <ServerCog className="h-4 w-4 text-emerald-700" />
+                            {account.name}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{account.role} · {account.environment || "unspecified"} · {account.active_credential_count} active credential(s)</p>
+                          {account.description ? <p className="mt-2 text-sm text-slate-600">{account.description}</p> : null}
+                          {account.purpose ? <p className="mt-2 text-xs text-slate-500">Purpose: {account.purpose}</p> : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => issueCredentialMutation.mutate(account.id)}
+                          disabled={!csrfToken || issueCredentialMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                          Issue credential
+                        </button>
+                      </div>
+                      <div className="mt-4 grid gap-3">
+                        {account.credentials.length > 0 ? (
+                          account.credentials.map((credential) => {
+                            const isRevoked = Boolean(credential.revoked_at);
+                            return (
+                              <div key={credential.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-slate-950">{credential.name}</p>
+                                    <p className="mt-1 text-xs text-slate-500">{credential.key_prefix} · created {formatExactTimestamp(credential.created_at)}</p>
+                                    <p className="mt-1 text-xs text-slate-500">{isRevoked ? `revoked ${formatExactTimestamp(credential.revoked_at!)}` : credential.last_used_at ? `last used ${formatExactTimestamp(credential.last_used_at)}` : "never used"}</p>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => rotateCredentialMutation.mutate({ serviceAccountID: account.id, credentialID: credential.id })}
+                                      disabled={!csrfToken || isRevoked || rotateCredentialMutation.isPending}
+                                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <RefreshCw className="h-3.5 w-3.5" />
+                                      Rotate
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => revokeCredentialMutation.mutate({ serviceAccountID: account.id, credentialID: credential.id })}
+                                      disabled={!csrfToken || isRevoked || revokeCredentialMutation.isPending}
+                                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <UserX className="h-3.5 w-3.5" />
+                                      Revoke
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="text-sm text-slate-500">No credentials issued yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">No service accounts yet.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-2">
               <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pending invites</p>
                 <div className="mt-4 grid gap-3">
@@ -205,55 +447,55 @@ export function TenantWorkspaceAccessScreen() {
                   )}
                 </div>
               </div>
-            </section>
 
-            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current members</p>
-              <div className="mt-4 grid gap-3">
-                {members.length > 0 ? (
-                  members.map((member) => (
-                    <div key={member.user_id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="min-w-0">
-                          <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                            <UserRound className="h-4 w-4 text-emerald-700" />
-                            <span className="truncate">{member.display_name}</span>
-                          </p>
-                          <p className="mt-1 break-all text-xs text-slate-500">{member.email}</p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <select
-                            aria-label={`Role for ${member.email}`}
-                            defaultValue={member.role}
-                            onChange={(event) =>
-                              updateMemberMutation.mutate({
-                                userID: member.user_id,
-                                role: event.target.value as "reader" | "writer" | "admin",
-                              })
-                            }
-                            disabled={!csrfToken || updateMemberMutation.isPending}
-                            className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
-                          >
-                            <option value="admin">Admin</option>
-                            <option value="writer">Writer</option>
-                            <option value="reader">Reader</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => removeMemberMutation.mutate(member.user_id)}
-                            disabled={!csrfToken || removeMemberMutation.isPending}
-                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <UserX className="h-3.5 w-3.5" />
-                            Remove
-                          </button>
+              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current members</p>
+                <div className="mt-4 grid gap-3">
+                  {members.length > 0 ? (
+                    members.map((member) => (
+                      <div key={member.user_id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                              <UserRound className="h-4 w-4 text-emerald-700" />
+                              <span className="truncate">{member.display_name}</span>
+                            </p>
+                            <p className="mt-1 break-all text-xs text-slate-500">{member.email}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              aria-label={`Role for ${member.email}`}
+                              defaultValue={member.role}
+                              onChange={(event) =>
+                                updateMemberMutation.mutate({
+                                  userID: member.user_id,
+                                  role: event.target.value as "reader" | "writer" | "admin",
+                                })
+                              }
+                              disabled={!csrfToken || updateMemberMutation.isPending}
+                              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
+                            >
+                              <option value="admin">Admin</option>
+                              <option value="writer">Writer</option>
+                              <option value="reader">Reader</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => removeMemberMutation.mutate(member.user_id)}
+                              disabled={!csrfToken || removeMemberMutation.isPending}
+                              className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <UserX className="h-3.5 w-3.5" />
+                              Remove
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500">No active members yet.</p>
-                )}
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">No active members yet.</p>
+                  )}
+                </div>
               </div>
             </section>
           </>

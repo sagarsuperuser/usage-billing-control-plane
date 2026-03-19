@@ -573,6 +573,20 @@ type InvoicePaymentStatusView struct {
 	UpdatedAt            time.Time `json:"updated_at"`
 }
 
+type ServiceAccount struct {
+	ID                    string    `json:"id"`
+	TenantID              string    `json:"tenant_id"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description,omitempty"`
+	Role                  string    `json:"role"`
+	Purpose               string    `json:"purpose,omitempty"`
+	Environment           string    `json:"environment,omitempty"`
+	CreatedByUserID       string    `json:"created_by_user_id,omitempty"`
+	CreatedByPlatformUser bool      `json:"created_by_platform_user,omitempty"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+}
+
 type APIKey struct {
 	ID                    string     `json:"id"`
 	KeyPrefix             string     `json:"key_prefix"`

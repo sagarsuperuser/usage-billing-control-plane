@@ -39,6 +39,7 @@ type Server struct {
 	billingProviderConnectionService *service.BillingProviderConnectionService
 	workspaceBillingBindingService   *service.WorkspaceBillingBindingService
 	workspaceAccessService           *service.WorkspaceAccessService
+	serviceAccountService            *service.ServiceAccountService
 	workspaceInvitationEmailSender   service.WorkspaceInvitationEmailSender
 	passwordResetService             *service.PasswordResetService
 	passwordResetEmailSender         service.PasswordResetEmailSender
@@ -90,6 +91,51 @@ type tenantResponse struct {
 	WorkspaceBilling            workspaceBillingResponse `json:"workspace_billing"`
 	CreatedAt                   time.Time                `json:"created_at"`
 	UpdatedAt                   time.Time                `json:"updated_at"`
+}
+
+type workspaceServiceAccountResponse struct {
+	ID                    string          `json:"id"`
+	WorkspaceID           string          `json:"workspace_id"`
+	Name                  string          `json:"name"`
+	Description           string          `json:"description,omitempty"`
+	Role                  string          `json:"role"`
+	Purpose               string          `json:"purpose,omitempty"`
+	Environment           string          `json:"environment,omitempty"`
+	CreatedByUserID       string          `json:"created_by_user_id,omitempty"`
+	CreatedByPlatformUser bool            `json:"created_by_platform_user,omitempty"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
+	ActiveCredentialCount int             `json:"active_credential_count"`
+	Credentials           []domain.APIKey `json:"credentials"`
+}
+
+func newWorkspaceServiceAccountResponse(item service.WorkspaceServiceAccount) workspaceServiceAccountResponse {
+	return workspaceServiceAccountResponse{
+		ID:                    item.ServiceAccount.ID,
+		WorkspaceID:           item.ServiceAccount.TenantID,
+		Name:                  item.ServiceAccount.Name,
+		Description:           item.ServiceAccount.Description,
+		Role:                  item.ServiceAccount.Role,
+		Purpose:               item.ServiceAccount.Purpose,
+		Environment:           item.ServiceAccount.Environment,
+		CreatedByUserID:       item.ServiceAccount.CreatedByUserID,
+		CreatedByPlatformUser: item.ServiceAccount.CreatedByPlatformUser,
+		CreatedAt:             item.ServiceAccount.CreatedAt,
+		UpdatedAt:             item.ServiceAccount.UpdatedAt,
+		ActiveCredentialCount: item.ActiveCredentialCount,
+		Credentials:           item.Credentials,
+	}
+}
+
+func newWorkspaceServiceAccountResponses(items []service.WorkspaceServiceAccount) []workspaceServiceAccountResponse {
+	if len(items) == 0 {
+		return []workspaceServiceAccountResponse{}
+	}
+	out := make([]workspaceServiceAccountResponse, 0, len(items))
+	for _, item := range items {
+		out = append(out, newWorkspaceServiceAccountResponse(item))
+	}
+	return out
 }
 
 type workspaceInvitationResponse struct {
@@ -607,6 +653,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.subscriptionService = service.NewSubscriptionService(repo, s.customerService)
 	s.usageService = service.NewUsageService(repo)
 	s.apiKeyService = service.NewAPIKeyService(repo)
+	s.serviceAccountService = service.NewServiceAccountService(repo, s.apiKeyService)
 	if s.browserUserAuthService == nil {
 		s.browserUserAuthService, _ = service.NewBrowserUserAuthService(repo)
 	}
@@ -1463,6 +1510,9 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/v1/workspace/invitations" || strings.HasPrefix(path, "/v1/workspace/invitations/") {
 		return RoleAdmin, true
 	}
+	if path == "/v1/workspace/service-accounts" || strings.HasPrefix(path, "/v1/workspace/service-accounts/") {
+		return RoleAdmin, true
+	}
 
 	switch {
 	case path == "/v1/customers":
@@ -1843,6 +1893,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/workspace/members/", s.handleTenantWorkspaceMembers)
 	s.mux.HandleFunc("/v1/workspace/invitations", s.handleTenantWorkspaceInvitations)
 	s.mux.HandleFunc("/v1/workspace/invitations/", s.handleTenantWorkspaceInvitations)
+	s.mux.HandleFunc("/v1/workspace/service-accounts", s.handleTenantWorkspaceServiceAccounts)
+	s.mux.HandleFunc("/v1/workspace/service-accounts/", s.handleTenantWorkspaceServiceAccounts)
 	s.mux.HandleFunc("/v1/customer-onboarding", s.handleCustomerOnboarding)
 
 	s.mux.HandleFunc("/v1/customers", s.handleCustomers)
@@ -2221,6 +2273,126 @@ func (s *Server) handleTenantWorkspaceMembers(w http.ResponseWriter, r *http.Req
 	}
 }
 
+func (s *Server) handleTenantWorkspaceServiceAccounts(w http.ResponseWriter, r *http.Request) {
+	if s.serviceAccountService == nil {
+		writeError(w, http.StatusServiceUnavailable, "service accounts are not configured")
+		return
+	}
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.Scope != ScopeTenant {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	serviceAccountID, remainder := parseTenantWorkspaceServiceAccountSubresource(r.URL.Path)
+	switch r.Method {
+	case http.MethodGet:
+		if serviceAccountID != "" || len(remainder) > 0 {
+			writeMethodNotAllowed(w)
+			return
+		}
+		items, err := s.serviceAccountService.ListWorkspaceServiceAccounts(principal.TenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": newWorkspaceServiceAccountResponses(items)})
+	case http.MethodPost:
+		if serviceAccountID == "" {
+			var req struct {
+				Name                   string     `json:"name"`
+				Description            string     `json:"description"`
+				Role                   string     `json:"role"`
+				Purpose                string     `json:"purpose"`
+				Environment            string     `json:"environment"`
+				IssueInitialCredential *bool      `json:"issue_initial_credential,omitempty"`
+				CredentialName         string     `json:"credential_name,omitempty"`
+				ExpiresAt              *time.Time `json:"expires_at,omitempty"`
+			}
+			if err := decodeJSON(r, &req); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			issueInitial := true
+			if req.IssueInitialCredential != nil {
+				issueInitial = *req.IssueInitialCredential
+			}
+			created, err := s.serviceAccountService.CreateWorkspaceServiceAccount(principal.TenantID, service.APICredentialActor{
+				UserID: strings.TrimSpace(principal.SubjectID),
+			}, service.CreateServiceAccountRequest{
+				Name:                   req.Name,
+				Description:            req.Description,
+				Role:                   req.Role,
+				Purpose:                req.Purpose,
+				Environment:            req.Environment,
+				IssueInitialCredential: issueInitial,
+				CredentialName:         req.CredentialName,
+				ExpiresAt:              req.ExpiresAt,
+			})
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			payload := map[string]any{"service_account": newWorkspaceServiceAccountResponse(service.WorkspaceServiceAccount{ServiceAccount: created.ServiceAccount})}
+			if created.Credential != nil {
+				payload["credential"] = created.Credential
+				payload["secret"] = created.Secret
+			}
+			writeJSON(w, http.StatusCreated, payload)
+			return
+		}
+		if len(remainder) == 1 && remainder[0] == "credentials" {
+			var req struct {
+				Name      string     `json:"name,omitempty"`
+				ExpiresAt *time.Time `json:"expires_at,omitempty"`
+			}
+			if err := decodeJSON(r, &req); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			issued, err := s.serviceAccountService.IssueWorkspaceServiceAccountCredential(principal.TenantID, serviceAccountID, service.APICredentialActor{
+				UserID: strings.TrimSpace(principal.SubjectID),
+			}, service.IssueServiceAccountCredentialRequest{
+				Name:      req.Name,
+				ExpiresAt: req.ExpiresAt,
+			})
+			if err != nil {
+				writeDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{
+				"credential": issued.APIKey,
+				"secret":     issued.Secret,
+			})
+			return
+		}
+		if len(remainder) == 3 && remainder[0] == "credentials" {
+			credentialID := strings.TrimSpace(remainder[1])
+			action := strings.TrimSpace(remainder[2])
+			switch action {
+			case "rotate":
+				rotated, err := s.serviceAccountService.RotateWorkspaceServiceAccountCredential(principal.TenantID, serviceAccountID, credentialID, service.APICredentialActor{UserID: strings.TrimSpace(principal.SubjectID)})
+				if err != nil {
+					writeDomainError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"credential": rotated.APIKey, "secret": rotated.Secret})
+				return
+			case "revoke":
+				revoked, err := s.serviceAccountService.RevokeWorkspaceServiceAccountCredential(principal.TenantID, serviceAccountID, credentialID, service.APICredentialActor{UserID: strings.TrimSpace(principal.SubjectID)})
+				if err != nil {
+					writeDomainError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"credential": revoked})
+				return
+			}
+		}
+		writeMethodNotAllowed(w)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
 func (s *Server) handleTenantWorkspaceInvitations(w http.ResponseWriter, r *http.Request) {
 	if s.workspaceAccessService == nil {
 		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
@@ -2512,6 +2684,19 @@ func parseTenantWorkspaceSubresource(path, prefix string) (id string, action str
 		action = strings.TrimSpace(parts[1])
 	}
 	return id, action
+}
+
+func parseTenantWorkspaceServiceAccountSubresource(path string) (id string, remainder []string) {
+	tail := strings.Trim(strings.TrimPrefix(path, "/v1/workspace/service-accounts"), "/")
+	if tail == "" {
+		return "", nil
+	}
+	parts := strings.Split(tail, "/")
+	id = strings.TrimSpace(parts[0])
+	if len(parts) > 1 {
+		remainder = parts[1:]
+	}
+	return id, remainder
 }
 
 func (s *Server) handleUIPreAuthRateLimitProbe(w http.ResponseWriter, r *http.Request) {
