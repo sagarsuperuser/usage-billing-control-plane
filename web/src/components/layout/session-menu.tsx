@@ -73,6 +73,7 @@ export function SessionMenu() {
         <div className="mt-3 grid gap-2">
           <Link
             href={homeHref}
+            prefetch={false}
             onClick={closeMenu}
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-800 transition hover:border-stone-300 hover:bg-white"
           >
@@ -81,6 +82,7 @@ export function SessionMenu() {
           </Link>
           <Link
             href={secondaryHref}
+            prefetch={false}
             onClick={closeMenu}
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-800 transition hover:border-stone-300 hover:bg-white"
           >
@@ -88,6 +90,7 @@ export function SessionMenu() {
           </Link>
           <Link
             href="/login"
+            prefetch={false}
             onClick={closeMenu}
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 transition hover:bg-amber-100"
           >

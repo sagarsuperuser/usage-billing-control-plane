@@ -16,7 +16,7 @@ export function AppBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
         return (
           <div key={`${item.label}-${index}`} className="flex items-center gap-2">
             {item.href && !last ? (
-              <Link href={item.href} className="transition hover:text-white">
+              <Link href={item.href} prefetch={false} className="transition hover:text-white">
                 {item.label}
               </Link>
             ) : (

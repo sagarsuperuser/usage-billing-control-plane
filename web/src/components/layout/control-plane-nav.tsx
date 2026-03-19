@@ -84,6 +84,7 @@ function NavSection({
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
                 active
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"

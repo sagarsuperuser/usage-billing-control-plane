@@ -75,6 +75,7 @@ export function SessionLoginScreen() {
           </p>
           <Link
             href="/control-plane"
+            prefetch={false}
             className="mt-6 inline-flex h-10 w-fit items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:border-stone-300 hover:bg-white"
           >
             Open product overview
