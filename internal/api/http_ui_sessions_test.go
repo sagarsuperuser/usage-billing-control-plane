@@ -240,6 +240,208 @@ func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
 	_ = sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusUnauthorized)
 }
 
+func TestUIPlatformSessionCanOnboardTenantWithBillingConnection(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:        "platform-admin@alpha.test",
+		password:     "platform password 123",
+		platformRole: "platform_admin",
+	})
+
+	now := time.Now().UTC()
+	suffix := now.Format("20060102150405.000000000")
+	connectedAt := now
+	lastSyncedAt := now
+	connection, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
+		ID:                 "bpc_ui_platform_onboard_" + suffix,
+		ProviderType:       domain.BillingProviderTypeStripe,
+		Environment:        "test",
+		DisplayName:        "Stripe Platform",
+		Scope:              domain.BillingProviderConnectionScopePlatform,
+		Status:             domain.BillingProviderConnectionStatusConnected,
+		LagoOrganizationID: "org_platform",
+		LagoProviderCode:   "stripe_platform",
+		SecretRef:          "memory://billing-provider-connections/bpc_ui_platform_onboard/seed",
+		ConnectedAt:        &connectedAt,
+		LastSyncedAt:       &lastSyncedAt,
+		CreatedByType:      "platform_api_key",
+		CreatedByID:        "pkey_seed",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create billing provider connection: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_platform_onboard_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":    "platform-admin@alpha.test",
+		"password": "platform password 123",
+	}, "", http.StatusCreated)
+	csrfToken, _ := loginResp["csrf_token"].(string)
+	if csrfToken == "" {
+		t.Fatalf("expected csrf_token in login response")
+	}
+
+	result := sessionPostJSON(t, client, ts.URL+"/internal/onboarding/tenants", map[string]any{
+		"id":                             "tenant_ui_onboard_" + strings.NewReplacer(".", "", ":", "").Replace(suffix),
+		"name":                           "Tenant UI Onboard",
+		"billing_provider_connection_id": connection.ID,
+		"bootstrap_admin_key":            false,
+	}, csrfToken, http.StatusCreated)
+
+	tenant := result["tenant"].(map[string]any)
+	if got, _ := tenant["billing_provider_connection_id"].(string); got != connection.ID {
+		t.Fatalf("expected tenant billing_provider_connection_id %q, got %q", connection.ID, got)
+	}
+	workspaceBilling, ok := tenant["workspace_billing"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected workspace_billing object in tenant response")
+	}
+	if got, _ := workspaceBilling["active_billing_connection_id"].(string); got != connection.ID {
+		t.Fatalf("expected workspace_billing.active_billing_connection_id %q, got %q", connection.ID, got)
+	}
+	if connected, _ := workspaceBilling["connected"].(bool); !connected {
+		t.Fatalf("expected workspace_billing.connected=true")
+	}
+}
+
+func TestUIPlatformSessionCanUpdateExistingTenantOnboardingWithBillingConnection(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:        "platform-admin@alpha.test",
+		password:     "platform password 123",
+		platformRole: "platform_admin",
+	})
+	now := time.Now().UTC()
+	suffix := now.Format("20060102150405.000000000")
+	tenantID := "default_" + strings.NewReplacer(".", "", ":", "").Replace(suffix)
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:        tenantID,
+		Name:      "Default",
+		Status:    domain.TenantStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create existing tenant: %v", err)
+	}
+
+	connectedAt := now
+	lastSyncedAt := now
+	connection, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
+		ID:                 "bpc_ui_platform_update_" + suffix,
+		ProviderType:       domain.BillingProviderTypeStripe,
+		Environment:        "test",
+		DisplayName:        "Stripe Platform",
+		Scope:              domain.BillingProviderConnectionScopePlatform,
+		Status:             domain.BillingProviderConnectionStatusConnected,
+		LagoOrganizationID: "org_platform",
+		LagoProviderCode:   "stripe_platform",
+		SecretRef:          "memory://billing-provider-connections/bpc_ui_platform_update/seed",
+		ConnectedAt:        &connectedAt,
+		LastSyncedAt:       &lastSyncedAt,
+		CreatedByType:      "platform_api_key",
+		CreatedByID:        "pkey_seed",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create billing provider connection: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_platform_update_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":    "platform-admin@alpha.test",
+		"password": "platform password 123",
+	}, "", http.StatusCreated)
+	csrfToken, _ := loginResp["csrf_token"].(string)
+	if csrfToken == "" {
+		t.Fatalf("expected csrf_token in login response")
+	}
+
+	result := sessionPostJSON(t, client, ts.URL+"/internal/onboarding/tenants", map[string]any{
+		"id":                             tenantID,
+		"name":                           "Default",
+		"billing_provider_connection_id": connection.ID,
+		"bootstrap_admin_key":            false,
+	}, csrfToken, http.StatusOK)
+
+	tenant := result["tenant"].(map[string]any)
+	if got, _ := tenant["billing_provider_connection_id"].(string); got != connection.ID {
+		t.Fatalf("expected tenant billing_provider_connection_id %q, got %q", connection.ID, got)
+	}
+}
+
 func TestUISessionCSRFProtectionForUnsafeMethods(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {

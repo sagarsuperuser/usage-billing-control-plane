@@ -5081,7 +5081,7 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	if errors.Is(err, store.ErrDuplicateKey) {
+	if errors.Is(err, store.ErrAlreadyExists) || errors.Is(err, store.ErrDuplicateKey) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

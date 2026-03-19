@@ -120,7 +120,16 @@ func (s *WorkspaceBillingBindingService) EnsureWorkspaceBillingBinding(req Ensur
 			return domain.WorkspaceBillingBinding{}, false, err
 		}
 		created, createErr := s.store.CreateWorkspaceBillingBinding(candidate)
-		return created, true, createErr
+		if createErr == nil {
+			return created, true, nil
+		}
+		if !errors.Is(createErr, store.ErrAlreadyExists) && !errors.Is(createErr, store.ErrDuplicateKey) {
+			return domain.WorkspaceBillingBinding{}, false, createErr
+		}
+		current, err = s.store.GetWorkspaceBillingBinding(workspaceID)
+		if err != nil {
+			return domain.WorkspaceBillingBinding{}, false, createErr
+		}
 	}
 
 	updated := current

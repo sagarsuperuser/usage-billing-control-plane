@@ -603,9 +603,24 @@ func TestEndToEndPreviewReplayReconciliation(t *testing.T) {
 
 func resetTables(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec(`TRUNCATE TABLE password_reset_tokens, user_tenant_memberships, user_password_credentials, users, platform_api_keys, tenant_audit_events, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, subscriptions, plan_metrics, plans, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
+	_, err := db.Exec(`TRUNCATE TABLE password_reset_tokens, user_tenant_memberships, user_password_credentials, workspace_invitations, users, workspace_billing_bindings, billing_provider_connections, platform_api_keys, tenant_audit_events, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, subscriptions, plan_metrics, plans, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate tables: %v", err)
+	}
+	_, err = db.Exec(`DELETE FROM tenants WHERE id <> 'default'`)
+	if err != nil {
+		t.Fatalf("delete non-default tenants: %v", err)
+	}
+	_, err = db.Exec(`UPDATE tenants
+		SET name = 'Default Tenant',
+		    status = 'active',
+		    billing_provider_connection_id = NULL,
+		    lago_organization_id = NULL,
+		    lago_billing_provider_code = NULL,
+		    updated_at = NOW()
+		WHERE id = 'default'`)
+	if err != nil {
+		t.Fatalf("reset default tenant: %v", err)
 	}
 }
 

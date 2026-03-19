@@ -114,15 +114,15 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
 		TenantID:      id,
-		ActorAPIKeyID: strings.TrimSpace(actorAPIKeyID),
+		ActorAPIKeyID: tenantAuditActorAPIKeyID(actorAPIKeyID),
 		Action:        "created",
-		Metadata: map[string]any{
+		Metadata: tenantAuditMetadata(strings.TrimSpace(actorAPIKeyID), map[string]any{
 			"name":                           created.Name,
 			"status":                         created.Status,
 			"billing_provider_connection_id": created.BillingProviderConnectionID,
 			"lago_organization_id":           created.LagoOrganizationID,
 			"lago_billing_provider_code":     created.LagoBillingProviderCode,
-		},
+		}),
 		CreatedAt: now,
 	}); auditErr != nil {
 		return domain.Tenant{}, fmt.Errorf("create tenant audit event: %w", auditErr)
@@ -199,9 +199,9 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 	}
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
 		TenantID:      id,
-		ActorAPIKeyID: strings.TrimSpace(actorAPIKeyID),
+		ActorAPIKeyID: tenantAuditActorAPIKeyID(actorAPIKeyID),
 		Action:        "updated",
-		Metadata:      metadata,
+		Metadata:      tenantAuditMetadata(strings.TrimSpace(actorAPIKeyID), metadata),
 		CreatedAt:     now,
 	}); auditErr != nil {
 		return domain.Tenant{}, false, fmt.Errorf("create tenant audit event: %w", auditErr)
@@ -311,9 +311,9 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 	}
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
 		TenantID:      id,
-		ActorAPIKeyID: strings.TrimSpace(actorAPIKeyID),
+		ActorAPIKeyID: tenantAuditActorAPIKeyID(actorAPIKeyID),
 		Action:        action,
-		Metadata:      metadata,
+		Metadata:      tenantAuditMetadata(strings.TrimSpace(actorAPIKeyID), metadata),
 		CreatedAt:     updated.UpdatedAt,
 	}); auditErr != nil {
 		return domain.Tenant{}, fmt.Errorf("create tenant audit event: %w", auditErr)
@@ -335,7 +335,12 @@ func (s *TenantService) resolveTenantWriteBillingConfiguration(current domain.Te
 		rawCode = strings.TrimSpace(*lagoBillingProviderCode)
 	}
 	if s.workspaceBillingBindingService != nil && rawConnectionID != "" {
-		return s.ensureBindingBackedTenantBillingConfiguration(current.ID, rawConnectionID, rawOrg, rawCode, actorAPIKeyID)
+		resolvedConnectionID, _, _, err := s.ensureBindingBackedTenantBillingConfiguration(current.ID, rawConnectionID, rawOrg, rawCode, actorAPIKeyID)
+		if err != nil {
+			return "", "", "", err
+		}
+		// Keep tenant-level Lago fields as compatibility residue only. The binding is the source of truth.
+		return resolvedConnectionID, current.LagoOrganizationID, current.LagoBillingProviderCode, nil
 	}
 	return s.resolveTenantBillingConfiguration(rawConnectionID, rawOrg, rawCode)
 }
@@ -344,7 +349,7 @@ func (s *TenantService) syncTenantBillingBinding(current domain.Tenant, connecti
 	if s.workspaceBillingBindingService == nil || strings.TrimSpace(connectionID) == "" {
 		return current, nil
 	}
-	resolvedConnectionID, resolvedOrg, resolvedCode, err := s.ensureBindingBackedTenantBillingConfiguration(
+	resolvedConnectionID, _, _, err := s.ensureBindingBackedTenantBillingConfiguration(
 		current.ID,
 		connectionID,
 		rawLagoOrganizationID,
@@ -354,12 +359,10 @@ func (s *TenantService) syncTenantBillingBinding(current domain.Tenant, connecti
 	if err != nil {
 		return domain.Tenant{}, err
 	}
-	if current.BillingProviderConnectionID == resolvedConnectionID && current.LagoOrganizationID == resolvedOrg && current.LagoBillingProviderCode == resolvedCode {
+	if current.BillingProviderConnectionID == resolvedConnectionID {
 		return current, nil
 	}
 	current.BillingProviderConnectionID = resolvedConnectionID
-	current.LagoOrganizationID = resolvedOrg
-	current.LagoBillingProviderCode = resolvedCode
 	current.UpdatedAt = time.Now().UTC()
 	return s.store.UpdateTenant(current)
 }
@@ -426,6 +429,25 @@ func valueOrDefault(input *string, fallback string) string {
 		return fallback
 	}
 	return *input
+}
+
+func tenantAuditActorAPIKeyID(actorAPIKeyID string) string {
+	actorAPIKeyID = strings.TrimSpace(actorAPIKeyID)
+	if strings.HasPrefix(actorAPIKeyID, "pkey_") {
+		return ""
+	}
+	return actorAPIKeyID
+}
+
+func tenantAuditMetadata(actorAPIKeyID string, metadata map[string]any) map[string]any {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	actorAPIKeyID = strings.TrimSpace(actorAPIKeyID)
+	if strings.HasPrefix(actorAPIKeyID, "pkey_") {
+		metadata["actor_platform_api_key_id"] = actorAPIKeyID
+	}
+	return metadata
 }
 
 func (s *TenantService) UpdateTenantStatus(id string, status domain.TenantStatus) (domain.Tenant, error) {
