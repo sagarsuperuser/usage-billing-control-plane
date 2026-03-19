@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -26,6 +27,25 @@ type TenantOnboardingRequest struct {
 	AdminKeyExpiresAt           *time.Time `json:"admin_key_expires_at,omitempty"`
 	AllowExistingActiveKeys     bool       `json:"allow_existing_active_keys,omitempty"`
 	BootstrapAdminKey           *bool      `json:"bootstrap_admin_key,omitempty"`
+}
+
+type TenantOnboardingStageError struct {
+	Stage string
+	Err   error
+}
+
+func (e *TenantOnboardingStageError) Error() string {
+	if e == nil || e.Err == nil {
+		return "tenant onboarding failed"
+	}
+	return e.Err.Error()
+}
+
+func (e *TenantOnboardingStageError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
 }
 
 type TenantOnboardingReadiness struct {
@@ -111,7 +131,7 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 		LagoBillingProviderCode:     req.LagoBillingProviderCode,
 	}, actorAPIKeyID)
 	if err != nil {
-		return TenantOnboardingResult{}, err
+		return TenantOnboardingResult{}, wrapTenantOnboardingStage("ensure_tenant", err)
 	}
 
 	bootstrapResult := TenantAdminBootstrapResult{}
@@ -121,7 +141,7 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 			Limit: 1,
 		})
 		if err != nil {
-			return TenantOnboardingResult{}, err
+			return TenantOnboardingResult{}, wrapTenantOnboardingStage("list_active_api_keys", err)
 		}
 		bootstrapResult.ExistingActiveKeys = activeKeys.Total
 		if activeKeys.Total == 0 || req.AllowExistingActiveKeys {
@@ -135,7 +155,7 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 				ExpiresAt: req.AdminKeyExpiresAt,
 			})
 			if err != nil {
-				return TenantOnboardingResult{}, err
+				return TenantOnboardingResult{}, wrapTenantOnboardingStage("bootstrap_admin_key", err)
 			}
 			bootstrapResult.Created = true
 			bootstrapResult.APIKey = &created.APIKey
@@ -146,7 +166,7 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 
 	readiness, err := s.GetTenantReadiness(tenant.ID)
 	if err != nil {
-		return TenantOnboardingResult{}, err
+		return TenantOnboardingResult{}, wrapTenantOnboardingStage("build_readiness", err)
 	}
 
 	return TenantOnboardingResult{
@@ -155,6 +175,20 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 		TenantAdminBootstrap: bootstrapResult,
 		Readiness:            readiness,
 	}, nil
+}
+
+func wrapTenantOnboardingStage(stage string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var staged *TenantOnboardingStageError
+	if errors.As(err, &staged) {
+		return err
+	}
+	return &TenantOnboardingStageError{
+		Stage: strings.TrimSpace(stage),
+		Err:   err,
+	}
 }
 
 func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardingReadiness, error) {

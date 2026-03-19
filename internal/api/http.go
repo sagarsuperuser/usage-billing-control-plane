@@ -791,6 +791,52 @@ func (s *Server) logAuthFailure(r *http.Request, statusCode int, reason string, 
 	s.logger.Warn("http auth denied", attrs...)
 }
 
+func (s *Server) logOnboardingFailure(r *http.Request, req service.TenantOnboardingRequest, err error) {
+	if s.logger == nil || err == nil {
+		return
+	}
+
+	bootstrapAdminKey := true
+	if req.BootstrapAdminKey != nil {
+		bootstrapAdminKey = *req.BootstrapAdminKey
+	}
+
+	attrs := []any{
+		"component", "api",
+		"event", "tenant_onboarding_failed",
+		"request_id", requestIDFromContext(r.Context()),
+		"route", normalizeMetricsRoute(r.URL.Path),
+		"path", r.URL.Path,
+		"method", r.Method,
+		"auth_method", inferAuthMethod(r),
+		"tenant_id", normalizeTenantID(req.ID),
+		"billing_provider_connection_id", strings.TrimSpace(req.BillingProviderConnectionID),
+		"bootstrap_admin_key", bootstrapAdminKey,
+		"error_class", classifyDomainErrorKind(err),
+		"error", err.Error(),
+	}
+	if apiKeyID := strings.TrimSpace(requestActorAPIKeyID(r)); apiKeyID != "" {
+		attrs = append(attrs, "actor_api_key_id", apiKeyID)
+	}
+	var staged *service.TenantOnboardingStageError
+	if errors.As(err, &staged) && strings.TrimSpace(staged.Stage) != "" {
+		attrs = append(attrs, "stage", staged.Stage)
+	}
+	if principal, ok := principalFromContext(r.Context()); ok {
+		attrs = append(attrs, "scope", string(principal.Scope))
+		switch principal.Scope {
+		case ScopePlatform:
+			attrs = append(attrs, "platform_role", string(principal.PlatformRole))
+		default:
+			attrs = append(attrs,
+				"tenant_scope_id", normalizeTenantID(principal.TenantID),
+				"role", string(principal.Role),
+			)
+		}
+	}
+	s.logger.Error("tenant onboarding failed", attrs...)
+}
+
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	if s.authorizer == nil && s.sessionManager == nil {
 		return next
@@ -2344,6 +2390,7 @@ func (s *Server) handleInternalOnboardingTenants(w http.ResponseWriter, r *http.
 	}
 	result, err := s.onboardingService.OnboardTenant(req, requestActorAPIKeyID(r))
 	if err != nil {
+		s.logOnboardingFailure(r, req, err)
 		writeDomainError(w, err)
 		return
 	}
@@ -5061,7 +5108,11 @@ func writeJSONRaw(w http.ResponseWriter, status int, body []byte) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
+	body := map[string]string{"error": message}
+	if requestID := strings.TrimSpace(w.Header().Get(requestIDHeaderKey)); requestID != "" {
+		body["request_id"] = requestID
+	}
+	writeJSON(w, status, body)
 }
 
 func writeMethodNotAllowed(w http.ResponseWriter) {
@@ -5073,21 +5124,47 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusInternalServerError, "unknown error")
 		return
 	}
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, err.Error())
-		return
+	writeError(w, classifyDomainErrorStatus(err), err.Error())
+}
+
+func classifyDomainErrorStatus(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusInternalServerError
+	case errors.Is(err, store.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, store.ErrAlreadyExists), errors.Is(err, store.ErrDuplicateKey):
+		return http.StatusConflict
+	case errors.Is(err, service.ErrValidation):
+		return http.StatusBadRequest
+	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
+		return http.StatusForbidden
+	case errors.Is(err, service.ErrBrowserTenantSelection):
+		return http.StatusConflict
 	}
-	if strings.Contains(strings.ToLower(err.Error()), "not found") {
-		writeError(w, http.StatusNotFound, err.Error())
-		return
+
+	lower := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(lower, "not found"):
+		return http.StatusNotFound
+	case strings.Contains(lower, "validation"), strings.Contains(lower, "required"), strings.Contains(lower, "invalid"):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
 	}
-	if errors.Is(err, store.ErrAlreadyExists) || errors.Is(err, store.ErrDuplicateKey) {
-		writeError(w, http.StatusConflict, err.Error())
-		return
+}
+
+func classifyDomainErrorKind(err error) string {
+	switch classifyDomainErrorStatus(err) {
+	case http.StatusBadRequest:
+		return "validation"
+	case http.StatusForbidden:
+		return "forbidden"
+	case http.StatusNotFound:
+		return "not_found"
+	case http.StatusConflict:
+		return "conflict"
+	default:
+		return "internal"
 	}
-	if strings.Contains(strings.ToLower(err.Error()), "validation") || strings.Contains(strings.ToLower(err.Error()), "required") || strings.Contains(strings.ToLower(err.Error()), "invalid") {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeError(w, http.StatusInternalServerError, err.Error())
 }

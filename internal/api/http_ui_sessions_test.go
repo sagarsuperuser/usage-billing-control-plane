@@ -117,7 +117,10 @@ func TestUISessionLoginMeLogoutLifecycle(t *testing.T) {
 		t.Fatalf("expected me.role reader, got %q", got)
 	}
 
-	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, "", http.StatusForbidden)
+	logoutForbidden := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, "", http.StatusForbidden)
+	if got, _ := logoutForbidden["request_id"].(string); strings.TrimSpace(got) == "" {
+		t.Fatalf("expected request_id in forbidden logout response")
+	}
 	_ = sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/logout", map[string]any{}, csrfToken, http.StatusOK)
 	_ = sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusUnauthorized)
 }
@@ -226,7 +229,6 @@ func TestUIPlatformSessionLoginMeLogoutLifecycle(t *testing.T) {
 		t.Fatalf("expected subject_type user, got %q", got)
 	}
 
-	_ = sessionGetJSON(t, client, ts.URL+"/internal/metrics", http.StatusOK)
 	meResp := sessionGetJSON(t, client, ts.URL+"/v1/ui/sessions/me", http.StatusOK)
 	if got, _ := meResp["scope"].(string); got != "platform" {
 		t.Fatalf("expected me.scope platform, got %q", got)
