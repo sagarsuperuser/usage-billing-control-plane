@@ -39,6 +39,8 @@ type InvoiceBillingAdapter interface {
 	RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error)
 	GetInvoice(ctx context.Context, invoiceID string) (int, []byte, error)
 	ResendInvoiceEmail(ctx context.Context, invoiceID string, input BillingDocumentEmail) error
+	ResendPaymentReceiptEmail(ctx context.Context, paymentReceiptID string, input BillingDocumentEmail) error
+	ResendCreditNoteEmail(ctx context.Context, creditNoteID string, input BillingDocumentEmail) error
 }
 
 type CustomerBillingAdapter interface {
@@ -272,6 +274,14 @@ func (a *LagoInvoiceAdapter) ResendInvoiceEmail(ctx context.Context, invoiceID s
 		Backend:    "lago",
 		Message:    lagoNotificationErrorMessage(respBody),
 	}
+}
+
+func (a *LagoInvoiceAdapter) ResendPaymentReceiptEmail(ctx context.Context, paymentReceiptID string, input BillingDocumentEmail) error {
+	return a.resendBillingDocumentEmail(ctx, "/api/v1/payment_receipts/", paymentReceiptID, input)
+}
+
+func (a *LagoInvoiceAdapter) ResendCreditNoteEmail(ctx context.Context, creditNoteID string, input BillingDocumentEmail) error {
+	return a.resendBillingDocumentEmail(ctx, "/api/v1/credit_notes/", creditNoteID, input)
 }
 
 type LagoCustomerBillingAdapter struct {
@@ -512,6 +522,46 @@ func lagoNotificationErrorMessage(body []byte) string {
 		}
 	}
 	return fmt.Sprintf("billing notification dispatch failed: %s", abbrevForLog(body))
+}
+
+func (a *LagoInvoiceAdapter) resendBillingDocumentEmail(ctx context.Context, basePath, resourceID string, input BillingDocumentEmail) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago invoice adapter is required", ErrValidation)
+	}
+	resourceID = strings.TrimSpace(resourceID)
+	if resourceID == "" {
+		return fmt.Errorf("%w: resource id is required", ErrValidation)
+	}
+
+	payload := map[string]any{}
+	if items := normalizeEmailRecipientList(input.To); len(items) > 0 {
+		payload["to"] = items
+	}
+	if items := normalizeEmailRecipientList(input.Cc); len(items) > 0 {
+		payload["cc"] = items
+	}
+	if items := normalizeEmailRecipientList(input.Bcc); len(items) > 0 {
+		payload["bcc"] = items
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	path := strings.TrimRight(basePath, "/") + "/" + url.PathEscape(resourceID) + "/resend_email"
+	status, respBody, err := a.transport.doRawRequest(ctx, http.MethodPost, path, body)
+	if err != nil {
+		return err
+	}
+	if status >= 200 && status < 300 {
+		return nil
+	}
+	return &NotificationDispatchError{
+		StatusCode: status,
+		Backend:    "lago",
+		Message:    lagoNotificationErrorMessage(respBody),
+	}
 }
 func mapAggregationToLago(v string) (string, error) {
 	switch strings.TrimSpace(strings.ToLower(v)) {

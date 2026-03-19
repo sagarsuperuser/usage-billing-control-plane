@@ -45,6 +45,8 @@ type NotificationDispatchResult struct {
 
 type BillingNotificationAdapter interface {
 	ResendInvoiceEmail(ctx context.Context, invoiceID string, input BillingDocumentEmail) error
+	ResendPaymentReceiptEmail(ctx context.Context, paymentReceiptID string, input BillingDocumentEmail) error
+	ResendCreditNoteEmail(ctx context.Context, creditNoteID string, input BillingDocumentEmail) error
 }
 
 type NotificationService struct {
@@ -77,6 +79,14 @@ func (s *NotificationService) CanResendInvoiceEmail() bool {
 	return s != nil && s.billingAdapter != nil
 }
 
+func (s *NotificationService) CanResendPaymentReceiptEmail() bool {
+	return s != nil && s.billingAdapter != nil
+}
+
+func (s *NotificationService) CanResendCreditNoteEmail() bool {
+	return s != nil && s.billingAdapter != nil
+}
+
 func (s *NotificationService) SendWorkspaceInvitation(input WorkspaceInvitationEmail) error {
 	if s == nil || s.workspaceInvitationSender == nil {
 		return fmt.Errorf("%w: workspace invitation notification backend is required", ErrValidation)
@@ -105,6 +115,44 @@ func (s *NotificationService) ResendInvoiceEmail(ctx context.Context, invoiceID 
 	return NotificationDispatchResult{
 		DispatchedAt: time.Now().UTC(),
 		Action:       "resend_invoice_email",
+		Domain:       "billing_document",
+		Backend:      "lago",
+	}, nil
+}
+
+func (s *NotificationService) ResendPaymentReceiptEmail(ctx context.Context, paymentReceiptID string, input BillingDocumentEmail) (NotificationDispatchResult, error) {
+	if s == nil || s.billingAdapter == nil {
+		return NotificationDispatchResult{}, fmt.Errorf("%w: billing notification backend is required", ErrValidation)
+	}
+	paymentReceiptID = strings.TrimSpace(paymentReceiptID)
+	if paymentReceiptID == "" {
+		return NotificationDispatchResult{}, fmt.Errorf("%w: payment receipt id is required", ErrValidation)
+	}
+	if err := s.billingAdapter.ResendPaymentReceiptEmail(ctx, paymentReceiptID, input); err != nil {
+		return NotificationDispatchResult{}, err
+	}
+	return NotificationDispatchResult{
+		DispatchedAt: time.Now().UTC(),
+		Action:       "resend_payment_receipt_email",
+		Domain:       "billing_document",
+		Backend:      "lago",
+	}, nil
+}
+
+func (s *NotificationService) ResendCreditNoteEmail(ctx context.Context, creditNoteID string, input BillingDocumentEmail) (NotificationDispatchResult, error) {
+	if s == nil || s.billingAdapter == nil {
+		return NotificationDispatchResult{}, fmt.Errorf("%w: billing notification backend is required", ErrValidation)
+	}
+	creditNoteID = strings.TrimSpace(creditNoteID)
+	if creditNoteID == "" {
+		return NotificationDispatchResult{}, fmt.Errorf("%w: credit note id is required", ErrValidation)
+	}
+	if err := s.billingAdapter.ResendCreditNoteEmail(ctx, creditNoteID, input); err != nil {
+		return NotificationDispatchResult{}, err
+	}
+	return NotificationDispatchResult{
+		DispatchedAt: time.Now().UTC(),
+		Action:       "resend_credit_note_email",
 		Domain:       "billing_document",
 		Backend:      "lago",
 	}, nil

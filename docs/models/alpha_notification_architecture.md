@@ -270,6 +270,7 @@ Today it routes:
 - Alpha-owned workspace invitations
 - Alpha-owned password reset emails
 - Alpha-owned invoice resend actions delegated to Lago
+- Alpha-owned payment receipt and credit note resend actions delegated to Lago
 
 That is the correct first implementation step, but it is still not the final design.
 

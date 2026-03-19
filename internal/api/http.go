@@ -1638,6 +1638,16 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 			return RoleWriter, true
 		}
 		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/payment-receipts/"):
+		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/resend-email") {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/credit-notes/"):
+		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/resend-email") {
+			return RoleWriter, true
+		}
+		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/payments/"):
 		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/retry") {
 			return RoleWriter, true
@@ -1841,6 +1851,18 @@ func normalizeMetricsRoute(path string) string {
 			return "/v1/invoices/{id}/explainability"
 		}
 		return "/v1/invoices/{id}"
+	case strings.HasPrefix(path, "/v1/payment-receipts/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/payment-receipts/"), "/")
+		if strings.HasSuffix(tail, "/resend-email") {
+			return "/v1/payment-receipts/{id}/resend-email"
+		}
+		return "/v1/payment-receipts/{id}"
+	case strings.HasPrefix(path, "/v1/credit-notes/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/credit-notes/"), "/")
+		if strings.HasSuffix(tail, "/resend-email") {
+			return "/v1/credit-notes/{id}/resend-email"
+		}
+		return "/v1/credit-notes/{id}"
 	case strings.HasPrefix(path, "/v1/payments/"):
 		tail := strings.Trim(strings.TrimPrefix(path, "/v1/payments/"), "/")
 		if strings.HasSuffix(tail, "/events") {
@@ -1990,6 +2012,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/invoices", s.handleInvoices)
 	s.mux.HandleFunc("/v1/invoices/preview", s.handleInvoicePreview)
 	s.mux.HandleFunc("/v1/invoices/", s.handleInvoiceByID)
+	s.mux.HandleFunc("/v1/payment-receipts/", s.handlePaymentReceiptByID)
+	s.mux.HandleFunc("/v1/credit-notes/", s.handleCreditNoteByID)
 	s.mux.HandleFunc("/v1/payments", s.handlePayments)
 	s.mux.HandleFunc("/v1/payments/", s.handlePaymentByID)
 

@@ -3619,6 +3619,122 @@ func TestInvoiceResendEmailDelegatesThroughNotificationService(t *testing.T) {
 	}
 }
 
+func TestBillingDocumentResendEmailDelegatesThroughNotificationService(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "tenant_a")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	var (
+		paymentReceiptCalls int
+		creditNoteCalls     int
+		lastReceiptBody     map[string]any
+		lastCreditNoteBody  map[string]any
+	)
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		rawBody, _ := io.ReadAll(r.Body)
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/payment_receipts/pr_123/resend_email":
+			paymentReceiptCalls++
+			if len(rawBody) > 0 {
+				_ = json.Unmarshal(rawBody, &lastReceiptBody)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/credit_notes/cn_123/resend_email":
+			creditNoteCalls++
+			if len(rawBody) > 0 {
+				_ = json.Unmarshal(rawBody, &lastCreditNoteBody)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	invoiceAdapter := service.NewLagoInvoiceAdapter(lagoTransport)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithInvoiceBillingAdapter(invoiceAdapter),
+		api.WithNotificationService(service.NewNotificationService(nil, nil, invoiceAdapter)),
+	).Handler())
+	defer ts.Close()
+
+	receiptResp := postJSON(
+		t,
+		ts.URL+"/v1/payment-receipts/pr_123/resend-email",
+		map[string]any{"cc": []string{"finance@acme.test"}},
+		"tenant-a-writer",
+		http.StatusAccepted,
+	)
+	if paymentReceiptCalls != 1 {
+		t.Fatalf("expected exactly one payment receipt resend call to lago, got %d", paymentReceiptCalls)
+	}
+	if got, _ := receiptResp["action"].(string); got != "resend_payment_receipt_email" {
+		t.Fatalf("expected action resend_payment_receipt_email, got %q", got)
+	}
+	ccRaw, ok := lastReceiptBody["cc"].([]any)
+	if !ok || len(ccRaw) != 1 {
+		t.Fatalf("expected one cc recipient, got %#v", lastReceiptBody["cc"])
+	}
+	if got, _ := ccRaw[0].(string); got != "finance@acme.test" {
+		t.Fatalf("expected cc recipient finance@acme.test, got %q", got)
+	}
+
+	creditResp := postJSON(
+		t,
+		ts.URL+"/v1/credit-notes/cn_123/resend-email",
+		map[string]any{"bcc": []string{"audit@acme.test"}},
+		"tenant-a-writer",
+		http.StatusAccepted,
+	)
+	if creditNoteCalls != 1 {
+		t.Fatalf("expected exactly one credit note resend call to lago, got %d", creditNoteCalls)
+	}
+	if got, _ := creditResp["action"].(string); got != "resend_credit_note_email" {
+		t.Fatalf("expected action resend_credit_note_email, got %q", got)
+	}
+	bccRaw, ok := lastCreditNoteBody["bcc"].([]any)
+	if !ok || len(bccRaw) != 1 {
+		t.Fatalf("expected one bcc recipient, got %#v", lastCreditNoteBody["bcc"])
+	}
+	if got, _ := bccRaw[0].(string); got != "audit@acme.test" {
+		t.Fatalf("expected bcc recipient audit@acme.test, got %q", got)
+	}
+}
+
 func envInt64OrDefault(t *testing.T, key string, defaultValue int64) int64 {
 	t.Helper()
 
