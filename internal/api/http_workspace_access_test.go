@@ -108,20 +108,23 @@ func TestWorkspaceAccessSubresources(t *testing.T) {
 	}
 
 	updatedMember := patchJSON(t, ts.URL+"/internal/tenants/tenant_access/members/"+user.ID, map[string]any{
-		"role": "writer",
+		"role":   "writer",
+		"reason": "support override",
 	}, "platform-admin", http.StatusOK)
 	memberPayload := updatedMember["member"].(map[string]any)
 	if memberPayload["role"] != "writer" {
 		t.Fatalf("expected updated member role writer, got %#v", memberPayload["role"])
 	}
 
-	revokeResult := postJSON(t, ts.URL+"/internal/tenants/tenant_access/invitations/"+inviteID+"/revoke", map[string]any{}, "platform-admin", http.StatusOK)
+	revokeResult := postJSON(t, ts.URL+"/internal/tenants/tenant_access/invitations/"+inviteID+"/revoke", map[string]any{
+		"reason": "support cleanup",
+	}, "platform-admin", http.StatusOK)
 	revoked := revokeResult["invitation"].(map[string]any)
 	if revoked["status"] != string(domain.WorkspaceInvitationStatusRevoked) {
 		t.Fatalf("expected revoked invitation, got %#v", revoked["status"])
 	}
 
-	deleteRequest, err := http.NewRequest(http.MethodDelete, ts.URL+"/internal/tenants/tenant_access/members/"+user.ID, nil)
+	deleteRequest, err := http.NewRequest(http.MethodDelete, ts.URL+"/internal/tenants/tenant_access/members/"+user.ID+"?reason="+url.QueryEscape("suspend access"), nil)
 	if err != nil {
 		t.Fatalf("build delete request: %v", err)
 	}
@@ -141,6 +144,42 @@ func TestWorkspaceAccessSubresources(t *testing.T) {
 	}
 	if membership.Status != domain.UserTenantMembershipStatusDisabled {
 		t.Fatalf("expected disabled membership after remove, got %q", membership.Status)
+	}
+
+	auditPage, err := repo.ListTenantAuditEvents(store.TenantAuditFilter{TenantID: "tenant_access", Limit: 20})
+	if err != nil {
+		t.Fatalf("list tenant audit events: %v", err)
+	}
+	foundRoleChange := false
+	foundInviteRevoke := false
+	foundDisable := false
+	for _, item := range auditPage.Items {
+		switch item.Action {
+		case "workspace_member_role_changed":
+			foundRoleChange = true
+			if got := item.Metadata["reason"]; got != "support override" {
+				t.Fatalf("expected role change reason support override, got %#v", got)
+			}
+		case "workspace_invitation_revoked":
+			foundInviteRevoke = true
+			if got := item.Metadata["reason"]; got != "support cleanup" {
+				t.Fatalf("expected invite revoke reason support cleanup, got %#v", got)
+			}
+		case "workspace_member_disabled":
+			foundDisable = true
+			if got := item.Metadata["reason"]; got != "suspend access" {
+				t.Fatalf("expected disable reason suspend access, got %#v", got)
+			}
+		}
+	}
+	if !foundRoleChange {
+		t.Fatalf("expected workspace_member_role_changed tenant audit event")
+	}
+	if !foundInviteRevoke {
+		t.Fatalf("expected workspace_invitation_revoked tenant audit event")
+	}
+	if !foundDisable {
+		t.Fatalf("expected workspace_member_disabled tenant audit event")
 	}
 }
 

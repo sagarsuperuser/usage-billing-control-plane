@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Building2, Copy, CreditCard, LoaderCircle, MailPlus, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, Copy, CreditCard, LoaderCircle, MailPlus, ShieldCheck, UserRound, UserX } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -16,7 +16,9 @@ import {
   fetchTenantOnboardingStatus,
   fetchWorkspaceInvitations,
   fetchWorkspaceMembers,
+  removeWorkspaceMember,
   revokeWorkspaceInvitation,
+  updateWorkspaceMember,
   updateTenantWorkspaceBilling,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
@@ -36,6 +38,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("admin");
   const [latestInviteURL, setLatestInviteURL] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
 
   const tenantStatusQuery = useQuery({
     queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID],
@@ -119,9 +122,39 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
         csrfToken,
         tenantID,
         invitationID,
+        reason: overrideReason,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["workspace-invitations", apiBaseURL, tenantID] });
+    },
+  });
+
+  const updateMemberMutation = useMutation({
+    mutationFn: (input: { userID: string; role: "reader" | "writer" | "admin" }) =>
+      updateWorkspaceMember({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        tenantID,
+        userID: input.userID,
+        role: input.role,
+        reason: overrideReason,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workspace-members", apiBaseURL, tenantID] });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: (userID: string) =>
+      removeWorkspaceMember({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        tenantID,
+        userID,
+        reason: overrideReason,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workspace-members", apiBaseURL, tenantID] });
     },
   });
 
@@ -136,6 +169,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     Boolean(selectedConnectionID) &&
     selectedConnectionID !== activeBillingConnectionID;
   const canCreateInvitation = Boolean(csrfToken) && !createInvitationMutation.isPending && inviteEmail.trim().length > 0;
+  const canRunOverrideAction = Boolean(csrfToken) && overrideReason.trim().length > 0;
 
   useEffect(() => {
     if (createInvitationMutation.data?.accept_url) {
@@ -319,12 +353,29 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     </section>
 
                     <div className="grid gap-4">
+                      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="text-sm font-semibold text-slate-950">Platform support override</p>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                          Platform admins can override tenant access for support, recovery, and compliance. Member changes and invite revocation require a reason and are audited.
+                        </p>
+                        <div className="mt-4 grid gap-2">
+                          <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Override reason</label>
+                          <input
+                            type="text"
+                            value={overrideReason}
+                            onChange={(event) => setOverrideReason(event.target.value)}
+                            placeholder="Support case, recovery action, or compliance reason"
+                            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                          />
+                        </div>
+                      </section>
+
                       <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <p className="text-sm font-semibold text-slate-950">Current members</p>
                         <div className="mt-3 grid gap-3">
                           {workspaceMembers.length > 0 ? (
                             workspaceMembers.map((member) => (
-                              <div key={member.user_id} className="grid gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_120px] lg:items-center">
+                              <div key={member.user_id} className="grid gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-center">
                                 <div className="min-w-0">
                                   <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
                                     <UserRound className="h-4 w-4 text-slate-500" />
@@ -332,9 +383,52 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                                   </p>
                                   <p className="mt-1 break-all text-xs text-slate-600">{member.email}</p>
                                 </div>
-                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                                  {member.role}
-                                </span>
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                                    {member.status}
+                                  </span>
+                                  <select
+                                    aria-label={`Role for ${member.email}`}
+                                    value={member.role}
+                                    onChange={(event) =>
+                                      updateMemberMutation.mutate({
+                                        userID: member.user_id,
+                                        role: event.target.value as "reader" | "writer" | "admin",
+                                      })
+                                    }
+                                    disabled={!canRunOverrideAction || updateMemberMutation.isPending}
+                                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <option value="admin">Admin</option>
+                                    <option value="writer">Writer</option>
+                                    <option value="reader">Reader</option>
+                                  </select>
+                                  {member.status === "active" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeMemberMutation.mutate(member.user_id)}
+                                      disabled={!canRunOverrideAction || removeMemberMutation.isPending}
+                                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <UserX className="h-3.5 w-3.5" />
+                                      Suspend
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updateMemberMutation.mutate({
+                                          userID: member.user_id,
+                                          role: member.role as "reader" | "writer" | "admin",
+                                        })
+                                      }
+                                      disabled={!canRunOverrideAction || updateMemberMutation.isPending}
+                                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Reactivate
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             ))
                           ) : (
@@ -361,7 +455,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                                 <button
                                   type="button"
                                   onClick={() => revokeInvitationMutation.mutate(invite.id)}
-                                  disabled={!csrfToken || revokeInvitationMutation.isPending}
+                                  disabled={!canRunOverrideAction || revokeInvitationMutation.isPending}
                                   className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Revoke

@@ -650,6 +650,7 @@ export async function updateWorkspaceMember(input: {
   tenantID: string;
   userID: string;
   role: "reader" | "writer" | "admin";
+  reason?: string;
 }): Promise<WorkspaceMember> {
   const payload = await apiRequest<{ member: WorkspaceMember }>(
     `/internal/tenants/${encodeURIComponent(input.tenantID)}/members/${encodeURIComponent(input.userID)}`,
@@ -659,6 +660,7 @@ export async function updateWorkspaceMember(input: {
       csrfToken: input.csrfToken,
       body: {
         role: input.role,
+        reason: input.reason,
       },
     }
   );
@@ -673,9 +675,10 @@ export async function removeWorkspaceMember(input: {
   csrfToken: string;
   tenantID: string;
   userID: string;
+  reason?: string;
 }): Promise<void> {
   await apiRequest<null>(
-    `/internal/tenants/${encodeURIComponent(input.tenantID)}/members/${encodeURIComponent(input.userID)}`,
+    `/internal/tenants/${encodeURIComponent(input.tenantID)}/members/${encodeURIComponent(input.userID)}${toQuery({ reason: input.reason })}`,
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "DELETE",
@@ -733,6 +736,7 @@ export async function revokeWorkspaceInvitation(input: {
   csrfToken: string;
   tenantID: string;
   invitationID: string;
+  reason?: string;
 }): Promise<WorkspaceInvitation> {
   const payload = await apiRequest<{ invitation: WorkspaceInvitation }>(
     `/internal/tenants/${encodeURIComponent(input.tenantID)}/invitations/${encodeURIComponent(input.invitationID)}/revoke`,
@@ -740,7 +744,9 @@ export async function revokeWorkspaceInvitation(input: {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "POST",
       csrfToken: input.csrfToken,
-      body: {},
+      body: {
+        reason: input.reason,
+      },
     }
   );
   if (!payload) {

@@ -22,6 +22,7 @@ type workspaceAccessStore interface {
 	GetUserTenantMembership(userID, tenantID string) (domain.UserTenantMembership, error)
 	ListTenantMemberships(tenantID string) ([]domain.UserTenantMembership, error)
 	UpsertUserTenantMembership(input domain.UserTenantMembership) (domain.UserTenantMembership, error)
+	CreateTenantAuditEvent(input domain.TenantAuditEvent) (domain.TenantAuditEvent, error)
 	CreateWorkspaceInvitation(input domain.WorkspaceInvitation) (domain.WorkspaceInvitation, error)
 	GetWorkspaceInvitation(id string) (domain.WorkspaceInvitation, error)
 	GetWorkspaceInvitationByTokenHash(tokenHash string) (domain.WorkspaceInvitation, error)
@@ -76,6 +77,16 @@ type WorkspaceInvitationPreview struct {
 	AccountExists       bool                       `json:"account_exists"`
 }
 
+type WorkspaceAccessAuditActor struct {
+	SubjectType  string `json:"subject_type,omitempty"`
+	SubjectID    string `json:"subject_id,omitempty"`
+	UserEmail    string `json:"user_email,omitempty"`
+	Scope        string `json:"scope,omitempty"`
+	PlatformRole string `json:"platform_role,omitempty"`
+	APIKeyID     string `json:"api_key_id,omitempty"`
+	Reason       string `json:"reason,omitempty"`
+}
+
 func NewWorkspaceAccessService(repo workspaceAccessStore) *WorkspaceAccessService {
 	return &WorkspaceAccessService{store: repo}
 }
@@ -119,6 +130,10 @@ func (s *WorkspaceAccessService) ListWorkspaceMembers(workspaceID string) ([]Wor
 }
 
 func (s *WorkspaceAccessService) UpdateWorkspaceMemberRole(workspaceID, userID, role string) (WorkspaceMember, error) {
+	return s.UpdateWorkspaceMemberRoleWithAudit(workspaceID, userID, role, WorkspaceAccessAuditActor{})
+}
+
+func (s *WorkspaceAccessService) UpdateWorkspaceMemberRoleWithAudit(workspaceID, userID, role string, actor WorkspaceAccessAuditActor) (WorkspaceMember, error) {
 	if s == nil || s.store == nil {
 		return WorkspaceMember{}, fmt.Errorf("%w: workspace access repository is required", ErrValidation)
 	}
@@ -132,6 +147,8 @@ func (s *WorkspaceAccessService) UpdateWorkspaceMemberRole(workspaceID, userID, 
 	if err != nil {
 		return WorkspaceMember{}, err
 	}
+	previousRole := membership.Role
+	previousStatus := membership.Status
 	membership.Role = role
 	membership.Status = domain.UserTenantMembershipStatusActive
 	membership.UpdatedAt = time.Now().UTC()
@@ -143,7 +160,7 @@ func (s *WorkspaceAccessService) UpdateWorkspaceMemberRole(workspaceID, userID, 
 	if err != nil {
 		return WorkspaceMember{}, err
 	}
-	return WorkspaceMember{
+	member := WorkspaceMember{
 		UserID:       user.ID,
 		Email:        user.Email,
 		DisplayName:  user.DisplayName,
@@ -152,10 +169,33 @@ func (s *WorkspaceAccessService) UpdateWorkspaceMemberRole(workspaceID, userID, 
 		PlatformRole: string(user.PlatformRole),
 		CreatedAt:    updated.CreatedAt,
 		UpdatedAt:    updated.UpdatedAt,
-	}, nil
+	}
+	if auditErr := s.writeWorkspaceAccessAuditEvent(workspaceID, actor, workspaceAccessAuditEventInput{
+		Action: func() string {
+			if previousStatus == domain.UserTenantMembershipStatusDisabled {
+				return "workspace_member_reactivated"
+			}
+			return "workspace_member_role_changed"
+		}(),
+		Metadata: map[string]any{
+			"target_user_id":  user.ID,
+			"target_email":    user.Email,
+			"previous_role":   previousRole,
+			"new_role":        updated.Role,
+			"previous_status": string(previousStatus),
+			"new_status":      string(updated.Status),
+		},
+	}); auditErr != nil {
+		return WorkspaceMember{}, auditErr
+	}
+	return member, nil
 }
 
 func (s *WorkspaceAccessService) RemoveWorkspaceMember(workspaceID, userID string) error {
+	return s.RemoveWorkspaceMemberWithAudit(workspaceID, userID, WorkspaceAccessAuditActor{})
+}
+
+func (s *WorkspaceAccessService) RemoveWorkspaceMemberWithAudit(workspaceID, userID string, actor WorkspaceAccessAuditActor) error {
 	if s == nil || s.store == nil {
 		return fmt.Errorf("%w: workspace access repository is required", ErrValidation)
 	}
@@ -168,10 +208,29 @@ func (s *WorkspaceAccessService) RemoveWorkspaceMember(workspaceID, userID strin
 	if err != nil {
 		return err
 	}
+	user, err := s.store.GetUser(membership.UserID)
+	if err != nil {
+		return err
+	}
+	previousRole := membership.Role
+	previousStatus := membership.Status
 	membership.Status = domain.UserTenantMembershipStatusDisabled
 	membership.UpdatedAt = time.Now().UTC()
-	_, err = s.store.UpsertUserTenantMembership(membership)
-	return err
+	updated, err := s.store.UpsertUserTenantMembership(membership)
+	if err != nil {
+		return err
+	}
+	return s.writeWorkspaceAccessAuditEvent(workspaceID, actor, workspaceAccessAuditEventInput{
+		Action: "workspace_member_disabled",
+		Metadata: map[string]any{
+			"target_user_id":  user.ID,
+			"target_email":    user.Email,
+			"previous_role":   previousRole,
+			"new_role":        updated.Role,
+			"previous_status": string(previousStatus),
+			"new_status":      string(updated.Status),
+		},
+	})
 }
 
 func (s *WorkspaceAccessService) CreateWorkspaceInvitation(req CreateWorkspaceInvitationRequest) (domain.WorkspaceInvitation, error) {
@@ -270,6 +329,10 @@ func (s *WorkspaceAccessService) ListWorkspaceInvitations(workspaceID, status st
 }
 
 func (s *WorkspaceAccessService) RevokeWorkspaceInvitation(workspaceID, invitationID string) (domain.WorkspaceInvitation, error) {
+	return s.RevokeWorkspaceInvitationWithAudit(workspaceID, invitationID, WorkspaceAccessAuditActor{})
+}
+
+func (s *WorkspaceAccessService) RevokeWorkspaceInvitationWithAudit(workspaceID, invitationID string, actor WorkspaceAccessAuditActor) (domain.WorkspaceInvitation, error) {
 	if s == nil || s.store == nil {
 		return domain.WorkspaceInvitation{}, fmt.Errorf("%w: workspace access repository is required", ErrValidation)
 	}
@@ -292,7 +355,79 @@ func (s *WorkspaceAccessService) RevokeWorkspaceInvitation(workspaceID, invitati
 	invite.Status = domain.WorkspaceInvitationStatusRevoked
 	invite.RevokedAt = &now
 	invite.UpdatedAt = now
-	return s.store.UpdateWorkspaceInvitation(invite)
+	updated, err := s.store.UpdateWorkspaceInvitation(invite)
+	if err != nil {
+		return domain.WorkspaceInvitation{}, err
+	}
+	if auditErr := s.writeWorkspaceAccessAuditEvent(workspaceID, actor, workspaceAccessAuditEventInput{
+		Action: "workspace_invitation_revoked",
+		Metadata: map[string]any{
+			"invitation_id": updated.ID,
+			"target_email":  updated.Email,
+			"role":          updated.Role,
+			"status":        string(updated.Status),
+		},
+	}); auditErr != nil {
+		return domain.WorkspaceInvitation{}, auditErr
+	}
+	return updated, nil
+}
+
+type workspaceAccessAuditEventInput struct {
+	Action   string
+	Metadata map[string]any
+}
+
+func workspaceAccessTenantAuditActorAPIKeyID(actorAPIKeyID string) string {
+	actorAPIKeyID = strings.TrimSpace(actorAPIKeyID)
+	if strings.HasPrefix(actorAPIKeyID, "pkey_") {
+		return ""
+	}
+	return actorAPIKeyID
+}
+
+func workspaceAccessTenantAuditMetadata(actorAPIKeyID string, metadata map[string]any) map[string]any {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	actorAPIKeyID = strings.TrimSpace(actorAPIKeyID)
+	if strings.HasPrefix(actorAPIKeyID, "pkey_") {
+		metadata["actor_platform_api_key_id"] = actorAPIKeyID
+	}
+	return metadata
+}
+
+func (s *WorkspaceAccessService) writeWorkspaceAccessAuditEvent(workspaceID string, actor WorkspaceAccessAuditActor, input workspaceAccessAuditEventInput) error {
+	if s == nil || s.store == nil || strings.TrimSpace(input.Action) == "" {
+		return nil
+	}
+	metadata := workspaceAccessTenantAuditMetadata(actor.APIKeyID, input.Metadata)
+	if strings.TrimSpace(actor.SubjectType) != "" {
+		metadata["actor_subject_type"] = strings.TrimSpace(actor.SubjectType)
+	}
+	if strings.TrimSpace(actor.SubjectID) != "" {
+		metadata["actor_subject_id"] = strings.TrimSpace(actor.SubjectID)
+	}
+	if strings.TrimSpace(actor.UserEmail) != "" {
+		metadata["actor_user_email"] = strings.TrimSpace(actor.UserEmail)
+	}
+	if strings.TrimSpace(actor.Scope) != "" {
+		metadata["actor_scope"] = strings.TrimSpace(actor.Scope)
+	}
+	if strings.TrimSpace(actor.PlatformRole) != "" {
+		metadata["actor_platform_role"] = strings.TrimSpace(actor.PlatformRole)
+	}
+	if strings.TrimSpace(actor.Reason) != "" {
+		metadata["reason"] = strings.TrimSpace(actor.Reason)
+	}
+	_, err := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
+		TenantID:      normalizeTenantID(workspaceID),
+		ActorAPIKeyID: workspaceAccessTenantAuditActorAPIKeyID(actor.APIKeyID),
+		Action:        strings.TrimSpace(input.Action),
+		Metadata:      metadata,
+		CreatedAt:     time.Now().UTC(),
+	})
+	return err
 }
 
 func (s *WorkspaceAccessService) PreviewWorkspaceInvitation(token, currentUserEmail string) (WorkspaceInvitationPreview, error) {

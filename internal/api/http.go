@@ -2241,13 +2241,15 @@ func (s *Server) handleInternalTenantMembers(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		var req struct {
-			Role string `json:"role"`
+			Role   string `json:"role"`
+			Reason string `json:"reason,omitempty"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		member, err := s.workspaceAccessService.UpdateWorkspaceMemberRole(tenantID, userID, req.Role)
+		principal, _ := principalFromContext(r.Context())
+		member, err := s.workspaceAccessService.UpdateWorkspaceMemberRoleWithAudit(tenantID, userID, req.Role, workspaceAccessAuditActorFromPrincipal(principal, req.Reason))
 		if err != nil {
 			writeDomainError(w, err)
 			return
@@ -2258,7 +2260,8 @@ func (s *Server) handleInternalTenantMembers(w http.ResponseWriter, r *http.Requ
 			writeError(w, http.StatusBadRequest, "user id is required")
 			return
 		}
-		if err := s.workspaceAccessService.RemoveWorkspaceMember(tenantID, userID); err != nil {
+		principal, _ := principalFromContext(r.Context())
+		if err := s.workspaceAccessService.RemoveWorkspaceMemberWithAudit(tenantID, userID, workspaceAccessAuditActorFromPrincipal(principal, strings.TrimSpace(r.URL.Query().Get("reason")))); err != nil {
 			writeDomainError(w, err)
 			return
 		}
@@ -2292,7 +2295,17 @@ func (s *Server) handleInternalTenantInvitations(w http.ResponseWriter, r *http.
 	case http.MethodPost:
 		if invitationID != "" || subaction != "" {
 			if invitationID != "" && subaction == "revoke" {
-				invite, err := s.workspaceAccessService.RevokeWorkspaceInvitation(tenantID, invitationID)
+				var req struct {
+					Reason string `json:"reason,omitempty"`
+				}
+				if r.ContentLength != 0 {
+					if err := decodeJSON(r, &req); err != nil {
+						writeError(w, http.StatusBadRequest, err.Error())
+						return
+					}
+				}
+				principal, _ := principalFromContext(r.Context())
+				invite, err := s.workspaceAccessService.RevokeWorkspaceInvitationWithAudit(tenantID, invitationID, workspaceAccessAuditActorFromPrincipal(principal, req.Reason))
 				if err != nil {
 					writeDomainError(w, err)
 					return
@@ -4002,6 +4015,18 @@ func parseCustomerPath(path string) (externalID string, action string, subaction
 		subaction = strings.TrimSpace(parts[2])
 	}
 	return externalID, action, subaction
+}
+
+func workspaceAccessAuditActorFromPrincipal(principal Principal, reason string) service.WorkspaceAccessAuditActor {
+	return service.WorkspaceAccessAuditActor{
+		SubjectType:  strings.TrimSpace(principal.SubjectType),
+		SubjectID:    strings.TrimSpace(principal.SubjectID),
+		UserEmail:    strings.TrimSpace(principal.UserEmail),
+		Scope:        strings.TrimSpace(string(principal.Scope)),
+		PlatformRole: strings.TrimSpace(string(principal.PlatformRole)),
+		APIKeyID:     strings.TrimSpace(principal.APIKeyID),
+		Reason:       strings.TrimSpace(reason),
+	}
 }
 
 func metricsTenantKey(principal Principal) string {

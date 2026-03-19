@@ -520,9 +520,9 @@ func normalizeTenantAuditAction(v string) (string, error) {
 		return "", nil
 	}
 	switch value {
-	case "created", "status_changed", "updated":
+	case "created", "status_changed", "updated", "payment_setup_requested", "payment_setup_resent", "workspace_member_role_changed", "workspace_member_disabled", "workspace_member_reactivated", "workspace_invitation_revoked":
 		return value, nil
 	default:
-		return "", fmt.Errorf("%w: action must be one of created, status_changed, updated", ErrValidation)
+		return "", fmt.Errorf("%w: unsupported tenant audit action", ErrValidation)
 	}
 }
