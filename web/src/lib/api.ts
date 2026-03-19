@@ -12,11 +12,13 @@ import {
   SubscriptionSummary,
   CustomerOnboardingResult,
   CustomerReadiness,
+  CreditNoteSummary,
   InvoiceExplainability,
   InvoiceDetail,
   NotificationDispatchResult,
   PaymentDetail,
   PaymentFilters,
+  PaymentReceiptSummary,
   PaymentSummary,
   InvoicePaymentLifecycle,
   InvoicePaymentStatusView,
@@ -1396,6 +1398,40 @@ export async function fetchInvoiceDetail(input: {
   return payload;
 }
 
+export async function fetchInvoicePaymentReceipts(input: {
+  runtimeBaseURL?: string;
+  invoiceID: string;
+}): Promise<PaymentReceiptSummary[]> {
+  const payload = await apiRequest<{ items: PaymentReceiptSummary[] }>(
+    `/v1/invoices/${encodeURIComponent(input.invoiceID)}/payment-receipts`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.items;
+}
+
+export async function fetchInvoiceCreditNotes(input: {
+  runtimeBaseURL?: string;
+  invoiceID: string;
+}): Promise<CreditNoteSummary[]> {
+  const payload = await apiRequest<{ items: CreditNoteSummary[] }>(
+    `/v1/invoices/${encodeURIComponent(input.invoiceID)}/credit-notes`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.items;
+}
+
 export async function fetchInvoiceStatuses(input: {
   runtimeBaseURL?: string;
   filters: InvoiceStatusFilters;
@@ -1530,6 +1566,60 @@ export async function resendInvoiceEmail(input: {
 }): Promise<NotificationDispatchResult> {
   const payload = await apiRequest<NotificationDispatchResult>(
     `/v1/invoices/${encodeURIComponent(input.invoiceID)}/resend-email`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        to: input.to,
+        cc: input.cc,
+        bcc: input.bcc,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function resendPaymentReceiptEmail(input: {
+  runtimeBaseURL?: string;
+  paymentReceiptID: string;
+  csrfToken: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+}): Promise<NotificationDispatchResult> {
+  const payload = await apiRequest<NotificationDispatchResult>(
+    `/v1/payment-receipts/${encodeURIComponent(input.paymentReceiptID)}/resend-email`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        to: input.to,
+        cc: input.cc,
+        bcc: input.bcc,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function resendCreditNoteEmail(input: {
+  runtimeBaseURL?: string;
+  creditNoteID: string;
+  csrfToken: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+}): Promise<NotificationDispatchResult> {
+  const payload = await apiRequest<NotificationDispatchResult>(
+    `/v1/credit-notes/${encodeURIComponent(input.creditNoteID)}/resend-email`,
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "POST",

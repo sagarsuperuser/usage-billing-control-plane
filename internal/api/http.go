@@ -1847,6 +1847,12 @@ func normalizeMetricsRoute(path string) string {
 		if strings.HasSuffix(tail, "/resend-email") {
 			return "/v1/invoices/{id}/resend-email"
 		}
+		if strings.HasSuffix(tail, "/payment-receipts") {
+			return "/v1/invoices/{id}/payment-receipts"
+		}
+		if strings.HasSuffix(tail, "/credit-notes") {
+			return "/v1/invoices/{id}/credit-notes"
+		}
 		if strings.HasSuffix(tail, "/explainability") {
 			return "/v1/invoices/{id}/explainability"
 		}
@@ -4613,6 +4619,14 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	invoiceID := strings.TrimSpace(parts[0])
+	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "payment-receipts") {
+		s.handleInvoicePaymentReceipts(w, r, invoiceID)
+		return
+	}
+	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "credit-notes") {
+		s.handleInvoiceCreditNotes(w, r, invoiceID)
+		return
+	}
 	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "retry-payment") {
 		if s.invoiceBillingAdapter == nil {
 			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
@@ -4641,54 +4655,7 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "resend-email") {
-		if s.notificationService == nil || !s.notificationService.CanResendInvoiceEmail() {
-			writeError(w, http.StatusServiceUnavailable, "invoice notification delivery is not configured")
-			return
-		}
-		if r.Method != http.MethodPost {
-			writeMethodNotAllowed(w)
-			return
-		}
-
-		var req resendInvoiceEmailRequest
-		rawBody, err := io.ReadAll(r.Body)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
-			return
-		}
-		if len(strings.TrimSpace(string(rawBody))) > 0 {
-			if err := json.Unmarshal(rawBody, &req); err != nil {
-				writeError(w, http.StatusBadRequest, "request body must be valid json")
-				return
-			}
-		}
-
-		dispatched, err := s.notificationService.ResendInvoiceEmail(r.Context(), invoiceID, service.BillingDocumentEmail{
-			To:  req.To,
-			Cc:  req.Cc,
-			Bcc: req.Bcc,
-		})
-		if err != nil {
-			var dispatchErr *service.NotificationDispatchError
-			if errors.As(err, &dispatchErr) {
-				status := dispatchErr.StatusCode
-				if status <= 0 {
-					status = http.StatusBadGateway
-				}
-				writeError(w, status, dispatchErr.Message)
-				return
-			}
-			writeDomainError(w, err)
-			return
-		}
-
-		writeJSON(w, http.StatusAccepted, billingNotificationDispatchResponse{
-			DispatchedAt: dispatched.DispatchedAt,
-			Dispatched:   true,
-			Action:       dispatched.Action,
-			Domain:       dispatched.Domain,
-			Backend:      dispatched.Backend,
-		})
+		s.handleInvoiceResendEmail(w, r, invoiceID)
 		return
 	}
 	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "explainability") {

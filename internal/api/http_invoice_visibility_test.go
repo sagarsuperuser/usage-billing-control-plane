@@ -219,3 +219,188 @@ func TestInvoiceDetailEndpointReturnsNormalizedDetail(t *testing.T) {
 		t.Fatalf("expected payment_status failed, got %q", got)
 	}
 }
+
+func TestInvoicePaymentReceiptsEndpointReturnsLinkedReceipts(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
+
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/payment_receipts" && r.URL.Query().Get("invoice_id") == "inv_123" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"payment_receipts": [{
+					"lago_id": "pr_123",
+					"number": "PR-123",
+					"file_url": "https://files.test/pr_123.pdf",
+					"xml_url": "https://files.test/pr_123.xml",
+					"created_at": "2026-03-02T00:00:00Z",
+					"payment": {
+						"lago_id": "pay_123",
+						"invoice_ids": ["inv_123"],
+						"amount_cents": 12500,
+						"amount_currency": "USD",
+						"payment_status": "succeeded"
+					}
+				}]
+			}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer lago.Close()
+
+	transport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(transport)),
+	).Handler())
+	defer ts.Close()
+
+	resp := getJSON(t, ts.URL+"/v1/invoices/inv_123/payment-receipts", "tenant-a-reader", http.StatusOK)
+	items, ok := resp["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one payment receipt item, got %#v", resp["items"])
+	}
+	row, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected payment receipt row map, got %#v", items[0])
+	}
+	if got, _ := row["id"].(string); got != "pr_123" {
+		t.Fatalf("expected payment receipt id pr_123, got %q", got)
+	}
+	if got, _ := row["payment_status"].(string); got != "succeeded" {
+		t.Fatalf("expected payment_status succeeded, got %q", got)
+	}
+}
+
+func TestInvoiceCreditNotesEndpointReturnsInvoiceScopedNotes(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
+
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/invoices/inv_123":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"invoice": {
+					"lago_id": "inv_123",
+					"customer": {
+						"external_id": "cust_123"
+					}
+				}
+			}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/credit_notes" && r.URL.Query().Get("external_customer_id") == "cust_123":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"credit_notes": [
+					{
+						"lago_id": "cn_123",
+						"number": "CN-123",
+						"lago_invoice_id": "inv_123",
+						"invoice_number": "INV-123",
+						"credit_status": "available",
+						"refund_status": "pending",
+						"currency": "USD",
+						"total_amount_cents": 2400,
+						"created_at": "2026-03-03T00:00:00Z"
+					},
+					{
+						"lago_id": "cn_other",
+						"number": "CN-999",
+						"lago_invoice_id": "inv_other",
+						"invoice_number": "INV-999",
+						"credit_status": "available",
+						"refund_status": "pending",
+						"currency": "USD",
+						"total_amount_cents": 1200,
+						"created_at": "2026-03-04T00:00:00Z"
+					}
+				]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(transport)),
+	).Handler())
+	defer ts.Close()
+
+	resp := getJSON(t, ts.URL+"/v1/invoices/inv_123/credit-notes", "tenant-a-reader", http.StatusOK)
+	items, ok := resp["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one credit note item, got %#v", resp["items"])
+	}
+	row, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected credit note row map, got %#v", items[0])
+	}
+	if got, _ := row["id"].(string); got != "cn_123" {
+		t.Fatalf("expected credit note id cn_123, got %q", got)
+	}
+	if got, _ := row["invoice_id"].(string); got != "inv_123" {
+		t.Fatalf("expected invoice_id inv_123, got %q", got)
+	}
+}

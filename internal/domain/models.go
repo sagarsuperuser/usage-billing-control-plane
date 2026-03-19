@@ -601,7 +601,6 @@ type InvoiceSummaryList struct {
 	Filters map[string]any   `json:"filters,omitempty"`
 }
 
-
 type InvoiceDetail struct {
 	InvoiceSummary
 	LagoID            string         `json:"lago_id,omitempty"`
@@ -620,6 +619,34 @@ type InvoiceDetail struct {
 	Metadata          []any          `json:"metadata,omitempty"`
 	AppliedTaxes      []any          `json:"applied_taxes,omitempty"`
 	Raw               map[string]any `json:"raw,omitempty"`
+}
+
+type PaymentReceiptSummary struct {
+	ID            string     `json:"id"`
+	Number        string     `json:"number,omitempty"`
+	InvoiceID     string     `json:"invoice_id,omitempty"`
+	PaymentID     string     `json:"payment_id,omitempty"`
+	PaymentStatus string     `json:"payment_status,omitempty"`
+	AmountCents   *int64     `json:"amount_cents,omitempty"`
+	Currency      string     `json:"currency,omitempty"`
+	FileURL       string     `json:"file_url,omitempty"`
+	XMLURL        string     `json:"xml_url,omitempty"`
+	CreatedAt     *time.Time `json:"created_at,omitempty"`
+}
+
+type CreditNoteSummary struct {
+	ID               string     `json:"id"`
+	Number           string     `json:"number,omitempty"`
+	InvoiceID        string     `json:"invoice_id,omitempty"`
+	InvoiceNumber    string     `json:"invoice_number,omitempty"`
+	CreditStatus     string     `json:"credit_status,omitempty"`
+	RefundStatus     string     `json:"refund_status,omitempty"`
+	Currency         string     `json:"currency,omitempty"`
+	TotalAmountCents *int64     `json:"total_amount_cents,omitempty"`
+	FileURL          string     `json:"file_url,omitempty"`
+	XMLURL           string     `json:"xml_url,omitempty"`
+	IssuingDate      *time.Time `json:"issuing_date,omitempty"`
+	CreatedAt        *time.Time `json:"created_at,omitempty"`
 }
 
 type ServiceAccount struct {

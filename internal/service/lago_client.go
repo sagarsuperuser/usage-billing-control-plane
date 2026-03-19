@@ -35,6 +35,8 @@ type MeterSyncAdapter interface {
 
 type InvoiceBillingAdapter interface {
 	ListInvoices(ctx context.Context, query url.Values) (int, []byte, error)
+	ListPaymentReceipts(ctx context.Context, query url.Values) (int, []byte, error)
+	ListCreditNotes(ctx context.Context, query url.Values) (int, []byte, error)
 	PreviewInvoice(ctx context.Context, payload []byte) (int, []byte, error)
 	RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error)
 	GetInvoice(ctx context.Context, invoiceID string) (int, []byte, error)
@@ -141,11 +143,23 @@ func NewLagoInvoiceAdapter(transport *LagoHTTPTransport) *LagoInvoiceAdapter {
 }
 
 func (a *LagoInvoiceAdapter) ListInvoices(ctx context.Context, query url.Values) (int, []byte, error) {
+	return a.listCollection(ctx, "/api/v1/invoices", query, `{"invoices":[]}`)
+}
+
+func (a *LagoInvoiceAdapter) ListPaymentReceipts(ctx context.Context, query url.Values) (int, []byte, error) {
+	return a.listCollection(ctx, "/api/v1/payment_receipts", query, `{"payment_receipts":[]}`)
+}
+
+func (a *LagoInvoiceAdapter) ListCreditNotes(ctx context.Context, query url.Values) (int, []byte, error) {
+	return a.listCollection(ctx, "/api/v1/credit_notes", query, `{"credit_notes":[]}`)
+}
+
+func (a *LagoInvoiceAdapter) listCollection(ctx context.Context, basePath string, query url.Values, emptyResponse string) (int, []byte, error) {
 	if a == nil || a.transport == nil {
 		return 0, nil, fmt.Errorf("%w: lago invoice adapter is required", ErrValidation)
 	}
 
-	path := "/api/v1/invoices"
+	path := basePath
 	if encoded := strings.TrimSpace(query.Encode()); encoded != "" {
 		path += "?" + encoded
 	}
@@ -155,7 +169,7 @@ func (a *LagoInvoiceAdapter) ListInvoices(ctx context.Context, query url.Values)
 		return 0, nil, err
 	}
 	if len(body) == 0 {
-		body = []byte(`{"invoices":[]}`)
+		body = []byte(emptyResponse)
 	}
 	if !json.Valid(body) {
 		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))

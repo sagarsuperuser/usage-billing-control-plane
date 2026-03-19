@@ -57,6 +57,34 @@ export interface InvoiceDetail extends InvoiceSummary {
   applied_taxes?: unknown[];
 }
 
+export interface PaymentReceiptSummary {
+  id: string;
+  number?: string;
+  invoice_id?: string;
+  payment_id?: string;
+  payment_status?: string;
+  amount_cents?: number;
+  currency?: string;
+  file_url?: string;
+  xml_url?: string;
+  created_at?: string;
+}
+
+export interface CreditNoteSummary {
+  id: string;
+  number?: string;
+  invoice_id?: string;
+  invoice_number?: string;
+  credit_status?: string;
+  refund_status?: string;
+  currency?: string;
+  total_amount_cents?: number;
+  file_url?: string;
+  xml_url?: string;
+  issuing_date?: string;
+  created_at?: string;
+}
+
 export interface NotificationDispatchResult {
   dispatched_at: string;
   dispatched: boolean;

@@ -10,8 +10,61 @@ import (
 	"usage-billing-control-plane/internal/service"
 )
 
+func (s *Server) handleInvoiceResendEmail(w http.ResponseWriter, r *http.Request, invoiceID string) {
+	if s.notificationService == nil || !s.notificationService.CanResendInvoiceEmail() {
+		writeError(w, http.StatusServiceUnavailable, "invoice notification delivery is not configured")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	var req resendInvoiceEmailRequest
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(strings.TrimSpace(string(rawBody))) > 0 {
+		if err := json.Unmarshal(rawBody, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "request body must be valid json")
+			return
+		}
+	}
+
+	dispatched, err := s.notificationService.ResendInvoiceEmail(r.Context(), invoiceID, service.BillingDocumentEmail{
+		To:  req.To,
+		Cc:  req.Cc,
+		Bcc: req.Bcc,
+	})
+	if err != nil {
+		s.logBillingNotificationDispatch(r, "invoice", invoiceID, req, service.NotificationDispatchResult{}, err)
+		var dispatchErr *service.NotificationDispatchError
+		if errors.As(err, &dispatchErr) {
+			status := dispatchErr.StatusCode
+			if status <= 0 {
+				status = http.StatusBadGateway
+			}
+			writeError(w, status, dispatchErr.Message)
+			return
+		}
+		writeDomainError(w, err)
+		return
+	}
+
+	s.logBillingNotificationDispatch(r, "invoice", invoiceID, req, dispatched, nil)
+	writeJSON(w, http.StatusAccepted, billingNotificationDispatchResponse{
+		DispatchedAt: dispatched.DispatchedAt,
+		Dispatched:   true,
+		Action:       dispatched.Action,
+		Domain:       dispatched.Domain,
+		Backend:      dispatched.Backend,
+	})
+}
+
 func (s *Server) handlePaymentReceiptByID(w http.ResponseWriter, r *http.Request) {
-	s.handleBillingDocumentNotificationByID(w, r, "/v1/payment-receipts/", "payment receipt", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
+	s.handleBillingDocumentNotificationByID(w, r, "/v1/payment-receipts/", "payment receipt", "payment_receipt", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
 		return s.notificationService.ResendPaymentReceiptEmail(r.Context(), id, service.BillingDocumentEmail{
 			To:  req.To,
 			Cc:  req.Cc,
@@ -21,7 +74,7 @@ func (s *Server) handlePaymentReceiptByID(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleCreditNoteByID(w http.ResponseWriter, r *http.Request) {
-	s.handleBillingDocumentNotificationByID(w, r, "/v1/credit-notes/", "credit note", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
+	s.handleBillingDocumentNotificationByID(w, r, "/v1/credit-notes/", "credit note", "credit_note", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
 		return s.notificationService.ResendCreditNoteEmail(r.Context(), id, service.BillingDocumentEmail{
 			To:  req.To,
 			Cc:  req.Cc,
@@ -35,6 +88,7 @@ func (s *Server) handleBillingDocumentNotificationByID(
 	r *http.Request,
 	prefix string,
 	resourceLabel string,
+	resourceType string,
 	dispatch func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error),
 ) {
 	tail := strings.TrimPrefix(r.URL.Path, prefix)
@@ -67,6 +121,7 @@ func (s *Server) handleBillingDocumentNotificationByID(
 
 	dispatched, err := dispatch(strings.TrimSpace(parts[0]), req)
 	if err != nil {
+		s.logBillingNotificationDispatch(r, resourceType, strings.TrimSpace(parts[0]), req, service.NotificationDispatchResult{}, err)
 		var dispatchErr *service.NotificationDispatchError
 		if errors.As(err, &dispatchErr) {
 			status := dispatchErr.StatusCode
@@ -79,6 +134,7 @@ func (s *Server) handleBillingDocumentNotificationByID(
 		writeDomainError(w, err)
 		return
 	}
+	s.logBillingNotificationDispatch(r, resourceType, strings.TrimSpace(parts[0]), req, dispatched, nil)
 
 	writeJSON(w, http.StatusAccepted, billingNotificationDispatchResponse{
 		DispatchedAt: dispatched.DispatchedAt,
@@ -87,4 +143,56 @@ func (s *Server) handleBillingDocumentNotificationByID(
 		Domain:       dispatched.Domain,
 		Backend:      dispatched.Backend,
 	})
+}
+
+func (s *Server) logBillingNotificationDispatch(
+	r *http.Request,
+	resourceType string,
+	resourceID string,
+	req resendInvoiceEmailRequest,
+	dispatched service.NotificationDispatchResult,
+	err error,
+) {
+	if s == nil || s.logger == nil {
+		return
+	}
+
+	attrs := []any{
+		"component", "api",
+		"request_id", requestIDFromContext(r.Context()),
+		"tenant_id", requestTenantID(r),
+		"path", r.URL.Path,
+		"method", r.Method,
+		"resource_type", strings.TrimSpace(resourceType),
+		"resource_id", strings.TrimSpace(resourceID),
+		"to_count", len(req.To),
+		"cc_count", len(req.Cc),
+		"bcc_count", len(req.Bcc),
+	}
+	if dispatched.Action != "" {
+		attrs = append(attrs,
+			"action", dispatched.Action,
+			"domain", dispatched.Domain,
+			"backend", dispatched.Backend,
+			"dispatched_at", dispatched.DispatchedAt,
+		)
+	}
+
+	if err != nil {
+		attrs = append(attrs, "event", "billing_notification_dispatch_failed", "error", err.Error())
+		var dispatchErr *service.NotificationDispatchError
+		if errors.As(err, &dispatchErr) {
+			if dispatchErr.StatusCode > 0 {
+				attrs = append(attrs, "backend_status", dispatchErr.StatusCode)
+			}
+			if strings.TrimSpace(dispatchErr.Backend) != "" {
+				attrs = append(attrs, "backend", dispatchErr.Backend)
+			}
+		}
+		s.logger.Warn("billing notification dispatch failed", attrs...)
+		return
+	}
+
+	attrs = append(attrs, "event", "billing_notification_dispatched")
+	s.logger.Info("billing notification dispatched", attrs...)
 }

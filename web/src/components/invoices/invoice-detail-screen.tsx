@@ -8,7 +8,15 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchInvoiceDetail, resendInvoiceEmail, retryInvoicePayment } from "@/lib/api";
+import {
+  fetchInvoiceCreditNotes,
+  fetchInvoiceDetail,
+  fetchInvoicePaymentReceipts,
+  resendCreditNoteEmail,
+  resendInvoiceEmail,
+  resendPaymentReceiptEmail,
+  retryInvoicePayment,
+} from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -23,6 +31,16 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   const invoiceQuery = useQuery({
     queryKey: ["invoice-detail", apiBaseURL, invoiceID],
     queryFn: () => fetchInvoiceDetail({ runtimeBaseURL: apiBaseURL, invoiceID }),
+    enabled: isAuthenticated && scope === "tenant" && invoiceID.trim().length > 0,
+  });
+  const paymentReceiptsQuery = useQuery({
+    queryKey: ["invoice-payment-receipts", apiBaseURL, invoiceID],
+    queryFn: () => fetchInvoicePaymentReceipts({ runtimeBaseURL: apiBaseURL, invoiceID }),
+    enabled: isAuthenticated && scope === "tenant" && invoiceID.trim().length > 0,
+  });
+  const creditNotesQuery = useQuery({
+    queryKey: ["invoice-credit-notes", apiBaseURL, invoiceID],
+    queryFn: () => fetchInvoiceCreditNotes({ runtimeBaseURL: apiBaseURL, invoiceID }),
     enabled: isAuthenticated && scope === "tenant" && invoiceID.trim().length > 0,
   });
 
@@ -145,6 +163,78 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked billing documents</p>
+                  <div className="mt-5 grid gap-6">
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-sm font-semibold text-slate-950">Payment receipts</h2>
+                        <span className="text-xs text-slate-500">{paymentReceiptsQuery.data?.length ?? 0} linked</span>
+                      </div>
+                      <div className="mt-3 grid gap-3">
+                        {paymentReceiptsQuery.isLoading ? (
+                          <InlineLoadingState label="Loading linked payment receipts" />
+                        ) : paymentReceiptsQuery.isError ? (
+                          <InlineErrorState label="Payment receipts could not be loaded." />
+                        ) : paymentReceiptsQuery.data && paymentReceiptsQuery.data.length > 0 ? (
+                          paymentReceiptsQuery.data.map((item) => (
+                            <BillingDocumentRow
+                              key={item.id}
+                              title={item.number || item.id}
+                              subtitle={item.payment_status ? `Payment ${formatState(item.payment_status)}` : "Linked payment receipt"}
+                              meta={[
+                                item.amount_cents !== undefined ? formatMoney(item.amount_cents, item.currency || invoice.currency || "USD") : undefined,
+                                formatExactTimestamp(item.created_at),
+                              ]}
+                              fileURL={item.file_url}
+                              resendLabel="Resend receipt email"
+                              canWrite={canWrite && Boolean(csrfToken)}
+                              onResend={() => resendPaymentReceiptEmail({ runtimeBaseURL: apiBaseURL, csrfToken, paymentReceiptID: item.id })}
+                            />
+                          ))
+                        ) : (
+                          <EmptyLinkedDocumentState label="No payment receipts are linked to this invoice yet." />
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-sm font-semibold text-slate-950">Credit notes</h2>
+                        <span className="text-xs text-slate-500">{creditNotesQuery.data?.length ?? 0} linked</span>
+                      </div>
+                      <div className="mt-3 grid gap-3">
+                        {creditNotesQuery.isLoading ? (
+                          <InlineLoadingState label="Loading linked credit notes" />
+                        ) : creditNotesQuery.isError ? (
+                          <InlineErrorState label="Credit notes could not be loaded." />
+                        ) : creditNotesQuery.data && creditNotesQuery.data.length > 0 ? (
+                          creditNotesQuery.data.map((item) => (
+                            <BillingDocumentRow
+                              key={item.id}
+                              title={item.number || item.id}
+                              subtitle={[
+                                item.credit_status ? `Credit ${formatState(item.credit_status)}` : "",
+                                item.refund_status ? `Refund ${formatState(item.refund_status)}` : "",
+                              ].filter(Boolean).join(" • ") || "Linked credit note"}
+                              meta={[
+                                item.total_amount_cents !== undefined ? formatMoney(item.total_amount_cents, item.currency || invoice.currency || "USD") : undefined,
+                                formatExactTimestamp(item.issuing_date || item.created_at),
+                              ]}
+                              fileURL={item.file_url}
+                              resendLabel="Resend credit note email"
+                              canWrite={canWrite && Boolean(csrfToken)}
+                              onResend={() => resendCreditNoteEmail({ runtimeBaseURL: apiBaseURL, csrfToken, creditNoteID: item.id })}
+                            />
+                          ))
+                        ) : (
+                          <EmptyLinkedDocumentState label="No credit notes are linked to this invoice." />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Advanced actions</p>
                   {resendEmailMutation.isSuccess ? (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
@@ -218,6 +308,98 @@ function LoadingPanel({ label }: { label: string }) {
         {label}
       </div>
     </section>
+  );
+}
+
+function InlineLoadingState({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      <LoaderCircle className="h-4 w-4 animate-spin" />
+      {label}
+    </div>
+  );
+}
+
+function InlineErrorState({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      {label}
+    </div>
+  );
+}
+
+function EmptyLinkedDocumentState({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      {label}
+    </div>
+  );
+}
+
+function BillingDocumentRow({
+  title,
+  subtitle,
+  meta,
+  fileURL,
+  resendLabel,
+  canWrite,
+  onResend,
+}: {
+  title: string;
+  subtitle: string;
+  meta: Array<string | undefined>;
+  fileURL?: string;
+  resendLabel: string;
+  canWrite: boolean;
+  onResend: () => Promise<unknown>;
+}) {
+  const resendMutation = useMutation({
+    mutationFn: onResend,
+  });
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-950">{title}</p>
+          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+            {meta.filter(Boolean).map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+          {resendMutation.isSuccess ? (
+            <p className="mt-2 text-xs text-emerald-700">Email dispatch accepted.</p>
+          ) : null}
+          {resendMutation.isError ? (
+            <p className="mt-2 text-xs text-amber-700">
+              {resendMutation.error instanceof Error ? resendMutation.error.message : "Dispatch failed."}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {fileURL ? (
+            <a
+              href={fileURL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition hover:bg-slate-100"
+            >
+              Open file
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => resendMutation.mutate()}
+            disabled={!canWrite || resendMutation.isPending}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {resendMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            {resendLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

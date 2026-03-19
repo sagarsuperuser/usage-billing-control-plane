@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -147,6 +148,110 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 	return statusCode, body, buildInvoiceDetail(invoicePayload, view, customer), nil
 }
 
+func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Request, invoiceID string) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
+		return
+	}
+
+	statusCode, body, err := s.invoiceBillingAdapter.ListPaymentReceipts(r.Context(), url.Values{
+		"invoice_id": []string{invoiceID},
+	})
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "failed to load payment receipts from lago: "+err.Error())
+		return
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		writeJSONRaw(w, statusCode, body)
+		return
+	}
+
+	items, err := extractCollectionPayload(body, "payment_receipts")
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": buildPaymentReceiptSummaries(items),
+	})
+}
+
+func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request, invoiceID string) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
+		return
+	}
+
+	customerExternalID, statusCode, body, err := s.loadInvoiceCustomerExternalID(r.Context(), invoiceID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		writeJSONRaw(w, statusCode, body)
+		return
+	}
+	if customerExternalID == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []domain.CreditNoteSummary{}})
+		return
+	}
+
+	statusCode, body, err = s.invoiceBillingAdapter.ListCreditNotes(r.Context(), url.Values{
+		"external_customer_id": []string{customerExternalID},
+	})
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "failed to load credit notes from lago: "+err.Error())
+		return
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		writeJSONRaw(w, statusCode, body)
+		return
+	}
+
+	items, err := extractCollectionPayload(body, "credit_notes")
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	summaries := buildCreditNoteSummaries(items)
+	filtered := make([]domain.CreditNoteSummary, 0, len(summaries))
+	for _, item := range summaries {
+		if strings.TrimSpace(item.InvoiceID) == invoiceID {
+			filtered = append(filtered, item)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": filtered,
+	})
+}
+
+func (s *Server) loadInvoiceCustomerExternalID(ctx context.Context, invoiceID string) (string, int, []byte, error) {
+	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
+	if err != nil {
+		return "", 0, nil, err
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return "", statusCode, body, nil
+	}
+
+	invoicePayload, err := extractInvoicePayload(body)
+	if err != nil {
+		return "", 0, nil, err
+	}
+	return invoiceCustomerExternalID(invoicePayload), statusCode, body, nil
+}
+
 func (s *Server) lookupInvoiceCustomer(tenantID, externalID string, cache map[string]*domain.Customer) (*domain.Customer, error) {
 	externalID = strings.TrimSpace(externalID)
 	if externalID == "" {
@@ -178,6 +283,26 @@ func extractInvoicePayload(body []byte) (map[string]any, error) {
 		return nil, fmt.Errorf("%w: invoice payload missing invoice object", service.ErrValidation)
 	}
 	return invoice, nil
+}
+
+func extractCollectionPayload(body []byte, key string) ([]map[string]any, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("%w: invalid collection payload", service.ErrValidation)
+	}
+	rawItems, ok := payload[key].([]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: collection payload missing %s", service.ErrValidation, key)
+	}
+	items := make([]map[string]any, 0, len(rawItems))
+	for _, raw := range rawItems {
+		row, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("%w: collection payload contains invalid %s item", service.ErrValidation, key)
+		}
+		items = append(items, row)
+	}
+	return items, nil
 }
 
 func invoiceSummaryFromStatusView(view domain.InvoicePaymentStatusView, customer *domain.Customer) domain.InvoiceSummary {
@@ -257,6 +382,48 @@ func buildInvoiceDetail(invoice map[string]any, view *domain.InvoicePaymentStatu
 	return out
 }
 
+func buildPaymentReceiptSummaries(items []map[string]any) []domain.PaymentReceiptSummary {
+	out := make([]domain.PaymentReceiptSummary, 0, len(items))
+	for _, item := range items {
+		payment := objectValue(item["payment"])
+		invoiceIDs := stringSliceValue(payment["invoice_ids"])
+		out = append(out, domain.PaymentReceiptSummary{
+			ID:            stringValue(item["lago_id"]),
+			Number:        stringValue(item["number"]),
+			InvoiceID:     firstString(invoiceIDs...),
+			PaymentID:     stringValue(payment["lago_id"]),
+			PaymentStatus: stringValue(payment["payment_status"]),
+			AmountCents:   int64Ptr(payment["amount_cents"]),
+			Currency:      firstNonEmpty(stringValue(payment["amount_currency"]), stringValue(payment["currency"])),
+			FileURL:       stringValue(item["file_url"]),
+			XMLURL:        stringValue(item["xml_url"]),
+			CreatedAt:     timeValue(item["created_at"]),
+		})
+	}
+	return out
+}
+
+func buildCreditNoteSummaries(items []map[string]any) []domain.CreditNoteSummary {
+	out := make([]domain.CreditNoteSummary, 0, len(items))
+	for _, item := range items {
+		out = append(out, domain.CreditNoteSummary{
+			ID:               stringValue(item["lago_id"]),
+			Number:           stringValue(item["number"]),
+			InvoiceID:        stringValue(item["lago_invoice_id"]),
+			InvoiceNumber:    stringValue(item["invoice_number"]),
+			CreditStatus:     stringValue(item["credit_status"]),
+			RefundStatus:     stringValue(item["refund_status"]),
+			Currency:         stringValue(item["currency"]),
+			TotalAmountCents: int64Ptr(item["total_amount_cents"]),
+			FileURL:          stringValue(item["file_url"]),
+			XMLURL:           stringValue(item["xml_url"]),
+			IssuingDate:      timeValue(item["issuing_date"]),
+			CreatedAt:        timeValue(item["created_at"]),
+		})
+	}
+	return out
+}
+
 func objectValue(v any) map[string]any {
 	if value, ok := v.(map[string]any); ok {
 		return value
@@ -278,6 +445,20 @@ func stringValue(v any) string {
 	default:
 		return ""
 	}
+}
+
+func stringSliceValue(v any) []string {
+	items, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if value := stringValue(item); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func int64Ptr(v any) *int64 {
@@ -335,6 +516,10 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstString(values ...string) string {
+	return firstNonEmpty(values...)
 }
 
 func firstInt64Ptr(values ...*int64) *int64 {
