@@ -116,12 +116,14 @@ export interface ServiceAccount {
   name: string;
   description?: string;
   role: "reader" | "writer" | "admin";
+  status: "active" | "disabled";
   purpose?: string;
   environment?: string;
   created_by_user_id?: string;
   created_by_platform_user?: boolean;
   created_at: string;
   updated_at: string;
+  disabled_at?: string;
   active_credential_count: number;
   credentials: APIKey[];
 }

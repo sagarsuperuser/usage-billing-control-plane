@@ -1198,6 +1198,47 @@ func sessionGetJSON(t *testing.T, client *http.Client, url string, expectedStatu
 	return out
 }
 
+func sessionPatchJSON(t *testing.T, client *http.Client, url string, body any, csrfToken string, expectedStatus int) map[string]any {
+	t.Helper()
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if csrfToken != "" {
+		req.Header.Set("X-CSRF-Token", csrfToken)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("patch request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if resp.StatusCode != expectedStatus {
+		t.Fatalf("unexpected status %d, expected %d, body=%s", resp.StatusCode, expectedStatus, string(bodyBytes))
+	}
+
+	var out map[string]any
+	if len(bytes.TrimSpace(bodyBytes)) == 0 {
+		return out
+	}
+	if err := json.Unmarshal(bodyBytes, &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return out
+}
+
 func mustParseURL(t *testing.T, raw string) *url.URL {
 	t.Helper()
 

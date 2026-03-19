@@ -16,6 +16,7 @@ type serviceAccountStore interface {
 	GetServiceAccount(tenantID, id string) (domain.ServiceAccount, error)
 	GetServiceAccountByName(tenantID, name string) (domain.ServiceAccount, error)
 	ListServiceAccounts(filter store.ServiceAccountListFilter) ([]domain.ServiceAccount, error)
+	UpdateServiceAccount(input domain.ServiceAccount) (domain.ServiceAccount, error)
 	ListAPIKeys(filter store.APIKeyListFilter) (store.APIKeyListResult, error)
 	GetAPIKeyByID(tenantID, id string) (domain.APIKey, error)
 }
@@ -125,6 +126,7 @@ func (s *ServiceAccountService) CreateWorkspaceServiceAccount(workspaceID string
 		Name:                  name,
 		Description:           strings.TrimSpace(req.Description),
 		Role:                  role,
+		Status:                domain.ServiceAccountStatusActive,
 		Purpose:               strings.TrimSpace(req.Purpose),
 		Environment:           strings.TrimSpace(req.Environment),
 		CreatedByUserID:       strings.TrimSpace(actor.UserID),
@@ -161,6 +163,12 @@ func (s *ServiceAccountService) EnsureBootstrapServiceAccount(workspaceID, name 
 	}
 	account, err := s.store.GetServiceAccountByName(workspaceID, name)
 	if err == nil {
+		if account.Status == domain.ServiceAccountStatusDisabled {
+			account.Status = domain.ServiceAccountStatusActive
+			account.DisabledAt = nil
+			account.UpdatedAt = time.Now().UTC()
+			return s.store.UpdateServiceAccount(account)
+		}
 		return account, nil
 	}
 	if !errors.Is(err, store.ErrNotFound) {
@@ -171,12 +179,37 @@ func (s *ServiceAccountService) EnsureBootstrapServiceAccount(workspaceID, name 
 		Name:                  name,
 		Description:           "Bootstrap admin machine identity",
 		Role:                  string(domainTenantAdminRole),
+		Status:                domain.ServiceAccountStatusActive,
 		Purpose:               "Workspace bootstrap admin credential",
 		CreatedByUserID:       strings.TrimSpace(actor.UserID),
 		CreatedByPlatformUser: true,
 		CreatedAt:             time.Now().UTC(),
 		UpdatedAt:             time.Now().UTC(),
 	})
+}
+
+func (s *ServiceAccountService) SetWorkspaceServiceAccountStatus(workspaceID, serviceAccountID, status string) (domain.ServiceAccount, error) {
+	if s == nil || s.store == nil {
+		return domain.ServiceAccount{}, fmt.Errorf("%w: service account service is required", ErrValidation)
+	}
+	account, err := s.getServiceAccount(workspaceID, serviceAccountID)
+	if err != nil {
+		return domain.ServiceAccount{}, err
+	}
+	status = strings.ToLower(strings.TrimSpace(status))
+	switch status {
+	case domain.ServiceAccountStatusActive:
+		account.Status = domain.ServiceAccountStatusActive
+		account.DisabledAt = nil
+	case domain.ServiceAccountStatusDisabled:
+		account.Status = domain.ServiceAccountStatusDisabled
+		now := time.Now().UTC()
+		account.DisabledAt = &now
+	default:
+		return domain.ServiceAccount{}, fmt.Errorf("%w: invalid status", ErrValidation)
+	}
+	account.UpdatedAt = time.Now().UTC()
+	return s.store.UpdateServiceAccount(account)
 }
 
 func (s *ServiceAccountService) IssueBootstrapWorkspaceServiceAccountCredential(workspaceID, serviceAccountName string, actor APICredentialActor, expiresAt *time.Time) (CreateServiceAccountResult, error) {
@@ -203,6 +236,9 @@ func (s *ServiceAccountService) IssueWorkspaceServiceAccountCredential(workspace
 	account, err := s.getServiceAccount(workspaceID, serviceAccountID)
 	if err != nil {
 		return CreateAPIKeyResult{}, err
+	}
+	if account.Status != domain.ServiceAccountStatusActive {
+		return CreateAPIKeyResult{}, fmt.Errorf("%w: service account is disabled", ErrValidation)
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {

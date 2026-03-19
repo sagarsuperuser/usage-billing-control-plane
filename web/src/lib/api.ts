@@ -940,6 +940,26 @@ export async function revokeTenantWorkspaceServiceAccountCredential(input: {
   return payload.credential;
 }
 
+export async function updateTenantWorkspaceServiceAccountStatus(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  serviceAccountID: string;
+  status: "active" | "disabled";
+}): Promise<ServiceAccount> {
+  const payload = await apiRequest<{ service_account: ServiceAccount }>(`/v1/workspace/service-accounts/${encodeURIComponent(input.serviceAccountID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "PATCH",
+    csrfToken: input.csrfToken,
+    body: {
+      status: input.status,
+    },
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.service_account;
+}
+
 export async function fetchTenantWorkspaceServiceAccountAudit(input: {
   runtimeBaseURL?: string;
   serviceAccountID: string;

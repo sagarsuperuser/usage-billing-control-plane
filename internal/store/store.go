@@ -277,6 +277,7 @@ type Repository interface {
 	GetServiceAccount(tenantID, id string) (domain.ServiceAccount, error)
 	GetServiceAccountByName(tenantID, name string) (domain.ServiceAccount, error)
 	ListServiceAccounts(filter ServiceAccountListFilter) ([]domain.ServiceAccount, error)
+	UpdateServiceAccount(input domain.ServiceAccount) (domain.ServiceAccount, error)
 	GetUserFederatedIdentity(providerKey, subject string) (domain.UserFederatedIdentity, error)
 	UpsertUserFederatedIdentity(input domain.UserFederatedIdentity) (domain.UserFederatedIdentity, error)
 	CreateCustomer(input domain.Customer) (domain.Customer, error)

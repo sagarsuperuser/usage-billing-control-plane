@@ -10,6 +10,7 @@ import {
   RefreshCw,
   ServerCog,
   ShieldCheck,
+  ShieldOff,
   UserRound,
   UserX,
 } from "lucide-react";
@@ -34,6 +35,7 @@ import {
   revokeTenantWorkspaceServiceAccountCredential,
   rotateTenantWorkspaceServiceAccountCredential,
   updateTenantWorkspaceMember,
+  updateTenantWorkspaceServiceAccountStatus,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -177,6 +179,21 @@ export function TenantWorkspaceAccessScreen() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
+    },
+  });
+  const updateServiceAccountStatusMutation = useMutation({
+    mutationFn: (input: { serviceAccountID: string; status: "active" | "disabled" }) =>
+      updateTenantWorkspaceServiceAccountStatus({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        serviceAccountID: input.serviceAccountID,
+        status: input.status,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
+      await queryClient.invalidateQueries({
+        queryKey: ["tenant-workspace-service-account-audit", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
+      });
     },
   });
 
@@ -396,27 +413,43 @@ export function TenantWorkspaceAccessScreen() {
                             <ServerCog className="h-4 w-4 text-emerald-700" />
                             {account.name}
                           </p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{account.role} · {account.environment || "unspecified"} · {account.active_credential_count} active credential(s)</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{account.role} · {account.status} · {account.environment || "unspecified"} · {account.active_credential_count} active credential(s)</p>
                           {account.description ? <p className="mt-2 text-sm text-slate-600">{account.description}</p> : null}
                           {account.purpose ? <p className="mt-2 text-xs text-slate-500">Purpose: {account.purpose}</p> : null}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => issueCredentialMutation.mutate(account.id)}
-                          disabled={!csrfToken || issueCredentialMutation.isPending}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                          Issue credential
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedAuditServiceAccountID(account.id)}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
-                        >
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          View audit
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => issueCredentialMutation.mutate(account.id)}
+                            disabled={!csrfToken || issueCredentialMutation.isPending || account.status !== "active"}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                            Issue credential
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAuditServiceAccountID(account.id)}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            View audit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateServiceAccountStatusMutation.mutate({
+                                serviceAccountID: account.id,
+                                status: account.status === "active" ? "disabled" : "active",
+                              })
+                            }
+                            disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <ShieldOff className="h-3.5 w-3.5" />
+                            {account.status === "active" ? "Disable" : "Enable"}
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-4 grid gap-3">
                         {account.credentials.length > 0 ? (

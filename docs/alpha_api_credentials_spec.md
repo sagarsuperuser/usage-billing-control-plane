@@ -613,3 +613,18 @@ This is intentionally incremental:
 - workspace bootstrap now issues a bootstrap-classified credential attached to a service account instead of a bare key
 - service-account audit and export are now expressed through service-account routes while the old raw `/v1/api-keys*` endpoints remain compatibility-only
 - a later slice can enforce service-account status in runtime auth once service-account lifecycle controls are expanded
+
+## Migration note: service_account_status
+
+`0033_service_account_status` makes machine identity lifecycle enforceable.
+
+It adds:
+- `service_accounts.status`
+- `service_accounts.disabled_at`
+
+This changes the security posture:
+- service-account-backed credentials continue to authenticate through `api_keys`
+- but runtime auth now rejects credentials whose owning service account is disabled
+- workspace admins can explicitly disable or re-enable a service account from the browser-admin surface
+
+This is the point where service-account ownership stops being metadata-only and becomes a real authorization boundary.

@@ -99,12 +99,14 @@ type workspaceServiceAccountResponse struct {
 	Name                  string          `json:"name"`
 	Description           string          `json:"description,omitempty"`
 	Role                  string          `json:"role"`
+	Status                string          `json:"status"`
 	Purpose               string          `json:"purpose,omitempty"`
 	Environment           string          `json:"environment,omitempty"`
 	CreatedByUserID       string          `json:"created_by_user_id,omitempty"`
 	CreatedByPlatformUser bool            `json:"created_by_platform_user,omitempty"`
 	CreatedAt             time.Time       `json:"created_at"`
 	UpdatedAt             time.Time       `json:"updated_at"`
+	DisabledAt            *time.Time      `json:"disabled_at,omitempty"`
 	ActiveCredentialCount int             `json:"active_credential_count"`
 	Credentials           []domain.APIKey `json:"credentials"`
 }
@@ -121,12 +123,14 @@ func newWorkspaceServiceAccountResponse(item service.WorkspaceServiceAccount) wo
 		Name:                  item.ServiceAccount.Name,
 		Description:           item.ServiceAccount.Description,
 		Role:                  item.ServiceAccount.Role,
+		Status:                item.ServiceAccount.Status,
 		Purpose:               item.ServiceAccount.Purpose,
 		Environment:           item.ServiceAccount.Environment,
 		CreatedByUserID:       item.ServiceAccount.CreatedByUserID,
 		CreatedByPlatformUser: item.ServiceAccount.CreatedByPlatformUser,
 		CreatedAt:             item.ServiceAccount.CreatedAt,
 		UpdatedAt:             item.ServiceAccount.UpdatedAt,
+		DisabledAt:            item.ServiceAccount.DisabledAt,
 		ActiveCredentialCount: item.ActiveCredentialCount,
 		Credentials:           item.Credentials,
 	}
@@ -2572,6 +2576,26 @@ func (s *Server) handleTenantWorkspaceServiceAccounts(w http.ResponseWriter, r *
 			}
 		}
 		writeMethodNotAllowed(w)
+	case http.MethodPatch:
+		if serviceAccountID == "" || len(remainder) > 0 {
+			writeMethodNotAllowed(w)
+			return
+		}
+		var req struct {
+			Status string `json:"status"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		updated, err := s.serviceAccountService.SetWorkspaceServiceAccountStatus(principal.TenantID, serviceAccountID, req.Status)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"service_account": newWorkspaceServiceAccountResponse(service.WorkspaceServiceAccount{ServiceAccount: updated}),
+		})
 	default:
 		writeMethodNotAllowed(w)
 	}

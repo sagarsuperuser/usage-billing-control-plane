@@ -71,6 +71,7 @@ type APIKeyStore interface {
 	GetTenant(id string) (domain.Tenant, error)
 	GetAPIKeyByPrefix(prefix string) (domain.APIKey, error)
 	GetActiveAPIKeyByPrefix(prefix string, at time.Time) (domain.APIKey, error)
+	GetServiceAccount(tenantID, id string) (domain.ServiceAccount, error)
 	TouchAPIKeyLastUsed(id string, usedAt time.Time) error
 	CreatePlatformAPIKey(input domain.PlatformAPIKey) (domain.PlatformAPIKey, error)
 	GetPlatformAPIKeyByPrefix(prefix string) (domain.PlatformAPIKey, error)
@@ -177,6 +178,15 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 				Status:   tenant.Status,
 			}
 		}
+		if requiresServiceAccountLifecycle(record) {
+			serviceAccount, err := a.loadCredentialServiceAccount(record)
+			if err != nil {
+				return Principal{}, err
+			}
+			if serviceAccount.Status != domain.ServiceAccountStatusActive {
+				return Principal{}, errUnauthorized
+			}
+		}
 
 		_ = a.store.TouchAPIKeyLastUsed(record.ID, time.Now().UTC())
 		return Principal{
@@ -211,6 +221,37 @@ func (a *DBAPIKeyAuthorizer) Authorize(r *http.Request) (Principal, error) {
 		PlatformRole: platformRole,
 		APIKeyID:     platformRecord.ID,
 	}, nil
+}
+
+func requiresServiceAccountLifecycle(record domain.APIKey) bool {
+	switch strings.TrimSpace(record.OwnerType) {
+	case "service_account", "bootstrap", "break_glass":
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *DBAPIKeyAuthorizer) loadCredentialServiceAccount(record domain.APIKey) (domain.ServiceAccount, error) {
+	ownerID := strings.TrimSpace(record.OwnerID)
+	switch strings.TrimSpace(record.OwnerType) {
+	case "service_account":
+		if ownerID == "" {
+			return domain.ServiceAccount{}, errUnauthorized
+		}
+	case "bootstrap", "break_glass":
+		if ownerID == "" {
+			return domain.ServiceAccount{Status: domain.ServiceAccountStatusActive}, nil
+		}
+	}
+	serviceAccount, err := a.store.GetServiceAccount(record.TenantID, ownerID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return domain.ServiceAccount{}, errUnauthorized
+		}
+		return domain.ServiceAccount{}, fmt.Errorf("load service account: %w", err)
+	}
+	return serviceAccount, nil
 }
 
 func BootstrapAPIKeysFromConfig(keyStore APIKeyStore, raw string) (BootstrapResult, error) {

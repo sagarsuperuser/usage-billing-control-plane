@@ -422,7 +422,8 @@ func TestTenantWorkspaceServiceAccountLifecycle(t *testing.T) {
 	if credential["owner_id"] != serviceAccountID {
 		t.Fatalf("expected owner_id %q, got %#v", serviceAccountID, credential["owner_id"])
 	}
-	if secret, _ := created["secret"].(string); secret == "" {
+	createdSecret, _ := created["secret"].(string)
+	if createdSecret == "" {
 		t.Fatalf("expected initial secret")
 	}
 
@@ -435,6 +436,29 @@ func TestTenantWorkspaceServiceAccountLifecycle(t *testing.T) {
 	if listedAccount["active_credential_count"].(float64) < 1 {
 		t.Fatalf("expected active credential count")
 	}
+	if got, _ := listedAccount["status"].(string); got != domain.ServiceAccountStatusActive {
+		t.Fatalf("expected active service account status, got %q", got)
+	}
+	_ = sessionGetJSON(t, client, ts.URL+"/v1/workspace/service-accounts/"+url.PathEscape(serviceAccountID)+"/audit?limit=10", http.StatusOK)
+	_ = getJSONArray(t, ts.URL+"/v1/customers", createdSecret, http.StatusOK)
+
+	disabled := sessionPatchJSON(t, client, ts.URL+"/v1/workspace/service-accounts/"+url.PathEscape(serviceAccountID), map[string]any{
+		"status": domain.ServiceAccountStatusDisabled,
+	}, csrfToken, http.StatusOK)
+	disabledAccount := disabled["service_account"].(map[string]any)
+	if got, _ := disabledAccount["status"].(string); got != domain.ServiceAccountStatusDisabled {
+		t.Fatalf("expected disabled service account status, got %q", got)
+	}
+	_ = getJSON(t, ts.URL+"/v1/customers", createdSecret, http.StatusUnauthorized)
+
+	enabled := sessionPatchJSON(t, client, ts.URL+"/v1/workspace/service-accounts/"+url.PathEscape(serviceAccountID), map[string]any{
+		"status": domain.ServiceAccountStatusActive,
+	}, csrfToken, http.StatusOK)
+	enabledAccount := enabled["service_account"].(map[string]any)
+	if got, _ := enabledAccount["status"].(string); got != domain.ServiceAccountStatusActive {
+		t.Fatalf("expected re-enabled service account status, got %q", got)
+	}
+	_ = getJSONArray(t, ts.URL+"/v1/customers", createdSecret, http.StatusOK)
 
 	rotated := sessionPostJSON(t, client, ts.URL+"/v1/workspace/service-accounts/"+url.PathEscape(serviceAccountID)+"/credentials/"+url.PathEscape(credentialID)+"/rotate", map[string]any{}, csrfToken, http.StatusOK)
 	rotatedCredential := rotated["credential"].(map[string]any)
