@@ -14,7 +14,7 @@ After this slice:
 
 This is the implementation follow-up to:
 
-- [Alpha Workspace Access Model](./alpha-workspace-access-model.md)
+- [Alpha Workspace Access Model](../models/alpha-workspace-access-model.md)
 
 ---
 

@@ -326,7 +326,7 @@ Durable architecture and workflow decisions should be documented.
 When landing a meaningful architecture or product-boundary change:
 
 1. update or add the relevant model/spec doc
-2. update [Docs Index](./README.md) if the doc is durable
+2. update [Docs Index](../README.md) if the doc is durable
 3. update the roadmap if sequencing or priority changed
 4. update runbooks if operator behavior changed
 

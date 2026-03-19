@@ -12,8 +12,8 @@ Use it as the tracking layer for deciding:
 
 This document should be read together with:
 
-- [Alpha Import Goal](./alpha_import_goal.md)
-- [Alpha Wave 1 Roadmap](./alpha_wave1_roadmap.md)
+- [Alpha Import Goal](../goals/alpha_import_goal.md)
+- [Alpha Wave 1 Roadmap](../roadmaps/alpha_wave1_roadmap.md)
 
 ---
 

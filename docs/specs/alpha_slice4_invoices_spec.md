@@ -4,10 +4,10 @@ This document defines the fourth Wave 1 implementation slice for Alpha: a produc
 
 Read together with:
 
-- [Alpha Import Goal](./alpha_import_goal.md)
-- [Alpha Import Matrix](./alpha_import_matrix.md)
-- [Alpha Wave 1 Roadmap](./alpha_wave1_roadmap.md)
-- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
+- [Alpha Import Goal](../goals/alpha_import_goal.md)
+- [Alpha Import Matrix](../goals/alpha_import_matrix.md)
+- [Alpha Wave 1 Roadmap](../roadmaps/alpha_wave1_roadmap.md)
+- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](../specs/alpha_slice3_subscriptions_spec.md)
 
 ---
 

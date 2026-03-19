@@ -4,9 +4,9 @@ This document defines the first Wave 1 implementation slice for Alpha: hardening
 
 Read together with:
 
-- [Alpha Import Goal](./alpha_import_goal.md)
-- [Alpha Import Matrix](./alpha_import_matrix.md)
-- [Alpha Wave 1 Roadmap](./alpha_wave1_roadmap.md)
+- [Alpha Import Goal](../goals/alpha_import_goal.md)
+- [Alpha Import Matrix](../goals/alpha_import_matrix.md)
+- [Alpha Wave 1 Roadmap](../roadmaps/alpha_wave1_roadmap.md)
 
 ---
 

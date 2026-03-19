@@ -4,9 +4,9 @@ This document defines the next architecture step after the current billing-conne
 
 Read together with:
 
-- [Alpha Billing Execution Model](./alpha-billing-execution-model.md)
-- [Alpha Provider Connect Plan](./alpha-provider-connect-plan.md)
-- [Alpha Wave 1 Roadmap](./alpha_wave1_roadmap.md)
+- [Alpha Billing Execution Model](../models/alpha-billing-execution-model.md)
+- [Alpha Provider Connect Plan](../legacy/alpha-provider-connect-plan.md)
+- [Alpha Wave 1 Roadmap](../roadmaps/alpha_wave1_roadmap.md)
 
 ---
 

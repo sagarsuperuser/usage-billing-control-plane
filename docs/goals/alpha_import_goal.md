@@ -595,7 +595,7 @@ This document is the working reference for that goal.
 
 See also:
 
-- [Alpha Import Matrix](./alpha_import_matrix.md)
+- [Alpha Import Matrix](../goals/alpha_import_matrix.md)
   - includes the execution matrix plus market-signal classification for table stakes, enterprise maturity, and later-stage completeness
-- [Alpha Wave 1 Roadmap](./alpha_wave1_roadmap.md)
+- [Alpha Wave 1 Roadmap](../roadmaps/alpha_wave1_roadmap.md)
   - breaks Wave 1 into concrete backend and UI delivery slices

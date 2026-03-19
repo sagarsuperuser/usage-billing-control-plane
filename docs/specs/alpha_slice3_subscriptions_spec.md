@@ -4,10 +4,10 @@ This document defines the third Wave 1 implementation slice for Alpha: the first
 
 Read together with:
 
-- [Alpha Import Goal](./alpha_import_goal.md)
-- [Alpha Import Matrix](./alpha_import_matrix.md)
-- [Alpha Wave 1 Roadmap](./alpha_wave1_roadmap.md)
-- [Slice 2 Spec: Pricing Foundation](./alpha_slice2_pricing_spec.md)
+- [Alpha Import Goal](../goals/alpha_import_goal.md)
+- [Alpha Import Matrix](../goals/alpha_import_matrix.md)
+- [Alpha Wave 1 Roadmap](../roadmaps/alpha_wave1_roadmap.md)
+- [Slice 2 Spec: Pricing Foundation](../specs/alpha_slice2_pricing_spec.md)
 
 ---
 

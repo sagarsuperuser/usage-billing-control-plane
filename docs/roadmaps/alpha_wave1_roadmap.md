@@ -12,16 +12,16 @@ Use it to sequence delivery across:
 
 Read together with:
 
-- [Alpha Import Goal](./alpha_import_goal.md)
-- [Alpha Import Matrix](./alpha_import_matrix.md)
-- [Alpha Workspace Access Model](./alpha-workspace-access-model.md)
-- [Alpha Workspace Access Spec](./alpha_workspace_access_spec.md)
-- [Alpha API Credentials Model](./alpha_api_credentials_model.md)
-- [Alpha API Credentials Spec](./alpha_api_credentials_spec.md)
-- [Slice 1 Spec: Billing Connections Hardening](./alpha_slice1_billing_connections_spec.md)
-- [Slice 2 Spec: Pricing Foundation](./alpha_slice2_pricing_spec.md)
-- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
-- [Slice 4 Spec: Invoices Visibility](./alpha_slice4_invoices_spec.md)
+- [Alpha Import Goal](../goals/alpha_import_goal.md)
+- [Alpha Import Matrix](../goals/alpha_import_matrix.md)
+- [Alpha Workspace Access Model](../models/alpha-workspace-access-model.md)
+- [Alpha Workspace Access Spec](../specs/alpha_workspace_access_spec.md)
+- [Alpha API Credentials Model](../models/alpha_api_credentials_model.md)
+- [Alpha API Credentials Spec](../specs/alpha_api_credentials_spec.md)
+- [Slice 1 Spec: Billing Connections Hardening](../specs/alpha_slice1_billing_connections_spec.md)
+- [Slice 2 Spec: Pricing Foundation](../specs/alpha_slice2_pricing_spec.md)
+- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](../specs/alpha_slice3_subscriptions_spec.md)
+- [Slice 4 Spec: Invoices Visibility](../specs/alpha_slice4_invoices_spec.md)
 
 ---
 
@@ -136,7 +136,7 @@ Outcome:
 
 Detailed implementation spec:
 
-- [Slice 1 Spec: Billing Connections Hardening](./alpha_slice1_billing_connections_spec.md)
+- [Slice 1 Spec: Billing Connections Hardening](../specs/alpha_slice1_billing_connections_spec.md)
 
 ### Slice 2. Pricing domain foundation
 
@@ -178,7 +178,7 @@ Outcome:
 
 Detailed implementation spec:
 
-- [Slice 2 Spec: Pricing Foundation](./alpha_slice2_pricing_spec.md)
+- [Slice 2 Spec: Pricing Foundation](../specs/alpha_slice2_pricing_spec.md)
 
 ### Slice 3. Subscriptions domain
 
@@ -226,7 +226,7 @@ Outcome:
 
 Detailed implementation spec:
 
-- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
+- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](../specs/alpha_slice3_subscriptions_spec.md)
 
 Priority note:
 
@@ -270,7 +270,7 @@ Outcome:
 
 Detailed implementation spec:
 
-- [Slice 4 Spec: Invoices Visibility](./alpha_slice4_invoices_spec.md)
+- [Slice 4 Spec: Invoices Visibility](../specs/alpha_slice4_invoices_spec.md)
 
 ### Slice 5. Payments visibility
 

@@ -6,7 +6,7 @@ Implement the first production-grade API credential slice for Alpha.
 
 This spec turns the policy from:
 
-- [Alpha API Credentials Model](./alpha_api_credentials_model.md)
+- [Alpha API Credentials Model](../models/alpha_api_credentials_model.md)
 
 into an implementation plan for:
 

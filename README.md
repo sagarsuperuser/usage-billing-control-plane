@@ -619,9 +619,9 @@ Role-based scaling model (same backend image):
 
 Documentation:
 - `docs/README.md` - canonical docs index
-- `docs/documentation-standards.md` - maintenance rules for long-term consistency
-- `docs/alpha_import_goal.md` - product direction
-- `docs/alpha_wave1_roadmap.md` - current Wave 1 delivery order
+- `docs/standards/documentation-standards.md` - maintenance rules for long-term consistency
+- `docs/goals/alpha_import_goal.md` - product direction
+- `docs/roadmaps/alpha_wave1_roadmap.md` - current Wave 1 delivery order
 
 ## Release Pipeline
 

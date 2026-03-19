@@ -188,7 +188,7 @@ make cert-manager-apply-issuer
 
 See:
 
-- `docs/cloudflare-lago-admin-setup.md`
+- `docs/runbooks/cloudflare-lago-admin-setup.md`
 
 ## Deploy
 

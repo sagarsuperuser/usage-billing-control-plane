@@ -4,12 +4,12 @@ This document defines the long-term production-grade notification model for Alph
 
 Read together with:
 
-- [Alpha Import Goal](./alpha_import_goal.md)
-- [Alpha Wave 1 Roadmap](./alpha_wave1_roadmap.md)
-- [Alpha Workspace Access Spec](./alpha_workspace_access_spec.md)
-- [Alpha API Credentials Spec](./alpha_api_credentials_spec.md)
-- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./alpha_slice3_subscriptions_spec.md)
-- [Slice 4 Spec: Invoices Visibility](./alpha_slice4_invoices_spec.md)
+- [Alpha Import Goal](../goals/alpha_import_goal.md)
+- [Alpha Wave 1 Roadmap](../roadmaps/alpha_wave1_roadmap.md)
+- [Alpha Workspace Access Spec](../specs/alpha_workspace_access_spec.md)
+- [Alpha API Credentials Spec](../specs/alpha_api_credentials_spec.md)
+- [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](../specs/alpha_slice3_subscriptions_spec.md)
+- [Slice 4 Spec: Invoices Visibility](../specs/alpha_slice4_invoices_spec.md)
 
 ---
 

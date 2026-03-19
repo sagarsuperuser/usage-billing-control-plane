@@ -22,10 +22,10 @@ The short answer is:
 
 Read together with:
 
-- [Alpha Workspace Access Model](./alpha-workspace-access-model.md)
-- [Alpha Workspace Access Spec](./alpha_workspace_access_spec.md)
-- [Alpha Billing Execution Model](./alpha-billing-execution-model.md)
-- [Alpha Workspace Billing Binding Spec](./alpha_workspace_billing_binding_spec.md)
+- [Alpha Workspace Access Model](../models/alpha-workspace-access-model.md)
+- [Alpha Workspace Access Spec](../specs/alpha_workspace_access_spec.md)
+- [Alpha Billing Execution Model](../models/alpha-billing-execution-model.md)
+- [Alpha Workspace Billing Binding Spec](../specs/alpha_workspace_billing_binding_spec.md)
 
 ---
 

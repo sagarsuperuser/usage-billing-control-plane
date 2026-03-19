@@ -118,7 +118,7 @@ Exit criteria:
 
 ## Phase 4: Replace Lago-First Setup With Alpha-First Setup
 
-Use [alpha-provider-connect-plan.md](./alpha-provider-connect-plan.md) as the concrete execution plan for this phase.
+Use [alpha-provider-connect-plan.md](../legacy/alpha-provider-connect-plan.md) as the concrete execution plan for this phase.
 
 Goal:
 - make Alpha the operational entrypoint even for billing setup
@@ -208,8 +208,8 @@ If we continue from the current state, the next sensible order is:
 4. move billing setup flows behind Alpha APIs
 5. then build smoother operator onboarding UX
 
-Use [alpha-lago-adapter-plan.md](./alpha-lago-adapter-plan.md) as the concrete execution checklist for Phase 1.
-Use [alpha-customer-model.md](./alpha-customer-model.md) as the concrete design for Phase 2 customer records and readiness.
+Use [alpha-lago-adapter-plan.md](../legacy/alpha-lago-adapter-plan.md) as the concrete execution checklist for Phase 1.
+Use [alpha-customer-model.md](../models/alpha-customer-model.md) as the concrete design for Phase 2 customer records and readiness.
 
 ## Bottom Line
 

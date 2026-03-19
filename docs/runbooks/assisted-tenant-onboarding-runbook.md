@@ -11,8 +11,8 @@ This is the recommended onboarding model for the current product state:
 Current-state note:
 - this runbook describes the working operator-assisted path today
 - the long-term target is that Alpha remains the only normal entrypoint and Lago becomes an implementation detail behind Alpha
-- use [alpha-lago-boundary.md](./alpha-lago-boundary.md) for the target system boundary
-- use [alpha-implementation-roadmap.md](./alpha-implementation-roadmap.md) for the phased delivery plan
+- use [alpha-lago-boundary.md](../models/alpha-lago-boundary.md) for the target system boundary
+- use [alpha-implementation-roadmap.md](../legacy/alpha-implementation-roadmap.md) for the phased delivery plan
 
 This is the right model now because the core operator features are real, but tenant bootstrap and billing setup are not yet a full self-serve product flow.
 
@@ -292,8 +292,8 @@ What that already automates in staging:
 - ensures the success customer has a usable Stripe payment method and billing address
 
 For environment-specific billing details, follow:
-- [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
-- [lago-staging-bootstrap.md](./lago-staging-bootstrap.md)
+- [real-payment-e2e-runbook.md](../runbooks/real-payment-e2e-runbook.md)
+- [lago-staging-bootstrap.md](../runbooks/lago-staging-bootstrap.md)
 
 ### Step 5: Seed Tenant Pricing Metadata
 
@@ -478,7 +478,7 @@ If customer readiness stays pending, inspect:
 - `payment_setup.setup_status`
 
 For staging payment fixture creation and verification, use the existing runbook and scripts:
-- [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
+- [real-payment-e2e-runbook.md](../runbooks/real-payment-e2e-runbook.md)
 - `make lago-staging-bootstrap-payments`
 - `make verify-staging-acceptance`
 
@@ -634,10 +634,10 @@ As Alpha absorbs more billing setup behind its own APIs, this workflow should ge
 ## 8. Related Runbooks
 
 Use these together with this onboarding doc:
-- [alpha-lago-boundary.md](./alpha-lago-boundary.md)
-- [alpha-implementation-roadmap.md](./alpha-implementation-roadmap.md)
-- [staging-go-live-checklist.md](./staging-go-live-checklist.md)
-- [real-payment-e2e-runbook.md](./real-payment-e2e-runbook.md)
-- [replay-recovery-live-runbook.md](./replay-recovery-live-runbook.md)
-- [lago-staging-bootstrap.md](./lago-staging-bootstrap.md)
-- [infra-rollout-runbook.md](./infra-rollout-runbook.md)
+- [alpha-lago-boundary.md](../models/alpha-lago-boundary.md)
+- [alpha-implementation-roadmap.md](../legacy/alpha-implementation-roadmap.md)
+- [staging-go-live-checklist.md](../checklists/staging-go-live-checklist.md)
+- [real-payment-e2e-runbook.md](../runbooks/real-payment-e2e-runbook.md)
+- [replay-recovery-live-runbook.md](../runbooks/replay-recovery-live-runbook.md)
+- [lago-staging-bootstrap.md](../runbooks/lago-staging-bootstrap.md)
+- [infra-rollout-runbook.md](../runbooks/infra-rollout-runbook.md)
