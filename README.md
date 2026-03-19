@@ -617,32 +617,11 @@ Role-based scaling model (same backend image):
 - Replay worker pods: `RUN_API_SERVER=false`, `RUN_REPLAY_WORKER=true`, `RUN_REPLAY_DISPATCHER=false`
 - Replay dispatcher pods: `RUN_API_SERVER=false`, `RUN_REPLAY_WORKER=false`, `RUN_REPLAY_DISPATCHER=true`
 
-Architecture and rollout docs:
-- `docs/production-architecture.md`
-- `docs/alpha-lago-boundary.md`
-- `docs/alpha-implementation-roadmap.md`
-- `docs/alpha-lago-adapter-plan.md`
-- `docs/alpha-customer-model.md`
-- `docs/alpha-provider-connect-plan.md`
-- `docs/alpha-billing-execution-model.md`
-- `docs/alpha-workspace-access-model.md`
-- `docs/alpha_workspace_access_spec.md`
-- `docs/alpha_api_credentials_model.md`
-- `docs/alpha_api_credentials_spec.md`
-- `docs/alpha_notification_architecture.md`
-- `docs/alpha_workspace_billing_binding_spec.md`
-- `docs/alpha_import_goal.md`
-- `docs/alpha_import_matrix.md`
-- `docs/alpha_wave1_roadmap.md`
-- `docs/alpha_slice1_billing_connections_spec.md`
-- `docs/alpha_slice2_pricing_spec.md`
-- `docs/alpha_slice3_subscriptions_spec.md`
-- `docs/alpha_slice4_invoices_spec.md`
-- `docs/ui-redesign-plan.md`
-- `docs/ui-information-architecture-plan.md`
-- `docs/infra-rollout-runbook.md`
-- `docs/staging-go-live-checklist.md`
-- `docs/real-payment-e2e-runbook.md`
+Documentation:
+- `docs/README.md` - canonical docs index
+- `docs/documentation-standards.md` - maintenance rules for long-term consistency
+- `docs/alpha_import_goal.md` - product direction
+- `docs/alpha_wave1_roadmap.md` - current Wave 1 delivery order
 
 ## Release Pipeline
 
