@@ -197,6 +197,39 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
               <aside className="grid gap-5 self-start">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
+                  <div className="mt-4 grid gap-3">
+                    <MetaItem label="Recommended action" value={formatState(payment.lifecycle.recommended_action)} />
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                      {payment.lifecycle.recommended_action_note || "Use retry for transient payment failures. Use replay recovery and explainability when invoice-state drift or webhook projection issues need investigation."}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => retryMutation.mutate()}
+                      disabled={!canWrite || !csrfToken || retryMutation.isPending}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      Retry collection
+                    </button>
+                    {payment.customer_external_id ? (
+                      <Link
+                        href={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      >
+                        Open recovery tools
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
+                      className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Open explainability
+                    </Link>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Customer" value={payment.customer_display_name || "-"} />

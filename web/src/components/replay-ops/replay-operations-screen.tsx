@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
@@ -53,17 +54,18 @@ function replayBadgeClass(status?: string): string {
 }
 
 export function ReplayOperationsScreen() {
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, canWrite, role, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
-  const [customerFilter, setCustomerFilter] = useState("");
+  const [customerFilter, setCustomerFilter] = useState(searchParams.get("customer_id") || "");
   const [meterFilter, setMeterFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ReplayStatusFilter>("");
+  const [statusFilter, setStatusFilter] = useState<ReplayStatusFilter>((searchParams.get("status") as ReplayStatusFilter) || "");
   const [limit, setLimit] = useState(20);
   const [offset, setOffset] = useState(0);
 
-  const [createCustomerID, setCreateCustomerID] = useState("");
+  const [createCustomerID, setCreateCustomerID] = useState(searchParams.get("customer_id") || "");
   const [createMeterID, setCreateMeterID] = useState("");
   const [createFrom, setCreateFrom] = useState("");
   const [createTo, setCreateTo] = useState("");

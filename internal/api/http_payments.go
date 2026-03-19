@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/csv"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,12 +66,18 @@ func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
 	if customerExternalID == "" {
 		customerExternalID = strings.TrimSpace(r.URL.Query().Get("customer_id"))
 	}
+	invoiceID := strings.TrimSpace(r.URL.Query().Get("invoice_id"))
+	invoiceNumber := strings.TrimSpace(r.URL.Query().Get("invoice_number"))
+	lastEventType := strings.TrimSpace(r.URL.Query().Get("last_event_type"))
 
 	items, err := s.lagoWebhookSvc.ListInvoicePaymentStatusViews(
 		requestTenantID(r),
 		service.ListInvoicePaymentStatusViewsRequest{
 			OrganizationID:     r.URL.Query().Get("organization_id"),
 			CustomerExternalID: customerExternalID,
+			InvoiceID:          invoiceID,
+			InvoiceNumber:      invoiceNumber,
+			LastEventType:      lastEventType,
 			PaymentStatus:      r.URL.Query().Get("payment_status"),
 			InvoiceStatus:      r.URL.Query().Get("invoice_status"),
 			PaymentOverdue:     paymentOverdue,
@@ -90,6 +98,18 @@ func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("format")), "csv") {
+		csvData, err := generatePaymentsCSV(payments)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to generate payments csv")
+			return
+		}
+		w.Header().Set("Content-Type", "text/csv")
+		w.Header().Set("Content-Disposition", "attachment; filename=payments.csv")
+		_, _ = w.Write([]byte(csvData))
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"items":  payments,
 		"limit":  limit,
@@ -97,6 +117,9 @@ func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
 		"filters": map[string]any{
 			"organization_id":      r.URL.Query().Get("organization_id"),
 			"customer_external_id": customerExternalID,
+			"invoice_id":           invoiceID,
+			"invoice_number":       invoiceNumber,
+			"last_event_type":      lastEventType,
 			"payment_status":       r.URL.Query().Get("payment_status"),
 			"invoice_status":       r.URL.Query().Get("invoice_status"),
 			"payment_overdue":      paymentOverdue,
@@ -253,4 +276,78 @@ func paymentDetailFromStatusView(view domain.InvoicePaymentStatusView, customer 
 		paymentSummaryResponse: paymentSummaryFromStatusView(view, customer),
 		Lifecycle:              lifecycle,
 	}
+}
+
+func generatePaymentsCSV(items []paymentSummaryResponse) (string, error) {
+	var b strings.Builder
+	writer := csv.NewWriter(&b)
+	if err := writer.Write([]string{
+		"invoice_id",
+		"invoice_number",
+		"customer_external_id",
+		"customer_display_name",
+		"organization_id",
+		"currency",
+		"invoice_status",
+		"payment_status",
+		"payment_overdue",
+		"total_amount_cents",
+		"total_due_amount_cents",
+		"total_paid_amount_cents",
+		"last_payment_error",
+		"last_event_type",
+		"last_event_at",
+		"updated_at",
+	}); err != nil {
+		return "", err
+	}
+
+	for _, item := range items {
+		if err := writer.Write([]string{
+			item.InvoiceID,
+			item.InvoiceNumber,
+			item.CustomerExternalID,
+			item.CustomerDisplayName,
+			item.OrganizationID,
+			item.Currency,
+			item.InvoiceStatus,
+			item.PaymentStatus,
+			formatCSVBool(item.PaymentOverdue),
+			formatCSVInt64(item.TotalAmountCents),
+			formatCSVInt64(item.TotalDueAmountCents),
+			formatCSVInt64(item.TotalPaidAmountCents),
+			item.LastPaymentError,
+			item.LastEventType,
+			formatCSVTime(item.LastEventAt),
+			formatCSVTime(item.UpdatedAt),
+		}); err != nil {
+			return "", err
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
+
+func formatCSVBool(v *bool) string {
+	if v == nil {
+		return ""
+	}
+	return strconv.FormatBool(*v)
+}
+
+func formatCSVInt64(v *int64) string {
+	if v == nil {
+		return ""
+	}
+	return strconv.FormatInt(*v, 10)
+}
+
+func formatCSVTime(v *time.Time) string {
+	if v == nil || v.IsZero() {
+		return ""
+	}
+	return v.UTC().Format(time.RFC3339)
 }

@@ -1273,6 +1273,9 @@ export async function fetchPayments(input: {
   const query = toQuery({
     organization_id: input.filters.organization_id,
     customer_external_id: input.filters.customer_external_id,
+    invoice_id: input.filters.invoice_id,
+    invoice_number: input.filters.invoice_number,
+    last_event_type: input.filters.last_event_type,
     payment_status: input.filters.payment_status,
     invoice_status: input.filters.invoice_status,
     payment_overdue: input.filters.payment_overdue,

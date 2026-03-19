@@ -185,6 +185,9 @@ type InvoicePaymentStatusListFilter struct {
 	TenantID           string
 	OrganizationID     string
 	CustomerExternalID string
+	InvoiceID          string
+	InvoiceNumber      string
+	LastEventType      string
 	PaymentStatus      string
 	InvoiceStatus      string
 	PaymentOverdue     *bool

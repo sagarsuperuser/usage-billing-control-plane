@@ -27,6 +27,9 @@ const orderOptions = [
   { value: "asc", label: "Oldest first" },
 ] as const;
 
+const paymentStatusOptions = ["failed", "pending", "succeeded", "processing", "requires_action"] as const;
+const invoiceStatusOptions = ["finalized", "draft", "voided", "pending"] as const;
+
 function formatState(value?: string): string {
   if (!value) return "-";
   return value.replaceAll("_", " ");
@@ -36,16 +39,24 @@ export function PaymentListScreen() {
   const searchParams = useSearchParams();
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
 
+  const [organizationID, setOrganizationID] = useState(searchParams.get("organization_id") || "");
   const [customerExternalID, setCustomerExternalID] = useState(searchParams.get("customer_external_id") || "");
+  const [invoiceID, setInvoiceID] = useState(searchParams.get("invoice_id") || "");
+  const [invoiceNumber, setInvoiceNumber] = useState(searchParams.get("invoice_number") || "");
   const [invoiceStatus, setInvoiceStatus] = useState(searchParams.get("invoice_status") || "");
   const [paymentStatus, setPaymentStatus] = useState(searchParams.get("payment_status") || "");
+  const [lastEventType, setLastEventType] = useState(searchParams.get("last_event_type") || "");
   const [paymentOverdue, setPaymentOverdue] = useState<"all" | "true" | "false">("all");
   const [sortBy, setSortBy] = useState<PaymentFilters["sort_by"]>("last_event_at");
   const [order, setOrder] = useState<PaymentFilters["order"]>("desc");
 
   const filters = useMemo<PaymentFilters>(
     () => ({
+      organization_id: organizationID.trim() || undefined,
       customer_external_id: customerExternalID.trim() || undefined,
+      invoice_id: invoiceID.trim() || undefined,
+      invoice_number: invoiceNumber.trim() || undefined,
+      last_event_type: lastEventType.trim() || undefined,
       invoice_status: invoiceStatus.trim() || undefined,
       payment_status: paymentStatus.trim() || undefined,
       payment_overdue: paymentOverdue === "all" ? undefined : paymentOverdue === "true",
@@ -54,8 +65,27 @@ export function PaymentListScreen() {
       limit: 100,
       offset: 0,
     }),
-    [customerExternalID, invoiceStatus, paymentStatus, paymentOverdue, sortBy, order],
+    [organizationID, customerExternalID, invoiceID, invoiceNumber, lastEventType, invoiceStatus, paymentStatus, paymentOverdue, sortBy, order],
   );
+
+  const exportURL = useMemo(() => {
+    if (!apiBaseURL) return "";
+    const query = new URLSearchParams();
+    if (filters.organization_id) query.set("organization_id", filters.organization_id);
+    if (filters.customer_external_id) query.set("customer_external_id", filters.customer_external_id);
+    if (filters.invoice_id) query.set("invoice_id", filters.invoice_id);
+    if (filters.invoice_number) query.set("invoice_number", filters.invoice_number);
+    if (filters.last_event_type) query.set("last_event_type", filters.last_event_type);
+    if (filters.invoice_status) query.set("invoice_status", filters.invoice_status);
+    if (filters.payment_status) query.set("payment_status", filters.payment_status);
+    if (typeof filters.payment_overdue === "boolean") query.set("payment_overdue", String(filters.payment_overdue));
+    if (filters.sort_by) query.set("sort_by", filters.sort_by);
+    if (filters.order) query.set("order", filters.order);
+    query.set("limit", String(filters.limit ?? 100));
+    query.set("offset", String(filters.offset ?? 0));
+    query.set("format", "csv");
+    return `${apiBaseURL}/v1/payments?${query.toString()}`;
+  }, [apiBaseURL, filters]);
 
   const paymentsQuery = useQuery({
     queryKey: ["payments", apiBaseURL, filters],
@@ -115,7 +145,13 @@ export function PaymentListScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment inventory</p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">Filter and inspect</h2>
             </div>
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-4">
+              <input
+                value={organizationID}
+                onChange={(event) => setOrganizationID(event.target.value)}
+                placeholder="Organization ID"
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+              />
               <input
                 value={customerExternalID}
                 onChange={(event) => setCustomerExternalID(event.target.value)}
@@ -123,19 +159,49 @@ export function PaymentListScreen() {
                 className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
               />
               <input
-                value={invoiceStatus}
-                onChange={(event) => setInvoiceStatus(event.target.value)}
-                placeholder="Invoice status"
+                value={invoiceID}
+                onChange={(event) => setInvoiceID(event.target.value)}
+                placeholder="Invoice ID"
                 className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
               />
               <input
-                value={paymentStatus}
-                onChange={(event) => setPaymentStatus(event.target.value)}
-                placeholder="Payment status"
+                value={invoiceNumber}
+                onChange={(event) => setInvoiceNumber(event.target.value)}
+                placeholder="Invoice number"
                 className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
               />
             </div>
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-4">
+              <input
+                value={lastEventType}
+                onChange={(event) => setLastEventType(event.target.value)}
+                placeholder="Last event type"
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+              />
+              <select
+                value={invoiceStatus}
+                onChange={(event) => setInvoiceStatus(event.target.value)}
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+              >
+                <option value="">All invoice statuses</option>
+                {invoiceStatusOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {formatState(option)}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={paymentStatus}
+                onChange={(event) => setPaymentStatus(event.target.value)}
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+              >
+                <option value="">All payment statuses</option>
+                {paymentStatusOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {formatState(option)}
+                  </option>
+                ))}
+              </select>
               <select
                 value={paymentOverdue}
                 onChange={(event) => setPaymentOverdue(event.target.value as "all" | "true" | "false")}
@@ -145,6 +211,8 @@ export function PaymentListScreen() {
                 <option value="true">Overdue only</option>
                 <option value="false">Not overdue</option>
               </select>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-3">
               <select
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value as PaymentFilters["sort_by"])}
@@ -167,6 +235,35 @@ export function PaymentListScreen() {
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setOrganizationID("");
+                  setCustomerExternalID("");
+                  setInvoiceID("");
+                  setInvoiceNumber("");
+                  setLastEventType("");
+                  setInvoiceStatus("");
+                  setPaymentStatus("");
+                  setPaymentOverdue("all");
+                  setSortBy("last_event_at");
+                  setOrder("desc");
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              >
+                Clear filters
+              </button>
+              <a
+                href={exportURL || undefined}
+                download="payments.csv"
+                className={`inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-medium transition ${
+                  exportURL
+                    ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                    : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                }`}
+              >
+                Export CSV
+              </a>
             </div>
           </div>
 

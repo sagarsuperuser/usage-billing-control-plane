@@ -2,9 +2,11 @@ package api_test
 
 import (
 	"database/sql"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,6 +93,105 @@ func TestPaymentsListEndpointReturnsNormalizedSummaries(t *testing.T) {
 	}
 	if got, _ := row["payment_status"].(string); got != "failed" {
 		t.Fatalf("expected payment_status failed, got %q", got)
+	}
+}
+
+func TestPaymentsListEndpointSupportsExtendedFiltersAndCSV(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
+	now := time.Now().UTC().Truncate(time.Second)
+	if _, err := db.Exec(`
+		INSERT INTO invoice_payment_status_views (
+			tenant_id, organization_id, invoice_id, customer_external_id, invoice_number, currency,
+			invoice_status, payment_status, payment_overdue, total_amount_cents, total_due_amount_cents,
+			total_paid_amount_cents, last_payment_error, last_event_type, last_event_at, last_webhook_key, updated_at
+		) VALUES
+		(
+			'default', 'org_test', 'inv_pay_123', 'cust_123', 'INV-123', 'USD',
+			'finalized', 'failed', true, 12500, 12500,
+			0, 'card_declined', 'invoice.payment_failure', $1, 'whk_inv_123', $2
+		),
+		(
+			'default', 'org_test', 'inv_pay_999', 'cust_999', 'INV-999', 'USD',
+			'finalized', 'succeeded', false, 6400, 0,
+			6400, '', 'invoice.payment_succeeded', $1, 'whk_inv_999', $2
+		)
+	`, now, now); err != nil {
+		t.Fatalf("insert payment projections: %v", err)
+	}
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithLagoWebhookService(lagoWebhookSvc),
+	).Handler())
+	defer ts.Close()
+
+	resp := getJSON(t, ts.URL+"/v1/payments?invoice_number=INV-123&last_event_type=invoice.payment_failure", "tenant-a-reader", http.StatusOK)
+	items, ok := resp["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one filtered payment item, got %#v", resp["items"])
+	}
+	row, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected payment row map, got %#v", items[0])
+	}
+	if got, _ := row["invoice_id"].(string); got != "inv_pay_123" {
+		t.Fatalf("expected filtered invoice_id inv_pay_123, got %q", got)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/v1/payments?invoice_number=INV-123&format=csv", nil)
+	if err != nil {
+		t.Fatalf("new csv request: %v", err)
+	}
+	req.Header.Set("X-API-Key", "tenant-a-reader")
+	csvResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do csv request: %v", err)
+	}
+	defer csvResp.Body.Close()
+	if csvResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(csvResp.Body)
+		t.Fatalf("expected csv status 200, got %d body=%s", csvResp.StatusCode, string(body))
+	}
+	if !strings.Contains(strings.ToLower(csvResp.Header.Get("Content-Type")), "text/csv") {
+		t.Fatalf("expected text/csv content type, got %q", csvResp.Header.Get("Content-Type"))
+	}
+	body, err := io.ReadAll(csvResp.Body)
+	if err != nil {
+		t.Fatalf("read csv body: %v", err)
+	}
+	csvBody := string(body)
+	if !strings.Contains(csvBody, "invoice_id,invoice_number") {
+		t.Fatalf("expected csv header row, got %q", csvBody)
+	}
+	if !strings.Contains(csvBody, "inv_pay_123,INV-123") {
+		t.Fatalf("expected filtered csv row for inv_pay_123, got %q", csvBody)
+	}
+	if strings.Contains(csvBody, "inv_pay_999") {
+		t.Fatalf("expected csv to exclude inv_pay_999, got %q", csvBody)
 	}
 }
 

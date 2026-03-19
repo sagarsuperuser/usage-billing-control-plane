@@ -117,7 +117,11 @@ export interface PaymentDetail extends PaymentSummary {
   lifecycle: InvoicePaymentLifecycle;
 }
 
-export type PaymentFilters = InvoiceStatusFilters;
+export interface PaymentFilters extends InvoiceStatusFilters {
+  invoice_id?: string;
+  invoice_number?: string;
+  last_event_type?: string;
+}
 
 export interface UISession {
   authenticated: boolean;

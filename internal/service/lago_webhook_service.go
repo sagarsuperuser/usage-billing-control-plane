@@ -100,6 +100,9 @@ func (s *LagoWebhookService) applyCustomerWebhookEffects(event domain.LagoWebhoo
 type ListInvoicePaymentStatusViewsRequest struct {
 	OrganizationID     string
 	CustomerExternalID string
+	InvoiceID          string
+	InvoiceNumber      string
+	LastEventType      string
 	PaymentStatus      string
 	InvoiceStatus      string
 	PaymentOverdue     *bool
@@ -175,6 +178,9 @@ func (s *LagoWebhookService) ListInvoicePaymentStatusViews(tenantID string, req 
 		TenantID:           normalizeTenantID(tenantID),
 		OrganizationID:     strings.TrimSpace(req.OrganizationID),
 		CustomerExternalID: strings.TrimSpace(req.CustomerExternalID),
+		InvoiceID:          strings.TrimSpace(req.InvoiceID),
+		InvoiceNumber:      strings.TrimSpace(req.InvoiceNumber),
+		LastEventType:      strings.TrimSpace(req.LastEventType),
 		PaymentStatus:      strings.TrimSpace(req.PaymentStatus),
 		InvoiceStatus:      strings.TrimSpace(req.InvoiceStatus),
 		PaymentOverdue:     req.PaymentOverdue,
