@@ -155,7 +155,7 @@ func collectCleanupCounts(ctx context.Context, db *sql.DB, includeReplay, includ
 		if counts.ReplaySmokeUsageEvents, err = countQuery(ctx, db, `SELECT count(*) FROM usage_events WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`); err != nil {
 			return cleanupCounts{}, err
 		}
-		if counts.ReplaySmokeBilledEntries, err = countQuery(ctx, db, `SELECT count(*) FROM billed_entries WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`); err != nil {
+		if counts.ReplaySmokeBilledEntries, err = countQuery(ctx, db, `SELECT count(*) FROM billed_entries WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%' OR replay_job_id IN (SELECT id FROM replay_jobs WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%')`); err != nil {
 			return cleanupCounts{}, err
 		}
 		if counts.ReplaySmokeReplayJobs, err = countQuery(ctx, db, `SELECT count(*) FROM replay_jobs WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`); err != nil {
@@ -252,7 +252,7 @@ func applyCleanup(ctx context.Context, db *sql.DB, includeReplay, includePayment
 	}
 	if includeReplay {
 		statements = append(statements,
-			`DELETE FROM billed_entries WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`,
+			`DELETE FROM billed_entries WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%' OR replay_job_id IN (SELECT id FROM replay_jobs WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%')`,
 			`DELETE FROM replay_jobs WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`,
 			`DELETE FROM usage_events WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`,
 			`DELETE FROM customer_payment_setup WHERE customer_id IN (SELECT id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%')`,

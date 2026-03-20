@@ -97,6 +97,15 @@ SELECT jsonb_pretty(
     'replay_smoke_billed_entries', (
       SELECT count(*) FROM billed_entries
       WHERE customer_id IN (SELECT external_id FROM replay_customers)
+         OR meter_id IN (SELECT id FROM replay_meters)
+         OR idempotency_key LIKE 'replay-smoke-%'
+         OR replay_job_id IN (
+           SELECT id
+           FROM replay_jobs
+           WHERE customer_id IN (SELECT external_id FROM replay_customers)
+              OR meter_id IN (SELECT id FROM replay_meters)
+              OR idempotency_key LIKE 'replay-smoke-%'
+         )
     ),
     'replay_smoke_replay_jobs', (
       SELECT count(*)
@@ -241,7 +250,18 @@ WHERE customer_id IN (
    OR meter_id IN (
     SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
   )
-   OR idempotency_key LIKE 'replay-smoke-%';
+   OR idempotency_key LIKE 'replay-smoke-%'
+   OR replay_job_id IN (
+    SELECT id
+    FROM replay_jobs
+    WHERE customer_id IN (
+        SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
+      )
+       OR meter_id IN (
+        SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
+      )
+       OR idempotency_key LIKE 'replay-smoke-%'
+  );
 
 DELETE FROM replay_jobs
 WHERE customer_id IN (
