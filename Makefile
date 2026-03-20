@@ -94,8 +94,14 @@ bootstrap-platform-admin-key: ## Bootstrap the first platform admin API key (req
 bootstrap-platform-admin-key-cluster: ## Bootstrap a platform admin API key from inside the current cluster using the deployed API workload wiring
 	@bash ./scripts/bootstrap_platform_admin_key_cluster.sh
 
-mint-live-e2e-keys-cluster: ## Mint fresh platform/writer/reader keys for live UI E2E from inside the current cluster
+mint-live-e2e-keys-cluster: ## Mint fresh platform/writer/reader API keys for live API/runtime verification from inside the current cluster
 	@bash ./scripts/mint_live_e2e_keys_cluster.sh
+
+bootstrap-live-e2e-browser-users-cluster: ## Ensure fresh live browser users for Playwright staging smoke from inside the current cluster
+	@bash ./scripts/bootstrap_live_e2e_browser_users_cluster.sh
+
+cleanup-staging-flow-data: ## Dry-run or apply cleanup of generated stale staging flow fixtures (requires DATABASE_URL, APPLY=1, CONFIRM_STAGING_FLOW_CLEANUP=YES_I_UNDERSTAND)
+	@ENVIRONMENT='staging' DATABASE_URL='$(DATABASE_URL)' APPLY='$(APPLY)' CONFIRM_STAGING_FLOW_CLEANUP='$(CONFIRM_STAGING_FLOW_CLEANUP)' bash ./scripts/cleanup_staging_flow_data.sh
 
 lago-up: ## Start Lago services and provision deterministic API key for tests
 	@LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' bash ./scripts/bootstrap_lago.sh
@@ -181,8 +187,8 @@ rehearse-release-rollback: ## Run deploy -> rollback -> redeploy rehearsal (requ
 web-e2e: ## Run browser E2E tests for control-plane UI
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
 
-web-e2e-live: ## Run live staging browser smoke for overview, payment ops, replay ops, and invoice explainability (requires PLAYWRIGHT_LIVE_BASE_URL/PLAYWRIGHT_LIVE_API_BASE_URL/PLAYWRIGHT_LIVE_WRITER_API_KEY; optional PLAYWRIGHT_LIVE_PLATFORM_API_KEY/PLAYWRIGHT_LIVE_READER_API_KEY/PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID/PLAYWRIGHT_LIVE_REPLAY_JOB_ID/PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID/PLAYWRIGHT_LIVE_REPLAY_METER_ID)
-	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_PLATFORM_API_KEY='$(PLAYWRIGHT_LIVE_PLATFORM_API_KEY)' PLAYWRIGHT_LIVE_WRITER_API_KEY='$(PLAYWRIGHT_LIVE_WRITER_API_KEY)' PLAYWRIGHT_LIVE_READER_API_KEY='$(PLAYWRIGHT_LIVE_READER_API_KEY)' PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID='$(PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID)' PLAYWRIGHT_LIVE_REPLAY_JOB_ID='$(PLAYWRIGHT_LIVE_REPLAY_JOB_ID)' PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID='$(PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID)' PLAYWRIGHT_LIVE_REPLAY_METER_ID='$(PLAYWRIGHT_LIVE_REPLAY_METER_ID)' npx -y pnpm@10.30.0 exec playwright test tests/e2e/control-plane-overview-live.spec.ts tests/e2e/payment-operations-live.spec.ts tests/e2e/invoice-explainability-live.spec.ts tests/e2e/replay-operations-live.spec.ts --workers=1
+web-e2e-live: ## Run live staging browser smoke for overview, payments, replay ops, and invoice explainability (requires PLAYWRIGHT_LIVE_BASE_URL plus browser-user email/password envs; optional invoice/replay fixture ids)
+	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_PLATFORM_EMAIL='$(PLAYWRIGHT_LIVE_PLATFORM_EMAIL)' PLAYWRIGHT_LIVE_PLATFORM_PASSWORD='$(PLAYWRIGHT_LIVE_PLATFORM_PASSWORD)' PLAYWRIGHT_LIVE_WRITER_EMAIL='$(PLAYWRIGHT_LIVE_WRITER_EMAIL)' PLAYWRIGHT_LIVE_WRITER_PASSWORD='$(PLAYWRIGHT_LIVE_WRITER_PASSWORD)' PLAYWRIGHT_LIVE_READER_EMAIL='$(PLAYWRIGHT_LIVE_READER_EMAIL)' PLAYWRIGHT_LIVE_READER_PASSWORD='$(PLAYWRIGHT_LIVE_READER_PASSWORD)' PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID='$(PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID)' PLAYWRIGHT_LIVE_REPLAY_JOB_ID='$(PLAYWRIGHT_LIVE_REPLAY_JOB_ID)' PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID='$(PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID)' PLAYWRIGHT_LIVE_REPLAY_METER_ID='$(PLAYWRIGHT_LIVE_REPLAY_METER_ID)' npx -y pnpm@10.30.0 exec playwright test tests/e2e/control-plane-overview-live.spec.ts tests/e2e/payment-operations-live.spec.ts tests/e2e/invoice-explainability-live.spec.ts tests/e2e/replay-operations-live.spec.ts --workers=1
 
 tf-fmt: ## Format Terraform code
 	@terraform fmt -recursive $(TF_DIR)

@@ -1,35 +1,30 @@
-import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { loginWithPassword } from "./live-browser-auth";
+
 const liveBaseURL = process.env.PLAYWRIGHT_LIVE_BASE_URL || "";
-const liveWriterAPIKey = process.env.PLAYWRIGHT_LIVE_WRITER_API_KEY || "";
-const liveReaderAPIKey = process.env.PLAYWRIGHT_LIVE_READER_API_KEY || "";
+const liveWriterEmail = process.env.PLAYWRIGHT_LIVE_WRITER_EMAIL || "";
+const liveWriterPassword = process.env.PLAYWRIGHT_LIVE_WRITER_PASSWORD || "";
+const liveReaderEmail = process.env.PLAYWRIGHT_LIVE_READER_EMAIL || "";
+const liveReaderPassword = process.env.PLAYWRIGHT_LIVE_READER_PASSWORD || "";
 const liveReplayJobID = process.env.PLAYWRIGHT_LIVE_REPLAY_JOB_ID || "";
 const liveReplayCustomerID = process.env.PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID || "";
 const liveReplayMeterID = process.env.PLAYWRIGHT_LIVE_REPLAY_METER_ID || "";
-
-async function loginWithAPIKey(page: Page, apiKey: string) {
-  await page.goto("/replay-operations");
-
-  await expect(page.getByText("Replay + Reprocess Operations")).toBeVisible();
-  await expect(page.getByTestId("session-login-submit")).toBeVisible();
-
-  await page.getByTestId("session-login-api-key").fill(apiKey);
-  await page.getByTestId("session-login-submit").click();
-
-  await expect(page.getByTestId("session-logout")).toBeVisible();
-}
 
 test.describe("replay operations live staging", () => {
   test.skip(!liveBaseURL, "PLAYWRIGHT_LIVE_BASE_URL is required for live staging replay smoke");
 
   test("reader session can inspect a known live replay fixture", async ({ page }) => {
-    test.skip(!liveReaderAPIKey, "PLAYWRIGHT_LIVE_READER_API_KEY is required for live replay diagnostics smoke");
+    test.skip(!liveReaderEmail || !liveReaderPassword, "PLAYWRIGHT_LIVE_READER_EMAIL and PLAYWRIGHT_LIVE_READER_PASSWORD are required for live replay diagnostics smoke");
     test.skip(!liveReplayJobID, "PLAYWRIGHT_LIVE_REPLAY_JOB_ID is required for live replay diagnostics smoke");
     test.skip(!liveReplayCustomerID, "PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID is required for live replay diagnostics smoke");
     test.skip(!liveReplayMeterID, "PLAYWRIGHT_LIVE_REPLAY_METER_ID is required for live replay diagnostics smoke");
 
-    await loginWithAPIKey(page, liveReaderAPIKey);
+    await loginWithPassword(page, {
+      email: liveReaderEmail,
+      password: liveReaderPassword,
+      nextPath: "/replay-operations",
+    });
 
     await page.getByPlaceholder("cust_123").first().fill(liveReplayCustomerID);
     await page.getByPlaceholder("meter_abc").first().fill(liveReplayMeterID);
@@ -45,11 +40,15 @@ test.describe("replay operations live staging", () => {
   });
 
   test("writer session can queue a fresh replay job from the live replay screen", async ({ page }) => {
-    test.skip(!liveWriterAPIKey, "PLAYWRIGHT_LIVE_WRITER_API_KEY is required for live replay queue smoke");
+    test.skip(!liveWriterEmail || !liveWriterPassword, "PLAYWRIGHT_LIVE_WRITER_EMAIL and PLAYWRIGHT_LIVE_WRITER_PASSWORD are required for live replay queue smoke");
     test.skip(!liveReplayCustomerID, "PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID is required for live replay queue smoke");
     test.skip(!liveReplayMeterID, "PLAYWRIGHT_LIVE_REPLAY_METER_ID is required for live replay queue smoke");
 
-    await loginWithAPIKey(page, liveWriterAPIKey);
+    await loginWithPassword(page, {
+      email: liveWriterEmail,
+      password: liveWriterPassword,
+      nextPath: "/replay-operations",
+    });
 
     const idempotencyKey = `playwright-live-replay-${Date.now()}`;
     await page.getByTestId("replay-create-customer-id").fill(liveReplayCustomerID);

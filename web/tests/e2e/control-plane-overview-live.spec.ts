@@ -1,29 +1,24 @@
-import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { loginWithPassword } from "./live-browser-auth";
+
 const liveBaseURL = process.env.PLAYWRIGHT_LIVE_BASE_URL || "";
-const livePlatformAPIKey = process.env.PLAYWRIGHT_LIVE_PLATFORM_API_KEY || "";
-const liveWriterAPIKey = process.env.PLAYWRIGHT_LIVE_WRITER_API_KEY || "";
-
-async function loginWithAPIKey(page: Page, apiKey: string) {
-  await page.goto("/control-plane");
-
-  await expect(page.getByRole("heading", { name: "Primary onboarding journeys" })).toBeVisible();
-  await expect(page.getByTestId("session-login-submit")).toBeVisible();
-
-  await page.getByTestId("session-login-api-key").fill(apiKey);
-  await page.getByTestId("session-login-submit").click();
-
-  await expect(page.getByTestId("session-logout")).toBeVisible();
-}
+const livePlatformEmail = process.env.PLAYWRIGHT_LIVE_PLATFORM_EMAIL || "";
+const livePlatformPassword = process.env.PLAYWRIGHT_LIVE_PLATFORM_PASSWORD || "";
+const liveWriterEmail = process.env.PLAYWRIGHT_LIVE_WRITER_EMAIL || "";
+const liveWriterPassword = process.env.PLAYWRIGHT_LIVE_WRITER_PASSWORD || "";
 
 test.describe("control plane overview live staging", () => {
   test.skip(!liveBaseURL, "PLAYWRIGHT_LIVE_BASE_URL is required for live overview smoke");
 
   test("platform admin can view live workspace attention", async ({ page }) => {
-    test.skip(!livePlatformAPIKey, "PLAYWRIGHT_LIVE_PLATFORM_API_KEY is required for platform overview smoke");
+    test.skip(!livePlatformEmail || !livePlatformPassword, "PLAYWRIGHT_LIVE_PLATFORM_EMAIL and PLAYWRIGHT_LIVE_PLATFORM_PASSWORD are required for platform overview smoke");
 
-    await loginWithAPIKey(page, livePlatformAPIKey);
+    await loginWithPassword(page, {
+      email: livePlatformEmail,
+      password: livePlatformPassword,
+      nextPath: "/control-plane",
+    });
 
     await expect(page.getByText("Workspaces missing pricing")).toBeVisible();
     await expect(page.getByText("Workspaces missing first customer")).toBeVisible();
@@ -31,9 +26,13 @@ test.describe("control plane overview live staging", () => {
   });
 
   test("tenant writer can view live customer attention", async ({ page }) => {
-    test.skip(!liveWriterAPIKey, "PLAYWRIGHT_LIVE_WRITER_API_KEY is required for tenant overview smoke");
+    test.skip(!liveWriterEmail || !liveWriterPassword, "PLAYWRIGHT_LIVE_WRITER_EMAIL and PLAYWRIGHT_LIVE_WRITER_PASSWORD are required for tenant overview smoke");
 
-    await loginWithAPIKey(page, liveWriterAPIKey);
+    await loginWithPassword(page, {
+      email: liveWriterEmail,
+      password: liveWriterPassword,
+      nextPath: "/control-plane",
+    });
 
     await expect(page.getByText("Customers waiting on payment setup")).toBeVisible();
     await expect(page.getByText("Customers with billing sync errors")).toBeVisible();

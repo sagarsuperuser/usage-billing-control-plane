@@ -513,7 +513,7 @@ export function ReplayOperationsScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
-            body="Recovery tools are tenant-scoped. Sign in with a tenant reader, writer, or admin API key to inspect replay jobs or queue recovery work."
+            body="Recovery tools are tenant-scoped. Sign in with a tenant account to inspect replay jobs or queue recovery work."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

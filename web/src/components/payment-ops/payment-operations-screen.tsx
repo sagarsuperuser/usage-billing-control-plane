@@ -357,7 +357,7 @@ export function PaymentOperationsScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
-            body="Payment operations are tenant-scoped. Sign in with a tenant reader, writer, or admin API key to inspect invoice payment status or retry failed payments."
+            body="Payment operations are tenant-scoped. Sign in with a tenant account to inspect invoice payment status or retry failed payments."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
