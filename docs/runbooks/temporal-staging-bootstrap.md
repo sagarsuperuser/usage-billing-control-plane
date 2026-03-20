@@ -27,8 +27,7 @@ The deploy script:
 
 - discovers the staging RDS endpoint and master username
 - reads the live RDS-managed master secret from AWS Secrets Manager
-- syncs Temporal ExternalSecret resources into the `temporal` namespace
-- currently prepares `temporal-sql`, which is shared by both default and visibility SQL persistence
+- syncs the SQL password into `temporal/temporal-sql`
 - deploys the official chart with SQL persistence and schema jobs enabled
 
 ## Notes

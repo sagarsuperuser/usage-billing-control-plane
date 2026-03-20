@@ -142,7 +142,7 @@ lago-staging-bootstrap-payments: ## Bootstrap Lago Stripe/webhook/test-customer 
 temporal-staging-deploy: ## Deploy Temporal staging into the current cluster (official Helm chart, internal only)
 	@./scripts/deploy_temporal_staging.sh
 
-temporal-staging-sync-secrets: ## Sync Temporal staging ExternalSecret resources from AWS into Kubernetes
+temporal-staging-sync-secrets: ## Sync Temporal SQL password secret from the RDS master secret into Kubernetes
 	@./scripts/sync_temporal_staging_secrets.sh
 
 temporal-staging-verify: ## Verify Temporal staging deployments and the default namespace
