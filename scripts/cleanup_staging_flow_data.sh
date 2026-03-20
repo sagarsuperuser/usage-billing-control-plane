@@ -54,12 +54,12 @@ WITH
   replay_meters AS (
     SELECT id, meter_key
     FROM meters
-    WHERE meter_key LIKE 'replay_smoke_meter_%'
+    WHERE meter_key LIKE 'replay_smoke_meter_%' OR meter_key = 'replay_smoke_meter'
   ),
   replay_rules AS (
     SELECT id, name
     FROM rating_rule_versions
-    WHERE name LIKE 'Replay Smoke Flat %'
+    WHERE name LIKE 'Replay Smoke Flat %' OR name = 'Replay Smoke Flat'
   ),
   live_platform_keys AS (
     SELECT id, name
@@ -201,10 +201,10 @@ payment_fixture_customers AS (
      OR external_id LIKE 'cust_payment_smoke_%'
 ),
 replay_meters AS (
-  SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
+  SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%' OR meter_key = 'replay_smoke_meter'
 ),
 replay_rules AS (
-  SELECT id FROM rating_rule_versions WHERE name LIKE 'Replay Smoke Flat %'
+  SELECT id FROM rating_rule_versions WHERE name LIKE 'Replay Smoke Flat %' OR name = 'Replay Smoke Flat'
 )
 DELETE FROM api_key_audit_events
 WHERE api_key_id IN (
@@ -242,7 +242,7 @@ WHERE customer_id IN (
     SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
   )
    OR meter_id IN (
-    SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
+    SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%' OR meter_key = 'replay_smoke_meter'
   )
    OR idempotency_key LIKE 'replay-smoke-%'
    OR replay_job_id IN (
@@ -252,7 +252,7 @@ WHERE customer_id IN (
         SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
       )
        OR meter_id IN (
-        SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
+        SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%' OR meter_key = 'replay_smoke_meter'
       )
        OR idempotency_key LIKE 'replay-smoke-%'
   );
@@ -262,7 +262,7 @@ WHERE customer_id IN (
     SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
   )
    OR meter_id IN (
-    SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
+    SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%' OR meter_key = 'replay_smoke_meter'
   )
    OR idempotency_key LIKE 'replay-smoke-%';
 
@@ -271,7 +271,7 @@ WHERE customer_id IN (
     SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
   )
    OR meter_id IN (
-    SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
+    SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%' OR meter_key = 'replay_smoke_meter'
   )
    OR idempotency_key LIKE 'replay-smoke-%';
 
@@ -308,8 +308,8 @@ DELETE FROM customers
 WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
    OR external_id LIKE 'cust_payment_smoke_%';
 
-DELETE FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%';
-DELETE FROM rating_rule_versions WHERE name LIKE 'Replay Smoke Flat %';
+DELETE FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%' OR meter_key = 'replay_smoke_meter';
+DELETE FROM rating_rule_versions WHERE name LIKE 'Replay Smoke Flat %' OR name = 'Replay Smoke Flat';
 
 COMMIT;
 SQL
