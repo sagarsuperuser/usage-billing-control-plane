@@ -30,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-replay-smoke test-staging-acceptance verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-replay-smoke test-staging-acceptance verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data cleanup-staging-flow-data-local lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -106,8 +106,11 @@ mint-live-e2e-keys-cluster: ## Mint fresh platform/writer/reader API keys for li
 bootstrap-live-e2e-browser-users-cluster: ## Ensure fresh live browser users for Playwright staging smoke from inside the current cluster
 	@bash ./scripts/bootstrap_live_e2e_browser_users_cluster.sh
 
-cleanup-staging-flow-data: ## Dry-run or apply cleanup of generated stale staging flow fixtures (requires DATABASE_URL, APPLY=1, CONFIRM_STAGING_FLOW_CLEANUP=YES_I_UNDERSTAND)
-	@ENVIRONMENT='staging' DATABASE_URL='$(DATABASE_URL)' APPLY='$(APPLY)' CONFIRM_STAGING_FLOW_CLEANUP='$(CONFIRM_STAGING_FLOW_CLEANUP)' bash ./scripts/cleanup_staging_flow_data.sh
+cleanup-staging-flow-data: ## Dry-run or apply cleanup of generated stale staging flow fixtures from inside the cluster
+	@ENVIRONMENT='$(ENVIRONMENT)' OUTPUT='$(OUTPUT)' APPLY='$(APPLY)' CONFIRM_STAGING_FLOW_CLEANUP='$(CONFIRM_STAGING_FLOW_CLEANUP)' INCLUDE_REPLAY_FIXTURES='$(INCLUDE_REPLAY_FIXTURES)' INCLUDE_PAYMENT_FIXTURES='$(INCLUDE_PAYMENT_FIXTURES)' INCLUDE_LIVE_BROWSER_FIXTURES='$(INCLUDE_LIVE_BROWSER_FIXTURES)' bash ./scripts/cleanup_staging_flow_data_cluster.sh
+
+cleanup-staging-flow-data-local: ## Legacy local psql cleanup path (requires DATABASE_URL)
+	@DATABASE_URL='$(DATABASE_URL)' ENVIRONMENT='$(ENVIRONMENT)' APPLY='$(APPLY)' CONFIRM_STAGING_FLOW_CLEANUP='$(CONFIRM_STAGING_FLOW_CLEANUP)' bash ./scripts/cleanup_staging_flow_data.sh
 
 lago-up: ## Start Lago services and provision deterministic API key for tests
 	@LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' bash ./scripts/bootstrap_lago.sh
@@ -175,12 +178,13 @@ prepare-real-payment-fixture: ## Prepare collectible Lago invoice fixture (requi
 test-real-payment-e2e: ## Run manual real payment collection E2E (requires staging/prod credentials + invoice id)
 	@bash ./scripts/test_real_payment_e2e.sh
 
-test-staging-payment-smoke: test-real-payment-e2e ## Run live staging payment smoke against a prepared invoice fixture
+test-staging-payment-smoke: ## Run live staging payment smoke against fresh per-run fixtures
+	@bash ./scripts/run_clean_staging_payment_smoke.sh
 
 verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh
 
-verify-staging-acceptance: ## Run staging runtime verify + success/failure payment E2E (requires staging URLs/keys/invoice ids)
+verify-staging-acceptance: ## Run staging runtime verify + success/failure payment E2E (auto-prepares clean payment fixtures unless explicit invoice ids are provided)
 	@bash ./scripts/verify_staging_acceptance.sh
 
 test-staging-acceptance: verify-staging-acceptance ## Run the full live staging acceptance gate

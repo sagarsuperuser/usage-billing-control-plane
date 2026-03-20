@@ -63,7 +63,7 @@ Workflow evidence:
 
 ## 5) Local Manual Execution
 
-Bootstrap the staging Stripe/Lago fixtures first if needed:
+Bootstrap the staging Stripe/Lago fixtures first if needed. The recommended smoke path now uses fresh per-run customer ids; explicit ids are only needed for manual debugging:
 
 ```bash
 STRIPE_SECRET_KEY='sk_test_replace_me_if_provider_missing' \
@@ -74,8 +74,8 @@ make lago-staging-bootstrap-payments
 What this bootstrap does:
 - ensures a Stripe provider exists in Lago with code `stripe_test`
 - ensures the alpha webhook endpoint exists in Lago with `jwt` signing
-- ensures `cust_e2e_success` exists, has Stripe billing config, has a usable Stripe payment method, and has a billing address synced to Stripe
-- ensures `cust_e2e_failure` exists and intentionally has no default payment method so failed retry behavior remains deterministic
+- ensures a success fixture customer exists, has Stripe billing config, has a usable Stripe payment method, and has a billing address synced to Stripe
+- ensures a failure fixture customer exists and intentionally has no default payment method so failed retry behavior remains deterministic
 
 Notes:
 - `STRIPE_SECRET_KEY` is only required if the `stripe_test` provider does not already exist or is missing a secret key
@@ -109,6 +109,17 @@ POLL_INTERVAL_SEC='5' \
 bash ./scripts/test_real_payment_e2e.sh
 ```
 
+To run the clean staging payment smoke in one command:
+
+```bash
+ALPHA_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+ALPHA_WRITER_API_KEY='...' \
+ALPHA_READER_API_KEY='...' \
+LAGO_API_URL='https://lago-api-staging.sagarwaidande.org' \
+LAGO_API_KEY='...' \
+bash ./scripts/run_clean_staging_payment_smoke.sh
+```
+
 To run the full staging alpha acceptance gate in one command:
 
 ```bash
@@ -129,7 +140,7 @@ bash ./scripts/verify_staging_acceptance.sh
 - `timeout waiting for Lago terminal status`: check Stripe provider config, customer payment method, and Lago worker logs.
 - `retry-payment failed: status=405 code=invalid_status`: the invoice already reached a terminal state before retry. This is valid for the success path if Lago auto-collected the payment first.
 - `export transactions require a customer name and address`: for India-based Stripe accounts, add customer address fields in Lago and ensure they are synced to Stripe before retrying the payment.
-- `payment_intent_unexpected_state`: the target customer has no usable Stripe payment method attached. This is expected for the default failure fixture customer and not expected for the success fixture customer.
+- `payment_intent_unexpected_state`: the target customer has no usable Stripe payment method attached. This is expected for the failure smoke fixture customer and not expected for the success smoke fixture customer.
 - `timeout waiting for alpha projection convergence`: check Lago -> alpha webhook delivery/signature/tenant mapping.
 - `failed lifecycle expectation mismatch`: inspect `/v1/invoice-payment-statuses/{id}/lifecycle` and webhook ordering for the target invoice.
 - `expected webhook_type` mismatch: inspect `/v1/invoice-payment-statuses/{id}/events` payload and webhook routing.

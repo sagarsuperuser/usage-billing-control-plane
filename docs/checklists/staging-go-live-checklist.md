@@ -24,9 +24,7 @@ Validated on `2026-03-15` against the live staging stack:
 - Real payment E2E passed for both terminal outcomes:
   - success invoice: `56251c97-597a-4cec-9a22-8106d746def8`
   - failure invoice: `baa27549-32d4-47cd-9f14-d98b61c8b0fa`
-- Known staging test customers:
-  - `cust_e2e_success`
-  - `cust_e2e_failure`
+- Known staging payment smoke now runs with fresh per-run customers from `make test-staging-payment-smoke`
 - Live replay smoke passed:
   - replay job: `rpl_432a72de0e30cac9`
   - replay customer: `cust_replay_smoke_20260315062139-27785`

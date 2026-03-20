@@ -45,6 +45,12 @@ WITH
     FROM customers
     WHERE external_id LIKE 'cust_replay_smoke_%'
   ),
+  payment_fixture_customers AS (
+    SELECT id, external_id
+    FROM customers
+    WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+       OR external_id LIKE 'cust_payment_smoke_%'
+  ),
   replay_meters AS (
     SELECT id, meter_key
     FROM meters
@@ -101,6 +107,27 @@ SELECT jsonb_pretty(
     ),
     'replay_smoke_meters', (SELECT count(*) FROM replay_meters),
     'replay_smoke_rating_rule_versions', (SELECT count(*) FROM replay_rules),
+    'payment_smoke_customers', (SELECT count(*) FROM payment_fixture_customers),
+    'payment_smoke_customer_billing_profiles', (
+      SELECT count(*)
+      FROM customer_billing_profiles
+      WHERE customer_id IN (SELECT id FROM payment_fixture_customers)
+    ),
+    'payment_smoke_customer_payment_setup', (
+      SELECT count(*)
+      FROM customer_payment_setup
+      WHERE customer_id IN (SELECT id FROM payment_fixture_customers)
+    ),
+    'payment_smoke_invoice_payment_status_views', (
+      SELECT count(*)
+      FROM invoice_payment_status_views
+      WHERE customer_external_id IN (SELECT external_id FROM payment_fixture_customers)
+    ),
+    'payment_smoke_lago_webhook_events', (
+      SELECT count(*)
+      FROM lago_webhook_events
+      WHERE customer_external_id IN (SELECT external_id FROM payment_fixture_customers)
+    ),
     'playwright_live_platform_api_keys', (SELECT count(*) FROM live_platform_keys),
     'playwright_live_tenant_api_keys', (SELECT count(*) FROM live_tenant_keys),
     'playwright_live_api_key_audit_events', (
@@ -121,7 +148,27 @@ SELECT jsonb_pretty(
         SELECT id FROM live_platform_keys
       )
     ),
-    'playwright_live_users', (SELECT count(*) FROM live_users)
+    'playwright_live_users', (SELECT count(*) FROM live_users),
+    'playwright_live_memberships', (
+      SELECT count(*)
+      FROM user_tenant_memberships
+      WHERE user_id IN (SELECT id FROM live_users)
+    ),
+    'playwright_live_password_credentials', (
+      SELECT count(*)
+      FROM user_password_credentials
+      WHERE user_id IN (SELECT id FROM live_users)
+    ),
+    'playwright_live_password_reset_tokens', (
+      SELECT count(*)
+      FROM password_reset_tokens
+      WHERE user_id IN (SELECT id FROM live_users)
+    ),
+    'playwright_live_workspace_invitations', (
+      SELECT count(*)
+      FROM workspace_invitations
+      WHERE lower(email) LIKE 'playwright-live-%@alpha.test'
+    )
   )
 );
 SQL
@@ -137,6 +184,12 @@ live_tenant_keys AS (
 ),
 replay_customers AS (
   SELECT id, external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
+),
+payment_fixture_customers AS (
+  SELECT id, external_id
+  FROM customers
+  WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+     OR external_id LIKE 'cust_payment_smoke_%'
 ),
 replay_meters AS (
   SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%'
@@ -166,6 +219,24 @@ WHERE api_key_id IN (
 
 DELETE FROM platform_api_keys WHERE name LIKE 'playwright-live-%';
 DELETE FROM api_keys WHERE name LIKE 'playwright-live-%';
+DELETE FROM workspace_invitations WHERE lower(email) LIKE 'playwright-live-%@alpha.test';
+DELETE FROM users WHERE lower(email) LIKE 'playwright-live-%@alpha.test';
+
+DELETE FROM lago_webhook_events
+WHERE customer_external_id IN (
+  SELECT external_id
+  FROM customers
+  WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+     OR external_id LIKE 'cust_payment_smoke_%'
+);
+
+DELETE FROM invoice_payment_status_views
+WHERE customer_external_id IN (
+  SELECT external_id
+  FROM customers
+  WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+     OR external_id LIKE 'cust_payment_smoke_%'
+);
 
 DELETE FROM replay_jobs
 WHERE customer_id IN (
@@ -199,13 +270,33 @@ WHERE customer_id IN (
   SELECT id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
 );
 
+DELETE FROM customer_payment_setup
+WHERE customer_id IN (
+  SELECT id
+  FROM customers
+  WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+     OR external_id LIKE 'cust_payment_smoke_%'
+);
+
 DELETE FROM customer_billing_profiles
 WHERE customer_id IN (
   SELECT id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
 );
 
+DELETE FROM customer_billing_profiles
+WHERE customer_id IN (
+  SELECT id
+  FROM customers
+  WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+     OR external_id LIKE 'cust_payment_smoke_%'
+);
+
 DELETE FROM customers
 WHERE external_id LIKE 'cust_replay_smoke_%';
+
+DELETE FROM customers
+WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+   OR external_id LIKE 'cust_payment_smoke_%';
 
 DELETE FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%';
 DELETE FROM rating_rule_versions WHERE name LIKE 'Replay Smoke Flat %';
