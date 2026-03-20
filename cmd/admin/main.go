@@ -252,8 +252,8 @@ func applyCleanup(ctx context.Context, db *sql.DB, includeReplay, includePayment
 	}
 	if includeReplay {
 		statements = append(statements,
-			`DELETE FROM replay_jobs WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`,
 			`DELETE FROM billed_entries WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`,
+			`DELETE FROM replay_jobs WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`,
 			`DELETE FROM usage_events WHERE customer_id IN (SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%') OR meter_id IN (SELECT id FROM meters WHERE meter_key LIKE 'replay_smoke_meter_%') OR idempotency_key LIKE 'replay-smoke-%'`,
 			`DELETE FROM customer_payment_setup WHERE customer_id IN (SELECT id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%')`,
 			`DELETE FROM customer_billing_profiles WHERE customer_id IN (SELECT id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%')`,

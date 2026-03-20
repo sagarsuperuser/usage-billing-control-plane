@@ -234,7 +234,7 @@ WHERE customer_external_id IN (
      OR external_id LIKE 'cust_payment_smoke_%'
 );
 
-DELETE FROM replay_jobs
+DELETE FROM billed_entries
 WHERE customer_id IN (
     SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
   )
@@ -243,7 +243,7 @@ WHERE customer_id IN (
   )
    OR idempotency_key LIKE 'replay-smoke-%';
 
-DELETE FROM billed_entries
+DELETE FROM replay_jobs
 WHERE customer_id IN (
     SELECT external_id FROM customers WHERE external_id LIKE 'cust_replay_smoke_%'
   )
