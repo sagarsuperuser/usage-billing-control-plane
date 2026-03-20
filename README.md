@@ -111,6 +111,8 @@ make preflight-staging
 make bootstrap-platform-admin-key
 make bootstrap-platform-admin-key-cluster
 make mint-live-e2e-keys-cluster
+make bootstrap-live-e2e-browser-users-cluster
+make cleanup-staging-flow-data
 make preflight-prod
 make tf-plan-staging
 make tf-apply-staging
@@ -118,6 +120,13 @@ make tf-plan-prod
 make tf-apply-prod
 make bootstrap-platform-admin-key
 make run
+make test-browser-mocked
+make test-smoke-local
+make test-integration-local
+make test-browser-staging-smoke
+make test-staging-payment-smoke
+make test-staging-replay-smoke
+make test-staging-acceptance
 make test-real-env-smoke
 make test-integration
 make prepare-real-payment-fixture
@@ -513,6 +522,25 @@ curl -s 'http://localhost:8080/internal/metrics' \
 
 ## Tests
 
+Testing layers:
+
+- mocked and deterministic:
+  - `make test-unit`
+  - `make test-browser-mocked`
+- local/controlled integration:
+  - `make test-smoke-local`
+  - `make test-integration-local`
+- live staging smoke:
+  - `make test-browser-staging-smoke`
+  - `make verify-staging-runtime`
+  - `make test-staging-payment-smoke`
+  - `make test-staging-replay-smoke`
+  - `make test-staging-acceptance`
+
+Read the durable strategy doc before extending this structure:
+
+- `docs/standards/testing-strategy.md`
+
 Unit tests:
 
 ```bash
@@ -540,6 +568,7 @@ Or run end-to-end integration workflow:
 
 ```bash
 make test-integration
+make test-integration-local
 ```
 
 Run a larger replay dataset correctness check with explicit drift thresholds:

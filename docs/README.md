@@ -118,6 +118,7 @@ Read before adding or changing docs or core architecture:
 
 - [Documentation Standards](./standards/documentation-standards.md)
 - [Engineering Standards](./standards/engineering-standards.md)
+- [Testing Strategy](./standards/testing-strategy.md)
 
 ---
 

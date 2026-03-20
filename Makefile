@@ -30,7 +30,7 @@ REVISION ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-replay-smoke test-staging-acceptance verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -46,6 +46,12 @@ test: ## Run all tests
 
 test-unit: ## Run fast unit tests
 	@$(GO) test ./internal/domain
+
+test-browser-mocked: web-e2e ## Run mocked browser/session workflow tests
+
+test-smoke-local: test-real-env-smoke ## Run fast local controlled-env smoke
+
+test-integration-local: test-integration ## Run full local integration workflow
 
 verify-governance: ## Verify governance metadata (CODEOWNERS)
 	@./scripts/verify_codeowners.sh
@@ -169,14 +175,20 @@ prepare-real-payment-fixture: ## Prepare collectible Lago invoice fixture (requi
 test-real-payment-e2e: ## Run manual real payment collection E2E (requires staging/prod credentials + invoice id)
 	@bash ./scripts/test_real_payment_e2e.sh
 
+test-staging-payment-smoke: test-real-payment-e2e ## Run live staging payment smoke against a prepared invoice fixture
+
 verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh
 
 verify-staging-acceptance: ## Run staging runtime verify + success/failure payment E2E (requires staging URLs/keys/invoice ids)
 	@bash ./scripts/verify_staging_acceptance.sh
 
+test-staging-acceptance: verify-staging-acceptance ## Run the full live staging acceptance gate
+
 verify-replay-smoke-staging: ## Create and verify a fresh live replay fixture in staging (requires ALPHA_API_BASE_URL/ALPHA_WRITER_API_KEY/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_replay_smoke_staging.sh
+
+test-staging-replay-smoke: verify-replay-smoke-staging ## Run live staging replay smoke
 
 backup-restore-drill: ## Run RDS backup+restore drill (requires AWS env vars and CONFIRM_BACKUP_RESTORE=YES_I_UNDERSTAND)
 	@bash ./scripts/rds_backup_restore_drill.sh
@@ -188,7 +200,9 @@ web-e2e: ## Run browser E2E tests for control-plane UI
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
 
 web-e2e-live: ## Run live staging browser smoke for overview, payments, replay ops, and invoice explainability (requires PLAYWRIGHT_LIVE_BASE_URL plus browser-user email/password envs; optional invoice/replay fixture ids)
-	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_PLATFORM_EMAIL='$(PLAYWRIGHT_LIVE_PLATFORM_EMAIL)' PLAYWRIGHT_LIVE_PLATFORM_PASSWORD='$(PLAYWRIGHT_LIVE_PLATFORM_PASSWORD)' PLAYWRIGHT_LIVE_WRITER_EMAIL='$(PLAYWRIGHT_LIVE_WRITER_EMAIL)' PLAYWRIGHT_LIVE_WRITER_PASSWORD='$(PLAYWRIGHT_LIVE_WRITER_PASSWORD)' PLAYWRIGHT_LIVE_READER_EMAIL='$(PLAYWRIGHT_LIVE_READER_EMAIL)' PLAYWRIGHT_LIVE_READER_PASSWORD='$(PLAYWRIGHT_LIVE_READER_PASSWORD)' PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID='$(PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID)' PLAYWRIGHT_LIVE_REPLAY_JOB_ID='$(PLAYWRIGHT_LIVE_REPLAY_JOB_ID)' PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID='$(PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID)' PLAYWRIGHT_LIVE_REPLAY_METER_ID='$(PLAYWRIGHT_LIVE_REPLAY_METER_ID)' npx -y pnpm@10.30.0 exec playwright test tests/e2e/control-plane-overview-live.spec.ts tests/e2e/payment-operations-live.spec.ts tests/e2e/invoice-explainability-live.spec.ts tests/e2e/replay-operations-live.spec.ts --workers=1
+	@PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_PLATFORM_EMAIL='$(PLAYWRIGHT_LIVE_PLATFORM_EMAIL)' PLAYWRIGHT_LIVE_PLATFORM_PASSWORD='$(PLAYWRIGHT_LIVE_PLATFORM_PASSWORD)' PLAYWRIGHT_LIVE_WRITER_EMAIL='$(PLAYWRIGHT_LIVE_WRITER_EMAIL)' PLAYWRIGHT_LIVE_WRITER_PASSWORD='$(PLAYWRIGHT_LIVE_WRITER_PASSWORD)' PLAYWRIGHT_LIVE_READER_EMAIL='$(PLAYWRIGHT_LIVE_READER_EMAIL)' PLAYWRIGHT_LIVE_READER_PASSWORD='$(PLAYWRIGHT_LIVE_READER_PASSWORD)' PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID='$(PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID)' PLAYWRIGHT_LIVE_REPLAY_JOB_ID='$(PLAYWRIGHT_LIVE_REPLAY_JOB_ID)' PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID='$(PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID)' PLAYWRIGHT_LIVE_REPLAY_METER_ID='$(PLAYWRIGHT_LIVE_REPLAY_METER_ID)' bash ./scripts/run_live_browser_smoke.sh
+
+test-browser-staging-smoke: web-e2e-live ## Run live staging browser smoke with real browser users
 
 tf-fmt: ## Format Terraform code
 	@terraform fmt -recursive $(TF_DIR)
