@@ -4,18 +4,27 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { LoaderCircle, LogIn } from "lucide-react";
 
-import type { UISession } from "@/lib/types";
+import type { UISession, UIAuthProvider } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 import { isInvitationPendingLoginError, isWorkspaceSelectionRequiredError } from "@/lib/api";
+import { normalizeNextPath } from "@/lib/session-routing";
 
 export function SessionLoginCard({
+  apiBaseURL,
   passwordResetEnabled,
+  ssoProviders,
+  providerKey,
+  authErrorCode,
   onSuccess,
   onSelectionRequired,
   onInvitationPending,
   nextPath,
 }: {
+  apiBaseURL: string;
   passwordResetEnabled?: boolean;
+  ssoProviders?: UIAuthProvider[];
+  providerKey?: string | null;
+  authErrorCode?: string | null;
   onSuccess?: (session: UISession) => void;
   onSelectionRequired?: () => void;
   onInvitationPending?: (nextPath: string) => void;
@@ -56,12 +65,12 @@ export function SessionLoginCard({
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Browser sign-in</p>
             <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-              Password
+              Password + SSO
             </span>
           </div>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">Start with your account credentials</h2>
           <p className="mt-2 text-sm leading-7 text-slate-600">
-            Human browser sessions now use email and password. Platform accounts open cross-workspace administration. Tenant accounts open assigned workspace surfaces.
+            Human browser sessions support email and password as well as single sign-on. Platform accounts open cross-workspace administration. Tenant accounts open assigned workspace surfaces.
           </p>
         </div>
         <div className="grid gap-3 text-xs text-slate-600 sm:grid-cols-2">
@@ -74,6 +83,41 @@ export function SessionLoginCard({
             <p className="mt-1 leading-6">Customers, payments, recovery, and explainability inside assigned workspaces.</p>
           </div>
         </div>
+      </div>
+
+      {ssoProviders && ssoProviders.length > 0 ? (
+        <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Single sign-on</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-950">Continue with your identity provider</h3>
+            </div>
+            <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+              Recommended
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-slate-600">Use SSO for browser sessions. API keys stay on API and integration traffic only.</p>
+          <div className="mt-4 grid gap-3">
+            {ssoProviders.map((provider) => (
+              <a
+                key={provider.key}
+                href={buildSSOStartURL(apiBaseURL, provider.key, nextPath)}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-slate-800 transition hover:border-stone-300 hover:bg-stone-50"
+              >
+                Continue with {provider.display_name}
+              </a>
+            ))}
+          </div>
+          {(providerKey || authErrorCode) && (
+            <p className="mt-3 text-xs text-amber-700">{resolveAuthErrorMessage(providerKey ?? null, authErrorCode ?? null)}</p>
+          )}
+        </div>
+      ) : null}
+
+      <div className="mt-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-stone-200" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Or use password</span>
+        <div className="h-px flex-1 bg-stone-200" />
       </div>
 
       <form className="mt-5 grid gap-4" onSubmit={onSubmit}>
@@ -131,4 +175,33 @@ export function SessionLoginCard({
       ) : null}
     </section>
   );
+}
+
+function buildSSOStartURL(apiBaseURL: string, providerKey: string, nextPath: string | null | undefined): string {
+  const baseURL = apiBaseURL.replace(/\/+$/, "");
+  const url = new URL(`${baseURL}/v1/ui/auth/sso/${encodeURIComponent(providerKey)}/start`);
+  if (nextPath) {
+    url.searchParams.set("next", normalizeNextPath(nextPath, "/"));
+  }
+  return url.toString();
+}
+
+function resolveAuthErrorMessage(providerKey: string | null, errorCode: string | null): string {
+  const label = providerKey ? ` for ${providerKey}` : "";
+  switch (errorCode) {
+    case "sso_user_not_provisioned":
+      return `No browser account is provisioned${label}. Ask an admin to grant platform or tenant access first.`;
+    case "sso_email_not_verified":
+      return `The identity provider did not return a verified email${label}.`;
+    case "tenant_selection_required":
+      return "This account spans more than one workspace. Continue to choose the workspace you want to open.";
+    case "tenant_access_denied":
+      return `This account is authenticated${label}, but it does not have access to the requested workspace.`;
+    case "user_disabled":
+      return "This browser account is disabled.";
+    case "sso_denied":
+      return `The sign-in request was cancelled${label}.`;
+    default:
+      return `Single sign-on failed${label}. Try again or use email and password.`;
+  }
 }

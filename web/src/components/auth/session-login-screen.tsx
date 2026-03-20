@@ -92,7 +92,11 @@ export function SessionLoginScreen() {
             <div className="sr-only">{authError}</div>
           ) : null}
           <SessionLoginCard
+            apiBaseURL={apiBaseURL}
             passwordResetEnabled={Boolean(authProvidersQuery.data?.password_reset_enabled)}
+            ssoProviders={authProvidersQuery.data?.sso_providers ?? []}
+            providerKey={providerKey}
+            authErrorCode={authError}
             nextPath={requestedNext}
             onSuccess={(nextSession) => {
               router.replace(resolveTarget(nextSession, requestedNext));
@@ -104,38 +108,6 @@ export function SessionLoginScreen() {
               router.replace(normalizeNextPath(nextPath, "/"));
             }}
           />
-          {authProvidersQuery.data?.sso_providers?.length ? (
-            <div className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4 border-b border-stone-200 pb-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Single sign-on</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Continue with your identity provider</h2>
-                </div>
-                <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                  Recommended
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-slate-600">
-                Use SSO for browser sessions. API keys stay on API and integration traffic only.
-              </p>
-              <div className="mt-4 grid gap-3">
-                {authProvidersQuery.data.sso_providers.map((provider) => (
-                  <a
-                    key={provider.key}
-                    href={buildSSOStartURL(apiBaseURL, provider.key, requestedNext)}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm font-medium text-slate-800 transition hover:border-stone-300 hover:bg-white"
-                  >
-                    Continue with {provider.display_name}
-                  </a>
-                ))}
-              </div>
-              {(providerKey || authError) && (
-                <p className="mt-3 text-xs text-amber-700">
-                  {resolveAuthErrorMessage(providerKey, authError)}
-                </p>
-              )}
-            </div>
-          ) : null}
         </section>
       </main>
     </div>
@@ -154,33 +126,4 @@ function FeatureCard({ icon, title, body }: { icon: React.ReactNode; title: stri
       </div>
     </div>
   );
-}
-
-function buildSSOStartURL(apiBaseURL: string, providerKey: string, nextPath: string | null): string {
-  const baseURL = apiBaseURL.replace(/\/+$/, "");
-  const url = new URL(`${baseURL}/v1/ui/auth/sso/${encodeURIComponent(providerKey)}/start`);
-  if (nextPath) {
-    url.searchParams.set("next", normalizeNextPath(nextPath, "/"));
-  }
-  return url.toString()
-}
-
-function resolveAuthErrorMessage(providerKey: string | null, errorCode: string | null): string {
-  const label = providerKey ? ` for ${providerKey}` : "";
-  switch (errorCode) {
-    case "sso_user_not_provisioned":
-      return `No browser account is provisioned${label}. Ask an admin to grant platform or tenant access first.`;
-    case "sso_email_not_verified":
-      return `The identity provider did not return a verified email${label}.`;
-    case "tenant_selection_required":
-      return "This account spans more than one workspace. Continue to choose the workspace you want to open.";
-    case "tenant_access_denied":
-      return `This account is authenticated${label}, but it does not have access to the requested workspace.`;
-    case "user_disabled":
-      return "This browser account is disabled.";
-    case "sso_denied":
-      return `The sign-in request was cancelled${label}.`;
-    default:
-      return `Single sign-on failed${label}. Try again or use email and password.`;
-  }
 }
