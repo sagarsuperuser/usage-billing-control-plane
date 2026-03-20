@@ -142,10 +142,8 @@ SELECT jsonb_pretty(
     'playwright_live_api_key_export_jobs', (
       SELECT count(*)
       FROM api_key_audit_export_jobs
-      WHERE api_key_id IN (
+      WHERE requested_by_api_key_id IN (
         SELECT id FROM live_tenant_keys
-        UNION ALL
-        SELECT id FROM live_platform_keys
       )
     ),
     'playwright_live_users', (SELECT count(*) FROM live_users),
@@ -211,10 +209,8 @@ live_tenant_keys AS (
   SELECT id FROM api_keys WHERE name LIKE 'playwright-live-%'
 )
 DELETE FROM api_key_audit_export_jobs
-WHERE api_key_id IN (
+WHERE requested_by_api_key_id IN (
   SELECT id FROM live_tenant_keys
-  UNION ALL
-  SELECT id FROM live_platform_keys
 );
 
 DELETE FROM platform_api_keys WHERE name LIKE 'playwright-live-%';

@@ -199,7 +199,7 @@ func collectCleanupCounts(ctx context.Context, db *sql.DB, includeReplay, includ
 		if counts.PlaywrightLiveAPIKeyAuditEvents, err = countQuery(ctx, db, `SELECT count(*) FROM api_key_audit_events WHERE api_key_id IN (SELECT id FROM api_keys WHERE name LIKE 'playwright-live-%' UNION ALL SELECT id FROM platform_api_keys WHERE name LIKE 'playwright-live-%')`); err != nil {
 			return cleanupCounts{}, err
 		}
-		if counts.PlaywrightLiveAPIKeyExportJobs, err = countQuery(ctx, db, `SELECT count(*) FROM api_key_audit_export_jobs WHERE api_key_id IN (SELECT id FROM api_keys WHERE name LIKE 'playwright-live-%' UNION ALL SELECT id FROM platform_api_keys WHERE name LIKE 'playwright-live-%')`); err != nil {
+		if counts.PlaywrightLiveAPIKeyExportJobs, err = countQuery(ctx, db, `SELECT count(*) FROM api_key_audit_export_jobs WHERE requested_by_api_key_id IN (SELECT id FROM api_keys WHERE name LIKE 'playwright-live-%')`); err != nil {
 			return cleanupCounts{}, err
 		}
 		if counts.PlaywrightLiveUsers, err = countQuery(ctx, db, `SELECT count(*) FROM users WHERE `+userClause); err != nil {
@@ -233,7 +233,7 @@ func applyCleanup(ctx context.Context, db *sql.DB, includeReplay, includePayment
 	if includeLiveBrowser {
 		statements = append(statements,
 			`DELETE FROM api_key_audit_events WHERE api_key_id IN (SELECT id FROM api_keys WHERE name LIKE 'playwright-live-%' UNION ALL SELECT id FROM platform_api_keys WHERE name LIKE 'playwright-live-%')`,
-			`DELETE FROM api_key_audit_export_jobs WHERE api_key_id IN (SELECT id FROM api_keys WHERE name LIKE 'playwright-live-%' UNION ALL SELECT id FROM platform_api_keys WHERE name LIKE 'playwright-live-%')`,
+			`DELETE FROM api_key_audit_export_jobs WHERE requested_by_api_key_id IN (SELECT id FROM api_keys WHERE name LIKE 'playwright-live-%')`,
 			`DELETE FROM platform_api_keys WHERE name LIKE 'playwright-live-%'`,
 			`DELETE FROM api_keys WHERE name LIKE 'playwright-live-%'`,
 			`DELETE FROM workspace_invitations WHERE lower(email) LIKE 'playwright-live-%@alpha.test'`,
