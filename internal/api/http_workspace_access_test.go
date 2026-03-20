@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -69,6 +70,27 @@ func TestWorkspaceAccessSubresources(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create membership: %v", err)
 	}
+	backupAdmin, err := repo.CreateUser(domain.User{
+		ID:          "usr_workspace_backup_admin",
+		Email:       "backup-admin@tenant.test",
+		DisplayName: "Backup Admin",
+		Status:      domain.UserStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		t.Fatalf("create backup admin: %v", err)
+	}
+	if _, err := repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+		UserID:    backupAdmin.ID,
+		TenantID:  "tenant_access",
+		Role:      "admin",
+		Status:    domain.UserTenantMembershipStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create backup admin membership: %v", err)
+	}
 
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
 	if err != nil {
@@ -80,12 +102,19 @@ func TestWorkspaceAccessSubresources(t *testing.T) {
 
 	members := getJSON(t, ts.URL+"/internal/tenants/tenant_access/members", "platform-admin", http.StatusOK)
 	memberItems := members["items"].([]any)
-	if len(memberItems) != 1 {
-		t.Fatalf("expected 1 workspace member, got %d", len(memberItems))
+	if len(memberItems) != 2 {
+		t.Fatalf("expected 2 workspace members, got %d", len(memberItems))
 	}
-	member := memberItems[0].(map[string]any)
-	if member["email"] != user.Email {
-		t.Fatalf("expected member email %q, got %#v", user.Email, member["email"])
+	foundPrimaryMember := false
+	for _, raw := range memberItems {
+		member := raw.(map[string]any)
+		if member["email"] == user.Email {
+			foundPrimaryMember = true
+			break
+		}
+	}
+	if !foundPrimaryMember {
+		t.Fatalf("expected member email %q in workspace members", user.Email)
 	}
 
 	inviteResult := postJSON(t, ts.URL+"/internal/tenants/tenant_access/invitations", map[string]any{
@@ -528,6 +557,200 @@ func TestTenantWorkspaceServiceAccountLifecycle(t *testing.T) {
 	if metadata["owner_id"] != serviceAccountID {
 		t.Fatalf("expected audit metadata owner_id %q, got %#v", serviceAccountID, metadata["owner_id"])
 	}
+}
+
+func TestWorkspaceAccessBlocksLastActiveAdminPlatformOverride(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	now := time.Now().UTC()
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:        "tenant_last_admin",
+		Name:      "Tenant Last Admin",
+		Status:    domain.TenantStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	user, err := repo.CreateUser(domain.User{
+		ID:          "usr_last_admin",
+		Email:       "last-admin@tenant.test",
+		DisplayName: "Last Admin",
+		Status:      domain.UserStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+		UserID:    user.ID,
+		TenantID:  "tenant_last_admin",
+		Role:      "admin",
+		Status:    domain.UserTenantMembershipStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create membership: %v", err)
+	}
+
+	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(mustNewDBAuthorizer(t, repo))).Handler())
+	defer ts.Close()
+
+	roleResp := patchJSON(t, ts.URL+"/internal/tenants/tenant_last_admin/members/"+user.ID, map[string]any{
+		"role":   "writer",
+		"reason": "override test",
+	}, "platform-admin", http.StatusConflict)
+	if got, _ := roleResp["error_code"].(string); got != "last_active_admin_conflict" {
+		t.Fatalf("expected last_active_admin_conflict, got %#v", roleResp["error_code"])
+	}
+
+	deleteReq, err := http.NewRequest(http.MethodDelete, ts.URL+"/internal/tenants/tenant_last_admin/members/"+user.ID+"?reason="+url.QueryEscape("override test"), nil)
+	if err != nil {
+		t.Fatalf("build delete request: %v", err)
+	}
+	deleteReq.Header.Set("X-API-Key", "platform-admin")
+	deleteResp, err := http.DefaultClient.Do(deleteReq)
+	if err != nil {
+		t.Fatalf("delete member request: %v", err)
+	}
+	defer deleteResp.Body.Close()
+	if deleteResp.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409 on delete, got %d", deleteResp.StatusCode)
+	}
+	deletePayload := decodeResponseMap(t, deleteResp)
+	if got, _ := deletePayload["error_code"].(string); got != "last_active_admin_conflict" {
+		t.Fatalf("expected last_active_admin_conflict on delete, got %#v", deletePayload["error_code"])
+	}
+}
+
+func TestTenantWorkspaceMembersRejectSelfMutation(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:        "tenant_self_guard",
+		Name:      "Tenant Self Guard",
+		Status:    domain.TenantStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:    "self-admin@tenant.test",
+		password: "tenant self guard password 123",
+	})
+	user, err := repo.GetUserByEmail("self-admin@tenant.test")
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if _, err := repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+		UserID:    user.ID,
+		TenantID:  "tenant_self_guard",
+		Role:      "admin",
+		Status:    domain.UserTenantMembershipStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create membership: %v", err)
+	}
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_self_guard_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(mustNewDBAuthorizer(t, repo)),
+		api.WithSessionManager(sessionManager),
+	).Handler())
+	defer ts.Close()
+
+	client := newSessionClient(t)
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":     "self-admin@tenant.test",
+		"password":  "tenant self guard password 123",
+		"tenant_id": "tenant_self_guard",
+	}, "", http.StatusCreated)
+	csrfToken, _ := loginResp["csrf_token"].(string)
+	if csrfToken == "" {
+		t.Fatalf("expected csrf token")
+	}
+
+	roleResp := sessionPatchJSON(t, client, ts.URL+"/v1/workspace/members/"+url.PathEscape(user.ID), map[string]any{
+		"role": "writer",
+	}, csrfToken, http.StatusForbidden)
+	if got, _ := roleResp["error_code"].(string); got != "self_membership_mutation_forbidden" {
+		t.Fatalf("expected self_membership_mutation_forbidden, got %#v", roleResp["error_code"])
+	}
+
+	deleteReq, err := http.NewRequest(http.MethodDelete, ts.URL+"/v1/workspace/members/"+url.PathEscape(user.ID), nil)
+	if err != nil {
+		t.Fatalf("build delete request: %v", err)
+	}
+	deleteReq.Header.Set("X-CSRF-Token", csrfToken)
+	deleteResp, err := client.Do(deleteReq)
+	if err != nil {
+		t.Fatalf("delete request: %v", err)
+	}
+	defer deleteResp.Body.Close()
+	if deleteResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 on self delete, got %d", deleteResp.StatusCode)
+	}
+	deletePayload := decodeResponseMap(t, deleteResp)
+	if got, _ := deletePayload["error_code"].(string); got != "self_membership_mutation_forbidden" {
+		t.Fatalf("expected self_membership_mutation_forbidden on delete, got %#v", deletePayload["error_code"])
+	}
+}
+
+func decodeResponseMap(t *testing.T, resp *http.Response) map[string]any {
+	t.Helper()
+	defer resp.Body.Close()
+
+	var payload map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response body: %v", err)
+	}
+	return payload
 }
 
 func mustNewDBAuthorizer(t *testing.T, repo *store.PostgresStore) *api.DBAPIKeyAuthorizer {

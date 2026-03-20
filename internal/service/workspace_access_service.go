@@ -36,6 +36,8 @@ var (
 	ErrWorkspaceInvitationAccepted      = errors.New("workspace invitation accepted")
 	ErrWorkspaceInvitationEmailMismatch = errors.New("workspace invitation email mismatch")
 	ErrWorkspaceInvitationAccountExists = errors.New("workspace invitation account already exists")
+	ErrWorkspaceLastActiveAdmin         = errors.New("cannot modify the last active workspace admin")
+	ErrWorkspaceSelfMembershipMutation  = errors.New("cannot modify your own workspace membership")
 )
 
 type WorkspaceAccessService struct {
@@ -143,9 +145,17 @@ func (s *WorkspaceAccessService) UpdateWorkspaceMemberRoleWithAudit(workspaceID,
 	if err != nil {
 		return WorkspaceMember{}, err
 	}
+	if isWorkspaceActorSelf(actor, userID) {
+		return WorkspaceMember{}, ErrWorkspaceSelfMembershipMutation
+	}
 	membership, err := s.store.GetUserTenantMembership(userID, workspaceID)
 	if err != nil {
 		return WorkspaceMember{}, err
+	}
+	if workspaceMembershipIsActiveAdmin(membership) && role != "admin" {
+		if err := s.ensureNotLastActiveAdmin(workspaceID, userID); err != nil {
+			return WorkspaceMember{}, err
+		}
 	}
 	previousRole := membership.Role
 	previousStatus := membership.Status
@@ -204,9 +214,17 @@ func (s *WorkspaceAccessService) RemoveWorkspaceMemberWithAudit(workspaceID, use
 	if workspaceID == "" || userID == "" {
 		return fmt.Errorf("%w: workspace_id and user_id are required", ErrValidation)
 	}
+	if isWorkspaceActorSelf(actor, userID) {
+		return ErrWorkspaceSelfMembershipMutation
+	}
 	membership, err := s.store.GetUserTenantMembership(userID, workspaceID)
 	if err != nil {
 		return err
+	}
+	if workspaceMembershipIsActiveAdmin(membership) {
+		if err := s.ensureNotLastActiveAdmin(workspaceID, userID); err != nil {
+			return err
+		}
 	}
 	user, err := s.store.GetUser(membership.UserID)
 	if err != nil {
@@ -231,6 +249,32 @@ func (s *WorkspaceAccessService) RemoveWorkspaceMemberWithAudit(workspaceID, use
 			"new_status":      string(updated.Status),
 		},
 	})
+}
+
+func isWorkspaceActorSelf(actor WorkspaceAccessAuditActor, userID string) bool {
+	userID = strings.TrimSpace(userID)
+	return strings.TrimSpace(actor.SubjectType) == "user" && strings.TrimSpace(actor.SubjectID) != "" && strings.TrimSpace(actor.SubjectID) == userID
+}
+
+func workspaceMembershipIsActiveAdmin(membership domain.UserTenantMembership) bool {
+	return membership.Status == domain.UserTenantMembershipStatusActive && strings.EqualFold(strings.TrimSpace(membership.Role), "admin")
+}
+
+func (s *WorkspaceAccessService) ensureNotLastActiveAdmin(workspaceID, targetUserID string) error {
+	memberships, err := s.store.ListTenantMemberships(workspaceID)
+	if err != nil {
+		return err
+	}
+	activeAdminCount := 0
+	for _, membership := range memberships {
+		if workspaceMembershipIsActiveAdmin(membership) {
+			activeAdminCount++
+		}
+	}
+	if activeAdminCount <= 1 {
+		return ErrWorkspaceLastActiveAdmin
+	}
+	return nil
 }
 
 func (s *WorkspaceAccessService) CreateWorkspaceInvitation(req CreateWorkspaceInvitationRequest) (domain.WorkspaceInvitation, error) {

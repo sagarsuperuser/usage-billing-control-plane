@@ -52,6 +52,8 @@ export function TenantWorkspaceAccessScreen() {
   const [serviceAccountEnvironment, setServiceAccountEnvironment] = useState("prod");
   const [latestCredentialSecret, setLatestCredentialSecret] = useState<{ label: string; secret: string } | null>(null);
   const [selectedAuditServiceAccountID, setSelectedAuditServiceAccountID] = useState("");
+  const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
+  const [confirmingMemberAction, setConfirmingMemberAction] = useState<{ userID: string; action: "suspend" } | null>(null);
 
   const workspaceQueryKey = ["tenant-workspace-members", apiBaseURL, session?.tenant_id];
   const invitationQueryKey = ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id];
@@ -105,7 +107,13 @@ export function TenantWorkspaceAccessScreen() {
         userID: input.userID,
         role: input.role,
       }),
-    onSuccess: async () => {
+    onSuccess: async (_payload, input) => {
+      setMemberDraftRoles((current) => {
+        const next = { ...current };
+        delete next[input.userID];
+        return next;
+      });
+      setConfirmingMemberAction(null);
       await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
     },
   });
@@ -117,6 +125,7 @@ export function TenantWorkspaceAccessScreen() {
         userID,
       }),
     onSuccess: async () => {
+      setConfirmingMemberAction(null);
       await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
     },
   });
@@ -206,6 +215,8 @@ export function TenantWorkspaceAccessScreen() {
     serviceAccounts.find((item) => item.id === selectedAuditServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
   const pendingInvitations = invitations.filter((item) => item.status === "pending");
   const latestInviteURL = createInvitationMutation.data?.accept_url ?? "";
+  const currentUserID = session?.subject_id ?? "";
+  const activeAdminCount = members.filter((member) => member.status === "active" && member.role === "admin").length;
 
   const serviceAccountAuditQuery = useQuery({
     queryKey: ["tenant-workspace-service-account-audit", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
@@ -241,6 +252,10 @@ export function TenantWorkspaceAccessScreen() {
       });
     },
   });
+
+  const isSelfMember = (userID: string): boolean => currentUserID !== "" && currentUserID === userID;
+  const isLastActiveAdmin = (member: { role: string; status: string }): boolean =>
+    member.status === "active" && member.role === "admin" && activeAdminCount <= 1;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -635,6 +650,27 @@ export function TenantWorkspaceAccessScreen() {
                   {members.length > 0 ? (
                     members.map((member) => (
                       <div key={member.user_id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        {(() => {
+                          const draftRole = memberDraftRoles[member.user_id] ?? (member.role as "reader" | "writer" | "admin");
+                          const roleDirty = draftRole !== member.role;
+                          const selfMember = isSelfMember(member.user_id);
+                          const lastAdminProtected = isLastActiveAdmin(member);
+                          const showSuspendConfirm =
+                            confirmingMemberAction?.userID === member.user_id && confirmingMemberAction.action === "suspend";
+                          const roleSelectDisabled =
+                            member.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
+                          const canApplyRole =
+                            roleDirty && !roleSelectDisabled && Boolean(csrfToken);
+                          const canSuspend =
+                            member.status === "active" &&
+                            Boolean(csrfToken) &&
+                            !removeMemberMutation.isPending &&
+                            !selfMember &&
+                            !lastAdminProtected;
+                          const canReactivate =
+                            member.status !== "active" && Boolean(csrfToken) && !updateMemberMutation.isPending && !selfMember;
+
+                          return (
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <div className="min-w-0">
                             <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
@@ -642,35 +678,113 @@ export function TenantWorkspaceAccessScreen() {
                               <span className="truncate">{member.display_name}</span>
                             </p>
                             <p className="mt-1 break-all text-xs text-slate-500">{member.email}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                                {member.status}
+                              </span>
+                              {selfMember ? (
+                                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                                  You
+                                </span>
+                              ) : null}
+                              {lastAdminProtected ? (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                                  Last active admin
+                                </span>
+                              ) : null}
+                            </div>
+                            {selfMember ? (
+                              <p className="mt-2 text-xs text-slate-500">You cannot change your own membership from this screen.</p>
+                            ) : null}
+                            {lastAdminProtected ? (
+                              <p className="mt-2 text-xs text-slate-500">Promote another active admin before changing this member&apos;s role or status.</p>
+                            ) : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <select
                               aria-label={`Role for ${member.email}`}
-                              defaultValue={member.role}
+                              value={draftRole}
                               onChange={(event) =>
-                                updateMemberMutation.mutate({
-                                  userID: member.user_id,
-                                  role: event.target.value as "reader" | "writer" | "admin",
-                                })
+                                setMemberDraftRoles((current) => ({
+                                  ...current,
+                                  [member.user_id]: event.target.value as "reader" | "writer" | "admin",
+                                }))
                               }
-                              disabled={!csrfToken || updateMemberMutation.isPending}
+                              disabled={roleSelectDisabled}
                               className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
                             >
                               <option value="admin">Admin</option>
                               <option value="writer">Writer</option>
                               <option value="reader">Reader</option>
                             </select>
-                            <button
-                              type="button"
-                              onClick={() => removeMemberMutation.mutate(member.user_id)}
-                              disabled={!csrfToken || removeMemberMutation.isPending}
-                              className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <UserX className="h-3.5 w-3.5" />
-                              Remove
-                            </button>
+                            {roleDirty ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: draftRole })}
+                                  disabled={!canApplyRole}
+                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Apply
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setMemberDraftRoles((current) => {
+                                      const next = { ...current };
+                                      delete next[member.user_id];
+                                      return next;
+                                    })
+                                  }
+                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : member.status === "active" ? (
+                              showSuspendConfirm ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeMemberMutation.mutate(member.user_id)}
+                                    disabled={!canSuspend}
+                                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-700 bg-rose-700 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Confirm suspend
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmingMemberAction(null)}
+                                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmingMemberAction({ userID: member.user_id, action: "suspend" })}
+                                  disabled={!canSuspend}
+                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <UserX className="h-3.5 w-3.5" />
+                                  Suspend
+                                </button>
+                              )
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: member.role as "reader" | "writer" | "admin" })}
+                                disabled={!canReactivate}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Reactivate
+                              </button>
+                            )}
                           </div>
                         </div>
+                          );
+                        })()}
                       </div>
                     ))
                   ) : (

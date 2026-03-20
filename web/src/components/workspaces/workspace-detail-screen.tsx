@@ -33,12 +33,14 @@ function readinessTone(status?: string): string {
 
 export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const queryClient = useQueryClient();
-  const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope, session } = useUISession();
   const [selectedConnectionID, setSelectedConnectionID] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("admin");
   const [latestInviteURL, setLatestInviteURL] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
+  const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
+  const [confirmingMemberAction, setConfirmingMemberAction] = useState<{ userID: string; action: "suspend" } | null>(null);
 
   const tenantStatusQuery = useQuery({
     queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID],
@@ -139,7 +141,13 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
         role: input.role,
         reason: overrideReason,
       }),
-    onSuccess: async () => {
+    onSuccess: async (_payload, input) => {
+      setMemberDraftRoles((current) => {
+        const next = { ...current };
+        delete next[input.userID];
+        return next;
+      });
+      setConfirmingMemberAction(null);
       await queryClient.invalidateQueries({ queryKey: ["workspace-members", apiBaseURL, tenantID] });
     },
   });
@@ -154,6 +162,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
         reason: overrideReason,
       }),
     onSuccess: async () => {
+      setConfirmingMemberAction(null);
       await queryClient.invalidateQueries({ queryKey: ["workspace-members", apiBaseURL, tenantID] });
     },
   });
@@ -163,6 +172,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const workspaceMembers = workspaceMembersQuery.data ?? [];
   const workspaceInvitations = workspaceInvitationsQuery.data ?? [];
   const pendingInvitations = workspaceInvitations.filter((item) => item.status === "pending");
+  const currentUserID = session?.subject_id ?? "";
+  const activeAdminCount = workspaceMembers.filter((member) => member.status === "active" && member.role === "admin").length;
   const canSaveWorkspaceBilling =
     Boolean(csrfToken) &&
     !updateWorkspaceBillingMutation.isPending &&
@@ -176,6 +187,10 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
       setLatestInviteURL(createInvitationMutation.data.accept_url);
     }
   }, [createInvitationMutation.data]);
+
+  const isSelfMember = (userID: string): boolean => currentUserID !== "" && currentUserID === userID;
+  const isLastActiveAdmin = (member: { role: string; status: string }): boolean =>
+    member.status === "active" && member.role === "admin" && activeAdminCount <= 1;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -376,59 +391,146 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                           {workspaceMembers.length > 0 ? (
                             workspaceMembers.map((member) => (
                               <div key={member.user_id} className="grid gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-center">
-                                <div className="min-w-0">
-                                  <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                                    <UserRound className="h-4 w-4 text-slate-500" />
-                                    <span className="truncate">{member.display_name}</span>
-                                  </p>
-                                  <p className="mt-1 break-all text-xs text-slate-600">{member.email}</p>
-                                </div>
-                                <div className="flex flex-wrap items-center justify-end gap-2">
-                                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                                    {member.status}
-                                  </span>
-                                  <select
-                                    aria-label={`Role for ${member.email}`}
-                                    value={member.role}
-                                    onChange={(event) =>
-                                      updateMemberMutation.mutate({
-                                        userID: member.user_id,
-                                        role: event.target.value as "reader" | "writer" | "admin",
-                                      })
-                                    }
-                                    disabled={!canRunOverrideAction || updateMemberMutation.isPending}
-                                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    <option value="admin">Admin</option>
-                                    <option value="writer">Writer</option>
-                                    <option value="reader">Reader</option>
-                                  </select>
-                                  {member.status === "active" ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => removeMemberMutation.mutate(member.user_id)}
-                                      disabled={!canRunOverrideAction || removeMemberMutation.isPending}
-                                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      <UserX className="h-3.5 w-3.5" />
-                                      Suspend
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updateMemberMutation.mutate({
-                                          userID: member.user_id,
-                                          role: member.role as "reader" | "writer" | "admin",
-                                        })
-                                      }
-                                      disabled={!canRunOverrideAction || updateMemberMutation.isPending}
-                                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      Reactivate
-                                    </button>
-                                  )}
-                                </div>
+                                {(() => {
+                                  const draftRole = memberDraftRoles[member.user_id] ?? (member.role as "reader" | "writer" | "admin");
+                                  const roleDirty = draftRole !== member.role;
+                                  const selfMember = isSelfMember(member.user_id);
+                                  const lastAdminProtected = isLastActiveAdmin(member);
+                                  const showSuspendConfirm =
+                                    confirmingMemberAction?.userID === member.user_id && confirmingMemberAction.action === "suspend";
+                                  const roleSelectDisabled =
+                                    member.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
+                                  const canApplyRole =
+                                    roleDirty && !roleSelectDisabled && canRunOverrideAction;
+                                  const canSuspend =
+                                    member.status === "active" &&
+                                    canRunOverrideAction &&
+                                    !removeMemberMutation.isPending &&
+                                    !selfMember &&
+                                    !lastAdminProtected;
+                                  const canReactivate =
+                                    member.status !== "active" && canRunOverrideAction && !updateMemberMutation.isPending && !selfMember;
+
+                                  return (
+                                    <>
+                                      <div className="min-w-0">
+                                        <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                                          <UserRound className="h-4 w-4 text-slate-500" />
+                                          <span className="truncate">{member.display_name}</span>
+                                        </p>
+                                        <p className="mt-1 break-all text-xs text-slate-600">{member.email}</p>
+                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                                            {member.status}
+                                          </span>
+                                          {selfMember ? (
+                                            <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                                              You
+                                            </span>
+                                          ) : null}
+                                          {lastAdminProtected ? (
+                                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                                              Last active admin
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                        {selfMember ? (
+                                          <p className="mt-2 text-xs text-slate-500">Platform overrides cannot change the acting user&apos;s own membership.</p>
+                                        ) : null}
+                                        {lastAdminProtected ? (
+                                          <p className="mt-2 text-xs text-slate-500">Assign another active admin before changing this member&apos;s access.</p>
+                                        ) : null}
+                                      </div>
+                                      <div className="flex flex-wrap items-center justify-end gap-2">
+                                        <select
+                                          aria-label={`Role for ${member.email}`}
+                                          value={draftRole}
+                                          onChange={(event) =>
+                                            setMemberDraftRoles((current) => ({
+                                              ...current,
+                                              [member.user_id]: event.target.value as "reader" | "writer" | "admin",
+                                            }))
+                                          }
+                                          disabled={roleSelectDisabled}
+                                          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                          <option value="admin">Admin</option>
+                                          <option value="writer">Writer</option>
+                                          <option value="reader">Reader</option>
+                                        </select>
+                                        {roleDirty ? (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: draftRole })}
+                                              disabled={!canApplyRole}
+                                              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                              Apply
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setMemberDraftRoles((current) => {
+                                                  const next = { ...current };
+                                                  delete next[member.user_id];
+                                                  return next;
+                                                })
+                                              }
+                                              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-slate-100"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </>
+                                        ) : member.status === "active" ? (
+                                          showSuspendConfirm ? (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => removeMemberMutation.mutate(member.user_id)}
+                                                disabled={!canSuspend}
+                                                className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-700 bg-rose-700 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                              >
+                                                Confirm suspend
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setConfirmingMemberAction(null)}
+                                                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-slate-100"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => setConfirmingMemberAction({ userID: member.user_id, action: "suspend" })}
+                                              disabled={!canSuspend}
+                                              className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                              <UserX className="h-3.5 w-3.5" />
+                                              Suspend
+                                            </button>
+                                          )
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              updateMemberMutation.mutate({
+                                                userID: member.user_id,
+                                                role: member.role as "reader" | "writer" | "admin",
+                                              })
+                                            }
+                                            disabled={!canReactivate}
+                                            className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                          >
+                                            Reactivate
+                                          </button>
+                                        )}
+                                      </div>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             ))
                           ) : (

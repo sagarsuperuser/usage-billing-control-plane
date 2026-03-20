@@ -2381,13 +2381,14 @@ func (s *Server) handleTenantWorkspaceMembers(w http.ResponseWriter, r *http.Req
 			return
 		}
 		var req struct {
-			Role string `json:"role"`
+			Role   string `json:"role"`
+			Reason string `json:"reason,omitempty"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		member, err := s.workspaceAccessService.UpdateWorkspaceMemberRole(principal.TenantID, userID, req.Role)
+		member, err := s.workspaceAccessService.UpdateWorkspaceMemberRoleWithAudit(principal.TenantID, userID, req.Role, workspaceAccessAuditActorFromPrincipal(principal, req.Reason))
 		if err != nil {
 			writeDomainError(w, err)
 			return
@@ -2398,7 +2399,7 @@ func (s *Server) handleTenantWorkspaceMembers(w http.ResponseWriter, r *http.Req
 			writeError(w, http.StatusBadRequest, "user id is required")
 			return
 		}
-		if err := s.workspaceAccessService.RemoveWorkspaceMember(principal.TenantID, userID); err != nil {
+		if err := s.workspaceAccessService.RemoveWorkspaceMemberWithAudit(principal.TenantID, userID, workspaceAccessAuditActorFromPrincipal(principal, strings.TrimSpace(r.URL.Query().Get("reason")))); err != nil {
 			writeDomainError(w, err)
 			return
 		}
@@ -5794,6 +5795,10 @@ func classifyDomainErrorStatus(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, service.ErrValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, service.ErrWorkspaceLastActiveAdmin):
+		return http.StatusConflict
+	case errors.Is(err, service.ErrWorkspaceSelfMembershipMutation):
+		return http.StatusForbidden
 	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
 		return http.StatusForbidden
 	case errors.Is(err, service.ErrBrowserTenantSelection):
@@ -5821,6 +5826,10 @@ func classifyDomainErrorCode(err error) string {
 		return "already_exists"
 	case errors.Is(err, service.ErrValidation):
 		return "validation_error"
+	case errors.Is(err, service.ErrWorkspaceLastActiveAdmin):
+		return "last_active_admin_conflict"
+	case errors.Is(err, service.ErrWorkspaceSelfMembershipMutation):
+		return "self_membership_mutation_forbidden"
 	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
 		return "tenant_access_denied"
 	case errors.Is(err, service.ErrBrowserTenantSelection):
