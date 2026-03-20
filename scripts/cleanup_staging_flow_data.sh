@@ -130,12 +130,14 @@ SELECT jsonb_pretty(
     'payment_smoke_invoice_payment_status_views', (
       SELECT count(*)
       FROM invoice_payment_status_views
-      WHERE customer_external_id IN (SELECT external_id FROM payment_fixture_customers)
+      WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+         OR customer_external_id LIKE 'cust_payment_smoke_%'
     ),
     'payment_smoke_lago_webhook_events', (
       SELECT count(*)
       FROM lago_webhook_events
-      WHERE customer_external_id IN (SELECT external_id FROM payment_fixture_customers)
+      WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+         OR customer_external_id LIKE 'cust_payment_smoke_%'
     ),
     'playwright_live_platform_api_keys', (SELECT count(*) FROM live_platform_keys),
     'playwright_live_tenant_api_keys', (SELECT count(*) FROM live_tenant_keys),
@@ -228,20 +230,12 @@ DELETE FROM workspace_invitations WHERE lower(email) LIKE 'playwright-live-%@alp
 DELETE FROM users WHERE lower(email) LIKE 'playwright-live-%@alpha.test';
 
 DELETE FROM lago_webhook_events
-WHERE customer_external_id IN (
-  SELECT external_id
-  FROM customers
-  WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
-     OR external_id LIKE 'cust_payment_smoke_%'
-);
+WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+   OR customer_external_id LIKE 'cust_payment_smoke_%';
 
 DELETE FROM invoice_payment_status_views
-WHERE customer_external_id IN (
-  SELECT external_id
-  FROM customers
-  WHERE external_id IN ('cust_e2e_success', 'cust_e2e_failure')
-     OR external_id LIKE 'cust_payment_smoke_%'
-);
+WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure')
+   OR customer_external_id LIKE 'cust_payment_smoke_%';
 
 DELETE FROM billed_entries
 WHERE customer_id IN (

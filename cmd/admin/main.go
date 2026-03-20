@@ -180,10 +180,10 @@ func collectCleanupCounts(ctx context.Context, db *sql.DB, includeReplay, includ
 		if counts.PaymentSmokeCustomerPaymentSetup, err = countQuery(ctx, db, `SELECT count(*) FROM customer_payment_setup WHERE customer_id IN (SELECT id FROM customers WHERE `+paymentCustomerClause+`)`); err != nil {
 			return cleanupCounts{}, err
 		}
-		if counts.PaymentSmokeInvoicePaymentViews, err = countQuery(ctx, db, `SELECT count(*) FROM invoice_payment_status_views WHERE customer_external_id IN (SELECT external_id FROM customers WHERE `+paymentCustomerClause+`)`); err != nil {
+		if counts.PaymentSmokeInvoicePaymentViews, err = countQuery(ctx, db, `SELECT count(*) FROM invoice_payment_status_views WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR customer_external_id LIKE 'cust_payment_smoke_%'`); err != nil {
 			return cleanupCounts{}, err
 		}
-		if counts.PaymentSmokeLagoWebhookEvents, err = countQuery(ctx, db, `SELECT count(*) FROM lago_webhook_events WHERE customer_external_id IN (SELECT external_id FROM customers WHERE `+paymentCustomerClause+`)`); err != nil {
+		if counts.PaymentSmokeLagoWebhookEvents, err = countQuery(ctx, db, `SELECT count(*) FROM lago_webhook_events WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR customer_external_id LIKE 'cust_payment_smoke_%'`); err != nil {
 			return cleanupCounts{}, err
 		}
 	}
@@ -243,8 +243,8 @@ func applyCleanup(ctx context.Context, db *sql.DB, includeReplay, includePayment
 	if includePayment {
 		paymentCustomerClause := `external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR external_id LIKE 'cust_payment_smoke_%'`
 		statements = append(statements,
-			`DELETE FROM lago_webhook_events WHERE customer_external_id IN (SELECT external_id FROM customers WHERE `+paymentCustomerClause+`)`,
-			`DELETE FROM invoice_payment_status_views WHERE customer_external_id IN (SELECT external_id FROM customers WHERE `+paymentCustomerClause+`)`,
+			`DELETE FROM lago_webhook_events WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR customer_external_id LIKE 'cust_payment_smoke_%'`,
+			`DELETE FROM invoice_payment_status_views WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR customer_external_id LIKE 'cust_payment_smoke_%'`,
 			`DELETE FROM customer_payment_setup WHERE customer_id IN (SELECT id FROM customers WHERE `+paymentCustomerClause+`)`,
 			`DELETE FROM customer_billing_profiles WHERE customer_id IN (SELECT id FROM customers WHERE `+paymentCustomerClause+`)`,
 			`DELETE FROM customers WHERE `+paymentCustomerClause,
