@@ -4614,6 +4614,7 @@ func (s *PostgresStore) CreateAPIKey(input domain.APIKey) (domain.APIKey, error)
 		input.Purpose,
 		input.Environment,
 		input.CreatedByUserID,
+		input.CreatedByPlatformUser,
 		input.CreatedAt,
 		input.ExpiresAt,
 		input.RevokedAt,
