@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_cmds=(bash jq mktemp)
+required_cmds=(bash curl jq mktemp)
 for cmd in "${required_cmds[@]}"; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "missing required command: $cmd" >&2
@@ -25,6 +25,53 @@ trim_trailing_slash() {
   printf "%s" "$value"
 }
 
+http_call() {
+  local method="$1"
+  local url="$2"
+  local body="${3:-}"
+  shift 3
+  local -a headers=("$@")
+  local -a args=(-sS -X "$method" "$url" -H "Accept: application/json")
+  local h
+  for h in "${headers[@]}"; do
+    args+=(-H "$h")
+  done
+  if [[ -n "$body" ]]; then
+    args+=(-H "Content-Type: application/json" --data "$body")
+  fi
+
+  local out
+  out="$(curl "${args[@]}" -w $'\n%{http_code}')"
+  HTTP_CODE="${out##*$'\n'}"
+  HTTP_BODY="${out%$'\n'*}"
+}
+
+ensure_alpha_customer() {
+  local external_id="$1"
+  local display_name="$2"
+  local email="$3"
+  local payload
+  payload="$(jq -nc \
+    --arg external_id "$external_id" \
+    --arg display_name "$display_name" \
+    --arg email "$email" \
+    '{external_id: $external_id, display_name: $display_name, email: $email}')"
+
+  http_call "POST" "$ALPHA_API_BASE_URL/v1/customers" "$payload" "X-API-Key: $ALPHA_WRITER_API_KEY"
+  case "$HTTP_CODE" in
+    201)
+      echo "[pass] alpha customer created external_id=$external_id"
+      ;;
+    409)
+      echo "[info] alpha customer already exists external_id=$external_id"
+      ;;
+    *)
+      echo "[fail] alpha customer bootstrap failed external_id=$external_id status=$HTTP_CODE body=$HTTP_BODY" >&2
+      exit 1
+      ;;
+  esac
+}
+
 require_env ALPHA_API_BASE_URL
 require_env ALPHA_WRITER_API_KEY
 require_env ALPHA_READER_API_KEY
@@ -36,6 +83,8 @@ SUCCESS_CUSTOMER_EXTERNAL_ID="${SUCCESS_CUSTOMER_EXTERNAL_ID:-cust_payment_smoke
 FAILURE_CUSTOMER_EXTERNAL_ID="${FAILURE_CUSTOMER_EXTERNAL_ID:-cust_payment_smoke_failure_${RUN_ID}}"
 SUCCESS_ADD_ON_CODE="${SUCCESS_ADD_ON_CODE:-alpha-real-payment-fixture-success-${RUN_ID}}"
 FAILURE_ADD_ON_CODE="${FAILURE_ADD_ON_CODE:-alpha-real-payment-fixture-failure-${RUN_ID}}"
+SUCCESS_CUSTOMER_EMAIL="${SUCCESS_CUSTOMER_EMAIL:-billing+${RUN_ID}-success@alpha.test}"
+FAILURE_CUSTOMER_EMAIL="${FAILURE_CUSTOMER_EMAIL:-billing+${RUN_ID}-failure@alpha.test}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-600}"
 POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-5}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
@@ -55,6 +104,10 @@ SUCCESS_CUSTOMER_EXTERNAL_ID="$SUCCESS_CUSTOMER_EXTERNAL_ID" \
 FAILURE_CUSTOMER_EXTERNAL_ID="$FAILURE_CUSTOMER_EXTERNAL_ID" \
 LAGO_WEBHOOK_URL="${LAGO_WEBHOOK_URL:-$ALPHA_API_BASE_URL/internal/lago/webhooks}" \
 bash ./scripts/bootstrap_lago_stripe_staging.sh >"$bootstrap_json_file"
+
+echo "[info] ensuring matching alpha customers exist for payment projection"
+ensure_alpha_customer "$SUCCESS_CUSTOMER_EXTERNAL_ID" "Payment Smoke Success ${RUN_ID}" "$SUCCESS_CUSTOMER_EMAIL"
+ensure_alpha_customer "$FAILURE_CUSTOMER_EXTERNAL_ID" "Payment Smoke Failure ${RUN_ID}" "$FAILURE_CUSTOMER_EMAIL"
 
 echo "[info] preparing success invoice fixture customer=$SUCCESS_CUSTOMER_EXTERNAL_ID"
 LAGO_API_URL="$LAGO_API_URL" \
@@ -115,6 +168,8 @@ jq -n \
   --arg failure_customer_external_id "$FAILURE_CUSTOMER_EXTERNAL_ID" \
   --arg success_invoice_id "$success_invoice_id" \
   --arg failure_invoice_id "$failure_invoice_id" \
+  --arg success_customer_email "$SUCCESS_CUSTOMER_EMAIL" \
+  --arg failure_customer_email "$FAILURE_CUSTOMER_EMAIL" \
   --slurpfile bootstrap "$bootstrap_json_file" \
   --slurpfile success_fixture "$success_fixture_json_file" \
   --slurpfile failure_fixture "$failure_fixture_json_file" \
@@ -126,11 +181,14 @@ jq -n \
     execution_model: {
       cleanup: "explicit cluster cleanup command",
       bootstrap: "dedicated lago payment bootstrap job",
-      fixture_ids: "per-run"
+      fixture_ids: "per-run",
+      alpha_customer_mapping: "explicit per-run alpha customer bootstrap"
     },
     customers: {
       success_external_id: $success_customer_external_id,
-      failure_external_id: $failure_customer_external_id
+      failure_external_id: $failure_customer_external_id,
+      success_email: $success_customer_email,
+      failure_email: $failure_customer_email
     },
     invoices: {
       success_invoice_id: $success_invoice_id,

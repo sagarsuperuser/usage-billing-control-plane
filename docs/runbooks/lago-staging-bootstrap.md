@@ -87,6 +87,7 @@ Practical guidance:
 - `global.serviceAccountName` should stay set to `lago-serviceaccount`.
 - `encryption.existingSecret` should stay set to `lago-encryption`.
 - `lago-credentials` is synced from AWS secret `lago/staging/backing-services`.
+- `make lago-staging-sync-secrets` reconciles `databaseUrl` in `lago/staging/backing-services` from the live `lagostagingdb` RDS master secret before ExternalSecret sync, so stale DB passwords do not linger in staging.
 - `lago-encryption` is synced from AWS secret `lago/staging/encryption`.
 - `lago-secrets` is seeded from AWS secret `lago/staging/app-secrets`, then reused by the chart.
 - `global.s3.bucket` is Lago's object storage bucket.
