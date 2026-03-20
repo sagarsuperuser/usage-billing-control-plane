@@ -34,7 +34,7 @@ require_file "$values_file"
 kubectl get namespace "$namespace" >/dev/null 2>&1 || kubectl create namespace "$namespace" >/dev/null
 
 if [[ "$sync_secrets" == "1" ]]; then
-  info "ensuring Temporal SQL password secret is sourced from AWS Secrets Manager via ExternalSecret"
+  info "ensuring Temporal staging secrets are sourced from AWS Secrets Manager via ExternalSecret"
   TEMPORAL_NAMESPACE_K8S="$namespace" TEMPORAL_DB_INSTANCE_IDENTIFIER="$db_instance_identifier" AWS_REGION="$aws_region" "$sync_script"
 fi
 
