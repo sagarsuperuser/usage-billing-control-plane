@@ -79,7 +79,7 @@ func (v *LagoJWTWebhookVerifier) Verify(ctx context.Context, headers http.Header
 		jwt.WithValidMethods([]string{jwt.SigningMethodRS256.Alg()}),
 	)
 	if err != nil {
-		return fmt.Errorf("%w: invalid webhook jwt signature", ErrValidation)
+		return fmt.Errorf("%w: invalid webhook jwt signature: %v", ErrValidation, err)
 	}
 	if !token.Valid {
 		return fmt.Errorf("%w: invalid webhook jwt token", ErrValidation)
