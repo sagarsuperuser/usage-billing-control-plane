@@ -102,6 +102,42 @@ If you want to sync secrets without deploying yet:
 make lago-staging-sync-secrets
 ```
 
+Important:
+- if the shared staging DB password changes, update or verify both remote sources first:
+  - Alpha runtime secret: `lago-alpha/staging/runtime`
+  - Temporal source: the RDS master secret used by `scripts/sync_temporal_staging_secrets.sh`
+- then run:
+
+```bash
+make lago-staging-sync-secrets
+make temporal-staging-sync-secrets
+```
+
+- after the secret values have refreshed in Kubernetes, restart or redeploy the running consumers so they pick up the new env-backed credentials:
+  - Alpha: API, replay worker, replay dispatcher
+  - Temporal: frontend, history, matching, worker
+- then verify:
+
+```bash
+make temporal-staging-verify
+make verify-staging-runtime
+```
+
+## Long-Term Plan
+
+The long-term fix is to stop sharing the Alpha staging DB credentials with Temporal.
+
+Target end-state:
+1. Alpha has its own Postgres/database credentials
+2. Temporal has its own Postgres/database credentials
+3. Alpha and Temporal use separate secret paths and separate secret rotation
+4. deploy preflight verifies:
+   - Alpha DB auth works
+   - Temporal namespace lookup works
+5. deploy verification fails if either subsystem cannot authenticate to its own database
+
+Until that separation is implemented, treat the Alpha and Temporal secret update paths as a paired operation whenever the shared staging DB password changes.
+
 ## Upgrade behavior
 
 - The upstream Lago chart hardcodes `RollingUpdate` for deployments that mount the shared `lago-storage-data` PVC.
