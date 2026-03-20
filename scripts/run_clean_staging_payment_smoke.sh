@@ -123,6 +123,11 @@ jq -n \
   '{
     run_id: $run_id,
     fixture_source: "clean_staging_payment_smoke",
+    execution_model: {
+      cleanup: "explicit cluster cleanup command",
+      bootstrap: "dedicated lago payment bootstrap job",
+      fixture_ids: "per-run"
+    },
     customers: {
       success_external_id: $success_customer_external_id,
       failure_external_id: $failure_customer_external_id

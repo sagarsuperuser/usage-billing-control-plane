@@ -106,6 +106,9 @@ mint-live-e2e-keys-cluster: ## Mint fresh platform/writer/reader API keys for li
 bootstrap-live-e2e-browser-users-cluster: ## Ensure fresh live browser users for Playwright staging smoke from inside the current cluster
 	@bash ./scripts/bootstrap_live_e2e_browser_users_cluster.sh
 
+bootstrap-staging-payment-fixtures: ## Bootstrap per-run Lago staging payment fixtures through a dedicated bootstrap job
+	@RUN_ID='$(RUN_ID)' LAGO_NAMESPACE='$(LAGO_NAMESPACE)' LAGO_API_DEPLOYMENT='$(LAGO_API_DEPLOYMENT)' LAGO_ORG_ID='$(LAGO_ORG_ID)' LAGO_ORG_NAME='$(LAGO_ORG_NAME)' STRIPE_PROVIDER_CODE='$(STRIPE_PROVIDER_CODE)' STRIPE_PROVIDER_NAME='$(STRIPE_PROVIDER_NAME)' STRIPE_SECRET_KEY='$(STRIPE_SECRET_KEY)' STRIPE_SUCCESS_REDIRECT_URL='$(STRIPE_SUCCESS_REDIRECT_URL)' LAGO_WEBHOOK_URL='$(LAGO_WEBHOOK_URL)' LAGO_WEBHOOK_SIGNATURE_ALGO='$(LAGO_WEBHOOK_SIGNATURE_ALGO)' STAGING_CONTACT_EMAIL='$(STAGING_CONTACT_EMAIL)' STAGING_CONTACT_FIRSTNAME='$(STAGING_CONTACT_FIRSTNAME)' STAGING_CONTACT_LASTNAME='$(STAGING_CONTACT_LASTNAME)' STAGING_CURRENCY='$(STAGING_CURRENCY)' SUCCESS_CUSTOMER_EXTERNAL_ID='$(SUCCESS_CUSTOMER_EXTERNAL_ID)' FAILURE_CUSTOMER_EXTERNAL_ID='$(FAILURE_CUSTOMER_EXTERNAL_ID)' SUCCESS_PAYMENT_METHOD_FIXTURE='$(SUCCESS_PAYMENT_METHOD_FIXTURE)' SUCCESS_ADDRESS_LINE1='$(SUCCESS_ADDRESS_LINE1)' SUCCESS_CITY='$(SUCCESS_CITY)' SUCCESS_STATE='$(SUCCESS_STATE)' SUCCESS_ZIPCODE='$(SUCCESS_ZIPCODE)' SUCCESS_COUNTRY='$(SUCCESS_COUNTRY)' bash ./scripts/bootstrap_lago_stripe_staging.sh
+
 cleanup-staging-flow-data: ## Dry-run or apply cleanup of generated stale staging flow fixtures from inside the cluster
 	@ENVIRONMENT='$(ENVIRONMENT)' OUTPUT='$(OUTPUT)' APPLY='$(APPLY)' CONFIRM_STAGING_FLOW_CLEANUP='$(CONFIRM_STAGING_FLOW_CLEANUP)' INCLUDE_REPLAY_FIXTURES='$(INCLUDE_REPLAY_FIXTURES)' INCLUDE_PAYMENT_FIXTURES='$(INCLUDE_PAYMENT_FIXTURES)' INCLUDE_LIVE_BROWSER_FIXTURES='$(INCLUDE_LIVE_BROWSER_FIXTURES)' bash ./scripts/cleanup_staging_flow_data_cluster.sh
 
@@ -136,8 +139,7 @@ lago-staging-verify: ## Verify Lago staging namespace, services, and optional AP
 lago-staging-checklist: ## Print first-time manual Lago bootstrap steps
 	@./scripts/print_lago_bootstrap_checklist.sh
 
-lago-staging-bootstrap-payments: ## Bootstrap Lago Stripe/webhook/test-customer payment fixtures in staging
-	@./scripts/bootstrap_lago_stripe_staging.sh
+lago-staging-bootstrap-payments: bootstrap-staging-payment-fixtures ## Bootstrap Lago Stripe/webhook/test-customer payment fixtures in staging
 
 temporal-staging-deploy: ## Deploy Temporal staging into the current cluster (official Helm chart, internal only)
 	@./scripts/deploy_temporal_staging.sh
@@ -204,7 +206,7 @@ web-e2e: ## Run browser E2E tests for control-plane UI
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
 
 web-e2e-live: ## Run live staging browser smoke for overview, payments, replay ops, and invoice explainability (requires PLAYWRIGHT_LIVE_BASE_URL plus browser-user email/password envs; optional invoice/replay fixture ids)
-	@PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_PLATFORM_EMAIL='$(PLAYWRIGHT_LIVE_PLATFORM_EMAIL)' PLAYWRIGHT_LIVE_PLATFORM_PASSWORD='$(PLAYWRIGHT_LIVE_PLATFORM_PASSWORD)' PLAYWRIGHT_LIVE_WRITER_EMAIL='$(PLAYWRIGHT_LIVE_WRITER_EMAIL)' PLAYWRIGHT_LIVE_WRITER_PASSWORD='$(PLAYWRIGHT_LIVE_WRITER_PASSWORD)' PLAYWRIGHT_LIVE_READER_EMAIL='$(PLAYWRIGHT_LIVE_READER_EMAIL)' PLAYWRIGHT_LIVE_READER_PASSWORD='$(PLAYWRIGHT_LIVE_READER_PASSWORD)' PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID='$(PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID)' PLAYWRIGHT_LIVE_REPLAY_JOB_ID='$(PLAYWRIGHT_LIVE_REPLAY_JOB_ID)' PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID='$(PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID)' PLAYWRIGHT_LIVE_REPLAY_METER_ID='$(PLAYWRIGHT_LIVE_REPLAY_METER_ID)' bash ./scripts/run_live_browser_smoke.sh
+	@PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_PLATFORM_EMAIL='$(PLAYWRIGHT_LIVE_PLATFORM_EMAIL)' PLAYWRIGHT_LIVE_PLATFORM_PASSWORD='$(PLAYWRIGHT_LIVE_PLATFORM_PASSWORD)' PLAYWRIGHT_LIVE_WRITER_EMAIL='$(PLAYWRIGHT_LIVE_WRITER_EMAIL)' PLAYWRIGHT_LIVE_WRITER_PASSWORD='$(PLAYWRIGHT_LIVE_WRITER_PASSWORD)' PLAYWRIGHT_LIVE_READER_EMAIL='$(PLAYWRIGHT_LIVE_READER_EMAIL)' PLAYWRIGHT_LIVE_READER_PASSWORD='$(PLAYWRIGHT_LIVE_READER_PASSWORD)' PLAYWRIGHT_LIVE_PAYMENT_INVOICE_ID='$(PLAYWRIGHT_LIVE_PAYMENT_INVOICE_ID)' PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID='$(PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID)' PLAYWRIGHT_LIVE_REPLAY_JOB_ID='$(PLAYWRIGHT_LIVE_REPLAY_JOB_ID)' PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID='$(PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID)' PLAYWRIGHT_LIVE_REPLAY_METER_ID='$(PLAYWRIGHT_LIVE_REPLAY_METER_ID)' bash ./scripts/run_live_browser_smoke.sh
 
 test-browser-staging-smoke: web-e2e-live ## Run live staging browser smoke with real browser users
 

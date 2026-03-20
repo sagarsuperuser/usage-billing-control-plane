@@ -9,10 +9,15 @@ require_cmd() {
 }
 
 require_cmd kubectl
+require_cmd jq
 require_cmd mktemp
 
 LAGO_NAMESPACE="${LAGO_NAMESPACE:-lago}"
 LAGO_API_DEPLOYMENT="${LAGO_API_DEPLOYMENT:-lago-api}"
+LAGO_BOOTSTRAP_JOB_TIMEOUT="${LAGO_BOOTSTRAP_JOB_TIMEOUT:-180s}"
+LAGO_BOOTSTRAP_JOB_TTL_SECONDS="${LAGO_BOOTSTRAP_JOB_TTL_SECONDS:-600}"
+LAGO_BOOTSTRAP_CLEANUP_JOB="${LAGO_BOOTSTRAP_CLEANUP_JOB:-1}"
+LAGO_BOOTSTRAP_JOB_NAME="${LAGO_BOOTSTRAP_JOB_NAME:-}"
 LAGO_ORG_ID="${LAGO_ORG_ID:-}"
 LAGO_ORG_NAME="${LAGO_ORG_NAME:-Usage Billing Control Plane Staging}"
 
@@ -29,14 +34,9 @@ STAGING_CONTACT_FIRSTNAME="${STAGING_CONTACT_FIRSTNAME:-sagar}"
 STAGING_CONTACT_LASTNAME="${STAGING_CONTACT_LASTNAME:-waidande}"
 STAGING_CURRENCY="${STAGING_CURRENCY:-USD}"
 
-RUN_ID="${RUN_ID:-}"
-if [[ -n "$RUN_ID" ]]; then
-  SUCCESS_CUSTOMER_EXTERNAL_ID="${SUCCESS_CUSTOMER_EXTERNAL_ID:-cust_payment_smoke_success_${RUN_ID}}"
-  FAILURE_CUSTOMER_EXTERNAL_ID="${FAILURE_CUSTOMER_EXTERNAL_ID:-cust_payment_smoke_failure_${RUN_ID}}"
-else
-  SUCCESS_CUSTOMER_EXTERNAL_ID="${SUCCESS_CUSTOMER_EXTERNAL_ID:-cust_e2e_success}"
-  FAILURE_CUSTOMER_EXTERNAL_ID="${FAILURE_CUSTOMER_EXTERNAL_ID:-cust_e2e_failure}"
-fi
+RUN_ID="${RUN_ID:-$(date -u +%Y%m%d%H%M%S)-$RANDOM}"
+SUCCESS_CUSTOMER_EXTERNAL_ID="${SUCCESS_CUSTOMER_EXTERNAL_ID:-cust_payment_smoke_success_${RUN_ID}}"
+FAILURE_CUSTOMER_EXTERNAL_ID="${FAILURE_CUSTOMER_EXTERNAL_ID:-cust_payment_smoke_failure_${RUN_ID}}"
 SUCCESS_PAYMENT_METHOD_FIXTURE="${SUCCESS_PAYMENT_METHOD_FIXTURE:-pm_card_visa}"
 
 SUCCESS_ADDRESS_LINE1="${SUCCESS_ADDRESS_LINE1:-123 Test Street}"
@@ -46,10 +46,28 @@ SUCCESS_ZIPCODE="${SUCCESS_ZIPCODE:-10001}"
 SUCCESS_COUNTRY="${SUCCESS_COUNTRY:-US}"
 
 ruby_file="$(mktemp)"
+manifest_file="$(mktemp)"
 cleanup() {
   rm -f "$ruby_file"
+  rm -f "$manifest_file"
 }
 trap cleanup EXIT
+
+deployment_json="$(kubectl -n "$LAGO_NAMESPACE" get deploy "$LAGO_API_DEPLOYMENT" -o json)"
+image="$(printf '%s' "$deployment_json" | jq -r '.spec.template.spec.containers[0].image // ""')"
+
+if [[ -z "$image" ]]; then
+  echo "failed to derive runtime image from deployment $LAGO_API_DEPLOYMENT in namespace $LAGO_NAMESPACE" >&2
+  exit 1
+fi
+
+job_name_input="${LAGO_BOOTSTRAP_JOB_NAME:-lago-payment-bootstrap-$(date +%Y%m%d%H%M%S)}"
+job_name="$(printf '%s' "$job_name_input" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-' | sed 's/^-//; s/-$//' | cut -c1-63)"
+
+if [[ -z "$job_name" ]]; then
+  echo "resolved empty Lago bootstrap job name" >&2
+  exit 1
+fi
 
 cat >"$ruby_file" <<'RUBY'
 require "json"
@@ -301,6 +319,7 @@ failure_customer = upsert_customer!(
 ensure_failure_without_payment_method!(provider: provider, customer: failure_customer)
 
 summary = {
+  run_id: env!("RUN_ID"),
   organization: {
     id: org.id,
     name: org.name
@@ -343,27 +362,113 @@ summary = {
 puts JSON.pretty_generate(summary)
 RUBY
 
-kubectl -n "$LAGO_NAMESPACE" exec -i "deploy/$LAGO_API_DEPLOYMENT" -- \
-  env \
-  "LAGO_ORG_ID=$LAGO_ORG_ID" \
-  "LAGO_ORG_NAME=$LAGO_ORG_NAME" \
-  "STRIPE_PROVIDER_CODE=$STRIPE_PROVIDER_CODE" \
-  "STRIPE_PROVIDER_NAME=$STRIPE_PROVIDER_NAME" \
-  "STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY" \
-  "STRIPE_SUCCESS_REDIRECT_URL=$STRIPE_SUCCESS_REDIRECT_URL" \
-  "LAGO_WEBHOOK_URL=$LAGO_WEBHOOK_URL" \
-  "LAGO_WEBHOOK_SIGNATURE_ALGO=$LAGO_WEBHOOK_SIGNATURE_ALGO" \
-  "STAGING_CONTACT_EMAIL=$STAGING_CONTACT_EMAIL" \
-  "STAGING_CONTACT_FIRSTNAME=$STAGING_CONTACT_FIRSTNAME" \
-  "STAGING_CONTACT_LASTNAME=$STAGING_CONTACT_LASTNAME" \
-  "STAGING_CURRENCY=$STAGING_CURRENCY" \
-  "SUCCESS_CUSTOMER_EXTERNAL_ID=$SUCCESS_CUSTOMER_EXTERNAL_ID" \
-  "FAILURE_CUSTOMER_EXTERNAL_ID=$FAILURE_CUSTOMER_EXTERNAL_ID" \
-  "SUCCESS_PAYMENT_METHOD_FIXTURE=$SUCCESS_PAYMENT_METHOD_FIXTURE" \
-  "SUCCESS_ADDRESS_LINE1=$SUCCESS_ADDRESS_LINE1" \
-  "SUCCESS_CITY=$SUCCESS_CITY" \
-  "SUCCESS_STATE=$SUCCESS_STATE" \
-  "SUCCESS_ZIPCODE=$SUCCESS_ZIPCODE" \
-  "SUCCESS_COUNTRY=$SUCCESS_COUNTRY" \
-  sh -lc 'cat >/tmp/bootstrap_lago_stripe_staging.rb && cd /app && bin/rails runner /tmp/bootstrap_lago_stripe_staging.rb' \
-  <"$ruby_file"
+custom_env_json="$(jq -n \
+  --arg run_id "$RUN_ID" \
+  --arg lago_org_id "$LAGO_ORG_ID" \
+  --arg lago_org_name "$LAGO_ORG_NAME" \
+  --arg stripe_provider_code "$STRIPE_PROVIDER_CODE" \
+  --arg stripe_provider_name "$STRIPE_PROVIDER_NAME" \
+  --arg stripe_secret_key "$STRIPE_SECRET_KEY" \
+  --arg stripe_success_redirect_url "$STRIPE_SUCCESS_REDIRECT_URL" \
+  --arg lago_webhook_url "$LAGO_WEBHOOK_URL" \
+  --arg lago_webhook_signature_algo "$LAGO_WEBHOOK_SIGNATURE_ALGO" \
+  --arg staging_contact_email "$STAGING_CONTACT_EMAIL" \
+  --arg staging_contact_firstname "$STAGING_CONTACT_FIRSTNAME" \
+  --arg staging_contact_lastname "$STAGING_CONTACT_LASTNAME" \
+  --arg staging_currency "$STAGING_CURRENCY" \
+  --arg success_customer_external_id "$SUCCESS_CUSTOMER_EXTERNAL_ID" \
+  --arg failure_customer_external_id "$FAILURE_CUSTOMER_EXTERNAL_ID" \
+  --arg success_payment_method_fixture "$SUCCESS_PAYMENT_METHOD_FIXTURE" \
+  --arg success_address_line1 "$SUCCESS_ADDRESS_LINE1" \
+  --arg success_city "$SUCCESS_CITY" \
+  --arg success_state "$SUCCESS_STATE" \
+  --arg success_zipcode "$SUCCESS_ZIPCODE" \
+  --arg success_country "$SUCCESS_COUNTRY" \
+  '[
+    {name: "RUN_ID", value: $run_id},
+    {name: "LAGO_ORG_ID", value: $lago_org_id},
+    {name: "LAGO_ORG_NAME", value: $lago_org_name},
+    {name: "STRIPE_PROVIDER_CODE", value: $stripe_provider_code},
+    {name: "STRIPE_PROVIDER_NAME", value: $stripe_provider_name},
+    {name: "STRIPE_SECRET_KEY", value: $stripe_secret_key},
+    {name: "STRIPE_SUCCESS_REDIRECT_URL", value: $stripe_success_redirect_url},
+    {name: "LAGO_WEBHOOK_URL", value: $lago_webhook_url},
+    {name: "LAGO_WEBHOOK_SIGNATURE_ALGO", value: $lago_webhook_signature_algo},
+    {name: "STAGING_CONTACT_EMAIL", value: $staging_contact_email},
+    {name: "STAGING_CONTACT_FIRSTNAME", value: $staging_contact_firstname},
+    {name: "STAGING_CONTACT_LASTNAME", value: $staging_contact_lastname},
+    {name: "STAGING_CURRENCY", value: $staging_currency},
+    {name: "SUCCESS_CUSTOMER_EXTERNAL_ID", value: $success_customer_external_id},
+    {name: "FAILURE_CUSTOMER_EXTERNAL_ID", value: $failure_customer_external_id},
+    {name: "SUCCESS_PAYMENT_METHOD_FIXTURE", value: $success_payment_method_fixture},
+    {name: "SUCCESS_ADDRESS_LINE1", value: $success_address_line1},
+    {name: "SUCCESS_CITY", value: $success_city},
+    {name: "SUCCESS_STATE", value: $success_state},
+    {name: "SUCCESS_ZIPCODE", value: $success_zipcode},
+    {name: "SUCCESS_COUNTRY", value: $success_country}
+  ]')"
+
+printf '%s' "$deployment_json" | jq \
+  --arg job_name "$job_name" \
+  --arg namespace "$LAGO_NAMESPACE" \
+  --argjson ttl "$LAGO_BOOTSTRAP_JOB_TTL_SECONDS" \
+  --argjson custom_env "$custom_env_json" \
+  --rawfile ruby_script "$ruby_file" \
+  '
+    . as $deploy
+    | {
+        apiVersion: "batch/v1",
+        kind: "Job",
+        metadata: {
+          name: $job_name,
+          namespace: $namespace
+        },
+        spec: {
+          ttlSecondsAfterFinished: $ttl,
+          backoffLimit: 0,
+          template: {
+            metadata: {
+              labels: {
+                "app.kubernetes.io/name": "lago",
+                "app.kubernetes.io/component": "payment-bootstrap"
+              }
+            },
+            spec: {
+              restartPolicy: "Never",
+              serviceAccountName: ($deploy.spec.template.spec.serviceAccountName // null),
+              imagePullSecrets: ($deploy.spec.template.spec.imagePullSecrets // null),
+              containers: [
+                {
+                  name: "lago-payment-bootstrap",
+                  image: $deploy.spec.template.spec.containers[0].image,
+                  imagePullPolicy: ($deploy.spec.template.spec.containers[0].imagePullPolicy // "IfNotPresent"),
+                  command: ["sh", "-lc"],
+                  args: [
+                    "cat >/tmp/bootstrap_lago_stripe_staging.rb <<'"'"'RUBY'"'"'\n" +
+                    $ruby_script +
+                    "\nRUBY\ncd /app\nbin/rails runner /tmp/bootstrap_lago_stripe_staging.rb"
+                  ],
+                  env: (($deploy.spec.template.spec.containers[0].env // []) + $custom_env)
+                }
+              ]
+            }
+          }
+        }
+      }
+    | del(.. | nulls)
+  ' >"$manifest_file"
+
+kubectl apply -f "$manifest_file" >/dev/null
+
+if ! kubectl -n "$LAGO_NAMESPACE" wait --for=condition=complete "job/${job_name}" --timeout="$LAGO_BOOTSTRAP_JOB_TIMEOUT" >/dev/null; then
+  echo "Lago payment bootstrap job failed. This indicates staging Lago runtime or DB wiring is broken, not an Alpha payment-surface regression." >&2
+  kubectl -n "$LAGO_NAMESPACE" describe "job/${job_name}" >&2 || true
+  kubectl -n "$LAGO_NAMESPACE" logs "job/${job_name}" >&2 || true
+  exit 1
+fi
+
+kubectl -n "$LAGO_NAMESPACE" logs "job/${job_name}"
+
+if [[ "$LAGO_BOOTSTRAP_CLEANUP_JOB" == "1" ]]; then
+  kubectl -n "$LAGO_NAMESPACE" delete "job/${job_name}" --ignore-not-found >/dev/null
+fi

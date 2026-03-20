@@ -20,9 +20,10 @@ test.describe("control plane overview live staging", () => {
       nextPath: "/control-plane",
     });
 
+    await expect(page.getByRole("heading", { name: "Platform overview" })).toBeVisible();
+    await expect(page.getByText("Billing connection errors")).toBeVisible();
     await expect(page.getByText("Workspaces missing pricing")).toBeVisible();
     await expect(page.getByText("Workspaces missing first customer")).toBeVisible();
-    await expect(page.getByText("Workspaces missing billing connection")).toBeVisible();
   });
 
   test("tenant writer can view live customer attention", async ({ page }) => {
@@ -34,6 +35,7 @@ test.describe("control plane overview live staging", () => {
       nextPath: "/control-plane",
     });
 
+    await expect(page.getByRole("heading", { name: /Workspace overview/ })).toBeVisible();
     await expect(page.getByText("Customers waiting on payment setup")).toBeVisible();
     await expect(page.getByText("Customers with billing sync errors")).toBeVisible();
     await expect(page.getByText("Billing-ready customers")).toBeVisible();

@@ -133,6 +133,7 @@ make test-staging-acceptance
 ### Current staging-specific helpers
 
 - `make bootstrap-live-e2e-browser-users-cluster`
+- `make bootstrap-staging-payment-fixtures`
 - `make mint-live-e2e-keys-cluster`
 - `make cleanup-staging-flow-data`
 
@@ -221,6 +222,38 @@ Apply only with:
 ```bash
 APPLY=1 CONFIRM_STAGING_FLOW_CLEANUP=YES_I_UNDERSTAND
 ```
+
+Payment fixture bootstrap is a separate first-class operation:
+
+```bash
+make bootstrap-staging-payment-fixtures
+```
+
+Do not hide fixture creation inside cleanup or vice versa.
+
+---
+
+## Long-Term Seams
+
+These seams are intentionally first-class because they have been the recurring live-test failure points.
+
+### Browser Auth Helper
+
+- browser smoke should verify authenticated UI session state
+- do not key success on one specific menu control being visible
+- current source of truth is `/v1/ui/sessions/me`
+
+### Payment Fixture Bootstrap
+
+- payment fixture creation should run in a dedicated Lago bootstrap job
+- do not `kubectl exec` a Rails runner in the live Lago pod as the normal path
+- fixture ids must be per-run by default
+
+### Cleanup
+
+- cleanup must remain a separate command
+- cleanup must target both current per-run fixtures and any known legacy fixed-id fixtures
+- cleanup should never be the only way to understand whether bootstrap is healthy
 
 ---
 
