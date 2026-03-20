@@ -220,7 +220,7 @@ export function ReplayOperationsScreen() {
           </div>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
@@ -398,52 +398,86 @@ export function ReplayOperationsScreen() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Queue policy</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Recovery guardrails</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Queue a replay only after diagnostics confirm the exact customer, meter, and time window that needs reprocessing.
+                </p>
+              </div>
+
+              {!canWrite && isAuthenticated ? (
+                <div
+                  data-testid="replay-read-only-notice"
+                  className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
+                >
+                  Current session role {role} is read-only for replay queue and recovery actions.
+                </div>
+              ) : null}
+
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Operator checklist</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                  <li>Confirm scope in diagnostics before creating a new replay request.</li>
+                  <li>Reuse an idempotency key only when you intentionally want the same replay job.</li>
+                  <li>Prefer retrying an existing failed job instead of queuing a duplicate run.</li>
+                </ul>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Queue Replay Job</p>
               <h2 className="mt-1 text-lg font-semibold text-slate-900">Launch customer or meter reprocessing</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Create a replay job only after confirming the scope and failure mode. Deterministic idempotency keys keep recovery controlled.
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                Build one replay request with an explicit scope, an optional time window, and a deterministic idempotency key. This keeps recovery controlled and reviewable.
               </p>
             </div>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-slate-600">
+              Local datetime inputs are converted to UTC ISO-8601 before submission.
+            </div>
+          </div>
 
-            {!canWrite && isAuthenticated ? (
-              <div
-                data-testid="replay-read-only-notice"
-                className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
-              >
-                Current session role {role} is read-only for replay queue and recovery actions.
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <section className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Replay scope</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InputField
+                  label="Customer ID"
+                  placeholder="cust_123"
+                  value={createCustomerID}
+                  onChange={setCreateCustomerID}
+                  dataTestID="replay-create-customer-id"
+                />
+                <InputField
+                  label="Meter ID"
+                  placeholder="meter_abc"
+                  value={createMeterID}
+                  onChange={setCreateMeterID}
+                  dataTestID="replay-create-meter-id"
+                />
               </div>
-            ) : null}
+              <p className="mt-3 text-xs text-slate-500">Use both fields when you already know the exact replay scope from diagnostics.</p>
+            </section>
 
-            <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Operator checklist</p>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>Confirm the customer or meter scope from diagnostics before queuing another run.</li>
-                <li>Use the same idempotency key only when intentionally reusing an existing replay request.</li>
-                <li>Prefer retrying failed jobs from the table when a replay already exists.</li>
-              </ul>
-            </div>
+            <section className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Time window</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InputField label="From" type="datetime-local" value={createFrom} onChange={setCreateFrom} dataTestID="replay-create-from" />
+                <InputField label="To" type="datetime-local" value={createTo} onChange={setCreateTo} dataTestID="replay-create-to" />
+              </div>
+              <p className="mt-3 text-xs text-slate-500">Leave both empty when you need a full-scope replay for the selected customer or meter.</p>
+            </section>
+          </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <InputField
-                label="Customer ID"
-                placeholder="cust_123"
-                value={createCustomerID}
-                onChange={setCreateCustomerID}
-                dataTestID="replay-create-customer-id"
-              />
-              <InputField
-                label="Meter ID"
-                placeholder="meter_abc"
-                value={createMeterID}
-                onChange={setCreateMeterID}
-                dataTestID="replay-create-meter-id"
-              />
-              <InputField label="From" type="datetime-local" value={createFrom} onChange={setCreateFrom} dataTestID="replay-create-from" />
-              <InputField label="To" type="datetime-local" value={createTo} onChange={setCreateTo} dataTestID="replay-create-to" />
-            </div>
-            <div className="mt-3">
+          <section className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Request control</p>
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
               <InputField
                 label="Idempotency Key"
                 placeholder="replay-..."
@@ -451,30 +485,27 @@ export function ReplayOperationsScreen() {
                 onChange={setIdempotencyKey}
                 dataTestID="replay-create-idempotency-key"
               />
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  data-testid="replay-create-submit"
+                  disabled={createDisabled}
+                  onClick={() => createMutation.mutate()}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
+                  Queue replay job
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIdempotencyKey(generateReplayIdempotencyKey())}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm text-slate-700 transition hover:bg-stone-100"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Regenerate key
+                </button>
+              </div>
             </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                data-testid="replay-create-submit"
-                disabled={createDisabled}
-                onClick={() => createMutation.mutate()}
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
-                Queue replay job
-              </button>
-              <button
-                type="button"
-                onClick={() => setIdempotencyKey(generateReplayIdempotencyKey())}
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:bg-stone-100"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Regenerate key
-              </button>
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Local datetime inputs are converted to UTC ISO-8601 before submission.
-            </p>
           </section>
         </section>
 
