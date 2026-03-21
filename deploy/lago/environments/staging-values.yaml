@@ -1,4 +1,4 @@
-version: 1.43.0
+version: 1.44.0
 
 # Same-cluster staging values for the official Lago chart.
 # Lago is an admin surface in this architecture:
