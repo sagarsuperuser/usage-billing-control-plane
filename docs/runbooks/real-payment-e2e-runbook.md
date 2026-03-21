@@ -113,12 +113,19 @@ To run the clean staging payment smoke in one command:
 
 ```bash
 ALPHA_API_BASE_URL='https://api-staging.sagarwaidande.org' \
+PLATFORM_ADMIN_API_KEY='...' \
 ALPHA_WRITER_API_KEY='...' \
 ALPHA_READER_API_KEY='...' \
 LAGO_API_URL='https://lago-api-staging.sagarwaidande.org' \
 LAGO_API_KEY='...' \
+TARGET_TENANT_ID='default' \
 bash ./scripts/run_clean_staging_payment_smoke.sh
 ```
+
+
+The clean smoke now also patches the target Alpha tenant billing mapping before asserting webhook convergence:
+- `lago_organization_id`
+- `lago_billing_provider_code`
 
 To run the full staging alpha acceptance gate in one command:
 

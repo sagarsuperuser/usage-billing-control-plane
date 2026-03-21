@@ -72,9 +72,28 @@ ensure_alpha_customer() {
   esac
 }
 
+ensure_tenant_lago_mapping() {
+  local tenant_id="$1"
+  local org_id="$2"
+  local provider_code="$3"
+  local payload
+  payload="$(jq -nc \
+    --arg lago_organization_id "$org_id" \
+    --arg lago_billing_provider_code "$provider_code" \
+    '{lago_organization_id: $lago_organization_id, lago_billing_provider_code: $lago_billing_provider_code}')"
+
+  http_call "PATCH" "$ALPHA_API_BASE_URL/internal/tenants/$tenant_id" "$payload" "X-API-Key: $PLATFORM_ADMIN_API_KEY"
+  if [[ "$HTTP_CODE" != "200" ]]; then
+    echo "[fail] alpha tenant lago mapping failed tenant_id=$tenant_id organization_id=$org_id provider_code=$provider_code status=$HTTP_CODE body=$HTTP_BODY" >&2
+    exit 1
+  fi
+  echo "[pass] alpha tenant lago mapping ensured tenant_id=$tenant_id organization_id=$org_id provider_code=$provider_code"
+}
+
 require_env ALPHA_API_BASE_URL
 require_env ALPHA_WRITER_API_KEY
 require_env ALPHA_READER_API_KEY
+require_env PLATFORM_ADMIN_API_KEY
 require_env LAGO_API_URL
 require_env LAGO_API_KEY
 
@@ -87,6 +106,7 @@ SUCCESS_CUSTOMER_EMAIL="${SUCCESS_CUSTOMER_EMAIL:-billing+${RUN_ID}-success@alph
 FAILURE_CUSTOMER_EMAIL="${FAILURE_CUSTOMER_EMAIL:-billing+${RUN_ID}-failure@alpha.test}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-600}"
 POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-5}"
+TARGET_TENANT_ID="${TARGET_TENANT_ID:-default}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
 
 ALPHA_API_BASE_URL="$(trim_trailing_slash "$ALPHA_API_BASE_URL")"
@@ -104,6 +124,16 @@ SUCCESS_CUSTOMER_EXTERNAL_ID="$SUCCESS_CUSTOMER_EXTERNAL_ID" \
 FAILURE_CUSTOMER_EXTERNAL_ID="$FAILURE_CUSTOMER_EXTERNAL_ID" \
 LAGO_WEBHOOK_URL="${LAGO_WEBHOOK_URL:-$ALPHA_API_BASE_URL/internal/lago/webhooks}" \
 bash ./scripts/bootstrap_lago_stripe_staging.sh >"$bootstrap_json_file"
+
+bootstrap_org_id="$(jq -r '.organization.id // empty' "$bootstrap_json_file")"
+bootstrap_provider_code="$(jq -r '.stripe_provider.code // empty' "$bootstrap_json_file")"
+if [[ -z "$bootstrap_org_id" || -z "$bootstrap_provider_code" ]]; then
+  echo "[fail] bootstrap did not produce organization.id and stripe_provider.code" >&2
+  exit 1
+fi
+
+echo "[info] ensuring tenant billing mapping for lago organization"
+ensure_tenant_lago_mapping "$TARGET_TENANT_ID" "$bootstrap_org_id" "$bootstrap_provider_code"
 
 echo "[info] ensuring matching alpha customers exist for payment projection"
 ensure_alpha_customer "$SUCCESS_CUSTOMER_EXTERNAL_ID" "Payment Smoke Success ${RUN_ID}" "$SUCCESS_CUSTOMER_EMAIL"
@@ -182,7 +212,8 @@ jq -n \
       cleanup: "explicit cluster cleanup command",
       bootstrap: "dedicated lago payment bootstrap job",
       fixture_ids: "per-run",
-      alpha_customer_mapping: "explicit per-run alpha customer bootstrap"
+      alpha_customer_mapping: "explicit per-run alpha customer bootstrap",
+      tenant_lago_mapping: "explicit platform patch to tenant billing mapping"
     },
     customers: {
       success_external_id: $success_customer_external_id,
