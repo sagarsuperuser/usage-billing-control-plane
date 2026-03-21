@@ -42,7 +42,7 @@ Use these terms consistently:
 | Journey | Purpose | Current State |
 | --- | --- | --- |
 | Pricing configuration journey | prove metrics, generated rating rules, and plans are commercially usable | implemented |
-| Subscription billing journey | prove subscriptions generate billable invoice state from configured pricing | partial |
+| Subscription billing journey | prove subscriptions become billable from configured pricing and usage | implemented |
 | Payment setup and collect-payment journey | prove customer payment setup can move a blocked customer into a payable state | planned |
 | Payment retry and failure journey | prove Alpha payment recovery against real Lago and Stripe wiring | implemented |
 | Replay and recovery journey | prove recovery tooling works against fresh replay fixtures | implemented |
@@ -118,40 +118,42 @@ Prove that configured pricing actually produces a billable subscription flow.
 2. create a customer
 3. create a subscription on the target plan
 4. emit or prepare usage that exercises the configured metric
-5. allow Lago billing to generate an invoice
-6. verify Alpha surfaces the resulting invoice state correctly
+5. emit subscription-targeted usage through Alpha
+6. verify Lago received the persisted subscription event
+7. request a deterministic subscription invoice preview from Lago for that persisted subscription
 
 ### End-state assertions
 
-- the subscription exists and is active in Alpha
-- invoice generation reflects the configured pricing path
-- invoice visibility in Alpha matches Lago billing output
-- downstream payment and lifecycle journeys can start from that invoice
+- the subscription exists in Alpha with the correct customer and plan linkage
+- Alpha may keep the subscription in `pending_payment_setup` until the customer has a verified default payment method
+- the persisted Lago subscription matches the Alpha subscription
+- the usage event is present in both Alpha and Lago
+- a real Lago subscription invoice preview returns a positive billed amount for the configured subscription
+- downstream payment and invoice-visibility journeys can start from the same synced pricing and subscription state
 
 ### Current automation state
 
-- `partial`
-- the required downstream export dependencies are now in place:
-  - Alpha plan create syncs to Lago plan create/update
-  - Alpha subscription create/update syncs to Lago subscription create/update
-  - Alpha usage events can now target a subscription and sync to Lago events
-- a full pricing -> subscription -> usage -> invoice journey is still not yet automated as one staging flow
+- `implemented`
+- staging journey entrypoint:
+
+```bash
+make test-staging-subscription-journey LAGO_API_KEY='...'
+```
+
+- the implemented journey proves:
+  - Alpha creates real pricing, customer, and subscription state
+  - customer billing profile sync reaches Lago
+  - subscription-targeted usage reaches Lago
+  - Lago can compute a real subscription invoice preview from the persisted subscription and usage
+  - Alpha keeps payment readiness explicit instead of falsely reporting an active ready-to-collect subscription
 
 ### Required future automation
 
-Add a per-run subscription billing journey that:
+Current boundary:
 
-- reuses the pricing journey fixtures
-- creates a customer and subscription
-- emits subscription-targeted usage through Alpha
-- drives invoice generation deterministically
-- verifies invoice visibility in Alpha
-
-Recommended future entrypoint:
-
-```bash
-make test-staging-subscription-journey
-```
+- this journey intentionally proves deterministic billable state through a real Lago invoice preview
+- it does not wait for scheduled recurring billing or require a persisted issued invoice
+- persisted invoice collection and payment convergence remain covered by the payment journeys
 
 ---
 

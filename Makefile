@@ -186,6 +186,9 @@ test-staging-payment-smoke: ## Run live staging payment smoke with minted platfo
 test-staging-pricing-journey: ## Run live staging pricing configuration journey with minted writer/reader keys
 	@bash ./scripts/run_staging_pricing_journey_with_minted_keys.sh
 
+test-staging-subscription-journey: ## Run live staging subscription billing journey with minted platform/writer/reader keys (requires LAGO_API_KEY)
+	@bash ./scripts/run_staging_subscription_journey_with_minted_keys.sh
+
 verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh
 
