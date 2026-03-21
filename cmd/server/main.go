@@ -325,11 +325,12 @@ func main() {
 	if err != nil {
 		fatal(logger, "initialize lago webhook verifier", "error", err)
 	}
+	workspaceBillingBindingService := service.NewWorkspaceBillingBindingService(repo)
 	lagoWebhookSvc := service.NewLagoWebhookService(
 		repo,
 		webhookVerifier,
 		service.NewTenantBackedLagoOrganizationTenantMapper(repo),
-		service.NewCustomerService(repo, customerBillingAdapter),
+		service.NewCustomerService(repo, customerBillingAdapter).WithWorkspaceBillingBindingService(workspaceBillingBindingService),
 	)
 	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
 	logger.Info("lago webhook sync enabled", "component", "server", "mapper_backend", "tenant_store")

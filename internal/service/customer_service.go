@@ -13,8 +13,9 @@ import (
 )
 
 type CustomerService struct {
-	store          store.Repository
-	billingAdapter CustomerBillingAdapter
+	store                          store.Repository
+	billingAdapter                 CustomerBillingAdapter
+	workspaceBillingBindingService *WorkspaceBillingBindingService
 }
 
 type CreateCustomerRequest struct {
@@ -92,6 +93,11 @@ type CustomerReadiness struct {
 
 func NewCustomerService(s store.Repository, billingAdapter CustomerBillingAdapter) *CustomerService {
 	return &CustomerService{store: s, billingAdapter: billingAdapter}
+}
+
+func (s *CustomerService) WithWorkspaceBillingBindingService(bindingSvc *WorkspaceBillingBindingService) *CustomerService {
+	s.workspaceBillingBindingService = bindingSvc
+	return s
 }
 
 func (s *CustomerService) CreateCustomer(tenantID string, req CreateCustomerRequest) (domain.Customer, error) {
@@ -305,7 +311,7 @@ func (s *CustomerService) RetryCustomerBillingProfileSync(tenantID, externalID s
 		ExternalID:        customer.ExternalID,
 		BillingProfile:    profile,
 		PaymentSetup:      setup,
-		CustomerReadiness: buildCustomerReadiness(tenant, customer, profile, setup),
+		CustomerReadiness: buildCustomerReadiness(s.billingProviderConfigured(tenant), customer, profile, setup),
 	}, nil
 }
 
@@ -341,7 +347,8 @@ func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string,
 	if err != nil {
 		return BeginCustomerPaymentSetupResult{}, err
 	}
-	if strings.TrimSpace(tenant.LagoBillingProviderCode) == "" {
+	_, providerCode := s.resolveBillingProviderContext(tenant)
+	if providerCode == "" {
 		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: tenant billing provider is not configured", ErrValidation)
 	}
 
@@ -431,7 +438,7 @@ func (s *CustomerService) GetCustomerReadiness(tenantID, externalID string) (Cus
 	if err != nil {
 		return CustomerReadiness{}, err
 	}
-	return buildCustomerReadiness(tenant, customer, profile, setup), nil
+	return buildCustomerReadiness(s.billingProviderConfigured(tenant), customer, profile, setup), nil
 }
 
 func (s *CustomerService) RefreshCustomerPaymentSetup(tenantID, externalID string) (RefreshCustomerPaymentSetupResult, error) {
@@ -461,7 +468,7 @@ func (s *CustomerService) RefreshCustomerPaymentSetup(tenantID, externalID strin
 	return RefreshCustomerPaymentSetupResult{
 		ExternalID:   customer.ExternalID,
 		PaymentSetup: setup,
-		Readiness:    buildCustomerReadiness(tenant, customer, profile, setup),
+		Readiness:    buildCustomerReadiness(s.billingProviderConfigured(tenant), customer, profile, setup),
 	}, nil
 }
 
@@ -492,7 +499,7 @@ func (s *CustomerService) RecordCustomerPaymentProviderError(tenantID, externalI
 	return RefreshCustomerPaymentSetupResult{
 		ExternalID:   customer.ExternalID,
 		PaymentSetup: setup,
-		Readiness:    buildCustomerReadiness(tenant, customer, profile, setup),
+		Readiness:    buildCustomerReadiness(s.billingProviderConfigured(tenant), customer, profile, setup),
 	}, nil
 }
 
@@ -504,7 +511,8 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	if err != nil {
 		return customer, profile, setup, err
 	}
-	if strings.TrimSpace(tenant.LagoOrganizationID) == "" || strings.TrimSpace(tenant.LagoBillingProviderCode) == "" {
+	_, providerCode := s.resolveBillingProviderContext(tenant)
+	if providerCode == "" {
 		return customer, profile, setup, nil
 	}
 	if profile.CustomerID == "" {
@@ -520,7 +528,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	payload, err := buildLagoCustomerPayload(tenant, customer, profile, setup)
+	payload, err := buildLagoCustomerPayload(providerCode, customer, profile, setup)
 	if err != nil {
 		return s.recordCustomerSyncFailure(customer, profile, setup, err.Error())
 	}
@@ -668,10 +676,10 @@ type lagoCustomerCheckoutResponse struct {
 	} `json:"customer"`
 }
 
-func buildLagoCustomerPayload(tenant domain.Tenant, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) ([]byte, error) {
+func buildLagoCustomerPayload(defaultProviderCode string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) ([]byte, error) {
 	providerCode := strings.TrimSpace(profile.ProviderCode)
 	if providerCode == "" {
-		providerCode = strings.TrimSpace(tenant.LagoBillingProviderCode)
+		providerCode = strings.TrimSpace(defaultProviderCode)
 	}
 	paymentProvider, err := inferPaymentProviderFromCode(providerCode)
 	if err != nil {
@@ -746,10 +754,9 @@ func decodeLagoCustomerCheckoutResponse(body []byte) (lagoCustomerCheckoutRespon
 	return out, nil
 }
 
-func buildCustomerReadiness(tenant domain.Tenant, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) CustomerReadiness {
+func buildCustomerReadiness(billingProviderConfigured bool, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) CustomerReadiness {
 	missing := make([]string, 0)
 	status := "ready"
-	billingProviderConfigured := strings.TrimSpace(tenant.LagoBillingProviderCode) != ""
 	lagoCustomerSynced := strings.TrimSpace(customer.LagoCustomerID) != "" && profile.LastSyncedAt != nil && strings.TrimSpace(profile.LastSyncError) == ""
 	defaultPaymentMethodVerified := setup.DefaultPaymentMethodPresent && strings.TrimSpace(setup.LastVerificationError) == ""
 	if customer.Status != domain.CustomerStatusActive {
@@ -787,6 +794,22 @@ func buildCustomerReadiness(tenant domain.Tenant, customer domain.Customer, prof
 		BillingProfile:               profile,
 		PaymentSetup:                 setup,
 	}
+}
+
+func (s *CustomerService) billingProviderConfigured(tenant domain.Tenant) bool {
+	_, providerCode := s.resolveBillingProviderContext(tenant)
+	return providerCode != ""
+}
+
+func (s *CustomerService) resolveBillingProviderContext(tenant domain.Tenant) (string, string) {
+	if s != nil && s.workspaceBillingBindingService != nil {
+		effective, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID)
+		if err != nil {
+			return "", ""
+		}
+		return strings.TrimSpace(effective.BackendOrganizationID), strings.TrimSpace(effective.BackendProviderCode)
+	}
+	return strings.TrimSpace(tenant.LagoOrganizationID), strings.TrimSpace(tenant.LagoBillingProviderCode)
 }
 
 func inferPaymentProviderFromCode(code string) (string, error) {

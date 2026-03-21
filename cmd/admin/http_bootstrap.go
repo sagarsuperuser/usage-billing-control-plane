@@ -65,6 +65,14 @@ type tenantMappingResult struct {
 	StatusCode              int       `json:"status_code"`
 }
 
+type workspaceBillingBindingResult struct {
+	Command                     string    `json:"command"`
+	AppliedAt                   time.Time `json:"applied_at"`
+	TenantID                    string    `json:"tenant_id"`
+	BillingProviderConnectionID string    `json:"billing_provider_connection_id"`
+	StatusCode                  int       `json:"status_code"`
+}
+
 type customerEnsureResult struct {
 	Command         string                 `json:"command"`
 	ConflictIsError bool                   `json:"conflict_is_error"`
@@ -155,6 +163,56 @@ func runEnsureTenantLagoMapping(logger *slog.Logger, args []string) {
 		LagoOrganizationID:      strings.TrimSpace(orgID),
 		LagoBillingProviderCode: strings.TrimSpace(providerCode),
 		StatusCode:              statusCode,
+	}
+	writeStructuredOutput(output, res)
+}
+
+func runEnsureTenantWorkspaceBilling(logger *slog.Logger, args []string) {
+	fs := flag.NewFlagSet("ensure-tenant-workspace-billing", flag.ExitOnError)
+	var (
+		baseURL      string
+		platformKey  string
+		tenantID     string
+		connectionID string
+		output       string
+	)
+	fs.StringVar(&baseURL, "alpha-api-base-url", firstNonEmpty(os.Getenv("ALPHA_API_BASE_URL"), os.Getenv("PLAYWRIGHT_LIVE_API_BASE_URL"), "http://127.0.0.1:8080"), "alpha api base url")
+	fs.StringVar(&platformKey, "platform-api-key", firstNonEmpty(os.Getenv("PLATFORM_ADMIN_API_KEY"), os.Getenv("PLAYWRIGHT_LIVE_PLATFORM_API_KEY")), "platform admin api key")
+	fs.StringVar(&tenantID, "tenant-id", firstNonEmpty(os.Getenv("TARGET_TENANT_ID"), "default"), "tenant id")
+	fs.StringVar(&connectionID, "billing-provider-connection-id", "", "billing provider connection id")
+	fs.StringVar(&output, "output", "json", "output format: json or text")
+	_ = fs.Parse(args)
+
+	if strings.TrimSpace(connectionID) == "" {
+		fatal(logger, "billing-provider-connection-id is required")
+	}
+	if strings.TrimSpace(platformKey) == "" {
+		fatal(logger, "platform-api-key is required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	statusCode, _, err := httpJSON(ctx, newAdminHTTPClient(), http.MethodPatch,
+		joinURL(baseURL, "/internal/tenants/"+url.PathEscape(strings.TrimSpace(tenantID))+"/workspace-billing"),
+		map[string]string{
+			"billing_provider_connection_id": strings.TrimSpace(connectionID),
+		},
+		platformKey,
+	)
+	if err != nil {
+		fatal(logger, "patch tenant workspace billing", "error", err)
+	}
+	if statusCode != http.StatusOK {
+		fatal(logger, "patch tenant workspace billing failed", "status_code", statusCode)
+	}
+
+	res := workspaceBillingBindingResult{
+		Command:                     "ensure-tenant-workspace-billing",
+		AppliedAt:                   time.Now().UTC(),
+		TenantID:                    strings.TrimSpace(tenantID),
+		BillingProviderConnectionID: strings.TrimSpace(connectionID),
+		StatusCode:                  statusCode,
 	}
 	writeStructuredOutput(output, res)
 }

@@ -51,7 +51,7 @@ type cleanupResult struct {
 func main() {
 	logger := logging.ConfigureDefault(logging.LoadConfigFromEnv())
 	if len(os.Args) < 2 {
-		fatal(logger, "missing subcommand", "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-lago-mapping", "ensure-alpha-customers", "upsert-customer-billing-profile"})
+		fatal(logger, "missing subcommand", "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-lago-mapping", "ensure-tenant-workspace-billing", "ensure-alpha-customers", "upsert-customer-billing-profile"})
 	}
 
 	switch strings.ToLower(strings.TrimSpace(os.Args[1])) {
@@ -59,12 +59,14 @@ func main() {
 		runCleanupStagingFixtures(logger, os.Args[2:])
 	case "ensure-tenant-lago-mapping":
 		runEnsureTenantLagoMapping(logger, os.Args[2:])
+	case "ensure-tenant-workspace-billing":
+		runEnsureTenantWorkspaceBilling(logger, os.Args[2:])
 	case "ensure-alpha-customers":
 		runEnsureAlphaCustomers(logger, os.Args[2:])
 	case "upsert-customer-billing-profile":
 		runUpsertCustomerBillingProfile(logger, os.Args[2:])
 	default:
-		fatal(logger, "unsupported subcommand", "subcommand", os.Args[1], "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-lago-mapping", "ensure-alpha-customers", "upsert-customer-billing-profile"})
+		fatal(logger, "unsupported subcommand", "subcommand", os.Args[1], "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-lago-mapping", "ensure-tenant-workspace-billing", "ensure-alpha-customers", "upsert-customer-billing-profile"})
 	}
 }
 

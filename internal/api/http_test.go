@@ -2766,7 +2766,47 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new lago transport: %v", err)
 	}
-	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
+	now := time.Now().UTC()
+	connectedAt := now
+	lastSyncedAt := now
+	connection, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
+		ID:                 "bpc_onboarding_default",
+		ProviderType:       domain.BillingProviderTypeStripe,
+		Environment:        "test",
+		DisplayName:        "Stripe Platform",
+		Scope:              domain.BillingProviderConnectionScopePlatform,
+		Status:             domain.BillingProviderConnectionStatusConnected,
+		LagoOrganizationID: "org_default",
+		LagoProviderCode:   "stripe_test",
+		SecretRef:          "memory://billing-provider-connections/bpc_onboarding_default/seed",
+		ConnectedAt:        &connectedAt,
+		LastSyncedAt:       &lastSyncedAt,
+		CreatedByType:      "platform_api_key",
+		CreatedByID:        "pkey_seed",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create onboarding billing provider connection: %v", err)
+	}
+	_, err = repo.CreateWorkspaceBillingBinding(domain.WorkspaceBillingBinding{
+		ID:                          "wbb_onboarding_default",
+		WorkspaceID:                 "default",
+		BillingProviderConnectionID: connection.ID,
+		Backend:                     domain.WorkspaceBillingBackendLago,
+		BackendOrganizationID:       connection.LagoOrganizationID,
+		BackendProviderCode:         connection.LagoProviderCode,
+		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
+		Status:                      domain.WorkspaceBillingBindingStatusConnected,
+		ConnectedAt:                 &connectedAt,
+		CreatedByType:               "platform_api_key",
+		CreatedByID:                 "pkey_seed",
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
+	})
+	if err != nil {
+		t.Fatalf("create onboarding workspace billing binding: %v", err)
+	}
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
@@ -2970,7 +3010,47 @@ func TestCustomerOnboardingWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new lago transport: %v", err)
 	}
-	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
+	now := time.Now().UTC()
+	connectedAt := now
+	lastSyncedAt := now
+	connection, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
+		ID:                 "bpc_onboarding_default",
+		ProviderType:       domain.BillingProviderTypeStripe,
+		Environment:        "test",
+		DisplayName:        "Stripe Platform",
+		Scope:              domain.BillingProviderConnectionScopePlatform,
+		Status:             domain.BillingProviderConnectionStatusConnected,
+		LagoOrganizationID: "org_default",
+		LagoProviderCode:   "stripe_test",
+		SecretRef:          "memory://billing-provider-connections/bpc_onboarding_default/seed",
+		ConnectedAt:        &connectedAt,
+		LastSyncedAt:       &lastSyncedAt,
+		CreatedByType:      "platform_api_key",
+		CreatedByID:        "pkey_seed",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create onboarding billing provider connection: %v", err)
+	}
+	_, err = repo.CreateWorkspaceBillingBinding(domain.WorkspaceBillingBinding{
+		ID:                          "wbb_onboarding_default",
+		WorkspaceID:                 "default",
+		BillingProviderConnectionID: connection.ID,
+		Backend:                     domain.WorkspaceBillingBackendLago,
+		BackendOrganizationID:       connection.LagoOrganizationID,
+		BackendProviderCode:         connection.LagoProviderCode,
+		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
+		Status:                      domain.WorkspaceBillingBindingStatusConnected,
+		ConnectedAt:                 &connectedAt,
+		CreatedByType:               "platform_api_key",
+		CreatedByID:                 "pkey_seed",
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
+	})
+	if err != nil {
+		t.Fatalf("create onboarding workspace billing binding: %v", err)
+	}
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,

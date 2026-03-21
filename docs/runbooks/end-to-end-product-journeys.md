@@ -49,7 +49,7 @@ Use these terms consistently:
 | Browser operator journey | prove core operator surfaces load and route correctly in staging | implemented |
 | Browser-led payment setup journey | prove operators can drive collect-payment recovery through the live UI end to end | implemented |
 | Access and invite membership journey | prove invite, acceptance, membership activation, and role safeguards end to end | implemented |
-| Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | planned |
+| Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | implemented |
 | Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | planned |
 | Usage-to-issued-invoice journey | prove usage becomes an issued invoice that Alpha can inspect and explain | planned |
 | Billing connection lifecycle journey | prove billing connection create, rotate, verify, and tenant mapping lifecycle end to end | planned |
@@ -454,9 +454,36 @@ make test-staging-access-invite-journey
 
 Prove Alpha can create a customer, sync billing profile state, and surface readiness progression without backend-only intervention.
 
+### Real flow
+
+1. Sign in as a tenant writer.
+2. Open the guided customer onboarding flow.
+3. Create a per-run customer with billing profile details and a real billing connection code.
+4. Start payment setup during onboarding.
+5. Confirm the success flash, result card, and hosted payment setup link render in the UI.
+6. Open the created customer detail page.
+7. Verify billing profile is ready and synced to billing while payment setup remains pending.
+8. Open the customer directory and confirm the new customer is discoverable there.
+
+### End-state assertions
+
+- customer exists through the live tenant APIs
+- billing profile sync is ready
+- customer detail exposes readiness guidance for missing payment setup
+- the operator can navigate from onboarding to customer detail and directory without backend-only intervention
+
 ### Current automation state
 
-- `planned`
+- `implemented`
+
+### Entry point
+
+- `make test-staging-customer-onboarding-journey`
+
+### Notes
+
+- the implemented journey is browser-led
+- it uses the live connected workspace billing connection instead of bootstrapping a separate Lago provider mapping
 
 ---
 
