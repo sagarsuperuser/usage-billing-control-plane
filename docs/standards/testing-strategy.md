@@ -245,7 +245,7 @@ Current source of truth:
 
 Current state by journey:
 
-- pricing configuration journey: planned
+- pricing configuration journey: implemented
 - subscription billing journey: planned
 - payment setup and collect-payment journey: planned
 - payment retry and failure journey: implemented

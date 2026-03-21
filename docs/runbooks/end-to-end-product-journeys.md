@@ -41,7 +41,7 @@ Use these terms consistently:
 
 | Journey | Purpose | Current State |
 | --- | --- | --- |
-| Pricing configuration journey | prove metrics, rating rules, and plans are commercially usable | planned |
+| Pricing configuration journey | prove metrics, generated rating rules, and plans are commercially usable | implemented |
 | Subscription billing journey | prove subscriptions generate billable invoice state from configured pricing | planned |
 | Payment setup and collect-payment journey | prove customer payment setup can move a blocked customer into a payable state | planned |
 | Payment retry and failure journey | prove Alpha payment recovery against real Lago and Stripe wiring | implemented |
@@ -65,11 +65,10 @@ Prove that Alpha pricing setup is not just CRUD. It must be commercially executa
 
 ### Real journey
 
-1. create a rating rule version
-2. create a metric and attach it to the rating rule version
-3. create a plan
-4. attach the priced metric to the plan
-5. verify the pricing configuration is visible and internally consistent
+1. create a pricing metric through Alpha's pricing API
+2. verify Alpha generated the default draft rating rule version behind that metric
+3. create a plan linked to the metric
+4. verify the metric -> generated rule -> plan graph is visible and internally consistent
 
 ### End-state assertions
 
@@ -80,20 +79,18 @@ Prove that Alpha pricing setup is not just CRUD. It must be commercially executa
 
 ### Current automation state
 
-- `planned`
-- today we validate many pricing APIs and UI surfaces separately
-- we do not yet have one canonical staging journey that proves a complete metric -> rule -> plan path
+- `implemented`
+- staging journey entrypoint:
 
-### Required future automation
+```bash
+make test-staging-pricing-journey
+```
 
-Add a dedicated journey command that:
+- the implemented journey creates a per-run pricing metric, verifies the generated default rating rule, creates a plan linked to that metric, and verifies the resulting graph through Alpha APIs
 
-- creates per-run rating rule fixtures
-- creates per-run metric fixtures
-- creates per-run plan fixtures
-- verifies the graph through Alpha APIs
+### Implemented entrypoint
 
-Recommended future entrypoint:
+The journey is intentionally per-run and does not rely on legacy fixed fixture ids:
 
 ```bash
 make test-staging-pricing-journey
