@@ -120,7 +120,7 @@ Prove that configured pricing actually produces a billable subscription flow.
 4. emit or prepare usage that exercises the configured metric
 5. emit subscription-targeted usage through Alpha
 6. verify Lago received the persisted subscription event
-7. request a deterministic subscription invoice preview from Lago for that persisted subscription
+7. request deterministic current usage from Lago for that persisted subscription
 
 ### End-state assertions
 
@@ -128,7 +128,7 @@ Prove that configured pricing actually produces a billable subscription flow.
 - Alpha may keep the subscription in `pending_payment_setup` until the customer has a verified default payment method
 - the persisted Lago subscription matches the Alpha subscription
 - the usage event is present in both Alpha and Lago
-- a real Lago subscription invoice preview returns a positive billed amount for the configured subscription
+- a real Lago current-usage response returns a positive billed amount for the configured subscription
 - downstream payment and invoice-visibility journeys can start from the same synced pricing and subscription state
 
 ### Current automation state
@@ -144,14 +144,14 @@ make test-staging-subscription-journey LAGO_API_KEY='...'
   - Alpha creates real pricing, customer, and subscription state
   - customer billing profile sync reaches Lago
   - subscription-targeted usage reaches Lago
-  - Lago can compute a real subscription invoice preview from the persisted subscription and usage
+  - Lago can compute real current usage from the persisted subscription and usage
   - Alpha keeps payment readiness explicit instead of falsely reporting an active ready-to-collect subscription
 
 ### Required future automation
 
 Current boundary:
 
-- this journey intentionally proves deterministic billable state through a real Lago invoice preview
+- this journey intentionally proves deterministic billable state through real Lago current usage
 - it does not wait for scheduled recurring billing or require a persisted issued invoice
 - persisted invoice collection and payment convergence remain covered by the payment journeys
 

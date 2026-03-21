@@ -110,8 +110,9 @@ SUBSCRIPTION_CODE="${SUBSCRIPTION_CODE:-subjourney_sub_${RUN_ID}}"
 SUBSCRIPTION_NAME="${SUBSCRIPTION_NAME:-Subscription Journey ${RUN_ID}}"
 USAGE_QUANTITY="${USAGE_QUANTITY:-12}"
 UNIT_AMOUNT_CENTS="${UNIT_AMOUNT_CENTS:-125}"
+EXPECTED_USAGE_AMOUNT_CENTS="${EXPECTED_USAGE_AMOUNT_CENTS:-$((USAGE_QUANTITY * UNIT_AMOUNT_CENTS))}"
 USAGE_TRANSACTION_ID="${USAGE_TRANSACTION_ID:-usage-subjourney-${RUN_ID}}"
-USAGE_TIMESTAMP="${USAGE_TIMESTAMP:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+USAGE_TIMESTAMP="${USAGE_TIMESTAMP:-}"
 BOOTSTRAP_SUCCESS_CUSTOMER_EXTERNAL_ID="${BOOTSTRAP_SUCCESS_CUSTOMER_EXTERNAL_ID:-cust_subscription_bootstrap_success_${RUN_ID}}"
 BOOTSTRAP_FAILURE_CUSTOMER_EXTERNAL_ID="${BOOTSTRAP_FAILURE_CUSTOMER_EXTERNAL_ID:-cust_subscription_bootstrap_failure_${RUN_ID}}"
 
@@ -125,8 +126,14 @@ FAILURE_CUSTOMER_EXTERNAL_ID="$BOOTSTRAP_FAILURE_CUSTOMER_EXTERNAL_ID" \
 LAGO_WEBHOOK_URL="${LAGO_WEBHOOK_URL:-$ALPHA_API_BASE_URL/internal/lago/webhooks}" \
 bash ./scripts/bootstrap_lago_stripe_staging.sh > "$bootstrap_json_file"
 
-bootstrap_org_id="$(jq -r '.organization.id // empty' "$bootstrap_json_file")"
-bootstrap_provider_code="$(jq -r '.stripe_provider.code // empty' "$bootstrap_json_file")"
+bootstrap_summary_json="$(jq -cs 'map(select(.organization? != null and .stripe_provider? != null and .customers? != null)) | last' "$bootstrap_json_file")"
+if [[ -z "$bootstrap_summary_json" || "$bootstrap_summary_json" == "null" ]]; then
+  echo "[fail] bootstrap output did not contain a summary object" >&2
+  exit 1
+fi
+
+bootstrap_org_id="$(jq -r '.organization.id // empty' <<<"$bootstrap_summary_json")"
+bootstrap_provider_code="$(jq -r '.stripe_provider.code // empty' <<<"$bootstrap_summary_json")"
 if [[ -z "$bootstrap_org_id" || -z "$bootstrap_provider_code" ]]; then
   echo "[fail] bootstrap did not produce organization.id and stripe_provider.code" >&2
   exit 1
@@ -303,7 +310,7 @@ create_usage_payload="$(jq -nc \
   --arg meter_id "$meter_id" \
   --arg subscription_id "$subscription_id" \
   --arg idempotency_key "$USAGE_TRANSACTION_ID" \
-  --arg timestamp "$USAGE_TIMESTAMP" \
+  --arg timestamp "${USAGE_TIMESTAMP:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" \
   --argjson quantity "$USAGE_QUANTITY" \
   '{
     customer_id: $customer_id,
@@ -345,25 +352,29 @@ assert_jq "$lago_event_json" "lago event mismatch" \
   --arg transaction_id "$USAGE_TRANSACTION_ID" \
   '.event.code == $code and .event.transaction_id == $transaction_id'
 
-invoice_preview_payload="$(jq -nc \
-  --arg external_id "$CUSTOMER_EXTERNAL_ID" \
-  --arg subscription_code "$SUBSCRIPTION_CODE" \
-  '{
-    customer: {
-      external_id: $external_id
-    },
-    subscriptions: {
-      external_ids: [$subscription_code]
-    }
-  }')"
-
-echo "[info] requesting deterministic lago subscription invoice preview"
-http_call POST "$LAGO_API_URL/api/v1/invoices/preview" "$invoice_preview_payload" "Authorization: Bearer $LAGO_API_KEY"
-assert_http_code 200 "preview subscription invoice"
-invoice_preview_json="$HTTP_BODY"
-assert_jq "$invoice_preview_json" "subscription invoice preview mismatch" \
-  --arg external_id "$CUSTOMER_EXTERNAL_ID" \
-  '.invoice.invoice_type == "subscription" and .invoice.customer.external_id == $external_id and (.invoice.total_amount_cents > 0) and (.invoice.fees_amount_cents > 0) and ((.invoice.preview_subscriptions // []) | length >= 1)'
+echo "[info] requesting deterministic lago current usage for persisted subscription"
+customer_usage_query="external_subscription_id=$(urlencode "$SUBSCRIPTION_CODE")&apply_taxes=false"
+http_call GET "$LAGO_API_URL/api/v1/customers/$customer_external_id_enc/current_usage?$customer_usage_query" '' "Authorization: Bearer $LAGO_API_KEY"
+assert_http_code 200 "get customer current usage"
+customer_usage_json="$HTTP_BODY"
+assert_jq "$customer_usage_json" "subscription current usage mismatch" \
+  --arg meter_key "$METER_KEY" \
+  --arg currency "USD" \
+  --argjson expected_amount_cents "$EXPECTED_USAGE_AMOUNT_CENTS" \
+  '.customer_usage.currency == $currency
+   and .customer_usage.amount_cents == $expected_amount_cents
+   and .customer_usage.total_amount_cents == $expected_amount_cents
+   and (.customer_usage.charges_usage | map(select(.billable_metric.code == $meter_key and .amount_cents == $expected_amount_cents)) | length >= 1)'
+customer_usage_summary_json="$(jq -c '.customer_usage' <<<"$customer_usage_json")"
+rating_rule_summary_json="$(jq -c '.' <<<"$rating_rule_json")"
+meter_summary_json="$(jq -c '.' <<<"$meter_json")"
+plan_summary_json="$(jq -c '.' <<<"$plan_json")"
+customer_summary_json="$(jq -c '.' <<<"$customer_detail_json")"
+billing_profile_summary_json="$(jq -c '.' <<<"$billing_profile_json")"
+subscription_summary_json="$(jq -c '.' <<<"$subscription_detail_json")"
+lago_subscription_summary_json="$(jq -c '.' <<<"$lago_subscription_json")"
+usage_event_summary_json="$(jq -c '.' <<<"$usage_event_json")"
+lago_event_summary_json="$(jq -c '.' <<<"$lago_event_json")"
 
 summary_json="$(jq -n \
   --arg run_id "$RUN_ID" \
@@ -384,17 +395,17 @@ summary_json="$(jq -n \
   --arg subscription_code "$SUBSCRIPTION_CODE" \
   --arg usage_transaction_id "$USAGE_TRANSACTION_ID" \
   --argjson usage_quantity "$USAGE_QUANTITY" \
-  --argjson bootstrap "$(<"$bootstrap_json_file")" \
-  --argjson rating_rule "$rating_rule_json" \
-  --argjson meter "$meter_json" \
-  --argjson plan "$plan_json" \
-  --argjson customer "$customer_detail_json" \
-  --argjson billing_profile "$billing_profile_json" \
-  --argjson subscription "$subscription_detail_json" \
-  --argjson lago_subscription "$lago_subscription_json" \
-  --argjson usage_event "$usage_event_json" \
-  --argjson lago_event "$lago_event_json" \
-  --argjson invoice_preview "$invoice_preview_json" \
+  --slurpfile bootstrap <(printf '%s\n' "$bootstrap_summary_json") \
+  --slurpfile rating_rule <(printf '%s\n' "$rating_rule_summary_json") \
+  --slurpfile meter <(printf '%s\n' "$meter_summary_json") \
+  --slurpfile plan <(printf '%s\n' "$plan_summary_json") \
+  --slurpfile customer <(printf '%s\n' "$customer_summary_json") \
+  --slurpfile billing_profile <(printf '%s\n' "$billing_profile_summary_json") \
+  --slurpfile subscription <(printf '%s\n' "$subscription_summary_json") \
+  --slurpfile lago_subscription <(printf '%s\n' "$lago_subscription_summary_json") \
+  --slurpfile usage_event <(printf '%s\n' "$usage_event_summary_json") \
+  --slurpfile lago_event <(printf '%s\n' "$lago_event_summary_json") \
+  --slurpfile customer_usage <(printf '%s\n' "$customer_usage_summary_json") \
   '{
     run_id: $run_id,
     fixture_source: "staging_subscription_journey",
@@ -404,7 +415,7 @@ summary_json="$(jq -n \
       customer_sync: "real alpha customer + billing profile sync to lago",
       subscription_sync: "real alpha subscription sync to lago",
       usage_sync: "real alpha subscription-targeted usage sync to lago",
-      billing_proof: "real lago persisted subscription + event + invoice preview"
+      billing_proof: "real lago persisted subscription + event + current usage"
     },
     environment: {
       alpha_api_base_url: $alpha_api_base_url,
@@ -440,17 +451,17 @@ summary_json="$(jq -n \
       }
     },
     verification: {
-      bootstrap: $bootstrap,
-      rating_rule: $rating_rule,
-      meter: $meter,
-      plan: $plan,
-      customer: $customer,
-      billing_profile: $billing_profile,
-      subscription: $subscription,
-      lago_subscription: $lago_subscription,
-      alpha_usage_event: $usage_event,
-      lago_event: $lago_event,
-      lago_invoice_preview: $invoice_preview
+      bootstrap: $bootstrap[0],
+      rating_rule: $rating_rule[0],
+      meter: $meter[0],
+      plan: $plan[0],
+      customer: $customer[0],
+      billing_profile: $billing_profile[0],
+      subscription: $subscription[0],
+      lago_subscription: $lago_subscription[0],
+      alpha_usage_event: $usage_event[0],
+      lago_event: $lago_event[0],
+      lago_customer_usage: $customer_usage[0]
     }
   }')"
 
