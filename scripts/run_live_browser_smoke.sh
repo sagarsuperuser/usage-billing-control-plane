@@ -25,6 +25,7 @@ npx -y pnpm@10.30.0 exec playwright install --with-deps chromium
 npx -y pnpm@10.30.0 exec playwright test \
   tests/e2e/control-plane-overview-live.spec.ts \
   tests/e2e/payment-operations-live.spec.ts \
+  tests/e2e/payment-setup-browser-live.spec.ts \
   tests/e2e/invoice-explainability-live.spec.ts \
   tests/e2e/replay-operations-live.spec.ts \
   --workers=1

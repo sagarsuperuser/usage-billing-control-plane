@@ -47,6 +47,12 @@ Use these terms consistently:
 | Payment retry and failure journey | prove Alpha payment recovery against real Lago and Stripe wiring | implemented |
 | Replay and recovery journey | prove recovery tooling works against fresh replay fixtures | implemented |
 | Browser operator journey | prove core operator surfaces load and route correctly in staging | implemented |
+| Browser-led payment setup journey | prove operators can follow collect-payment handoff and dispatch payment setup from the live UI | partial |
+| Access and invite membership journey | prove invite, acceptance, membership activation, and role safeguards end to end | planned |
+| Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | planned |
+| Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | planned |
+| Usage-to-issued-invoice journey | prove usage becomes an issued invoice that Alpha can inspect and explain | planned |
+| Billing connection lifecycle journey | prove billing connection create, rotate, verify, and tenant mapping lifecycle end to end | planned |
 
 ---
 
@@ -350,6 +356,107 @@ make test-browser-staging-smoke
 
 ---
 
+## 7. Browser-Led Payment Setup Journey
+
+### Purpose
+
+Prove that an operator can start from a live payment in `collect_payment`, follow the UI handoff, and dispatch the customer payment-setup request from the browser.
+
+### Product surfaces involved
+
+- payment detail
+- customer detail payment-collection section
+- browser session auth
+
+### Real journey
+
+1. open a live payment detail already recommending `collect_payment`
+2. follow the handoff into customer payment setup
+3. send the payment setup request from the customer page
+4. confirm Alpha records the request in the live UI
+
+### End-state assertions
+
+- payment detail exposes the collect-payment handoff
+- the customer payment-collection section loads from the browser path
+- the operator can dispatch the payment setup request from the UI
+- the UI shows the sent-state and latest link artifacts
+
+### Current automation state
+
+- `partial`
+- current entrypoint:
+
+```bash
+make test-staging-browser-payment-setup-journey LAGO_API_KEY='...'
+```
+
+- current boundary:
+  - this browser journey proves the real operator handoff and request-dispatch slice
+  - provider-side completion, readiness refresh, and retry convergence remain covered by the implemented backend payment-setup journey
+
+---
+
+## 8. Access and Invite Membership Journey
+
+### Purpose
+
+Prove workspace invite, acceptance, durable membership creation, and role safeguards through the real product flow.
+
+### Current automation state
+
+- `planned`
+
+---
+
+## 9. Customer Onboarding Journey
+
+### Purpose
+
+Prove Alpha can create a customer, sync billing profile state, and surface readiness progression without backend-only intervention.
+
+### Current automation state
+
+- `planned`
+
+---
+
+## 10. Subscription Change and Cancellation Journey
+
+### Purpose
+
+Prove upgrades, downgrades, and cancellation remain coherent across Alpha, Lago, and downstream billing state.
+
+### Current automation state
+
+- `planned`
+
+---
+
+## 11. Usage-to-Issued-Invoice Journey
+
+### Purpose
+
+Prove that staged usage becomes a real issued invoice that Alpha can inspect, explain, and route into payment flows.
+
+### Current automation state
+
+- `planned`
+
+---
+
+## 12. Billing Connection Lifecycle Journey
+
+### Purpose
+
+Prove billing connection create, rotate, verify, and tenant-mapping lifecycle without manual backend repair steps.
+
+### Current automation state
+
+- `planned`
+
+---
+
 ## How These Journeys Relate
 
 Use the journeys in dependency order:
@@ -360,6 +467,12 @@ Use the journeys in dependency order:
 4. payment retry and failure journey
 5. replay and recovery journey
 6. browser operator journey
+7. browser-led payment setup journey
+8. access and invite membership journey
+9. customer onboarding journey
+10. subscription change and cancellation journey
+11. usage-to-issued-invoice journey
+12. billing connection lifecycle journey
 
 Not every deploy needs all of them.
 
