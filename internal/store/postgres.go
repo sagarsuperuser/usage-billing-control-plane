@@ -2937,11 +2937,12 @@ func (s *PostgresStore) CreateUsageEvent(input domain.UsageEvent) (domain.UsageE
 
 	_, err = tx.ExecContext(
 		ctx,
-		`INSERT INTO usage_events (id, tenant_id, customer_id, meter_id, quantity, idempotency_key, occurred_at) VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7)`,
+		`INSERT INTO usage_events (id, tenant_id, customer_id, meter_id, subscription_id, quantity, idempotency_key, occurred_at) VALUES ($1,$2,$3,$4,NULLIF($5,''),$6,NULLIF($7,''),$8)`,
 		input.ID,
 		input.TenantID,
 		input.CustomerID,
 		input.MeterID,
+		strings.TrimSpace(input.SubscriptionID),
 		input.Quantity,
 		input.IdempotencyKey,
 		input.Timestamp,
@@ -2976,7 +2977,7 @@ func (s *PostgresStore) GetUsageEventByIdempotencyKey(tenantID, idempotencyKey s
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, tenant_id, customer_id, meter_id, quantity, idempotency_key, occurred_at
+		`SELECT id, tenant_id, customer_id, meter_id, subscription_id, quantity, idempotency_key, occurred_at
 		FROM usage_events
 		WHERE tenant_id = $1 AND idempotency_key = $2
 		ORDER BY occurred_at DESC, id DESC
@@ -2985,12 +2986,14 @@ func (s *PostgresStore) GetUsageEventByIdempotencyKey(tenantID, idempotencyKey s
 		idempotencyKey,
 	)
 	var event domain.UsageEvent
+	var subscriptionID sql.NullString
 	var eventIdempotencyKey sql.NullString
 	if err := row.Scan(
 		&event.ID,
 		&event.TenantID,
 		&event.CustomerID,
 		&event.MeterID,
+		&subscriptionID,
 		&event.Quantity,
 		&eventIdempotencyKey,
 		&event.Timestamp,
@@ -3001,6 +3004,9 @@ func (s *PostgresStore) GetUsageEventByIdempotencyKey(tenantID, idempotencyKey s
 		return domain.UsageEvent{}, err
 	}
 	event.TenantID = normalizeTenantID(event.TenantID)
+	if subscriptionID.Valid {
+		event.SubscriptionID = strings.TrimSpace(subscriptionID.String)
+	}
 	if eventIdempotencyKey.Valid {
 		event.IdempotencyKey = strings.TrimSpace(eventIdempotencyKey.String)
 	}
@@ -3021,7 +3027,7 @@ func (s *PostgresStore) ListUsageEvents(filter Filter) ([]domain.UsageEvent, err
 	}
 	defer rollbackSilently(tx)
 
-	query, args := buildUsageEventsFilteredQuery(`SELECT id, tenant_id, customer_id, meter_id, quantity, idempotency_key, occurred_at FROM usage_events`, filter, "occurred_at")
+	query, args := buildUsageEventsFilteredQuery(`SELECT id, tenant_id, customer_id, meter_id, subscription_id, quantity, idempotency_key, occurred_at FROM usage_events`, filter, "occurred_at")
 	if filter.SortDesc {
 		query += ` ORDER BY occurred_at DESC, id DESC`
 	} else {
@@ -3045,11 +3051,15 @@ func (s *PostgresStore) ListUsageEvents(filter Filter) ([]domain.UsageEvent, err
 	out := make([]domain.UsageEvent, 0)
 	for rows.Next() {
 		var event domain.UsageEvent
+		var subscriptionID sql.NullString
 		var idempotencyKey sql.NullString
-		if scanErr := rows.Scan(&event.ID, &event.TenantID, &event.CustomerID, &event.MeterID, &event.Quantity, &idempotencyKey, &event.Timestamp); scanErr != nil {
+		if scanErr := rows.Scan(&event.ID, &event.TenantID, &event.CustomerID, &event.MeterID, &subscriptionID, &event.Quantity, &idempotencyKey, &event.Timestamp); scanErr != nil {
 			return nil, scanErr
 		}
 		event.TenantID = normalizeTenantID(event.TenantID)
+		if subscriptionID.Valid {
+			event.SubscriptionID = strings.TrimSpace(subscriptionID.String)
+		}
 		if idempotencyKey.Valid {
 			event.IdempotencyKey = strings.TrimSpace(idempotencyKey.String)
 		}

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,7 +13,8 @@ import (
 )
 
 type UsageService struct {
-	store store.Repository
+	store            store.Repository
+	usageSyncAdapter UsageSyncAdapter
 }
 
 type ListBilledEntriesRequest struct {
@@ -67,6 +69,11 @@ func NewUsageService(s store.Repository) *UsageService {
 	return &UsageService{store: s}
 }
 
+func (s *UsageService) WithUsageSyncAdapter(adapter UsageSyncAdapter) *UsageService {
+	s.usageSyncAdapter = adapter
+	return s
+}
+
 func (s *UsageService) CreateUsageEvent(input domain.UsageEvent) (domain.UsageEvent, error) {
 	event, _, err := s.CreateUsageEventWithIdempotency(input)
 	return event, err
@@ -74,6 +81,7 @@ func (s *UsageService) CreateUsageEvent(input domain.UsageEvent) (domain.UsageEv
 
 func (s *UsageService) CreateUsageEventWithIdempotency(input domain.UsageEvent) (domain.UsageEvent, bool, error) {
 	input.TenantID = normalizeTenantID(input.TenantID)
+	input.SubscriptionID = strings.TrimSpace(input.SubscriptionID)
 	if strings.TrimSpace(input.CustomerID) == "" || strings.TrimSpace(input.MeterID) == "" {
 		return domain.UsageEvent{}, false, fmt.Errorf("%w: customer_id and meter_id are required", ErrValidation)
 	}
@@ -86,6 +94,19 @@ func (s *UsageService) CreateUsageEventWithIdempotency(input domain.UsageEvent) 
 	}
 	if normalizeTenantID(meter.TenantID) != input.TenantID {
 		return domain.UsageEvent{}, false, fmt.Errorf("%w: meter tenant mismatch", ErrValidation)
+	}
+	var subscription domain.Subscription
+	if input.SubscriptionID != "" {
+		subscription, err = s.store.GetSubscription(input.TenantID, input.SubscriptionID)
+		if err != nil {
+			if err == store.ErrNotFound {
+				return domain.UsageEvent{}, false, fmt.Errorf("%w: subscription not found", ErrValidation)
+			}
+			return domain.UsageEvent{}, false, err
+		}
+		if subscription.CustomerID != input.CustomerID {
+			return domain.UsageEvent{}, false, fmt.Errorf("%w: subscription customer mismatch", ErrValidation)
+		}
 	}
 
 	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
@@ -117,6 +138,11 @@ func (s *UsageService) CreateUsageEventWithIdempotency(input domain.UsageEvent) 
 			}
 		}
 		return domain.UsageEvent{}, false, err
+	}
+	if s.usageSyncAdapter != nil && input.SubscriptionID != "" {
+		if err := s.usageSyncAdapter.SyncUsageEvent(context.Background(), created, meter, subscription); err != nil {
+			return domain.UsageEvent{}, false, err
+		}
 	}
 	return created, false, nil
 }

@@ -42,7 +42,7 @@ Use these terms consistently:
 | Journey | Purpose | Current State |
 | --- | --- | --- |
 | Pricing configuration journey | prove metrics, generated rating rules, and plans are commercially usable | implemented |
-| Subscription billing journey | prove subscriptions generate billable invoice state from configured pricing | planned |
+| Subscription billing journey | prove subscriptions generate billable invoice state from configured pricing | partial |
 | Payment setup and collect-payment journey | prove customer payment setup can move a blocked customer into a payable state | planned |
 | Payment retry and failure journey | prove Alpha payment recovery against real Lago and Stripe wiring | implemented |
 | Replay and recovery journey | prove recovery tooling works against fresh replay fixtures | implemented |
@@ -130,11 +130,12 @@ Prove that configured pricing actually produces a billable subscription flow.
 
 ### Current automation state
 
-- `planned`
-- the required export dependency is now in place:
+- `partial`
+- the required downstream export dependencies are now in place:
   - Alpha plan create syncs to Lago plan create/update
   - Alpha subscription create/update syncs to Lago subscription create/update
-- a full pricing -> subscription -> invoice journey is still not yet automated as one staging flow
+  - Alpha usage events can now target a subscription and sync to Lago events
+- a full pricing -> subscription -> usage -> invoice journey is still not yet automated as one staging flow
 
 ### Required future automation
 
@@ -142,6 +143,7 @@ Add a per-run subscription billing journey that:
 
 - reuses the pricing journey fixtures
 - creates a customer and subscription
+- emits subscription-targeted usage through Alpha
 - drives invoice generation deterministically
 - verifies invoice visibility in Alpha
 

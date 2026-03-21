@@ -296,6 +296,59 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 	}
 }
 
+func TestLagoUsageSyncAdapter(t *testing.T) {
+	t.Parallel()
+
+	var sawCreate bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/events":
+			sawCreate = true
+			w.Header().Set("Content-Type", "application/json")
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"code":"api_calls"`) {
+				t.Fatalf("expected billable metric code in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"external_subscription_id":"cust_123_growth"`) {
+				t.Fatalf("expected external subscription id in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"transaction_id":"evt_sync_123"`) {
+				t.Fatalf("expected transaction id in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"value":"12"`) {
+				t.Fatalf("expected quantity value in payload, got %s", payload)
+			}
+			_, _ = w.Write([]byte(`{"event":{"transaction_id":"evt_sync_123"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoUsageSyncAdapter(transport).SyncUsageEvent(context.Background(),
+		domain.UsageEvent{ID: "evt_sync_123", Quantity: 12, Timestamp: time.Unix(1_700_000_000, 0).UTC()},
+		domain.Meter{Key: "api_calls", Aggregation: "sum"},
+		domain.Subscription{Code: "cust_123_growth"},
+	)
+	if err != nil {
+		t.Fatalf("sync usage event: %v", err)
+	}
+	if !sawCreate {
+		t.Fatalf("expected create request to lago events endpoint")
+	}
+}
+
 func TestLagoAdaptersWithRealLago(t *testing.T) {
 	baseURL := strings.TrimSpace(os.Getenv("TEST_LAGO_API_URL"))
 	apiKey := strings.TrimSpace(os.Getenv("TEST_LAGO_API_KEY"))

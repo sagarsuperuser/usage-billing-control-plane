@@ -216,6 +216,7 @@ func main() {
 		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
 		api.WithPlanSyncAdapter(service.NewLagoPlanSyncAdapter(lagoTransport)),
 		api.WithSubscriptionSyncAdapter(service.NewLagoSubscriptionSyncAdapter(lagoTransport)),
+		api.WithUsageSyncAdapter(service.NewLagoUsageSyncAdapter(lagoTransport)),
 		api.WithInvoiceBillingAdapter(invoiceBillingAdapter),
 		api.WithCustomerBillingAdapter(customerBillingAdapter),
 	)

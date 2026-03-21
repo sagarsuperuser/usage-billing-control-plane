@@ -46,6 +46,10 @@ type SubscriptionSyncAdapter interface {
 	SyncSubscription(ctx context.Context, subscription domain.Subscription, customer domain.Customer, plan domain.Plan) error
 }
 
+type UsageSyncAdapter interface {
+	SyncUsageEvent(ctx context.Context, event domain.UsageEvent, meter domain.Meter, subscription domain.Subscription) error
+}
+
 type InvoiceBillingAdapter interface {
 	ListInvoices(ctx context.Context, query url.Values) (int, []byte, error)
 	ListPaymentReceipts(ctx context.Context, query url.Values) (int, []byte, error)
@@ -533,6 +537,54 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 		updateStatus,
 		abbrevForLog(updateBody),
 	)
+}
+
+type LagoUsageSyncAdapter struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoUsageSyncAdapter(transport *LagoHTTPTransport) *LagoUsageSyncAdapter {
+	return &LagoUsageSyncAdapter{transport: transport}
+}
+
+func (a *LagoUsageSyncAdapter) SyncUsageEvent(ctx context.Context, event domain.UsageEvent, meter domain.Meter, subscription domain.Subscription) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago usage sync adapter is required", ErrValidation)
+	}
+	aggregationType, err := mapAggregationToLago(meter.Aggregation)
+	if err != nil {
+		return err
+	}
+	transactionID := strings.TrimSpace(event.IdempotencyKey)
+	if transactionID == "" {
+		transactionID = strings.TrimSpace(event.ID)
+	}
+	payload := map[string]any{
+		"event": map[string]any{
+			"code":                     meter.Key,
+			"transaction_id":           transactionID,
+			"external_subscription_id": subscription.Code,
+			"timestamp":                event.Timestamp.Unix(),
+			"properties":               map[string]any{},
+		},
+	}
+	switch aggregationType {
+	case "sum_agg", "max_agg":
+		payload["event"].(map[string]any)["properties"] = map[string]any{
+			"value": fmt.Sprintf("%d", event.Quantity),
+		}
+	case "count_agg":
+		if event.Quantity != 1 {
+			return fmt.Errorf("%w: count aggregation requires quantity=1 for lago usage sync", ErrDependency)
+		}
+	default:
+		return fmt.Errorf("%w: unsupported aggregation %q for lago usage sync", ErrDependency, aggregationType)
+	}
+	status, body, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/events", payload)
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: lago usage sync failed (status=%d body=%s)", ErrDependency, status, abbrevForLog(body))
 }
 
 type LagoWebhookKeyProvider struct {

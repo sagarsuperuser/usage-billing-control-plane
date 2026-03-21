@@ -58,6 +58,7 @@ type Server struct {
 	meterSyncAdapter                   service.MeterSyncAdapter
 	planSyncAdapter                    service.PlanSyncAdapter
 	subscriptionSyncAdapter            service.SubscriptionSyncAdapter
+	usageSyncAdapter                   service.UsageSyncAdapter
 	invoiceBillingAdapter              service.InvoiceBillingAdapter
 	customerBillingAdapter             service.CustomerBillingAdapter
 	lagoWebhookSvc                     *service.LagoWebhookService
@@ -579,6 +580,12 @@ func WithSubscriptionSyncAdapter(adapter service.SubscriptionSyncAdapter) Server
 	}
 }
 
+func WithUsageSyncAdapter(adapter service.UsageSyncAdapter) ServerOption {
+	return func(s *Server) {
+		s.usageSyncAdapter = adapter
+	}
+}
+
 func WithBillingProviderConnectionService(svc *service.BillingProviderConnectionService) ServerOption {
 	return func(s *Server) {
 		s.billingProviderConnectionService = svc
@@ -697,7 +704,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)
 	s.planService = service.NewPlanService(repo).WithPlanSyncAdapter(s.planSyncAdapter)
 	s.subscriptionService = service.NewSubscriptionService(repo, s.customerService).WithSubscriptionSyncAdapter(s.subscriptionSyncAdapter)
-	s.usageService = service.NewUsageService(repo)
+	s.usageService = service.NewUsageService(repo).WithUsageSyncAdapter(s.usageSyncAdapter)
 	s.apiKeyService = service.NewAPIKeyService(repo)
 	s.serviceAccountService = service.NewServiceAccountService(repo, s.apiKeyService)
 	if s.browserUserAuthService == nil {
