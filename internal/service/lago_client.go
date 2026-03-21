@@ -452,6 +452,7 @@ func (a *LagoPlanSyncAdapter) SyncPlan(ctx context.Context, plan domain.Plan, co
 			"code":                 plan.Code,
 			"interval":             string(plan.BillingInterval),
 			"description":          plan.Description,
+			"pay_in_advance":       false,
 			"amount_cents":         plan.BaseAmountCents,
 			"amount_currency":      plan.Currency,
 			"charges":              charges,

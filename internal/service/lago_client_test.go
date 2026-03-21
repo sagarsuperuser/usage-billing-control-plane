@@ -195,14 +195,14 @@ func TestLagoPlanSyncAdapter(t *testing.T) {
 			if !strings.Contains(payload, `"code":"growth"`) {
 				t.Fatalf("expected plan code in payload, got %s", payload)
 			}
+			if !strings.Contains(payload, `"pay_in_advance":false`) {
+				t.Fatalf("expected pay_in_advance false in plan payload, got %s", payload)
+			}
 			if !strings.Contains(payload, `"billable_metric_id":"bm_123"`) {
 				t.Fatalf("expected billable metric id in payload, got %s", payload)
 			}
 			if !strings.Contains(payload, `"charge_model":"standard"`) {
 				t.Fatalf("expected standard charge model in payload, got %s", payload)
-			}
-			if !strings.Contains(payload, `"pay_in_advance":false`) {
-				t.Fatalf("expected pay_in_advance false in payload, got %s", payload)
 			}
 			if !strings.Contains(payload, `"amount":"0.22"`) {
 				t.Fatalf("expected decimal amount in payload, got %s", payload)
