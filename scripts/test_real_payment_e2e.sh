@@ -111,6 +111,7 @@ fi
 
 lago_invoice_status="$(jq -r '.invoice.status // ""' <<<"$HTTP_BODY")"
 lago_payment_status_initial="$(jq -r '.invoice.payment_status // ""' <<<"$HTTP_BODY")"
+lago_invoice_updated_at_initial="$(jq -r '.invoice.updated_at // ""' <<<"$HTTP_BODY")"
 if [[ "$lago_invoice_status" != "finalized" ]]; then
   echo "[fail] invoice must be finalized for payment retry (got status=$lago_invoice_status)" >&2
   exit 1
@@ -143,11 +144,28 @@ while true; do
     echo "[warn] lago poll returned status=$HTTP_CODE body=$HTTP_BODY"
   else
     lago_payment_status_final="$(jq -r '.invoice.payment_status // ""' <<<"$HTTP_BODY")"
+    lago_invoice_updated_at_current="$(jq -r '.invoice.updated_at // ""' <<<"$HTTP_BODY")"
     if [[ "$lago_payment_status_final" == "$EXPECTED_FINAL_STATUS" ]]; then
       echo "[pass] Lago payment reached expected terminal status=$lago_payment_status_final"
       break
     fi
     if [[ "$lago_payment_status_final" == "succeeded" || "$lago_payment_status_final" == "failed" ]]; then
+      if [[ "$lago_payment_status_final" == "$lago_payment_status_initial" && "$lago_invoice_updated_at_current" == "$lago_invoice_updated_at_initial" ]]; then
+        if [[ "$(date +%s)" -ge "$deadline_epoch" ]]; then
+          echo "[fail] timeout waiting for Lago terminal status change; stale_status=$lago_payment_status_final updated_at=$lago_invoice_updated_at_current expected=$EXPECTED_FINAL_STATUS" >&2
+          exit 1
+        fi
+        sleep "$POLL_INTERVAL_SEC"
+        continue
+      fi
+      if [[ "$EXPECTED_FINAL_STATUS" == "succeeded" && "$lago_payment_status_final" == "failed" ]]; then
+        if [[ "$(date +%s)" -ge "$deadline_epoch" ]]; then
+          echo "[fail] timeout waiting for Lago success after transient failure; last_status=$lago_payment_status_final updated_at=$lago_invoice_updated_at_current expected=$EXPECTED_FINAL_STATUS" >&2
+          exit 1
+        fi
+        sleep "$POLL_INTERVAL_SEC"
+        continue
+      fi
       echo "[fail] Lago reached unexpected terminal status=$lago_payment_status_final (expected=$EXPECTED_FINAL_STATUS)" >&2
       exit 1
     fi
