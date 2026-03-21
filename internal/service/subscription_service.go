@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,8 +12,9 @@ import (
 )
 
 type SubscriptionService struct {
-	store     store.Repository
-	customers *CustomerService
+	store                   store.Repository
+	customers               *CustomerService
+	subscriptionSyncAdapter SubscriptionSyncAdapter
 }
 
 type CreateSubscriptionRequest struct {
@@ -85,9 +87,17 @@ func NewSubscriptionService(s store.Repository, customers *CustomerService) *Sub
 	return &SubscriptionService{store: s, customers: customers}
 }
 
-func (s *SubscriptionService) CreateSubscription(req CreateSubscriptionRequest) (CreateSubscriptionResult, error) {
+func (s *SubscriptionService) WithSubscriptionSyncAdapter(adapter SubscriptionSyncAdapter) *SubscriptionService {
+	s.subscriptionSyncAdapter = adapter
+	return s
+}
+
+func (s *SubscriptionService) CreateSubscription(ctx context.Context, req CreateSubscriptionRequest) (CreateSubscriptionResult, error) {
 	if s == nil || s.store == nil {
 		return CreateSubscriptionResult{}, fmt.Errorf("%w: subscription repository is required", ErrValidation)
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	tenantID := normalizeTenantID(req.TenantID)
 	customer, plan, err := s.resolveCustomerAndPlan(tenantID, req.CustomerExternalID, req.PlanID)
@@ -120,6 +130,11 @@ func (s *SubscriptionService) CreateSubscription(req CreateSubscriptionRequest) 
 			return CreateSubscriptionResult{}, fmt.Errorf("%w: subscription code already exists", ErrValidation)
 		}
 		return CreateSubscriptionResult{}, err
+	}
+	if s.subscriptionSyncAdapter != nil {
+		if err := s.subscriptionSyncAdapter.SyncSubscription(ctx, subscription, customer, plan); err != nil {
+			return CreateSubscriptionResult{}, err
+		}
 	}
 
 	if req.RequestPaymentSetup {
@@ -171,9 +186,12 @@ func (s *SubscriptionService) GetSubscription(tenantID, id string) (Subscription
 	return s.buildSubscriptionDetail(subscription)
 }
 
-func (s *SubscriptionService) UpdateSubscription(tenantID, id string, req UpdateSubscriptionRequest) (SubscriptionDetail, error) {
+func (s *SubscriptionService) UpdateSubscription(ctx context.Context, tenantID, id string, req UpdateSubscriptionRequest) (SubscriptionDetail, error) {
 	if s == nil || s.store == nil {
 		return SubscriptionDetail{}, fmt.Errorf("%w: subscription repository is required", ErrValidation)
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	subscription, err := s.store.GetSubscription(normalizeTenantID(tenantID), strings.TrimSpace(id))
 	if err != nil {
@@ -208,6 +226,19 @@ func (s *SubscriptionService) UpdateSubscription(tenantID, id string, req Update
 			return SubscriptionDetail{}, fmt.Errorf("%w: subscription code already exists", ErrValidation)
 		}
 		return SubscriptionDetail{}, err
+	}
+	if s.subscriptionSyncAdapter != nil {
+		customer, err := s.store.GetCustomer(updated.TenantID, updated.CustomerID)
+		if err != nil {
+			return SubscriptionDetail{}, err
+		}
+		plan, err := s.store.GetPlan(updated.TenantID, updated.PlanID)
+		if err != nil {
+			return SubscriptionDetail{}, err
+		}
+		if err := s.subscriptionSyncAdapter.SyncSubscription(ctx, updated, customer, plan); err != nil {
+			return SubscriptionDetail{}, err
+		}
 	}
 	return s.buildSubscriptionDetail(updated)
 }

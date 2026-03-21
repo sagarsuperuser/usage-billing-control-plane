@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,18 @@ import (
 	"usage-billing-control-plane/internal/service"
 	"usage-billing-control-plane/internal/store"
 )
+
+type stubSubscriptionPlanSyncAdapter struct{}
+
+func (stubSubscriptionPlanSyncAdapter) SyncPlan(_ context.Context, _ domain.Plan, _ []service.PlanSyncComponent) error {
+	return nil
+}
+
+type stubSubscriptionSyncAdapter struct{}
+
+func (stubSubscriptionSyncAdapter) SyncSubscription(_ context.Context, _ domain.Subscription, _ domain.Customer, _ domain.Plan) error {
+	return nil
+}
 
 func TestSubscriptionEndpoints(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
@@ -81,12 +94,13 @@ func TestSubscriptionEndpoints(t *testing.T) {
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+		api.WithSubscriptionSyncAdapter(stubSubscriptionSyncAdapter{}),
 	).Handler())
 	defer ts.Close()
 
 	ratingService := service.NewRatingService(repo)
 	meterService := service.NewMeterService(repo)
-	planService := service.NewPlanService(repo)
+	planService := service.NewPlanService(repo).WithPlanSyncAdapter(stubSubscriptionPlanSyncAdapter{})
 
 	rule, err := ratingService.CreateRuleVersion(domain.RatingRuleVersion{
 		TenantID:       "default",
@@ -114,7 +128,7 @@ func TestSubscriptionEndpoints(t *testing.T) {
 		t.Fatalf("create meter: %v", err)
 	}
 
-	plan, err := planService.CreatePlan(domain.Plan{
+	plan, err := planService.CreatePlan(context.Background(), domain.Plan{
 		TenantID:        "default",
 		Code:            "growth",
 		Name:            "Growth",

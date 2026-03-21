@@ -116,7 +116,7 @@ func (s *Server) handlePlans(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		plan, err := s.planService.CreatePlan(domain.Plan{
+		plan, err := s.planService.CreatePlan(r.Context(), domain.Plan{
 			TenantID:        tenantID,
 			Code:            req.Code,
 			Name:            req.Name,

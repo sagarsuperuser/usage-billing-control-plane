@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -173,6 +174,125 @@ func TestLagoCustomerBillingAdapter(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "checkout.example.test/cust_123") {
 		t.Fatalf("expected checkout url in response, got %s", string(body))
+	}
+}
+
+func TestLagoPlanSyncAdapter(t *testing.T) {
+	t.Parallel()
+
+	var sawCreate bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/billable_metrics/api_calls":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"billable_metric":{"lago_id":"bm_123","code":"api_calls"}}`))
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/plans":
+			sawCreate = true
+			w.Header().Set("Content-Type", "application/json")
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"code":"growth"`) {
+				t.Fatalf("expected plan code in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"billable_metric_id":"bm_123"`) {
+				t.Fatalf("expected billable metric id in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"charge_model":"standard"`) {
+				t.Fatalf("expected standard charge model in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"amount":"0.22"`) {
+				t.Fatalf("expected decimal amount in payload, got %s", payload)
+			}
+			_, _ = w.Write([]byte(`{"plan":{"code":"growth"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoPlanSyncAdapter(transport).SyncPlan(context.Background(), domain.Plan{
+		Code:            "growth",
+		Name:            "Growth",
+		Currency:        "USD",
+		BillingInterval: domain.BillingIntervalMonthly,
+		BaseAmountCents: 4900,
+	}, []PlanSyncComponent{{
+		Meter: domain.Meter{
+			Key:  "api_calls",
+			Name: "API Calls",
+		},
+		RatingRuleVersion: domain.RatingRuleVersion{
+			Mode:            domain.PricingModeFlat,
+			Currency:        "USD",
+			FlatAmountCents: 22,
+		},
+	}})
+	if err != nil {
+		t.Fatalf("sync plan: %v", err)
+	}
+	if !sawCreate {
+		t.Fatalf("expected create request to lago plans endpoint")
+	}
+}
+
+func TestLagoSubscriptionSyncAdapter(t *testing.T) {
+	t.Parallel()
+
+	var sawCreate bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/subscriptions":
+			sawCreate = true
+			w.Header().Set("Content-Type", "application/json")
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"external_customer_id":"cust_123"`) {
+				t.Fatalf("expected external customer id in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"plan_code":"growth"`) {
+				t.Fatalf("expected plan code in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"external_id":"cust_123_growth"`) {
+				t.Fatalf("expected external subscription id in payload, got %s", payload)
+			}
+			_, _ = w.Write([]byte(`{"subscription":{"external_id":"cust_123_growth"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
+		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth"},
+		domain.Customer{ExternalID: "cust_123"},
+		domain.Plan{Code: "growth"},
+	)
+	if err != nil {
+		t.Fatalf("sync subscription: %v", err)
+	}
+	if !sawCreate {
+		t.Fatalf("expected create request to lago subscriptions endpoint")
 	}
 }
 

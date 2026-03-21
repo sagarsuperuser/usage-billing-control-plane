@@ -47,7 +47,7 @@ func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		result, err := s.subscriptionService.CreateSubscription(service.CreateSubscriptionRequest{
+		result, err := s.subscriptionService.CreateSubscription(r.Context(), service.CreateSubscriptionRequest{
 			TenantID:            tenantID,
 			Code:                req.Code,
 			DisplayName:         req.DisplayName,
@@ -129,7 +129,7 @@ func (s *Server) handleSubscriptionByID(w http.ResponseWriter, r *http.Request) 
 			value := domain.SubscriptionStatus(strings.TrimSpace(*req.Status))
 			status = &value
 		}
-		detail, err := s.subscriptionService.UpdateSubscription(requestTenantID(r), id, service.UpdateSubscriptionRequest{
+		detail, err := s.subscriptionService.UpdateSubscription(r.Context(), requestTenantID(r), id, service.UpdateSubscriptionRequest{
 			DisplayName: req.DisplayName,
 			PlanID:      req.PlanID,
 			Status:      status,

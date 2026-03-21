@@ -56,6 +56,8 @@ type Server struct {
 	onboardingService                  *service.TenantOnboardingService
 	auditExportSvc                     *service.AuditExportService
 	meterSyncAdapter                   service.MeterSyncAdapter
+	planSyncAdapter                    service.PlanSyncAdapter
+	subscriptionSyncAdapter            service.SubscriptionSyncAdapter
 	invoiceBillingAdapter              service.InvoiceBillingAdapter
 	customerBillingAdapter             service.CustomerBillingAdapter
 	lagoWebhookSvc                     *service.LagoWebhookService
@@ -565,6 +567,18 @@ func WithCustomerBillingAdapter(adapter service.CustomerBillingAdapter) ServerOp
 	}
 }
 
+func WithPlanSyncAdapter(adapter service.PlanSyncAdapter) ServerOption {
+	return func(s *Server) {
+		s.planSyncAdapter = adapter
+	}
+}
+
+func WithSubscriptionSyncAdapter(adapter service.SubscriptionSyncAdapter) ServerOption {
+	return func(s *Server) {
+		s.subscriptionSyncAdapter = adapter
+	}
+}
+
 func WithBillingProviderConnectionService(svc *service.BillingProviderConnectionService) ServerOption {
 	return func(s *Server) {
 		s.billingProviderConnectionService = svc
@@ -681,8 +695,8 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)
 	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)
-	s.planService = service.NewPlanService(repo)
-	s.subscriptionService = service.NewSubscriptionService(repo, s.customerService)
+	s.planService = service.NewPlanService(repo).WithPlanSyncAdapter(s.planSyncAdapter)
+	s.subscriptionService = service.NewSubscriptionService(repo, s.customerService).WithSubscriptionSyncAdapter(s.subscriptionSyncAdapter)
 	s.usageService = service.NewUsageService(repo)
 	s.apiKeyService = service.NewAPIKeyService(repo)
 	s.serviceAccountService = service.NewServiceAccountService(repo, s.apiKeyService)
@@ -5795,6 +5809,8 @@ func classifyDomainErrorStatus(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, service.ErrValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, service.ErrDependency):
+		return http.StatusBadGateway
 	case errors.Is(err, service.ErrWorkspaceLastActiveAdmin):
 		return http.StatusConflict
 	case errors.Is(err, service.ErrWorkspaceSelfMembershipMutation):
@@ -5826,6 +5842,8 @@ func classifyDomainErrorCode(err error) string {
 		return "already_exists"
 	case errors.Is(err, service.ErrValidation):
 		return "validation_error"
+	case errors.Is(err, service.ErrDependency):
+		return "dependency_error"
 	case errors.Is(err, service.ErrWorkspaceLastActiveAdmin):
 		return "last_active_admin_conflict"
 	case errors.Is(err, service.ErrWorkspaceSelfMembershipMutation):

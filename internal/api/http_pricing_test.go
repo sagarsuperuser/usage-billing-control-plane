@@ -12,12 +12,19 @@ import (
 
 	"usage-billing-control-plane/internal/api"
 	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/service"
 	"usage-billing-control-plane/internal/store"
 )
 
 type stubMeterSyncAdapter struct{}
 
 func (stubMeterSyncAdapter) SyncMeter(_ context.Context, _ domain.Meter) error {
+	return nil
+}
+
+type stubPlanSyncAdapter struct{}
+
+func (stubPlanSyncAdapter) SyncPlan(_ context.Context, _ domain.Plan, _ []service.PlanSyncComponent) error {
 	return nil
 }
 
@@ -49,6 +56,7 @@ func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithMeterSyncAdapter(stubMeterSyncAdapter{}),
+		api.WithPlanSyncAdapter(stubPlanSyncAdapter{}),
 	).Handler())
 	defer ts.Close()
 

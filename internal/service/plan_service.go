@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -10,7 +11,8 @@ import (
 )
 
 type PlanService struct {
-	store store.Repository
+	store           store.Repository
+	planSyncAdapter PlanSyncAdapter
 }
 
 var (
@@ -22,7 +24,15 @@ func NewPlanService(s store.Repository) *PlanService {
 	return &PlanService{store: s}
 }
 
-func (s *PlanService) CreatePlan(input domain.Plan) (domain.Plan, error) {
+func (s *PlanService) WithPlanSyncAdapter(adapter PlanSyncAdapter) *PlanService {
+	s.planSyncAdapter = adapter
+	return s
+}
+
+func (s *PlanService) CreatePlan(ctx context.Context, input domain.Plan) (domain.Plan, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	input.TenantID = normalizeTenantID(input.TenantID)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Description = strings.TrimSpace(input.Description)
@@ -35,13 +45,26 @@ func (s *PlanService) CreatePlan(input domain.Plan) (domain.Plan, error) {
 	if err := validatePlan(input); err != nil {
 		return domain.Plan{}, err
 	}
+	components := make([]PlanSyncComponent, 0, len(input.MeterIDs))
 	for _, meterID := range input.MeterIDs {
-		if _, err := s.store.GetMeter(input.TenantID, meterID); err != nil {
+		meter, err := s.store.GetMeter(input.TenantID, meterID)
+		if err != nil {
 			if err == store.ErrNotFound {
 				return domain.Plan{}, fmt.Errorf("%w: meter_id %s not found", ErrValidation, meterID)
 			}
 			return domain.Plan{}, err
 		}
+		rule, err := s.store.GetRatingRuleVersion(input.TenantID, meter.RatingRuleVersionID)
+		if err != nil {
+			if err == store.ErrNotFound {
+				return domain.Plan{}, fmt.Errorf("%w: rating_rule_version_id %s not found", ErrValidation, meter.RatingRuleVersionID)
+			}
+			return domain.Plan{}, err
+		}
+		components = append(components, PlanSyncComponent{
+			Meter:             meter,
+			RatingRuleVersion: rule,
+		})
 	}
 
 	plan, err := s.store.CreatePlan(input)
@@ -50,6 +73,11 @@ func (s *PlanService) CreatePlan(input domain.Plan) (domain.Plan, error) {
 			return domain.Plan{}, fmt.Errorf("%w: plan code already exists", ErrValidation)
 		}
 		return domain.Plan{}, err
+	}
+	if s.planSyncAdapter != nil {
+		if err := s.planSyncAdapter.SyncPlan(ctx, plan, components); err != nil {
+			return domain.Plan{}, err
+		}
 	}
 	return plan, nil
 }

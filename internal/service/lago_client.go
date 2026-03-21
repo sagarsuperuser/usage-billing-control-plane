@@ -33,6 +33,19 @@ type MeterSyncAdapter interface {
 	SyncMeter(ctx context.Context, meter domain.Meter) error
 }
 
+type PlanSyncComponent struct {
+	Meter             domain.Meter
+	RatingRuleVersion domain.RatingRuleVersion
+}
+
+type PlanSyncAdapter interface {
+	SyncPlan(ctx context.Context, plan domain.Plan, components []PlanSyncComponent) error
+}
+
+type SubscriptionSyncAdapter interface {
+	SyncSubscription(ctx context.Context, subscription domain.Subscription, customer domain.Customer, plan domain.Plan) error
+}
+
 type InvoiceBillingAdapter interface {
 	ListInvoices(ctx context.Context, query url.Values) (int, []byte, error)
 	ListPaymentReceipts(ctx context.Context, query url.Values) (int, []byte, error)
@@ -392,6 +405,136 @@ func (a *LagoCustomerBillingAdapter) GenerateCustomerCheckoutURL(ctx context.Con
 	return status, body, nil
 }
 
+type LagoPlanSyncAdapter struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoPlanSyncAdapter(transport *LagoHTTPTransport) *LagoPlanSyncAdapter {
+	return &LagoPlanSyncAdapter{transport: transport}
+}
+
+func (a *LagoPlanSyncAdapter) SyncPlan(ctx context.Context, plan domain.Plan, components []PlanSyncComponent) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago plan sync adapter is required", ErrValidation)
+	}
+
+	charges := make([]map[string]any, 0, len(components))
+	for _, component := range components {
+		billableMetricID, err := a.lookupBillableMetricID(ctx, component.Meter.Key)
+		if err != nil {
+			return err
+		}
+		chargeModel, properties, err := mapPricingRuleToLago(component.RatingRuleVersion)
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(strings.TrimSpace(component.RatingRuleVersion.Currency), strings.TrimSpace(plan.Currency)) {
+			return fmt.Errorf("%w: plan %s currency %s does not match meter rule currency %s", ErrDependency, plan.Code, plan.Currency, component.RatingRuleVersion.Currency)
+		}
+		charges = append(charges, map[string]any{
+			"code":                 lagoChargeCode(plan.Code, component.Meter.Key),
+			"invoice_display_name": component.Meter.Name,
+			"billable_metric_id":   billableMetricID,
+			"charge_model":         chargeModel,
+			"properties":           properties,
+		})
+	}
+
+	payload := map[string]any{
+		"plan": map[string]any{
+			"name":                 plan.Name,
+			"invoice_display_name": plan.Name,
+			"code":                 plan.Code,
+			"interval":             string(plan.BillingInterval),
+			"description":          plan.Description,
+			"amount_cents":         plan.BaseAmountCents,
+			"amount_currency":      plan.Currency,
+			"charges":              charges,
+		},
+	}
+
+	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/plans", payload)
+	if err == nil {
+		return nil
+	}
+
+	updatePath := "/api/v1/plans/" + url.PathEscape(strings.TrimSpace(plan.Code))
+	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+	if updateErr == nil {
+		return nil
+	}
+
+	return fmt.Errorf("%w: lago plan sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)",
+		ErrDependency,
+		createStatus,
+		abbrevForLog(createBody),
+		updateStatus,
+		abbrevForLog(updateBody),
+	)
+}
+
+func (a *LagoPlanSyncAdapter) lookupBillableMetricID(ctx context.Context, code string) (string, error) {
+	path := "/api/v1/billable_metrics/" + url.PathEscape(strings.TrimSpace(code))
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return "", err
+	}
+	var payload struct {
+		BillableMetric struct {
+			LagoID string `json:"lago_id"`
+		} `json:"billable_metric"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", fmt.Errorf("%w: decode lago billable metric response", ErrDependency)
+	}
+	if id := strings.TrimSpace(payload.BillableMetric.LagoID); id != "" {
+		return id, nil
+	}
+	return "", fmt.Errorf("%w: lago billable metric lookup failed for %s (status=%d body=%s)", ErrDependency, code, status, abbrevForLog(body))
+}
+
+type LagoSubscriptionSyncAdapter struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoSubscriptionSyncAdapter(transport *LagoHTTPTransport) *LagoSubscriptionSyncAdapter {
+	return &LagoSubscriptionSyncAdapter{transport: transport}
+}
+
+func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subscription domain.Subscription, customer domain.Customer, plan domain.Plan) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago subscription sync adapter is required", ErrValidation)
+	}
+
+	payload := map[string]any{
+		"subscription": map[string]any{
+			"external_customer_id": customer.ExternalID,
+			"plan_code":            plan.Code,
+			"name":                 subscription.DisplayName,
+			"external_id":          subscription.Code,
+		},
+	}
+
+	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/subscriptions", payload)
+	if err == nil {
+		return nil
+	}
+
+	updatePath := "/api/v1/subscriptions/" + url.PathEscape(strings.TrimSpace(subscription.Code))
+	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+	if updateErr == nil {
+		return nil
+	}
+
+	return fmt.Errorf("%w: lago subscription sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)",
+		ErrDependency,
+		createStatus,
+		abbrevForLog(createBody),
+		updateStatus,
+		abbrevForLog(updateBody),
+	)
+}
+
 type LagoWebhookKeyProvider struct {
 	transport *LagoHTTPTransport
 }
@@ -630,6 +773,67 @@ func mapAggregationToLago(v string) (string, error) {
 	default:
 		return "", fmt.Errorf("%w: unsupported aggregation %q for lago sync", ErrValidation, v)
 	}
+}
+
+func mapPricingRuleToLago(rule domain.RatingRuleVersion) (string, map[string]any, error) {
+	switch rule.Mode {
+	case domain.PricingModeFlat:
+		return "standard", map[string]any{
+			"amount": formatLagoDecimal(rule.FlatAmountCents),
+		}, nil
+	case domain.PricingModeGraduated:
+		ranges := make([]map[string]any, 0, len(rule.GraduatedTiers))
+		fromValue := int64(0)
+		for _, tier := range rule.GraduatedTiers {
+			value := map[string]any{
+				"from_value":      fromValue,
+				"per_unit_amount": formatLagoDecimal(tier.UnitAmountCents),
+				"flat_amount":     "0",
+			}
+			if tier.UpTo > 0 {
+				value["to_value"] = tier.UpTo
+				fromValue = tier.UpTo + 1
+			} else {
+				value["to_value"] = nil
+			}
+			ranges = append(ranges, value)
+		}
+		return "graduated", map[string]any{
+			"graduated_ranges": ranges,
+		}, nil
+	case domain.PricingModePackage:
+		if rule.OverageUnitAmountCents > 0 {
+			return "", nil, fmt.Errorf("%w: package pricing with overage is not yet supported for lago plan sync", ErrDependency)
+		}
+		return "package", map[string]any{
+			"package_size": rule.PackageSize,
+			"amount":       formatLagoDecimal(rule.PackageAmountCents),
+			"free_units":   0,
+		}, nil
+	default:
+		return "", nil, fmt.Errorf("%w: pricing mode %q is not supported for lago plan sync", ErrDependency, rule.Mode)
+	}
+}
+
+func formatLagoDecimal(cents int64) string {
+	sign := ""
+	if cents < 0 {
+		sign = "-"
+		cents = -cents
+	}
+	major := cents / 100
+	minor := cents % 100
+	if minor == 0 {
+		return fmt.Sprintf("%s%d", sign, major)
+	}
+	if minor%10 == 0 {
+		return fmt.Sprintf("%s%d.%d", sign, major, minor/10)
+	}
+	return fmt.Sprintf("%s%d.%02d", sign, major, minor)
+}
+
+func lagoChargeCode(planCode, meterKey string) string {
+	return strings.Trim(strings.ToLower(strings.TrimSpace(planCode))+"_"+strings.ToLower(strings.TrimSpace(meterKey)), "_")
 }
 
 func abbrevForLog(body []byte) string {

@@ -131,7 +131,10 @@ Prove that configured pricing actually produces a billable subscription flow.
 ### Current automation state
 
 - `planned`
-- subscription and invoice surfaces exist, but a full pricing -> subscription -> invoice journey is not yet automated as one staging flow
+- the required export dependency is now in place:
+  - Alpha plan create syncs to Lago plan create/update
+  - Alpha subscription create/update syncs to Lago subscription create/update
+- a full pricing -> subscription -> invoice journey is still not yet automated as one staging flow
 
 ### Required future automation
 
