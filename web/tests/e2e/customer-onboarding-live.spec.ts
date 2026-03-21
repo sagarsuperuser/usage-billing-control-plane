@@ -58,7 +58,8 @@ test.describe("customer onboarding live staging", () => {
 
     await expect(page.getByText(`Customer ${onboardingExternalID} created and payment setup is ready to continue.`)).toBeVisible();
     await expect(page.getByText("Payment setup link")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Customer created" })).toBeVisible();
+    await expect(page.getByText("Customer created")).toBeVisible();
+    await expect(page.getByRole("heading", { name: onboardingDisplayName })).toBeVisible();
     await expect(page.getByRole("link", { name: "View customer detail" })).toBeVisible();
 
     await page.getByRole("link", { name: "View customer detail" }).click();
