@@ -287,7 +287,7 @@ make lago-staging-bootstrap-payments
 
 What that already automates in staging:
 - ensures the Lago Stripe provider exists
-- ensures the Lago webhook endpoint exists with `jwt` signing
+- ensures the Lago webhook endpoint exists with `hmac` signing
 - ensures known payment test customers exist
 - ensures the success customer has a usable Stripe payment method and billing address
 

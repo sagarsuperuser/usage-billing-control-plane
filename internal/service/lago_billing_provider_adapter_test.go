@@ -18,6 +18,8 @@ func TestLagoBillingProviderAdapterCreatesStripeProvider(t *testing.T) {
 		calls++
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.URL.Path == "/graphql" && r.Method == http.MethodPost:
+			_, _ = w.Write([]byte(`{"data":{"organization":{"id":"org_test","hmacKey":"hmac_test_key"}}}`))
 		case r.URL.Path == "/api/v1/payment_providers/stripe/alpha_stripe_test_bpc_test" && r.Method == http.MethodGet:
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"status":404,"error":"Not Found","code":"payment_provider_not_found"}`))
@@ -56,8 +58,11 @@ func TestLagoBillingProviderAdapterCreatesStripeProvider(t *testing.T) {
 	if result.LagoProviderCode != "alpha_stripe_test_bpc_test" {
 		t.Fatalf("expected provider code to be returned, got %q", result.LagoProviderCode)
 	}
-	if calls != 2 {
-		t.Fatalf("expected 2 rest calls, got %d", calls)
+	if result.LagoWebhookHMACKey != "hmac_test_key" {
+		t.Fatalf("expected hmac key to be returned, got %q", result.LagoWebhookHMACKey)
+	}
+	if calls != 3 {
+		t.Fatalf("expected 3 rest calls, got %d", calls)
 	}
 }
 
@@ -67,6 +72,8 @@ func TestLagoBillingProviderAdapterUpdatesExistingStripeProvider(t *testing.T) {
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.URL.Path == "/graphql" && r.Method == http.MethodPost:
+			_, _ = w.Write([]byte(`{"data":{"organization":{"id":"org_test","hmacKey":"hmac_test_key"}}}`))
 		case r.URL.Path == "/api/v1/payment_providers/stripe/stripe_existing" && r.Method == http.MethodGet:
 			_, _ = w.Write([]byte(`{"payment_provider":{"lago_id":"pp_existing","lago_organization_id":"org_test","code":"stripe_existing","name":"Old","provider_type":"stripe"}}`))
 		case r.URL.Path == "/api/v1/payment_providers/stripe" && r.Method == http.MethodPost:
@@ -105,6 +112,9 @@ func TestLagoBillingProviderAdapterUpdatesExistingStripeProvider(t *testing.T) {
 	if result.LagoProviderCode != "stripe_existing" {
 		t.Fatalf("expected existing provider code, got %q", result.LagoProviderCode)
 	}
+	if result.LagoWebhookHMACKey != "hmac_test_key" {
+		t.Fatalf("expected hmac key to be returned, got %q", result.LagoWebhookHMACKey)
+	}
 }
 
 func TestLagoBillingProviderAdapterRejectsUnexpectedProviderType(t *testing.T) {
@@ -112,11 +122,14 @@ func TestLagoBillingProviderAdapterRejectsUnexpectedProviderType(t *testing.T) {
 
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/api/v1/payment_providers/stripe/code_taken" && r.Method == http.MethodGet {
+		switch {
+		case r.URL.Path == "/graphql" && r.Method == http.MethodPost:
+			_, _ = w.Write([]byte(`{"data":{"organization":{"id":"org_test","hmacKey":"hmac_test_key"}}}`))
+		case r.URL.Path == "/api/v1/payment_providers/stripe/code_taken" && r.Method == http.MethodGet:
 			_, _ = w.Write([]byte(`{"payment_provider":{"lago_id":"pp_existing","lago_organization_id":"org_test","code":"code_taken","name":"Other","provider_type":"gocardless"}}`))
-			return
+		default:
+			http.NotFound(w, r)
 		}
-		http.NotFound(w, r)
 	}))
 	defer lago.Close()
 

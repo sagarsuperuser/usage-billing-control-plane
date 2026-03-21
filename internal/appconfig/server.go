@@ -95,11 +95,10 @@ type RateLimitConfig struct {
 }
 
 type LagoConfig struct {
-	APIURL              string
-	APIKey              string
-	HTTPTimeout         time.Duration
-	WebhookPublicKeyTTL time.Duration
-	WebhookPublicKeyPEM string
+	APIURL         string
+	APIKey         string
+	HTTPTimeout    time.Duration
+	WebhookHMACKey string
 }
 
 type BillingProviderConfig struct {
@@ -294,11 +293,10 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		},
 		RateLimit: rateLimit,
 		Lago: LagoConfig{
-			APIURL:              lagoAPIURL,
-			APIKey:              lagoAPIKey,
-			HTTPTimeout:         time.Duration(getIntEnv("LAGO_HTTP_TIMEOUT_MS", 10000)) * time.Millisecond,
-			WebhookPublicKeyTTL: time.Duration(getIntEnv("LAGO_WEBHOOK_PUBLIC_KEY_TTL_SEC", 300)) * time.Second,
-			WebhookPublicKeyPEM: strings.TrimSpace(os.Getenv("LAGO_WEBHOOK_PUBLIC_KEY_PEM")),
+			APIURL:         lagoAPIURL,
+			APIKey:         lagoAPIKey,
+			HTTPTimeout:    time.Duration(getIntEnv("LAGO_HTTP_TIMEOUT_MS", 10000)) * time.Millisecond,
+			WebhookHMACKey: strings.TrimSpace(os.Getenv("LAGO_WEBHOOK_HMAC_KEY")),
 		},
 		BillingProviders: BillingProviderConfig{
 			SecretStoreBackend:         billingProviderSecretStoreBackend,

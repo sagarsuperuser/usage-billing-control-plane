@@ -3,11 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -67,11 +63,6 @@ type CustomerBillingAdapter interface {
 	GetCustomer(ctx context.Context, externalID string) (int, []byte, error)
 	ListCustomerPaymentMethods(ctx context.Context, externalID string) (int, []byte, error)
 	GenerateCustomerCheckoutURL(ctx context.Context, externalID string) (int, []byte, error)
-}
-
-type WebhookPublicKeyProvider interface {
-	FetchWebhookPublicKey(ctx context.Context) (*rsa.PublicKey, error)
-	ExpectedIssuer() string
 }
 
 type LagoHTTPTransport struct {
@@ -587,109 +578,6 @@ func (a *LagoUsageSyncAdapter) SyncUsageEvent(ctx context.Context, event domain.
 		return nil
 	}
 	return fmt.Errorf("%w: lago usage sync failed (status=%d body=%s)", ErrDependency, status, abbrevForLog(body))
-}
-
-type LagoWebhookKeyProvider struct {
-	transport *LagoHTTPTransport
-}
-
-type StaticLagoWebhookKeyProvider struct {
-	expectedIssuer string
-	publicKey      *rsa.PublicKey
-}
-
-func NewLagoWebhookKeyProvider(transport *LagoHTTPTransport) *LagoWebhookKeyProvider {
-	return &LagoWebhookKeyProvider{transport: transport}
-}
-
-func NewStaticLagoWebhookKeyProvider(expectedIssuer, publicKeyPEM string) (*StaticLagoWebhookKeyProvider, error) {
-	encoded := strings.TrimSpace(publicKeyPEM)
-	if encoded == "" {
-		return nil, fmt.Errorf("%w: lago webhook public key pem is required", ErrValidation)
-	}
-	key, err := parseLagoWebhookPublicKeyPEM([]byte(encoded))
-	if err != nil {
-		return nil, err
-	}
-	return &StaticLagoWebhookKeyProvider{
-		expectedIssuer: strings.TrimRight(strings.TrimSpace(expectedIssuer), "/"),
-		publicKey:      key,
-	}, nil
-}
-
-func (p *StaticLagoWebhookKeyProvider) ExpectedIssuer() string {
-	if p == nil {
-		return ""
-	}
-	return p.expectedIssuer
-}
-
-func (p *StaticLagoWebhookKeyProvider) FetchWebhookPublicKey(context.Context) (*rsa.PublicKey, error) {
-	if p == nil || p.publicKey == nil {
-		return nil, fmt.Errorf("%w: static lago webhook public key is not configured", ErrValidation)
-	}
-	return p.publicKey, nil
-}
-
-func (p *LagoWebhookKeyProvider) ExpectedIssuer() string {
-	if p == nil || p.transport == nil {
-		return ""
-	}
-	return p.transport.baseURL
-}
-
-func (p *LagoWebhookKeyProvider) FetchWebhookPublicKey(ctx context.Context) (*rsa.PublicKey, error) {
-	if p == nil || p.transport == nil {
-		return nil, fmt.Errorf("%w: lago webhook key provider is required", ErrValidation)
-	}
-	statusCode, body, err := p.transport.doRawRequest(ctx, http.MethodGet, "/api/v1/webhooks/json_public_key", nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch lago webhook public key: %w", err)
-	}
-	if statusCode < 200 || statusCode >= 300 {
-		return nil, fmt.Errorf("fetch lago webhook public key returned status=%d", statusCode)
-	}
-
-	var payload struct {
-		Webhook struct {
-			PublicKey string `json:"public_key"`
-		} `json:"webhook"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, fmt.Errorf("decode lago webhook public key response: %w", err)
-	}
-	encoded := strings.TrimSpace(payload.Webhook.PublicKey)
-	if encoded == "" {
-		return nil, fmt.Errorf("lago webhook public key is empty")
-	}
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("decode lago webhook public key: %w", err)
-	}
-
-	key, err := parseLagoWebhookPublicKeyPEM(decoded)
-	if err != nil {
-		return nil, err
-	}
-	return key, nil
-}
-
-func parseLagoWebhookPublicKeyPEM(decoded []byte) (*rsa.PublicKey, error) {
-	block, _ := pem.Decode(decoded)
-	if block == nil {
-		return nil, fmt.Errorf("parse lago webhook public key pem: no pem block")
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err == nil {
-		if key, ok := pub.(*rsa.PublicKey); ok {
-			return key, nil
-		}
-	}
-	if key, err := x509.ParsePKCS1PublicKey(block.Bytes); err == nil {
-		return key, nil
-	}
-	return nil, fmt.Errorf("parse lago webhook public key: unsupported key format")
 }
 
 func (t *LagoHTTPTransport) doJSONRequest(ctx context.Context, method, path string, payload any) (int, []byte, error) {

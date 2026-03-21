@@ -35,6 +35,11 @@ type lagoStripePaymentProviderResponse struct {
 	PaymentProvider lagoStripePaymentProvider `json:"payment_provider"`
 }
 
+type lagoCurrentOrganization struct {
+	ID      string `json:"id"`
+	HMACKey string `json:"hmacKey"`
+}
+
 func (a *LagoBillingProviderAdapter) EnsureStripeProvider(ctx context.Context, input EnsureStripeProviderInput) (EnsureStripeProviderResult, error) {
 	if a == nil || a.transport == nil {
 		return EnsureStripeProviderResult{}, fmt.Errorf("%w: lago billing provider adapter is required", ErrValidation)
@@ -63,6 +68,20 @@ func (a *LagoBillingProviderAdapter) EnsureStripeProvider(ctx context.Context, i
 		providerCode = defaultLagoStripeProviderCode(input.ConnectionID, input.Environment)
 	}
 
+	currentOrg, err := a.getCurrentOrganization(ctx)
+	if err != nil {
+		return EnsureStripeProviderResult{}, err
+	}
+	if currentOrg.ID == "" {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: current lago organization id is empty", ErrDependency)
+	}
+	if !strings.EqualFold(currentOrg.ID, input.LagoOrganizationID) {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: lago api key organization %q does not match requested organization %q", ErrDependency, currentOrg.ID, input.LagoOrganizationID)
+	}
+	if strings.TrimSpace(currentOrg.HMACKey) == "" {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: current lago organization hmac key is empty", ErrDependency)
+	}
+
 	existing, err := a.getPaymentProviderByCode(ctx, providerCode)
 	if err != nil {
 		return EnsureStripeProviderResult{}, err
@@ -78,11 +97,42 @@ func (a *LagoBillingProviderAdapter) EnsureStripeProvider(ctx context.Context, i
 
 	now := time.Now().UTC()
 	return EnsureStripeProviderResult{
-		LagoOrganizationID: input.LagoOrganizationID,
+		LagoOrganizationID: currentOrg.ID,
 		LagoProviderCode:   upserted.Code,
+		LagoWebhookHMACKey: currentOrg.HMACKey,
 		ConnectedAt:        now,
 		LastSyncedAt:       now,
 	}, nil
+}
+
+func (a *LagoBillingProviderAdapter) getCurrentOrganization(ctx context.Context) (lagoCurrentOrganization, error) {
+	status, body, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/graphql", map[string]any{
+		"query": `query AlphaCurrentOrganization { organization { id hmacKey } }`,
+	})
+	if err != nil {
+		return lagoCurrentOrganization{}, fmt.Errorf("fetch current lago organization: %w", err)
+	}
+	var payload struct {
+		Data struct {
+			Organization lagoCurrentOrganization `json:"organization"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return lagoCurrentOrganization{}, fmt.Errorf("decode current lago organization response status=%d: %w", status, err)
+	}
+	if len(payload.Errors) > 0 {
+		messages := make([]string, 0, len(payload.Errors))
+		for _, item := range payload.Errors {
+			if msg := strings.TrimSpace(item.Message); msg != "" {
+				messages = append(messages, msg)
+			}
+		}
+		return lagoCurrentOrganization{}, fmt.Errorf("fetch current lago organization failed: %s", strings.Join(messages, "; "))
+	}
+	return payload.Data.Organization, nil
 }
 
 func (a *LagoBillingProviderAdapter) getPaymentProviderByCode(ctx context.Context, code string) (*lagoStripePaymentProvider, error) {

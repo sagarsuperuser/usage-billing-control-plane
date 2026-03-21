@@ -16,7 +16,7 @@ Validated on `2026-03-15` against the live staging stack:
   - `https://lago-staging.sagarwaidande.org`
 - Lago webhook endpoint configured:
   - `https://api-staging.sagarwaidande.org/internal/lago/webhooks`
-  - signature algorithm: `jwt`
+  - signature algorithm: `hmac`
 - Runtime verification passed:
   - health endpoint
   - invoice payment status list + summary

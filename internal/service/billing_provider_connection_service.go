@@ -29,14 +29,15 @@ type EnsureStripeProviderInput struct {
 type EnsureStripeProviderResult struct {
 	LagoOrganizationID string
 	LagoProviderCode   string
+	LagoWebhookHMACKey string
 	ConnectedAt        time.Time
 	LastSyncedAt       time.Time
 }
 
 type BillingProviderConnectionService struct {
-	store       store.Repository
-	secretStore BillingSecretStore
-	adapter     BillingProviderAdapter
+	store                     store.Repository
+	secretStore               BillingSecretStore
+	adapter                   BillingProviderAdapter
 	defaultLagoOrganizationID string
 }
 
@@ -49,6 +50,7 @@ type CreateBillingProviderConnectionRequest struct {
 	StripeSecretKey    string `json:"stripe_secret_key,omitempty"`
 	LagoOrganizationID string `json:"lago_organization_id,omitempty"`
 	LagoProviderCode   string `json:"lago_provider_code,omitempty"`
+	LagoWebhookHMACKey string `json:"lago_webhook_hmac_key,omitempty"`
 }
 
 type UpdateBillingProviderConnectionRequest struct {
@@ -58,6 +60,7 @@ type UpdateBillingProviderConnectionRequest struct {
 	OwnerTenantID      *string `json:"owner_tenant_id,omitempty"`
 	LagoOrganizationID *string `json:"lago_organization_id,omitempty"`
 	LagoProviderCode   *string `json:"lago_provider_code,omitempty"`
+	LagoWebhookHMACKey *string `json:"lago_webhook_hmac_key,omitempty"`
 }
 
 type ListBillingProviderConnectionsRequest struct {
@@ -111,15 +114,19 @@ func (s *BillingProviderConnectionService) CreateBillingProviderConnection(ctx c
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: actor type is required", ErrValidation)
 	}
 	stripeSecretKey := strings.TrimSpace(req.StripeSecretKey)
-	if providerType == domain.BillingProviderTypeStripe && stripeSecretKey == "" {
-		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe_secret_key is required", ErrValidation)
+	lagoWebhookHMACKey := strings.TrimSpace(req.LagoWebhookHMACKey)
+	if providerType == domain.BillingProviderTypeStripe && stripeSecretKey == "" && lagoWebhookHMACKey == "" {
+		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe_secret_key or lago_webhook_hmac_key is required", ErrValidation)
 	}
 
 	id, err := newBillingProviderConnectionID()
 	if err != nil {
 		return domain.BillingProviderConnection{}, err
 	}
-	secretRef, err := s.secretStore.PutStripeSecret(ctx, id, stripeSecretKey)
+	secretRef, err := s.secretStore.PutConnectionSecrets(ctx, id, BillingProviderSecrets{
+		StripeSecretKey:    stripeSecretKey,
+		LagoWebhookHMACKey: lagoWebhookHMACKey,
+	})
 	if err != nil {
 		return domain.BillingProviderConnection{}, err
 	}
@@ -239,6 +246,19 @@ func (s *BillingProviderConnectionService) UpdateBillingProviderConnection(id st
 	if req.LagoProviderCode != nil {
 		updated.LagoProviderCode = strings.TrimSpace(*req.LagoProviderCode)
 	}
+	if req.LagoWebhookHMACKey != nil {
+		if strings.TrimSpace(updated.SecretRef) == "" {
+			return domain.BillingProviderConnection{}, fmt.Errorf("%w: secret_ref is required to update webhook hmac key", ErrValidation)
+		}
+		secrets, err := s.secretStore.GetConnectionSecrets(context.Background(), updated.SecretRef)
+		if err != nil {
+			return domain.BillingProviderConnection{}, err
+		}
+		secrets.LagoWebhookHMACKey = strings.TrimSpace(*req.LagoWebhookHMACKey)
+		if _, err := s.secretStore.UpdateConnectionSecrets(context.Background(), updated.SecretRef, secrets); err != nil {
+			return domain.BillingProviderConnection{}, err
+		}
+	}
 	updated.UpdatedAt = time.Now().UTC()
 	return s.store.UpdateBillingProviderConnection(updated)
 }
@@ -298,9 +318,12 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	if current.ProviderType != domain.BillingProviderTypeStripe {
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: unsupported provider type %q", ErrValidation, current.ProviderType)
 	}
-	secret, err := s.secretStore.GetStripeSecret(ctx, current.SecretRef)
+	secrets, err := s.secretStore.GetConnectionSecrets(ctx, current.SecretRef)
 	if err != nil {
 		return domain.BillingProviderConnection{}, err
+	}
+	if strings.TrimSpace(secrets.StripeSecretKey) == "" {
+		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe secret is required before sync", ErrValidation)
 	}
 	resolvedLagoOrganizationID := strings.TrimSpace(current.LagoOrganizationID)
 	if resolvedLagoOrganizationID == "" {
@@ -313,7 +336,7 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 		ConnectionID:       current.ID,
 		DisplayName:        current.DisplayName,
 		Environment:        current.Environment,
-		SecretKey:          secret,
+		SecretKey:          secrets.StripeSecretKey,
 		LagoOrganizationID: resolvedLagoOrganizationID,
 		LagoProviderCode:   current.LagoProviderCode,
 		OwnerTenantID:      current.OwnerTenantID,
@@ -336,6 +359,12 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	}
 	if strings.TrimSpace(result.LagoProviderCode) != "" {
 		current.LagoProviderCode = strings.TrimSpace(result.LagoProviderCode)
+	}
+	if strings.TrimSpace(result.LagoWebhookHMACKey) != "" {
+		secrets.LagoWebhookHMACKey = strings.TrimSpace(result.LagoWebhookHMACKey)
+		if _, err := s.secretStore.UpdateConnectionSecrets(ctx, current.SecretRef, secrets); err != nil {
+			return domain.BillingProviderConnection{}, err
+		}
 	}
 	now := time.Now().UTC()
 	if result.ConnectedAt.IsZero() {

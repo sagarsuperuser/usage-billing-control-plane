@@ -90,7 +90,7 @@ export AUDIT_EXPORT_S3_FORCE_PATH_STYLE=true
 export LAGO_API_URL=http://localhost:3000
 export LAGO_API_KEY=your_lago_api_key
 export LAGO_HTTP_TIMEOUT_MS=10000
-export LAGO_WEBHOOK_PUBLIC_KEY_TTL_SEC=300
+export LAGO_WEBHOOK_HMAC_KEY=your_lago_org_hmac_key
 # Lago webhook routing is tenant-backed
 # write lago_organization_id and lago_billing_provider_code onto each tenant via /internal/tenants
 export LAGO_REPO_PATH=../lago
@@ -328,7 +328,7 @@ Rating-rule governance (`POST /v1/rating-rules`):
   - deterministic digest (`explainability_version`, `explainability_digest`)
   - explainability line items (`line_items_count`, `line_items`)
 
-`POST /internal/lago/webhooks` ingests Lago-signed webhook events (`X-Lago-Signature` + `X-Lago-Signature-Algorithm=jwt`) and updates tenant-scoped payment visibility projections.
+`POST /internal/lago/webhooks` ingests Lago-signed webhook events (`X-Lago-Signature` + `X-Lago-Signature-Algorithm=hmac`) and updates tenant-scoped payment visibility projections.
 - accepted event delivery returns `202`
 - duplicate delivery by `X-Lago-Unique-Key` returns `200` with `idempotent=true`
 

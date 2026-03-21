@@ -27,7 +27,7 @@ STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-}"
 STRIPE_SUCCESS_REDIRECT_URL="${STRIPE_SUCCESS_REDIRECT_URL:-https://staging.sagarwaidande.org}"
 
 LAGO_WEBHOOK_URL="${LAGO_WEBHOOK_URL:-https://api-staging.sagarwaidande.org/internal/lago/webhooks}"
-LAGO_WEBHOOK_SIGNATURE_ALGO="${LAGO_WEBHOOK_SIGNATURE_ALGO:-jwt}"
+LAGO_WEBHOOK_SIGNATURE_ALGO="${LAGO_WEBHOOK_SIGNATURE_ALGO:-hmac}"
 
 STAGING_CONTACT_EMAIL="${STAGING_CONTACT_EMAIL:-sagar10018233@gmail.com}"
 STAGING_CONTACT_FIRSTNAME="${STAGING_CONTACT_FIRSTNAME:-sagar}"
@@ -264,13 +264,13 @@ if webhook_endpoint.nil?
     organization: org,
     params: {
       webhook_url: env!("LAGO_WEBHOOK_URL"),
-      signature_algo: env("LAGO_WEBHOOK_SIGNATURE_ALGO", "jwt")
+      signature_algo: env("LAGO_WEBHOOK_SIGNATURE_ALGO", "hmac")
     }
   )
   ensure_result!(result, "create webhook endpoint")
   webhook_endpoint = result.webhook_endpoint
-elsif webhook_endpoint.signature_algo.to_s != env("LAGO_WEBHOOK_SIGNATURE_ALGO", "jwt")
-  webhook_endpoint.update!(signature_algo: env("LAGO_WEBHOOK_SIGNATURE_ALGO", "jwt"))
+elsif webhook_endpoint.signature_algo.to_s != env("LAGO_WEBHOOK_SIGNATURE_ALGO", "hmac")
+  webhook_endpoint.update!(signature_algo: env("LAGO_WEBHOOK_SIGNATURE_ALGO", "hmac"))
 end
 
 success_customer = upsert_customer!(
@@ -322,7 +322,8 @@ summary = {
   run_id: env!("RUN_ID"),
   organization: {
     id: org.id,
-    name: org.name
+    name: org.name,
+    hmac_key: org.hmac_key
   },
   stripe_provider: {
     id: provider.id,

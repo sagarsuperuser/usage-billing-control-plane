@@ -76,24 +76,28 @@ func NewAWSSecretsManagerBillingSecretStore(ctx context.Context, cfg AWSSecretsM
 	}, nil
 }
 
-func (s *AWSSecretsManagerBillingSecretStore) PutStripeSecret(ctx context.Context, connectionID, secret string) (string, error) {
+func (s *AWSSecretsManagerBillingSecretStore) PutConnectionSecrets(ctx context.Context, connectionID string, secrets BillingProviderSecrets) (string, error) {
 	if s == nil || s.client == nil {
 		return "", fmt.Errorf("aws secrets manager client is not initialized")
 	}
 	connectionID = strings.TrimSpace(connectionID)
-	secret = strings.TrimSpace(secret)
+	secrets = normalizeBillingProviderSecrets(secrets)
 	if connectionID == "" {
 		return "", fmt.Errorf("%w: connection id is required", ErrValidation)
 	}
-	if secret == "" {
-		return "", fmt.Errorf("%w: stripe secret is required", ErrValidation)
+	if err := validateBillingProviderSecrets(secrets); err != nil {
+		return "", err
+	}
+	encoded, err := encodeBillingProviderSecrets(secrets)
+	if err != nil {
+		return "", err
 	}
 
 	name := s.secretName(connectionID)
 	out, err := s.client.CreateSecret(ctx, &secretsmanager.CreateSecretInput{
 		Name:         aws.String(name),
 		Description:  aws.String("Alpha billing provider connection secret"),
-		SecretString: aws.String(secret),
+		SecretString: aws.String(encoded),
 	})
 	if err != nil {
 		return "", fmt.Errorf("create billing secret %q: %w", name, err)
@@ -104,45 +108,76 @@ func (s *AWSSecretsManagerBillingSecretStore) PutStripeSecret(ctx context.Contex
 	return name, nil
 }
 
-func (s *AWSSecretsManagerBillingSecretStore) GetStripeSecret(ctx context.Context, secretRef string) (string, error) {
+func (s *AWSSecretsManagerBillingSecretStore) GetConnectionSecrets(ctx context.Context, secretRef string) (BillingProviderSecrets, error) {
 	if s == nil || s.client == nil {
-		return "", fmt.Errorf("aws secrets manager client is not initialized")
+		return BillingProviderSecrets{}, fmt.Errorf("aws secrets manager client is not initialized")
 	}
 	secretRef = strings.TrimSpace(secretRef)
 	if secretRef == "" {
-		return "", fmt.Errorf("%w: secret ref is required", ErrValidation)
+		return BillingProviderSecrets{}, fmt.Errorf("%w: secret ref is required", ErrValidation)
 	}
 	out, err := s.client.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{SecretId: aws.String(secretRef)})
 	if err != nil {
-		return "", fmt.Errorf("get billing secret %q: %w", secretRef, err)
+		return BillingProviderSecrets{}, fmt.Errorf("get billing secret %q: %w", secretRef, err)
 	}
 	secret := strings.TrimSpace(aws.ToString(out.SecretString))
 	if secret == "" {
-		return "", fmt.Errorf("billing secret %q is empty", secretRef)
+		return BillingProviderSecrets{}, fmt.Errorf("billing secret %q is empty", secretRef)
 	}
-	return secret, nil
+	return decodeBillingProviderSecrets(secret)
 }
 
-func (s *AWSSecretsManagerBillingSecretStore) RotateStripeSecret(ctx context.Context, secretRef, secret string) (string, error) {
+func (s *AWSSecretsManagerBillingSecretStore) UpdateConnectionSecrets(ctx context.Context, secretRef string, secrets BillingProviderSecrets) (string, error) {
 	if s == nil || s.client == nil {
 		return "", fmt.Errorf("aws secrets manager client is not initialized")
 	}
 	secretRef = strings.TrimSpace(secretRef)
-	secret = strings.TrimSpace(secret)
+	secrets = normalizeBillingProviderSecrets(secrets)
 	if secretRef == "" {
 		return "", fmt.Errorf("%w: secret ref is required", ErrValidation)
 	}
-	if secret == "" {
-		return "", fmt.Errorf("%w: stripe secret is required", ErrValidation)
+	if err := validateBillingProviderSecrets(secrets); err != nil {
+		return "", err
 	}
-	_, err := s.client.PutSecretValue(ctx, &secretsmanager.PutSecretValueInput{
+	encoded, err := encodeBillingProviderSecrets(secrets)
+	if err != nil {
+		return "", err
+	}
+	_, err = s.client.PutSecretValue(ctx, &secretsmanager.PutSecretValueInput{
 		SecretId:     aws.String(secretRef),
-		SecretString: aws.String(secret),
+		SecretString: aws.String(encoded),
 	})
 	if err != nil {
-		return "", fmt.Errorf("rotate billing secret %q: %w", secretRef, err)
+		return "", fmt.Errorf("update billing secret %q: %w", secretRef, err)
 	}
 	return secretRef, nil
+}
+
+func (s *AWSSecretsManagerBillingSecretStore) PutStripeSecret(ctx context.Context, connectionID, secret string) (string, error) {
+	return s.PutConnectionSecrets(ctx, connectionID, BillingProviderSecrets{StripeSecretKey: secret})
+}
+
+func (s *AWSSecretsManagerBillingSecretStore) GetStripeSecret(ctx context.Context, secretRef string) (string, error) {
+	secrets, err := s.GetConnectionSecrets(ctx, secretRef)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(secrets.StripeSecretKey) == "" {
+		return "", storeErrNotFound("stripe secret")
+	}
+	return secrets.StripeSecretKey, nil
+}
+
+func (s *AWSSecretsManagerBillingSecretStore) RotateStripeSecret(ctx context.Context, secretRef, secret string) (string, error) {
+	secrets, err := s.GetConnectionSecrets(ctx, secretRef)
+	if err != nil {
+		return "", err
+	}
+	secrets.StripeSecretKey = strings.TrimSpace(secret)
+	if err := validateBillingProviderSecrets(secrets); err != nil {
+		return "", err
+	}
+	return s.UpdateConnectionSecrets(ctx, secretRef, secrets)
 }
 
 func (s *AWSSecretsManagerBillingSecretStore) DeleteSecret(ctx context.Context, secretRef string) error {

@@ -830,7 +830,7 @@ func TestLagoWebhookVisibilityFlow(t *testing.T) {
 	}
 
 	first := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", webhookPayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_123",
 	}, "", http.StatusAccepted)
@@ -839,7 +839,7 @@ func TestLagoWebhookVisibilityFlow(t *testing.T) {
 	}
 
 	second := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", webhookPayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_123",
 	}, "", http.StatusOK)
@@ -982,7 +982,7 @@ func TestCustomerPaymentSetupAutoRefreshFromWebhook(t *testing.T) {
 		},
 	}
 	result := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", webhookPayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_customer_created_1",
 	}, "", http.StatusAccepted)
@@ -1085,7 +1085,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		},
 	}
 	firstFailure := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", failurePayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_fail_1",
 	}, "", http.StatusAccepted)
@@ -1093,7 +1093,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		t.Fatalf("expected first failure delivery to be non-idempotent")
 	}
 	duplicateFailure := postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", failurePayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_fail_1",
 	}, "", http.StatusOK)
@@ -1123,7 +1123,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		},
 	}
 	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", overduePayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_overdue_1",
 	}, "", http.StatusAccepted)
@@ -1168,7 +1168,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		},
 	}
 	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", successPayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_success_1",
 	}, "", http.StatusAccepted)
@@ -1195,7 +1195,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		},
 	}
 	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", staleFailedPayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_stale_1",
 	}, "", http.StatusAccepted)
@@ -1222,7 +1222,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		},
 	}
 	_ = postJSONWithHeaders(t, ts.URL+"/internal/lago/webhooks", otherOrgPayload, map[string]string{
-		"X-Lago-Signature-Algorithm": "jwt",
+		"X-Lago-Signature-Algorithm": "hmac",
 		"X-Lago-Signature":           "test-signature",
 		"X-Lago-Unique-Key":          "whk_org2_1",
 	}, "", http.StatusAccepted)

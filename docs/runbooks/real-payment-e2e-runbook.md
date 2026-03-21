@@ -73,7 +73,7 @@ make lago-staging-bootstrap-payments
 
 What this bootstrap does:
 - ensures a Stripe provider exists in Lago with code `stripe_test`
-- ensures the alpha webhook endpoint exists in Lago with `jwt` signing
+- ensures the alpha webhook endpoint exists in Lago with `hmac` signing
 - ensures a success fixture customer exists, has Stripe billing config, has a usable Stripe payment method, and has a billing address synced to Stripe
 - ensures a failure fixture customer exists and intentionally has no default payment method so failed retry behavior remains deterministic
 

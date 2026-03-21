@@ -222,8 +222,9 @@ func main() {
 	)
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL)
 
+	var billingSecretStore service.BillingSecretStore
 	if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
-		billingSecretStore, err := newBillingSecretStore(context.Background(), cfg.BillingProviders)
+		billingSecretStore, err = newBillingSecretStore(context.Background(), cfg.BillingProviders)
 		if err != nil {
 			fatal(logger, "initialize billing provider secret store", "error", err)
 		}
@@ -292,18 +293,35 @@ func main() {
 		}
 	}
 
-	webhookKeyProvider := service.WebhookPublicKeyProvider(service.NewLagoWebhookKeyProvider(lagoTransport))
-	if strings.TrimSpace(cfg.Lago.WebhookPublicKeyPEM) != "" {
-		webhookKeyProvider, err = service.NewStaticLagoWebhookKeyProvider(cfg.Lago.APIURL, cfg.Lago.WebhookPublicKeyPEM)
-		if err != nil {
-			fatal(logger, "initialize static lago webhook public key", "error", err)
-		}
-		logger.Info("using pinned lago webhook public key", "component", "server")
+	var webhookKeyProvider service.LagoWebhookHMACKeyProvider
+	var tenantWebhookKeyProvider service.LagoWebhookHMACKeyProvider
+	var staticWebhookKeyProvider service.LagoWebhookHMACKeyProvider
+	if billingSecretStore != nil {
+		tenantWebhookKeyProvider = service.NewTenantBackedLagoWebhookHMACKeyProvider(repo, billingSecretStore)
 	}
-	webhookVerifier, err := service.NewLagoJWTWebhookVerifier(
-		webhookKeyProvider,
-		cfg.Lago.WebhookPublicKeyTTL,
-	)
+	if strings.TrimSpace(cfg.Lago.WebhookHMACKey) != "" {
+		staticWebhookKeyProvider, err = service.NewStaticLagoWebhookHMACKeyProvider(cfg.Lago.WebhookHMACKey)
+		if err != nil {
+			fatal(logger, "initialize static lago webhook hmac key", "error", err)
+		}
+	}
+	switch {
+	case tenantWebhookKeyProvider != nil && staticWebhookKeyProvider != nil:
+		webhookKeyProvider, err = service.NewFallbackLagoWebhookHMACKeyProvider(tenantWebhookKeyProvider, staticWebhookKeyProvider)
+		if err != nil {
+			fatal(logger, "initialize fallback lago webhook hmac key provider", "error", err)
+		}
+		logger.Info("using tenant-backed lago webhook hmac verification with static fallback", "component", "server")
+	case tenantWebhookKeyProvider != nil:
+		webhookKeyProvider = tenantWebhookKeyProvider
+		logger.Info("using tenant-backed lago webhook hmac verification", "component", "server")
+	case staticWebhookKeyProvider != nil:
+		webhookKeyProvider = staticWebhookKeyProvider
+		logger.Info("using static lago webhook hmac verification", "component", "server")
+	default:
+		fatal(logger, "initialize lago webhook verifier", "error", fmt.Errorf("lago webhook hmac verification requires billing provider secret store or LAGO_WEBHOOK_HMAC_KEY"))
+	}
+	webhookVerifier, err := service.NewLagoHMACWebhookVerifier(webhookKeyProvider)
 	if err != nil {
 		fatal(logger, "initialize lago webhook verifier", "error", err)
 	}
