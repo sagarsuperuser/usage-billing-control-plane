@@ -180,8 +180,8 @@ prepare-real-payment-fixture: ## Prepare collectible Lago invoice fixture (requi
 test-real-payment-e2e: ## Run manual real payment collection E2E (requires staging/prod credentials + invoice id)
 	@bash ./scripts/test_real_payment_e2e.sh
 
-test-staging-payment-smoke: ## Run live staging payment smoke against fresh per-run fixtures
-	@bash ./scripts/run_clean_staging_payment_smoke.sh
+test-staging-payment-smoke: ## Run live staging payment smoke with minted platform/writer/reader keys (requires LAGO_API_KEY)
+	@bash ./scripts/run_staging_payment_smoke_with_minted_keys.sh
 
 verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh

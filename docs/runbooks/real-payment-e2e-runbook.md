@@ -122,6 +122,13 @@ TARGET_TENANT_ID='default' \
 bash ./scripts/run_clean_staging_payment_smoke.sh
 ```
 
+Or use the self-contained staging wrapper that mints the required Alpha keys automatically:
+
+```bash
+LAGO_API_KEY='...' \
+make test-staging-payment-smoke
+```
+
 
 The clean smoke now also patches the target Alpha tenant billing mapping before asserting webhook convergence:
 - `lago_organization_id`
