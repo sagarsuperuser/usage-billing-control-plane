@@ -27,6 +27,7 @@ IMAGE_TAG ?= $(shell git rev-parse HEAD)
 API_IMAGE_REPOSITORY ?=
 WEB_IMAGE_REPOSITORY ?=
 REVISION ?=
+LAGO_STAGING_BACKEND_IMAGE_OVERRIDE ?= 139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api:lago-fork-v1.44.0-alpha.1
 
 .DEFAULT_GOAL := help
 
@@ -127,8 +128,8 @@ lago-ps: ## Show Lago compose service status
 lago-verify: ## Run Lago replay/correctness verification suites
 	@cd '$(LAGO_REPO_PATH)' && ./scripts/verify_e2e.sh
 
-lago-staging-deploy: ## Deploy Lago staging into the current cluster (expects deploy/lago/environments/staging-values.yaml)
-	@./scripts/deploy_lago_staging.sh
+lago-staging-deploy: ## Deploy Lago staging into the current cluster (expects deploy/lago/environments/staging-values.yaml; defaults to validated fork backend override)
+	@LAGO_BACKEND_IMAGE_OVERRIDE='$(LAGO_STAGING_BACKEND_IMAGE_OVERRIDE)' ./scripts/deploy_lago_staging.sh
 
 lago-staging-sync-secrets: ## Sync Lago staging runtime secrets from AWS Secrets Manager into Kubernetes
 	@./scripts/sync_lago_staging_secrets.sh
