@@ -47,7 +47,7 @@ Use these terms consistently:
 | Payment retry and failure journey | prove Alpha payment recovery against real Lago and Stripe wiring | implemented |
 | Replay and recovery journey | prove recovery tooling works against fresh replay fixtures | implemented |
 | Browser operator journey | prove core operator surfaces load and route correctly in staging | implemented |
-| Browser-led payment setup journey | prove operators can follow collect-payment handoff and dispatch payment setup from the live UI | partial |
+| Browser-led payment setup journey | prove operators can drive collect-payment recovery through the live UI end to end | implemented |
 | Access and invite membership journey | prove invite, acceptance, membership activation, and role safeguards end to end | planned |
 | Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | planned |
 | Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | planned |
@@ -384,16 +384,21 @@ Prove that an operator can start from a live payment in `collect_payment`, follo
 
 ### Current automation state
 
-- `partial`
+- `implemented`
 - current entrypoint:
 
 ```bash
 make test-staging-browser-payment-setup-journey LAGO_API_KEY='...'
 ```
 
-- current boundary:
-  - this browser journey proves the real operator handoff and request-dispatch slice
-  - provider-side completion, readiness refresh, and retry convergence remain covered by the implemented backend payment-setup journey
+- the implemented journey proves:
+  - a live failed payment opens in `collect_payment`
+  - the operator follows the handoff into customer payment setup
+  - the operator sends the payment setup request from the UI
+  - deterministic provider-side completion is applied
+  - the operator refreshes readiness from the UI
+  - the operator retries collection from the UI
+  - the payment converges to `succeeded` and the UI reflects `none` as the recommended action
 
 ---
 

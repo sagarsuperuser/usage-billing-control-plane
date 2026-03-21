@@ -223,6 +223,8 @@ summary_json="$({
     --arg customer_email "$CUSTOMER_EMAIL" \
     --arg invoice_id "$invoice_id" \
     --arg target_tenant_id "$TARGET_TENANT_ID" \
+    --arg bootstrap_org_id "$bootstrap_org_id" \
+    --arg bootstrap_provider_code "$bootstrap_provider_code" \
     --slurpfile bootstrap "$bootstrap_json_file" \
     --slurpfile fixture "$fixture_json_file" \
     --slurpfile failed "$failure_result_json_file" \
@@ -236,6 +238,8 @@ summary_json="$({
       },
       invoice_id: $invoice_id,
       target_tenant_id: $target_tenant_id,
+      bootstrap_organization_id: $bootstrap_org_id,
+      stripe_provider_code: $bootstrap_provider_code,
       bootstrap: ($bootstrap[0] // null),
       fixture: ($fixture[0] // null),
       initial_readiness: $initial_readiness,
