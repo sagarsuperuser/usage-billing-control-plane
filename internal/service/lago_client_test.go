@@ -201,6 +201,9 @@ func TestLagoPlanSyncAdapter(t *testing.T) {
 			if !strings.Contains(payload, `"charge_model":"standard"`) {
 				t.Fatalf("expected standard charge model in payload, got %s", payload)
 			}
+			if !strings.Contains(payload, `"pay_in_advance":false`) {
+				t.Fatalf("expected pay_in_advance false in payload, got %s", payload)
+			}
 			if !strings.Contains(payload, `"amount":"0.22"`) {
 				t.Fatalf("expected decimal amount in payload, got %s", payload)
 			}

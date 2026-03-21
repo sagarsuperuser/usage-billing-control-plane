@@ -440,6 +440,7 @@ func (a *LagoPlanSyncAdapter) SyncPlan(ctx context.Context, plan domain.Plan, co
 			"invoice_display_name": component.Meter.Name,
 			"billable_metric_id":   billableMetricID,
 			"charge_model":         chargeModel,
+			"pay_in_advance":       false,
 			"properties":           properties,
 		})
 	}
