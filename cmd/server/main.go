@@ -289,8 +289,16 @@ func main() {
 		}
 	}
 
+	webhookKeyProvider := service.WebhookPublicKeyProvider(service.NewLagoWebhookKeyProvider(lagoTransport))
+	if strings.TrimSpace(cfg.Lago.WebhookPublicKeyPEM) != "" {
+		webhookKeyProvider, err = service.NewStaticLagoWebhookKeyProvider(cfg.Lago.APIURL, cfg.Lago.WebhookPublicKeyPEM)
+		if err != nil {
+			fatal(logger, "initialize static lago webhook public key", "error", err)
+		}
+		logger.Info("using pinned lago webhook public key", "component", "server")
+	}
 	webhookVerifier, err := service.NewLagoJWTWebhookVerifier(
-		service.NewLagoWebhookKeyProvider(lagoTransport),
+		webhookKeyProvider,
 		cfg.Lago.WebhookPublicKeyTTL,
 	)
 	if err != nil {

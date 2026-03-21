@@ -396,8 +396,42 @@ type LagoWebhookKeyProvider struct {
 	transport *LagoHTTPTransport
 }
 
+type StaticLagoWebhookKeyProvider struct {
+	expectedIssuer string
+	publicKey      *rsa.PublicKey
+}
+
 func NewLagoWebhookKeyProvider(transport *LagoHTTPTransport) *LagoWebhookKeyProvider {
 	return &LagoWebhookKeyProvider{transport: transport}
+}
+
+func NewStaticLagoWebhookKeyProvider(expectedIssuer, publicKeyPEM string) (*StaticLagoWebhookKeyProvider, error) {
+	encoded := strings.TrimSpace(publicKeyPEM)
+	if encoded == "" {
+		return nil, fmt.Errorf("%w: lago webhook public key pem is required", ErrValidation)
+	}
+	key, err := parseLagoWebhookPublicKeyPEM([]byte(encoded))
+	if err != nil {
+		return nil, err
+	}
+	return &StaticLagoWebhookKeyProvider{
+		expectedIssuer: strings.TrimRight(strings.TrimSpace(expectedIssuer), "/"),
+		publicKey:      key,
+	}, nil
+}
+
+func (p *StaticLagoWebhookKeyProvider) ExpectedIssuer() string {
+	if p == nil {
+		return ""
+	}
+	return p.expectedIssuer
+}
+
+func (p *StaticLagoWebhookKeyProvider) FetchWebhookPublicKey(context.Context) (*rsa.PublicKey, error) {
+	if p == nil || p.publicKey == nil {
+		return nil, fmt.Errorf("%w: static lago webhook public key is not configured", ErrValidation)
+	}
+	return p.publicKey, nil
 }
 
 func (p *LagoWebhookKeyProvider) ExpectedIssuer() string {
@@ -436,6 +470,14 @@ func (p *LagoWebhookKeyProvider) FetchWebhookPublicKey(ctx context.Context) (*rs
 		return nil, fmt.Errorf("decode lago webhook public key: %w", err)
 	}
 
+	key, err := parseLagoWebhookPublicKeyPEM(decoded)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+func parseLagoWebhookPublicKeyPEM(decoded []byte) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode(decoded)
 	if block == nil {
 		return nil, fmt.Errorf("parse lago webhook public key pem: no pem block")

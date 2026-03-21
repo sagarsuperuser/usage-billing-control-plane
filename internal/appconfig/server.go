@@ -99,6 +99,7 @@ type LagoConfig struct {
 	APIKey              string
 	HTTPTimeout         time.Duration
 	WebhookPublicKeyTTL time.Duration
+	WebhookPublicKeyPEM string
 }
 
 type BillingProviderConfig struct {
@@ -297,6 +298,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			APIKey:              lagoAPIKey,
 			HTTPTimeout:         time.Duration(getIntEnv("LAGO_HTTP_TIMEOUT_MS", 10000)) * time.Millisecond,
 			WebhookPublicKeyTTL: time.Duration(getIntEnv("LAGO_WEBHOOK_PUBLIC_KEY_TTL_SEC", 300)) * time.Second,
+			WebhookPublicKeyPEM: strings.TrimSpace(os.Getenv("LAGO_WEBHOOK_PUBLIC_KEY_PEM")),
 		},
 		BillingProviders: BillingProviderConfig{
 			SecretStoreBackend:         billingProviderSecretStoreBackend,
