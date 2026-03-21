@@ -48,7 +48,7 @@ Use these terms consistently:
 | Replay and recovery journey | prove recovery tooling works against fresh replay fixtures | implemented |
 | Browser operator journey | prove core operator surfaces load and route correctly in staging | implemented |
 | Browser-led payment setup journey | prove operators can drive collect-payment recovery through the live UI end to end | implemented |
-| Access and invite membership journey | prove invite, acceptance, membership activation, and role safeguards end to end | planned |
+| Access and invite membership journey | prove invite, acceptance, membership activation, and role safeguards end to end | implemented |
 | Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | planned |
 | Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | planned |
 | Usage-to-issued-invoice journey | prove usage becomes an issued invoice that Alpha can inspect and explain | planned |
@@ -408,9 +408,43 @@ make test-staging-browser-payment-setup-journey LAGO_API_KEY='...'
 
 Prove workspace invite, acceptance, durable membership creation, and role safeguards through the real product flow.
 
+### Real journey
+
+1. platform admin opens the target workspace in the platform UI
+2. platform admin invites the first workspace admin through Alpha access controls
+3. the invitee registers through the live `/invite/:token` flow
+4. Alpha activates the new tenant-admin membership
+5. the tenant admin opens `/workspace-access` and proves self and last-admin safeguards are visible
+6. the tenant admin invites a workspace writer through the tenant UI
+7. the second invitee registers through the live invitation flow
+8. Alpha activates the writer membership
+9. the writer opens `/workspace-access` and is blocked by the tenant-admin guard
+10. the tenant admin sees the accepted writer membership and no remaining pending invites
+
+### End-state assertions
+
+- invitation creation happens through the real UI, not backend-only mutation
+- invite registration resolves into an active membership
+- the first active tenant admin sees self-mutation and last-active-admin safeguards
+- the invited writer lands in a tenant session but cannot administer workspace access
+- the tenant admin sees the new writer membership as active and the pending invite is cleared
+
 ### Current automation state
 
-- `planned`
+- `implemented`
+- staging journey entrypoint:
+
+```bash
+make test-staging-access-invite-journey
+```
+
+- the implemented journey proves:
+  - platform-admin invite handoff through the live workspace detail screen
+  - real invite registration through `/invite/:token`
+  - tenant-admin membership activation
+  - self and last-admin safeguards on the tenant workspace-access screen
+  - tenant-admin invitation of a writer through the live tenant screen
+  - writer membership activation and writer role enforcement on `/workspace-access`
 
 ---
 
