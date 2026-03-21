@@ -817,17 +817,17 @@ func inferPaymentProviderFromCode(code string) (string, error) {
 	switch {
 	case raw == "":
 		return "", fmt.Errorf("%w: payment provider code is required", ErrValidation)
-	case strings.HasPrefix(raw, "stripe"):
+	case strings.HasPrefix(raw, "stripe") || strings.Contains(raw, "stripe"):
 		return "stripe", nil
-	case strings.HasPrefix(raw, "gocardless"):
+	case strings.HasPrefix(raw, "gocardless") || strings.Contains(raw, "gocardless"):
 		return "gocardless", nil
-	case strings.HasPrefix(raw, "cashfree"):
+	case strings.HasPrefix(raw, "cashfree") || strings.Contains(raw, "cashfree"):
 		return "cashfree", nil
-	case strings.HasPrefix(raw, "adyen"):
+	case strings.HasPrefix(raw, "adyen") || strings.Contains(raw, "adyen"):
 		return "adyen", nil
-	case strings.HasPrefix(raw, "moneyhash"):
+	case strings.HasPrefix(raw, "moneyhash") || strings.Contains(raw, "moneyhash"):
 		return "moneyhash", nil
-	case strings.HasPrefix(raw, "flutterwave"):
+	case strings.HasPrefix(raw, "flutterwave") || strings.Contains(raw, "flutterwave"):
 		return "flutterwave", nil
 	default:
 		return "", fmt.Errorf("%w: unsupported payment provider code %q", ErrValidation, code)
