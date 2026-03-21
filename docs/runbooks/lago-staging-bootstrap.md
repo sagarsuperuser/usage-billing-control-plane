@@ -243,6 +243,13 @@ LAGO_SERVICE_ACCOUNT_ROLE_ARN=arn:aws:iam::123456789012:role/lago-alpha-staging-
 make lago-staging-deploy
 ```
 
+If you need to validate a backend-only Lago fix before the upstream chart version changes, use a backend image override. The deploy script will apply that image to all Lago backend deployments after Helm so the override survives the deploy path instead of relying on a manual `kubectl set image`.
+
+```bash
+LAGO_BACKEND_IMAGE_OVERRIDE=139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api:lago-staging-20260321-10231fd48 \
+make lago-staging-deploy
+```
+
 ## Verify
 
 ```bash
