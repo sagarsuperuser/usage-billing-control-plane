@@ -19,7 +19,6 @@ lago_service_account_role_arn="${LAGO_SERVICE_ACCOUNT_ROLE_ARN:-}"
 ensure_service_account_script="${LAGO_ENSURE_SERVICE_ACCOUNT_SCRIPT:-$repo_root/scripts/ensure_lago_service_account.sh}"
 lago_chart_patch_script="${LAGO_CHART_PATCH_SCRIPT:-$repo_root/scripts/prepare_lago_chart_for_irsa_s3.sh}"
 use_irsa_s3_chart_patch="${LAGO_USE_IRSA_S3_CHART_PATCH:-1}"
-backend_image_override="${LAGO_BACKEND_IMAGE_OVERRIDE:-}"
 prepared_chart_root=""
 
 cleanup() {
@@ -70,19 +69,11 @@ if [[ "$use_irsa_s3_chart_patch" == "1" ]]; then
   require_file "$lago_chart_patch_script"
 fi
 
+backend_image_override="${LAGO_BACKEND_IMAGE_OVERRIDE:-}"
+
 deployment_exists() {
   local deploy_name="$1"
   kubectl -n "$namespace" get deploy "$deploy_name" >/dev/null 2>&1
-}
-
-set_backend_image_override() {
-  local deploy_name="$1"
-
-  [[ -n "$backend_image_override" ]] || return 0
-  deployment_exists "$deploy_name" || return 0
-
-  echo_info "overriding backend image for $deploy_name -> $backend_image_override"
-  kubectl -n "$namespace" set image deployment/"$deploy_name" "$deploy_name=$backend_image_override" >/dev/null
 }
 
 deployment_replicas() {
@@ -160,7 +151,7 @@ if [[ "$use_irsa_s3_chart_patch" == "1" ]]; then
   helm "${pull_args[@]}" >/dev/null
 
   chart_to_deploy="$prepared_chart_root/$local_chart_name"
-  "$lago_chart_patch_script" "$chart_to_deploy"
+  LAGO_BACKEND_IMAGE_OVERRIDE="$backend_image_override" "$lago_chart_patch_script" "$chart_to_deploy"
   echo_info "using patched local chart $chart_to_deploy"
 fi
 
@@ -178,22 +169,6 @@ fi
 
 echo_info "deploying Lago release=$release_name namespace=$namespace chart=$chart_to_deploy"
 helm "${helm_args[@]}"
-
-if [[ -n "$backend_image_override" ]]; then
-  echo_info "applying backend image override to Lago backend deployments"
-  for deploy_name in \
-    "$release_name-api" \
-    "$release_name-billing-worker" \
-    "$release_name-clock" \
-    "$release_name-clock-worker" \
-    "$release_name-events-worker" \
-    "$release_name-payment-worker" \
-    "$release_name-pdf-worker" \
-    "$release_name-webhook-worker" \
-    "$release_name-worker"; do
-    set_backend_image_override "$deploy_name"
-  done
-fi
 
 echo_info "waiting for non-shared Lago deployments"
 for deploy_name in \
