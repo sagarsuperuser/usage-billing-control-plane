@@ -1,0 +1,396 @@
+# End-to-End Product Journeys
+
+This document defines Alpha's canonical product journeys for end-to-end validation.
+
+The purpose is not to turn every test into a giant staging drill. The purpose is to make the product journeys explicit so we know:
+
+- what the real operator and customer flows are
+- which flows are already automated
+- which flows are only partially covered today
+- what a true release-confidence check should prove
+
+If a product area does not map cleanly to one of these journeys, the current testing model is incomplete.
+
+---
+
+## Core Rule
+
+Alpha should validate product behavior through a small number of canonical journeys.
+
+Each journey should answer three questions:
+
+1. what setup is required
+2. what real user or operator steps happen
+3. what state transitions Alpha must prove at the end
+
+Do not confuse infrastructure smoke with product journey validation.
+
+---
+
+## Coverage Terms
+
+Use these terms consistently:
+
+- `implemented`: automated and already usable as a staging journey
+- `partial`: some critical parts are automated, but the full user journey is not
+- `planned`: product journey is defined here, but automation is not complete yet
+
+---
+
+## Journey Set
+
+| Journey | Purpose | Current State |
+| --- | --- | --- |
+| Pricing configuration journey | prove metrics, rating rules, and plans are commercially usable | planned |
+| Subscription billing journey | prove subscriptions generate billable invoice state from configured pricing | planned |
+| Payment setup and collect-payment journey | prove customer payment setup can move a blocked customer into a payable state | planned |
+| Payment retry and failure journey | prove Alpha payment recovery against real Lago and Stripe wiring | implemented |
+| Replay and recovery journey | prove recovery tooling works against fresh replay fixtures | implemented |
+| Browser operator journey | prove core operator surfaces load and route correctly in staging | partial |
+
+---
+
+## 1. Pricing Configuration Journey
+
+### Purpose
+
+Prove that Alpha pricing setup is not just CRUD. It must be commercially executable.
+
+### Product surfaces involved
+
+- rating rules
+- meters
+- plans
+- plan pricing associations
+
+### Real journey
+
+1. create a rating rule version
+2. create a metric and attach it to the rating rule version
+3. create a plan
+4. attach the priced metric to the plan
+5. verify the pricing configuration is visible and internally consistent
+
+### End-state assertions
+
+- the metric is linked to the intended rating rule version
+- the plan references the intended metric pricing
+- no missing pricing boundary remains between metric and plan
+- the configuration is ready for a subscription billing journey
+
+### Current automation state
+
+- `planned`
+- today we validate many pricing APIs and UI surfaces separately
+- we do not yet have one canonical staging journey that proves a complete metric -> rule -> plan path
+
+### Required future automation
+
+Add a dedicated journey command that:
+
+- creates per-run rating rule fixtures
+- creates per-run metric fixtures
+- creates per-run plan fixtures
+- verifies the graph through Alpha APIs
+
+Recommended future entrypoint:
+
+```bash
+make test-staging-pricing-journey
+```
+
+---
+
+## 2. Subscription Billing Journey
+
+### Purpose
+
+Prove that configured pricing actually produces a billable subscription flow.
+
+### Product surfaces involved
+
+- customers
+- plans
+- subscriptions
+- invoices
+- payment visibility
+
+### Real journey
+
+1. start from a valid pricing configuration
+2. create a customer
+3. create a subscription on the target plan
+4. emit or prepare usage that exercises the configured metric
+5. allow Lago billing to generate an invoice
+6. verify Alpha surfaces the resulting invoice state correctly
+
+### End-state assertions
+
+- the subscription exists and is active in Alpha
+- invoice generation reflects the configured pricing path
+- invoice visibility in Alpha matches Lago billing output
+- downstream payment and lifecycle journeys can start from that invoice
+
+### Current automation state
+
+- `planned`
+- subscription and invoice surfaces exist, but a full pricing -> subscription -> invoice journey is not yet automated as one staging flow
+
+### Required future automation
+
+Add a per-run subscription billing journey that:
+
+- reuses the pricing journey fixtures
+- creates a customer and subscription
+- drives invoice generation deterministically
+- verifies invoice visibility in Alpha
+
+Recommended future entrypoint:
+
+```bash
+make test-staging-subscription-journey
+```
+
+---
+
+## 3. Payment Setup and Collect-Payment Journey
+
+### Purpose
+
+Prove Alpha's real collect-payment workflow, not just billing outcomes.
+
+This is the missing product journey behind the `collect_payment` recommendation.
+
+### Product surfaces involved
+
+- customers
+- payment setup request and resend
+- payment detail
+- customer detail payment-setup status
+- invoices and payments
+
+### Real journey
+
+1. create or identify a customer without a usable payment method
+2. create a collectible invoice for that customer
+3. verify Alpha lifecycle recommends `collect_payment`
+4. send payment setup request from Alpha
+5. confirm the hosted setup link exists
+6. complete hosted setup as the customer
+7. refresh customer payment setup state in Alpha
+8. retry payment from Alpha
+9. verify the payment succeeds and the lifecycle changes appropriately
+
+### End-state assertions
+
+- customer payment setup transitions from missing or incomplete to ready
+- payment detail no longer recommends `collect_payment`
+- retry/payment result converges through Alpha webhook projections
+- customer and payment surfaces agree on the new state
+
+### Current automation state
+
+- `planned`
+- current payment smoke intentionally covers:
+  - success billing outcome with an attached payment method
+  - failure billing outcome with no default payment method
+- that is useful billing plumbing coverage, but it is not the full collect-payment journey
+
+### Required future automation
+
+Add a dedicated payment setup journey that performs both Alpha and customer-side steps.
+
+Recommended future entrypoint:
+
+```bash
+make test-staging-payment-setup-journey
+```
+
+This journey should remain separate from the narrower payment smoke.
+
+---
+
+## 4. Payment Retry and Failure Journey
+
+### Purpose
+
+Prove Alpha payment recovery against real staging billing wiring.
+
+### Product surfaces involved
+
+- invoice retry payment
+- payment visibility
+- invoice payment status projections
+- payment lifecycle recommendation
+- webhook ingestion
+
+### Real journey
+
+1. bootstrap fresh per-run Lago fixture customers
+2. ensure the Alpha tenant is mapped to the Lago organization
+3. create a success invoice fixture
+4. create a failure invoice fixture
+5. verify success path converges through Alpha
+6. verify failure path converges through Alpha
+
+### End-state assertions
+
+- Lago reaches the expected terminal payment state
+- Alpha payment projection converges for both invoices
+- Alpha lifecycle summary matches the expected recommendation
+- event timeline exists and is coherent
+
+### Current automation state
+
+- `implemented`
+
+### Current entrypoint
+
+```bash
+make test-staging-payment-smoke LAGO_API_KEY='...'
+```
+
+### Current shape
+
+- mints fresh platform, writer, and reader keys automatically
+- patches tenant billing mapping automatically
+- uses per-run fixture customer ids
+- verifies both success and failure outcomes
+
+### Important boundary
+
+This journey proves billing execution and Alpha projection correctness.
+It does not prove the full customer payment setup flow.
+
+---
+
+## 5. Replay and Recovery Journey
+
+### Purpose
+
+Prove that Alpha recovery tooling works against fresh replay data.
+
+### Product surfaces involved
+
+- replay operations
+- replay diagnostics
+- replay queue
+- recovery visibility
+
+### Real journey
+
+1. create a fresh replay fixture
+2. queue replay work
+3. inspect replay diagnostics
+4. verify replay execution state is visible in Alpha
+
+### End-state assertions
+
+- replay job exists and is queryable
+- diagnostics surface points to the correct scope
+- recovery operator flow remains usable on fresh fixtures
+
+### Current automation state
+
+- `implemented`
+
+### Current entrypoint
+
+```bash
+make test-staging-replay-smoke
+```
+
+---
+
+## 6. Browser Operator Journey
+
+### Purpose
+
+Prove that the main operator surfaces are reachable and render against live staging state.
+
+### Product surfaces involved
+
+- control-plane overview
+- payments
+- replay operations
+- invoice explainability
+- login and session state
+
+### Real journey
+
+1. sign in through browser session login
+2. open core operator surfaces
+3. verify page-specific ready states
+4. optionally deep-link into a known invoice or replay job when fixture ids are supplied
+
+### End-state assertions
+
+- browser session is authenticated
+- target routes load successfully
+- live UI contracts remain stable enough for operators
+
+### Current automation state
+
+- `partial`
+- browser smoke covers route-level and page-readiness behavior
+- it does not yet prove the full pricing, subscription, or payment setup journeys through the UI
+
+### Current entrypoint
+
+```bash
+make test-browser-staging-smoke
+```
+
+---
+
+## How These Journeys Relate
+
+Use the journeys in dependency order:
+
+1. pricing configuration journey
+2. subscription billing journey
+3. payment setup and collect-payment journey
+4. payment retry and failure journey
+5. replay and recovery journey
+6. browser operator journey
+
+Not every deploy needs all of them.
+
+### Minimum release-confidence set today
+
+Use:
+
+1. `make verify-staging-runtime`
+2. `make test-staging-payment-smoke LAGO_API_KEY='...'`
+3. `make test-staging-replay-smoke`
+4. `make test-browser-staging-smoke`
+
+### Long-term release-confidence set
+
+Use the minimum set above plus:
+
+1. `make test-staging-pricing-journey`
+2. `make test-staging-subscription-journey`
+3. `make test-staging-payment-setup-journey`
+
+---
+
+## Data Rules for Journey Tests
+
+All journey automation must follow these rules:
+
+- use per-run fixture ids
+- keep cleanup separate from bootstrap
+- never rely on fixed customer ids like `cust_e2e_success`
+- never rely on stale tenant billing mapping being present
+- prefer explicit operator-owned setup steps when the product really depends on them
+
+---
+
+## Current Source of Truth
+
+Use this document together with:
+
+- [Testing Strategy](../standards/testing-strategy.md)
+- [Real Payment E2E Runbook](./real-payment-e2e-runbook.md)
+- [Replay Recovery Live Runbook](./replay-recovery-live-runbook.md)

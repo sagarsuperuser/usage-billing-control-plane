@@ -233,6 +233,27 @@ Do not hide fixture creation inside cleanup or vice versa.
 
 ---
 
+## Canonical Product Journeys
+
+Alpha should also track a small number of canonical product journeys.
+
+These journeys are the product-level complement to the technical test layers above.
+
+Current source of truth:
+
+- [End-to-End Product Journeys](../runbooks/end-to-end-product-journeys.md)
+
+Current state by journey:
+
+- pricing configuration journey: planned
+- subscription billing journey: planned
+- payment setup and collect-payment journey: planned
+- payment retry and failure journey: implemented
+- replay and recovery journey: implemented
+- browser operator journey: partial
+
+Use the journey document when deciding whether a smoke test is proving real product behavior or only plumbing.
+
 ## Long-Term Seams
 
 These seams are intentionally first-class because they have been the recurring live-test failure points.

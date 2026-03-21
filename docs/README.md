@@ -103,6 +103,7 @@ Use these only for environment setup, deployment, or operational execution.
 
 - [Infra Rollout Runbook](./runbooks/infra-rollout-runbook.md)
 - [Staging Go Live Checklist](./checklists/staging-go-live-checklist.md)
+- [End-to-End Product Journeys](./runbooks/end-to-end-product-journeys.md)
 - [Real Payment E2E Runbook](./runbooks/real-payment-e2e-runbook.md)
 - [Replay Recovery Live Runbook](./runbooks/replay-recovery-live-runbook.md)
 - [Assisted Tenant Onboarding Runbook](./runbooks/assisted-tenant-onboarding-runbook.md)
@@ -119,6 +120,7 @@ Read before adding or changing docs or core architecture:
 - [Documentation Standards](./standards/documentation-standards.md)
 - [Engineering Standards](./standards/engineering-standards.md)
 - [Testing Strategy](./standards/testing-strategy.md)
+- [End-to-End Product Journeys](./runbooks/end-to-end-product-journeys.md)
 
 ---
 
