@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_cmds=(bash curl jq mktemp)
+required_cmds=(bash curl go jq mktemp)
 for cmd in "${required_cmds[@]}"; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "missing required command: $cmd" >&2
@@ -73,14 +73,40 @@ ensure_tenant_lago_mapping() {
   local tenant_id="$1"
   local org_id="$2"
   local provider_code="$3"
-  local payload
-  payload="$(jq -nc \
-    --arg lago_organization_id "$org_id" \
-    --arg lago_billing_provider_code "$provider_code" \
-    '{lago_organization_id: $lago_organization_id, lago_billing_provider_code: $lago_billing_provider_code}')"
+  go run ./cmd/admin ensure-tenant-lago-mapping \
+    -alpha-api-base-url "$ALPHA_API_BASE_URL" \
+    -platform-api-key "$PLATFORM_ADMIN_API_KEY" \
+    -tenant-id "$tenant_id" \
+    -organization-id "$org_id" \
+    -provider-code "$provider_code" >/dev/null
+}
 
-  http_call PATCH "$ALPHA_API_BASE_URL/internal/tenants/$tenant_id" "$payload" "X-API-Key: $PLATFORM_ADMIN_API_KEY"
-  assert_http_code 200 "patch tenant lago billing mapping"
+create_alpha_customer() {
+  local external_id="$1"
+  local display_name="$2"
+  local email="$3"
+  go run ./cmd/admin ensure-alpha-customers \
+    -alpha-api-base-url "$ALPHA_API_BASE_URL" \
+    -writer-api-key "$ALPHA_WRITER_API_KEY" \
+    -conflict-is-error \
+    -customer "$external_id|$display_name|$email" >/dev/null
+}
+
+upsert_alpha_billing_profile() {
+  local customer_external_id="$1"
+  local legal_name="$2"
+  local email="$3"
+  go run ./cmd/admin upsert-customer-billing-profile \
+    -alpha-api-base-url "$ALPHA_API_BASE_URL" \
+    -writer-api-key "$ALPHA_WRITER_API_KEY" \
+    -customer-external-id "$customer_external_id" \
+    -legal-name "$legal_name" \
+    -email "$email" \
+    -billing-address-line1 "123 Subscription Street" \
+    -billing-city "New York" \
+    -billing-postal-code "10001" \
+    -billing-country "US" \
+    -currency "USD"
 }
 
 require_env ALPHA_API_BASE_URL
@@ -208,48 +234,18 @@ if [[ -z "$plan_id" ]]; then
   exit 1
 fi
 
-create_customer_payload="$(jq -nc \
-  --arg external_id "$CUSTOMER_EXTERNAL_ID" \
-  --arg display_name "$CUSTOMER_NAME" \
-  --arg email "$CUSTOMER_EMAIL" \
-  '{external_id: $external_id, display_name: $display_name, email: $email}')"
-
 echo "[info] creating alpha customer external_id=$CUSTOMER_EXTERNAL_ID"
-http_call POST "$ALPHA_API_BASE_URL/v1/customers" "$create_customer_payload" "X-API-Key: $ALPHA_WRITER_API_KEY"
-assert_http_code 201 "create customer"
-customer_json="$HTTP_BODY"
-customer_id="$(jq -r '.id // empty' <<<"$customer_json")"
-if [[ -z "$customer_id" ]]; then
-  echo "[fail] missing customer id body=$customer_json" >&2
-  exit 1
-fi
-
-billing_profile_payload="$(jq -nc \
-  --arg legal_name "$CUSTOMER_NAME" \
-  --arg email "$CUSTOMER_EMAIL" \
-  --arg billing_address_line1 "123 Subscription Street" \
-  --arg billing_city "New York" \
-  --arg billing_postal_code "10001" \
-  --arg billing_country "US" \
-  --arg currency "USD" \
-  '{
-    legal_name: $legal_name,
-    email: $email,
-    billing_address_line1: $billing_address_line1,
-    billing_city: $billing_city,
-    billing_postal_code: $billing_postal_code,
-    billing_country: $billing_country,
-    currency: $currency
-  }')"
+create_alpha_customer "$CUSTOMER_EXTERNAL_ID" "$CUSTOMER_NAME" "$CUSTOMER_EMAIL"
 
 echo "[info] syncing customer billing profile to lago"
-customer_external_id_enc="$(urlencode "$CUSTOMER_EXTERNAL_ID")"
-http_call PUT "$ALPHA_API_BASE_URL/v1/customers/$customer_external_id_enc/billing-profile" "$billing_profile_payload" "X-API-Key: $ALPHA_WRITER_API_KEY"
-assert_http_code 200 "upsert billing profile"
-billing_profile_json="$HTTP_BODY"
+billing_profile_result_json="$(upsert_alpha_billing_profile "$CUSTOMER_EXTERNAL_ID" "$CUSTOMER_NAME" "$CUSTOMER_EMAIL")"
+billing_profile_json="$(jq -c '.response' <<<"$billing_profile_result_json")"
 assert_jq "$billing_profile_json" "billing profile is not ready after sync" '.profile_status == "ready" and (.last_sync_error // "") == "" and (.last_synced_at != null)'
 
+customer_external_id_enc="$(urlencode "$CUSTOMER_EXTERNAL_ID")"
+
 echo "[info] verifying alpha customer detail reflects lago sync"
+
 http_call GET "$ALPHA_API_BASE_URL/v1/customers/$customer_external_id_enc" '' "X-API-Key: $ALPHA_READER_API_KEY"
 assert_http_code 200 "get synced customer"
 customer_detail_json="$HTTP_BODY"

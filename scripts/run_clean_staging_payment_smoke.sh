@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_cmds=(bash curl jq mktemp)
+required_cmds=(bash go jq mktemp)
 for cmd in "${required_cmds[@]}"; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "missing required command: $cmd" >&2
@@ -25,48 +25,29 @@ trim_trailing_slash() {
   printf "%s" "$value"
 }
 
-http_call() {
-  local method="$1"
-  local url="$2"
-  local body="${3:-}"
-  shift 3
-  local -a headers=("$@")
-  local -a args=(-sS -X "$method" "$url" -H "Accept: application/json")
-  local h
-  for h in "${headers[@]}"; do
-    args+=(-H "$h")
-  done
-  if [[ -n "$body" ]]; then
-    args+=(-H "Content-Type: application/json" --data "$body")
-  fi
-
-  local out
-  out="$(curl "${args[@]}" -w $'\n%{http_code}')"
-  HTTP_CODE="${out##*$'\n'}"
-  HTTP_BODY="${out%$'\n'*}"
-}
-
 ensure_alpha_customer() {
   local external_id="$1"
   local display_name="$2"
   local email="$3"
-  local payload
-  payload="$(jq -nc \
-    --arg external_id "$external_id" \
-    --arg display_name "$display_name" \
-    --arg email "$email" \
-    '{external_id: $external_id, display_name: $display_name, email: $email}')"
-
-  http_call "POST" "$ALPHA_API_BASE_URL/v1/customers" "$payload" "X-API-Key: $ALPHA_WRITER_API_KEY"
-  case "$HTTP_CODE" in
-    201)
+  local output
+  if ! output="$(go run ./cmd/admin ensure-alpha-customers \
+    -alpha-api-base-url "$ALPHA_API_BASE_URL" \
+    -writer-api-key "$ALPHA_WRITER_API_KEY" \
+    -customer "$external_id|$display_name|$email")"; then
+    echo "[fail] alpha customer bootstrap failed external_id=$external_id" >&2
+    exit 1
+  fi
+  local outcome
+  outcome="$(jq -r '.results[0].outcome // empty' <<<"$output")"
+  case "$outcome" in
+    created)
       echo "[pass] alpha customer created external_id=$external_id"
       ;;
-    409)
+    existing)
       echo "[info] alpha customer already exists external_id=$external_id"
       ;;
     *)
-      echo "[fail] alpha customer bootstrap failed external_id=$external_id status=$HTTP_CODE body=$HTTP_BODY" >&2
+      echo "[fail] alpha customer bootstrap produced unexpected outcome external_id=$external_id output=$output" >&2
       exit 1
       ;;
   esac
@@ -76,15 +57,13 @@ ensure_tenant_lago_mapping() {
   local tenant_id="$1"
   local org_id="$2"
   local provider_code="$3"
-  local payload
-  payload="$(jq -nc \
-    --arg lago_organization_id "$org_id" \
-    --arg lago_billing_provider_code "$provider_code" \
-    '{lago_organization_id: $lago_organization_id, lago_billing_provider_code: $lago_billing_provider_code}')"
-
-  http_call "PATCH" "$ALPHA_API_BASE_URL/internal/tenants/$tenant_id" "$payload" "X-API-Key: $PLATFORM_ADMIN_API_KEY"
-  if [[ "$HTTP_CODE" != "200" ]]; then
-    echo "[fail] alpha tenant lago mapping failed tenant_id=$tenant_id organization_id=$org_id provider_code=$provider_code status=$HTTP_CODE body=$HTTP_BODY" >&2
+  if ! go run ./cmd/admin ensure-tenant-lago-mapping \
+    -alpha-api-base-url "$ALPHA_API_BASE_URL" \
+    -platform-api-key "$PLATFORM_ADMIN_API_KEY" \
+    -tenant-id "$tenant_id" \
+    -organization-id "$org_id" \
+    -provider-code "$provider_code" >/dev/null; then
+    echo "[fail] alpha tenant lago mapping failed tenant_id=$tenant_id organization_id=$org_id provider_code=$provider_code" >&2
     exit 1
   fi
   echo "[pass] alpha tenant lago mapping ensured tenant_id=$tenant_id organization_id=$org_id provider_code=$provider_code"

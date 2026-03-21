@@ -43,10 +43,10 @@ Use these terms consistently:
 | --- | --- | --- |
 | Pricing configuration journey | prove metrics, generated rating rules, and plans are commercially usable | implemented |
 | Subscription billing journey | prove subscriptions become billable from configured pricing and usage | implemented |
-| Payment setup and collect-payment journey | prove customer payment setup can move a blocked customer into a payable state | planned |
+| Payment setup and collect-payment journey | prove customer payment setup can move a blocked customer into a payable state | implemented |
 | Payment retry and failure journey | prove Alpha payment recovery against real Lago and Stripe wiring | implemented |
 | Replay and recovery journey | prove recovery tooling works against fresh replay fixtures | implemented |
-| Browser operator journey | prove core operator surfaces load and route correctly in staging | partial |
+| Browser operator journey | prove core operator surfaces load and route correctly in staging | implemented |
 
 ---
 
@@ -194,23 +194,26 @@ This is the missing product journey behind the `collect_payment` recommendation.
 
 ### Current automation state
 
-- `planned`
-- current payment smoke intentionally covers:
-  - success billing outcome with an attached payment method
-  - failure billing outcome with no default payment method
-- that is useful billing plumbing coverage, but it is not the full collect-payment journey
-
-### Required future automation
-
-Add a dedicated payment setup journey that performs both Alpha and customer-side steps.
-
-Recommended future entrypoint:
+- `implemented`
+- staging journey entrypoint:
 
 ```bash
 make test-staging-payment-setup-journey
 ```
 
-This journey should remain separate from the narrower payment smoke.
+- the implemented journey proves:
+  - a customer starts with payment readiness pending
+  - a real failed invoice recommends `collect_payment`
+  - Alpha issues the payment setup request
+  - provider-side setup completion becomes visible through Lago
+  - Alpha refresh reaches `ready`
+  - payment detail switches from `collect_payment` to `retry_payment`
+  - retry succeeds and lifecycle converges to `none`
+
+### Boundary
+
+- this journey proves the full backend payment-setup and recovery flow
+- browser-led operator clicks on top of the same flow remain part of the browser operator journey, not this API-first journey
 
 ---
 
@@ -335,9 +338,9 @@ Prove that the main operator surfaces are reachable and render against live stag
 
 ### Current automation state
 
-- `partial`
-- browser smoke covers route-level and page-readiness behavior
-- it does not yet prove the full pricing, subscription, or payment setup journeys through the UI
+- `implemented`
+- browser smoke covers live operator session authentication, overview, payments, explainability, replay diagnostics, and replay queue flows
+- deeper pricing, subscription, and payment-setup state changes are still proven by the dedicated non-browser journeys above
 
 ### Current entrypoint
 
@@ -388,6 +391,7 @@ All journey automation must follow these rules:
 - never rely on fixed customer ids like `cust_e2e_success`
 - never rely on stale tenant billing mapping being present
 - prefer explicit operator-owned setup steps when the product really depends on them
+- keep shared staging mutation primitives in `cmd/admin`; use shell only for journey orchestration and environment wiring
 
 ---
 

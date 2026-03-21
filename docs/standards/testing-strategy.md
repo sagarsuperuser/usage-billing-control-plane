@@ -246,11 +246,11 @@ Current source of truth:
 Current state by journey:
 
 - pricing configuration journey: implemented
-- subscription billing journey: planned
-- payment setup and collect-payment journey: planned
+- subscription billing journey: implemented
+- payment setup and collect-payment journey: implemented
 - payment retry and failure journey: implemented
 - replay and recovery journey: implemented
-- browser operator journey: partial
+- browser operator journey: implemented
 
 Use the journey document when deciding whether a smoke test is proving real product behavior or only plumbing.
 
@@ -269,6 +269,7 @@ These seams are intentionally first-class because they have been the recurring l
 - payment fixture creation should run in a dedicated Lago bootstrap job
 - do not `kubectl exec` a Rails runner in the live Lago pod as the normal path
 - fixture ids must be per-run by default
+- shared staging mutation primitives should live in `cmd/admin`; shell scripts should stay as thin orchestration wrappers
 
 ### Cleanup
 
