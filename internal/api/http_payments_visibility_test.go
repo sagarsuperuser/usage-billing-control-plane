@@ -38,7 +38,7 @@ func TestPaymentsListEndpointReturnsNormalizedSummaries(t *testing.T) {
 
 	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
 	now := time.Now().UTC().Truncate(time.Second)
-	if _, err := repo.CreateCustomer(domain.Customer{
+	customer, err := repo.CreateCustomer(domain.Customer{
 		TenantID:    "default",
 		ExternalID:  "cust_123",
 		DisplayName: "Acme Corp",
@@ -46,8 +46,34 @@ func TestPaymentsListEndpointReturnsNormalizedSummaries(t *testing.T) {
 		Status:      domain.CustomerStatusActive,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("create customer: %v", err)
+	}
+	if _, err := repo.UpsertCustomerBillingProfile(domain.CustomerBillingProfile{
+		CustomerID:    customer.ID,
+		TenantID:      "default",
+		LegalName:     "Acme Corp",
+		Email:         "billing@acme.test",
+		Currency:      "USD",
+		ProviderCode:  "stripe_default",
+		ProfileStatus: domain.BillingProfileStatusReady,
+		LastSyncedAt:  &now,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}); err != nil {
+		t.Fatalf("upsert billing profile: %v", err)
+	}
+	if _, err := repo.UpsertCustomerPaymentSetup(domain.CustomerPaymentSetup{
+		CustomerID:                  customer.ID,
+		TenantID:                    "default",
+		SetupStatus:                 domain.PaymentSetupStatusPending,
+		DefaultPaymentMethodPresent: false,
+		PaymentMethodType:           "card",
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
+	}); err != nil {
+		t.Fatalf("upsert payment setup: %v", err)
 	}
 	if _, err := db.Exec(`
 		INSERT INTO invoice_payment_status_views (
@@ -279,16 +305,140 @@ func TestPaymentDetailEndpointReturnsLifecycleAndEvents(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected lifecycle object in payment detail")
 	}
-	if got, _ := lifecycle["recommended_action"].(string); got != "retry_payment" {
-		t.Fatalf("expected recommended_action retry_payment, got %q", got)
+	if got, _ := lifecycle["recommended_action"].(string); got != "collect_payment" {
+		t.Fatalf("expected recommended_action collect_payment, got %q", got)
 	}
 	if got, _ := lifecycle["requires_action"].(bool); !got {
 		t.Fatalf("expected requires_action true")
+	}
+	if got, _ := lifecycle["retry_recommended"].(bool); got {
+		t.Fatalf("expected retry_recommended false when payment setup is not ready")
 	}
 
 	events := getJSON(t, ts.URL+"/v1/payments/inv_pay_123/events", "tenant-a-reader", http.StatusOK)
 	items, ok := events["items"].([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one payment event, got %#v", events["items"])
+	}
+
+	lifecycleOnly := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/inv_pay_123/lifecycle", "tenant-a-reader", http.StatusOK)
+	if got, _ := lifecycleOnly["recommended_action"].(string); got != "collect_payment" {
+		t.Fatalf("expected invoice lifecycle recommended_action collect_payment, got %q", got)
+	}
+}
+
+func TestPaymentDetailEndpointKeepsRetryWhenCustomerPaymentSetupReady(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
+	now := time.Now().UTC().Truncate(time.Second)
+	customer, err := repo.CreateCustomer(domain.Customer{
+		TenantID:       "default",
+		ExternalID:     "cust_123",
+		DisplayName:    "Acme Corp",
+		Email:          "billing@acme.test",
+		Status:         domain.CustomerStatusActive,
+		LagoCustomerID: "lago_cust_123",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	if err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	if _, err := repo.UpsertCustomerBillingProfile(domain.CustomerBillingProfile{
+		CustomerID:    customer.ID,
+		TenantID:      "default",
+		LegalName:     "Acme Corp",
+		Email:         "billing@acme.test",
+		Currency:      "USD",
+		ProviderCode:  "stripe_default",
+		ProfileStatus: domain.BillingProfileStatusReady,
+		LastSyncedAt:  &now,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}); err != nil {
+		t.Fatalf("upsert billing profile: %v", err)
+	}
+	if _, err := repo.UpsertCustomerPaymentSetup(domain.CustomerPaymentSetup{
+		CustomerID:                     customer.ID,
+		TenantID:                       "default",
+		SetupStatus:                    domain.PaymentSetupStatusReady,
+		DefaultPaymentMethodPresent:    true,
+		PaymentMethodType:              "card",
+		ProviderPaymentMethodReference: "pm_123",
+		LastVerifiedAt:                 &now,
+		LastVerificationResult:         "verified",
+		CreatedAt:                      now,
+		UpdatedAt:                      now,
+	}); err != nil {
+		t.Fatalf("upsert payment setup: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO invoice_payment_status_views (
+			tenant_id, organization_id, invoice_id, customer_external_id, invoice_number, currency,
+			invoice_status, payment_status, payment_overdue, total_amount_cents, total_due_amount_cents,
+			total_paid_amount_cents, last_payment_error, last_event_type, last_event_at, last_webhook_key, updated_at
+		) VALUES (
+			'default', 'org_test', 'inv_pay_123', 'cust_123', 'INV-123', 'USD',
+			'finalized', 'failed', true, 12500, 12500,
+			0, 'card_declined', 'invoice.payment_failure', $1, 'whk_inv_123', $2
+		)
+	`, now, now); err != nil {
+		t.Fatalf("insert payment projection: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO lago_webhook_events (
+			id, tenant_id, organization_id, webhook_key, webhook_type, object_type, invoice_id,
+			customer_external_id, invoice_number, currency, invoice_status, payment_status,
+			payment_overdue, total_amount_cents, total_due_amount_cents, total_paid_amount_cents,
+			last_payment_error, payload, received_at, occurred_at
+		) VALUES (
+			'evt_1', 'default', 'org_test', 'whk_evt_1', 'invoice.payment_failure', 'invoice', 'inv_pay_123',
+			'cust_123', 'INV-123', 'USD', 'finalized', 'failed',
+			true, 12500, 12500, 0,
+			'card_declined', '{}'::jsonb, $1, $2
+		)
+	`, now, now); err != nil {
+		t.Fatalf("insert webhook event: %v", err)
+	}
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithLagoWebhookService(lagoWebhookSvc),
+	).Handler())
+	defer ts.Close()
+
+	detail := getJSON(t, ts.URL+"/v1/payments/inv_pay_123", "tenant-a-reader", http.StatusOK)
+	lifecycle, ok := detail["lifecycle"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected lifecycle object in payment detail")
+	}
+	if got, _ := lifecycle["recommended_action"].(string); got != "retry_payment" {
+		t.Fatalf("expected recommended_action retry_payment, got %q", got)
+	}
+	if got, _ := lifecycle["retry_recommended"].(bool); !got {
+		t.Fatalf("expected retry_recommended true when payment setup is ready")
 	}
 }

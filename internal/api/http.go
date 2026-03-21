@@ -4542,7 +4542,17 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		view, err := s.lagoWebhookSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
 		lifecycle, err := s.lagoWebhookSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, eventLimit)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		lifecycle, err = s.enrichPaymentLifecycleWithCustomerReadiness(requestTenantID(r), view.CustomerExternalID, lifecycle)
 		if err != nil {
 			writeDomainError(w, err)
 			return

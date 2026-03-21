@@ -59,6 +59,9 @@ POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-5}"
 REQUIRE_WEBHOOK_TYPES="${REQUIRE_WEBHOOK_TYPES:-invoice.payment_status_updated,invoice.payment_failure,invoice.payment_overdue}"
 RETRY_PAYMENT_BODY="${RETRY_PAYMENT_BODY:-{}}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
+EXPECTED_LIFECYCLE_ACTION="${EXPECTED_LIFECYCLE_ACTION:-}"
+EXPECTED_LIFECYCLE_REQUIRES_ACTION="${EXPECTED_LIFECYCLE_REQUIRES_ACTION:-}"
+EXPECTED_LIFECYCLE_RETRY_RECOMMENDED="${EXPECTED_LIFECYCLE_RETRY_RECOMMENDED:-}"
 
 if [[ "$EXPECTED_FINAL_STATUS" != "succeeded" && "$EXPECTED_FINAL_STATUS" != "failed" ]]; then
   echo "EXPECTED_FINAL_STATUS must be one of: succeeded, failed" >&2
@@ -76,6 +79,19 @@ if ! jq -e . >/dev/null 2>&1 <<<"$RETRY_PAYMENT_BODY"; then
   echo "RETRY_PAYMENT_BODY must be valid JSON" >&2
   exit 1
 fi
+
+case "$EXPECTED_FINAL_STATUS" in
+  succeeded)
+    EXPECTED_LIFECYCLE_ACTION="${EXPECTED_LIFECYCLE_ACTION:-none}"
+    EXPECTED_LIFECYCLE_REQUIRES_ACTION="${EXPECTED_LIFECYCLE_REQUIRES_ACTION:-false}"
+    EXPECTED_LIFECYCLE_RETRY_RECOMMENDED="${EXPECTED_LIFECYCLE_RETRY_RECOMMENDED:-false}"
+    ;;
+  failed)
+    EXPECTED_LIFECYCLE_ACTION="${EXPECTED_LIFECYCLE_ACTION:-retry_payment}"
+    EXPECTED_LIFECYCLE_REQUIRES_ACTION="${EXPECTED_LIFECYCLE_REQUIRES_ACTION:-true}"
+    EXPECTED_LIFECYCLE_RETRY_RECOMMENDED="${EXPECTED_LIFECYCLE_RETRY_RECOMMENDED:-true}"
+    ;;
+esac
 
 ALPHA_API_BASE_URL="$(trim_trailing_slash "$ALPHA_API_BASE_URL")"
 LAGO_API_URL="$(trim_trailing_slash "$LAGO_API_URL")"
@@ -224,14 +240,14 @@ fi
 
 case "$EXPECTED_FINAL_STATUS" in
   succeeded)
-    if [[ "$lifecycle_recommended_action" != "none" || "$lifecycle_requires_action" != "false" || "$lifecycle_retry_recommended" != "false" ]]; then
-      echo "[fail] succeeded lifecycle expectation mismatch: recommended_action=$lifecycle_recommended_action requires_action=$lifecycle_requires_action retry_recommended=$lifecycle_retry_recommended" >&2
+    if [[ "$lifecycle_recommended_action" != "$EXPECTED_LIFECYCLE_ACTION" || "$lifecycle_requires_action" != "$EXPECTED_LIFECYCLE_REQUIRES_ACTION" || "$lifecycle_retry_recommended" != "$EXPECTED_LIFECYCLE_RETRY_RECOMMENDED" ]]; then
+      echo "[fail] succeeded lifecycle expectation mismatch: recommended_action=$lifecycle_recommended_action requires_action=$lifecycle_requires_action retry_recommended=$lifecycle_retry_recommended expected_action=$EXPECTED_LIFECYCLE_ACTION expected_requires_action=$EXPECTED_LIFECYCLE_REQUIRES_ACTION expected_retry_recommended=$EXPECTED_LIFECYCLE_RETRY_RECOMMENDED" >&2
       exit 1
     fi
     ;;
   failed)
-    if [[ "$lifecycle_recommended_action" != "retry_payment" || "$lifecycle_requires_action" != "true" || "$lifecycle_retry_recommended" != "true" ]]; then
-      echo "[fail] failed lifecycle expectation mismatch: recommended_action=$lifecycle_recommended_action requires_action=$lifecycle_requires_action retry_recommended=$lifecycle_retry_recommended" >&2
+    if [[ "$lifecycle_recommended_action" != "$EXPECTED_LIFECYCLE_ACTION" || "$lifecycle_requires_action" != "$EXPECTED_LIFECYCLE_REQUIRES_ACTION" || "$lifecycle_retry_recommended" != "$EXPECTED_LIFECYCLE_RETRY_RECOMMENDED" ]]; then
+      echo "[fail] failed lifecycle expectation mismatch: recommended_action=$lifecycle_recommended_action requires_action=$lifecycle_requires_action retry_recommended=$lifecycle_retry_recommended expected_action=$EXPECTED_LIFECYCLE_ACTION expected_requires_action=$EXPECTED_LIFECYCLE_REQUIRES_ACTION expected_retry_recommended=$EXPECTED_LIFECYCLE_RETRY_RECOMMENDED" >&2
       exit 1
     fi
     if ! [[ "$lifecycle_failure_event_count" =~ ^[0-9]+$ ]] || [[ "$lifecycle_failure_event_count" -lt 1 ]]; then

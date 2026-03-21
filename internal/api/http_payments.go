@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/csv"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"usage-billing-control-plane/internal/domain"
 	"usage-billing-control-plane/internal/service"
+	"usage-billing-control-plane/internal/store"
 )
 
 type paymentSummaryResponse struct {
@@ -225,6 +227,11 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 		writeDomainError(w, err)
 		return
 	}
+	lifecycle, err = s.enrichPaymentLifecycleWithCustomerReadiness(requestTenantID(r), view.CustomerExternalID, lifecycle)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
 	customer, err := s.lookupInvoiceCustomer(requestTenantID(r), view.CustomerExternalID, map[string]*domain.Customer{})
 	if err != nil {
 		writeDomainError(w, err)
@@ -276,6 +283,44 @@ func paymentDetailFromStatusView(view domain.InvoicePaymentStatusView, customer 
 		paymentSummaryResponse: paymentSummaryFromStatusView(view, customer),
 		Lifecycle:              lifecycle,
 	}
+}
+
+func (s *Server) enrichPaymentLifecycleWithCustomerReadiness(tenantID, customerExternalID string, lifecycle service.InvoicePaymentLifecycle) (service.InvoicePaymentLifecycle, error) {
+	customerExternalID = strings.TrimSpace(customerExternalID)
+	if s == nil || s.customerService == nil || customerExternalID == "" {
+		return lifecycle, nil
+	}
+	readiness, err := s.customerService.GetCustomerReadiness(tenantID, customerExternalID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return lifecycle, nil
+		}
+		return lifecycle, err
+	}
+	return applyCustomerReadinessToPaymentLifecycle(lifecycle, readiness), nil
+}
+
+func applyCustomerReadinessToPaymentLifecycle(lifecycle service.InvoicePaymentLifecycle, readiness service.CustomerReadiness) service.InvoicePaymentLifecycle {
+	if readiness.PaymentSetupStatus == domain.PaymentSetupStatusReady && readiness.DefaultPaymentMethodVerified {
+		return lifecycle
+	}
+
+	shouldCollect := false
+	switch strings.ToLower(strings.TrimSpace(lifecycle.PaymentStatus)) {
+	case "failed":
+		shouldCollect = lifecycle.RecommendedAction == "retry_payment" || lifecycle.RecommendedAction == "collect_payment"
+	default:
+		shouldCollect = lifecycle.PaymentOverdue != nil && *lifecycle.PaymentOverdue
+	}
+	if !shouldCollect {
+		return lifecycle
+	}
+
+	lifecycle.RequiresAction = true
+	lifecycle.RetryRecommended = false
+	lifecycle.RecommendedAction = "collect_payment"
+	lifecycle.RecommendedActionNote = "Customer payment setup is not ready. Send or refresh payment setup before retrying collection."
+	return lifecycle
 }
 
 func generatePaymentsCSV(items []paymentSummaryResponse) (string, error) {
