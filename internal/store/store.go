@@ -239,6 +239,16 @@ type InvoicePaymentSyncCandidate struct {
 	UpdatedAt      time.Time
 }
 
+type InvoiceDunningRunListFilter struct {
+	TenantID           string
+	InvoiceID          string
+	CustomerExternalID string
+	State              string
+	ActiveOnly         bool
+	Limit              int
+	Offset             int
+}
+
 type Repository interface {
 	Migrate() error
 
@@ -333,6 +343,14 @@ type Repository interface {
 	GetInvoicePaymentStatusSummary(filter InvoicePaymentStatusSummaryFilter) (InvoicePaymentStatusSummary, error)
 	ListLagoWebhookEvents(filter LagoWebhookEventListFilter) ([]domain.LagoWebhookEvent, error)
 	ListInvoicePaymentSyncCandidates(filter InvoicePaymentSyncCandidateFilter) ([]InvoicePaymentSyncCandidate, error)
+	GetDunningPolicy(tenantID string) (domain.DunningPolicy, error)
+	UpsertDunningPolicy(input domain.DunningPolicy) (domain.DunningPolicy, error)
+	CreateInvoiceDunningRun(input domain.InvoiceDunningRun) (domain.InvoiceDunningRun, error)
+	UpdateInvoiceDunningRun(input domain.InvoiceDunningRun) (domain.InvoiceDunningRun, error)
+	GetActiveInvoiceDunningRunByInvoiceID(tenantID, invoiceID string) (domain.InvoiceDunningRun, error)
+	ListInvoiceDunningRuns(filter InvoiceDunningRunListFilter) ([]domain.InvoiceDunningRun, error)
+	CreateInvoiceDunningEvent(input domain.InvoiceDunningEvent) (domain.InvoiceDunningEvent, error)
+	ListInvoiceDunningEvents(tenantID, runID string) ([]domain.InvoiceDunningEvent, error)
 
 	CreateAPIKey(input domain.APIKey) (domain.APIKey, error)
 	GetAPIKeyByID(tenantID, id string) (domain.APIKey, error)
