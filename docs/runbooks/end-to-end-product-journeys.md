@@ -50,7 +50,7 @@ Use these terms consistently:
 | Browser-led payment setup journey | prove operators can drive collect-payment recovery through the live UI end to end | implemented |
 | Access and invite membership journey | prove invite, acceptance, membership activation, and role safeguards end to end | implemented |
 | Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | implemented |
-| Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | planned |
+| Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | implemented |
 | Usage-to-issued-invoice journey | prove usage becomes an issued invoice that Alpha can inspect and explain | planned |
 | Billing connection lifecycle journey | prove billing connection create, rotate, verify, and tenant mapping lifecycle end to end | planned |
 
@@ -539,7 +539,19 @@ Prove that staged usage becomes a real issued invoice that Alpha can inspect, ex
 
 ---
 
-## 12. Billing Connection Lifecycle Journey
+## 12. Dunning and Collections Journey
+
+### Purpose
+
+Prove Alpha-owned collections policy, reminders, and retries rather than only manual recovery actions.
+
+### Current automation state
+
+- `planned`
+
+---
+
+## 13. Billing Connection Lifecycle Journey
 
 ### Purpose
 
@@ -566,7 +578,8 @@ Use the journeys in dependency order:
 9. customer onboarding journey
 10. subscription change and cancellation journey
 11. usage-to-issued-invoice journey
-12. billing connection lifecycle journey
+12. dunning and collections journey
+13. billing connection lifecycle journey
 
 Not every deploy needs all of them.
 

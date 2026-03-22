@@ -75,6 +75,7 @@ Use these when building or extending concrete product slices.
 - [Slice 3 Spec: Subscriptions and Customer-Owned Payment Setup](./specs/alpha_slice3_subscriptions_spec.md)
 - [Slice 4 Spec: Invoices Visibility](./specs/alpha_slice4_invoices_spec.md)
 - [Slice 5 Spec: Payments Visibility](./specs/alpha_slice5_payments_spec.md)
+- [Slice 6 Spec: Dunning and Collections Policy](./specs/alpha_slice6_dunning_spec.md)
 
 ---
 
