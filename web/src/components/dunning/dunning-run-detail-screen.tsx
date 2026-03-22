@@ -10,7 +10,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
-import { fetchDunningRunDetail, sendCollectPaymentReminder } from "@/lib/api";
+import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 
 function formatState(value?: string): string {
@@ -39,6 +39,34 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
 
   const reminderMutation = useMutation({
     mutationFn: () => sendCollectPaymentReminder({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
+    onSuccess: async () => {
+      await detailQuery.refetch();
+    },
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: () => retryDunningRunNow({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
+    onSuccess: async () => {
+      await detailQuery.refetch();
+    },
+  });
+
+  const pauseMutation = useMutation({
+    mutationFn: () => pauseDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
+    onSuccess: async () => {
+      await detailQuery.refetch();
+    },
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
+    onSuccess: async () => {
+      await detailQuery.refetch();
+    },
+  });
+
+  const resolveMutation = useMutation({
+    mutationFn: () => resolveDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => {
       await detailQuery.refetch();
     },
@@ -102,6 +130,50 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
                 >
                   {reminderMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Send collect-payment reminder
+                </button>
+              ) : null}
+              {run?.next_action_type === "retry_payment" && !run?.paused && !run?.resolved_at ? (
+                <button
+                  type="button"
+                  onClick={() => retryMutation.mutate()}
+                  disabled={!canWrite || !csrfToken || retryMutation.isPending}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  Retry payment now
+                </button>
+              ) : null}
+              {!run?.resolved_at && !run?.paused ? (
+                <button
+                  type="button"
+                  onClick={() => pauseMutation.mutate()}
+                  disabled={!canWrite || !csrfToken || pauseMutation.isPending}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pauseMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  Pause run
+                </button>
+              ) : null}
+              {run?.paused && !run?.resolved_at ? (
+                <button
+                  type="button"
+                  onClick={() => resumeMutation.mutate()}
+                  disabled={!canWrite || !csrfToken || resumeMutation.isPending}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resumeMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  Resume run
+                </button>
+              ) : null}
+              {!run?.resolved_at ? (
+                <button
+                  type="button"
+                  onClick={() => resolveMutation.mutate()}
+                  disabled={!canWrite || !csrfToken || resolveMutation.isPending}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resolveMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  Resolve run
                 </button>
               ) : null}
             </div>

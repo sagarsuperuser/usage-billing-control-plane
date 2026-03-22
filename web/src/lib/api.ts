@@ -16,9 +16,11 @@ import {
   CustomerReadiness,
   CreditNoteSummary,
   DunningPolicy,
+  DunningRunControlResult,
   DunningReminderDispatchResult,
   DunningRun,
   DunningRunDetail,
+  DunningRetryNowResult,
   InvoiceExplainability,
   InvoiceDetail,
   NotificationDispatchResult,
@@ -1724,6 +1726,86 @@ export async function sendCollectPaymentReminder(input: {
 }): Promise<DunningReminderDispatchResult> {
   const payload = await apiRequest<DunningReminderDispatchResult>(
     `/v1/dunning/runs/${encodeURIComponent(input.runID)}/collect-payment-reminder`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function retryDunningRunNow(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  runID: string;
+}): Promise<DunningRetryNowResult> {
+  const payload = await apiRequest<DunningRetryNowResult>(
+    `/v1/dunning/runs/${encodeURIComponent(input.runID)}/retry-now`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function pauseDunningRun(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  runID: string;
+}): Promise<DunningRunControlResult> {
+  const payload = await apiRequest<DunningRunControlResult>(
+    `/v1/dunning/runs/${encodeURIComponent(input.runID)}/pause`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function resumeDunningRun(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  runID: string;
+}): Promise<DunningRunControlResult> {
+  const payload = await apiRequest<DunningRunControlResult>(
+    `/v1/dunning/runs/${encodeURIComponent(input.runID)}/resume`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function resolveDunningRun(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  runID: string;
+}): Promise<DunningRunControlResult> {
+  const payload = await apiRequest<DunningRunControlResult>(
+    `/v1/dunning/runs/${encodeURIComponent(input.runID)}/resolve`,
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "POST",

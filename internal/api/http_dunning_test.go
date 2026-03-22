@@ -418,3 +418,135 @@ func TestDunningRetryNowEndpoint(t *testing.T) {
 		t.Fatalf("expected awaiting_retry_result state, got %q", got)
 	}
 }
+
+func TestDunningPauseResumeResolveEndpoints(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "dunning-control-reader", api.RoleReader, "default")
+	mustCreateAPIKey(t, repo, "dunning-control-writer", api.RoleWriter, "default")
+
+	now := time.Now().UTC().Truncate(time.Second)
+	policy, err := repo.UpsertDunningPolicy(domain.DunningPolicy{
+		TenantID:         "default",
+		Name:             "Default dunning policy",
+		Enabled:          true,
+		RetrySchedule:    []string{"1d", "3d"},
+		MaxRetryAttempts: 3,
+		FinalAction:      domain.DunningFinalActionManualReview,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	if err != nil {
+		t.Fatalf("upsert dunning policy: %v", err)
+	}
+	customer, err := repo.CreateCustomer(domain.Customer{
+		TenantID:    "default",
+		ExternalID:  "cust_control",
+		DisplayName: "Control Customer",
+		Email:       "billing@control.test",
+		Status:      domain.CustomerStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	if _, err := repo.UpsertCustomerPaymentSetup(domain.CustomerPaymentSetup{
+		CustomerID:                  customer.ID,
+		TenantID:                    "default",
+		SetupStatus:                 domain.PaymentSetupStatusReady,
+		DefaultPaymentMethodPresent: true,
+		LastVerifiedAt:              ptrTime(now),
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
+	}); err != nil {
+		t.Fatalf("upsert customer payment setup: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO invoice_payment_status_views (
+			tenant_id, organization_id, invoice_id, customer_external_id,
+			invoice_number, currency, invoice_status, payment_status, payment_overdue,
+			total_amount_cents, total_due_amount_cents, total_paid_amount_cents,
+			last_payment_error, last_event_type, last_event_at, last_webhook_key, updated_at
+		) VALUES (
+			'default', 'org_default', 'inv_control_123', 'cust_control',
+			'INV-CONTROL-123', 'USD', 'finalized', 'failed', false,
+			1000, 1000, 0,
+			'', 'invoice.payment_failure', $1, 'webhook_control', $1
+		)
+	`, now); err != nil {
+		t.Fatalf("insert invoice payment status view: %v", err)
+	}
+
+	run, err := repo.CreateInvoiceDunningRun(domain.InvoiceDunningRun{
+		TenantID:           "default",
+		InvoiceID:          "inv_control_123",
+		CustomerExternalID: "cust_control",
+		PolicyID:           policy.ID,
+		State:              domain.DunningRunStateRetryDue,
+		Reason:             "payment_setup_ready",
+		NextActionType:     domain.DunningActionTypeRetryPayment,
+		NextActionAt:       ptrTime(now.Add(time.Hour)),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create dunning run: %v", err)
+	}
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+	).Handler())
+	defer ts.Close()
+
+	pauseResp := postJSON(t, ts.URL+"/v1/dunning/runs/"+run.ID+"/pause", map[string]any{}, "dunning-control-writer", http.StatusOK)
+	pauseRun, ok := pauseResp["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected run object from pause")
+	}
+	if got, _ := pauseRun["state"].(string); got != "paused" {
+		t.Fatalf("expected paused state, got %q", got)
+	}
+
+	resumeResp := postJSON(t, ts.URL+"/v1/dunning/runs/"+run.ID+"/resume", map[string]any{}, "dunning-control-writer", http.StatusOK)
+	resumeRun, ok := resumeResp["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected run object from resume")
+	}
+	if got, _ := resumeRun["state"].(string); got != "retry_due" {
+		t.Fatalf("expected retry_due state, got %q", got)
+	}
+
+	resolveResp := postJSON(t, ts.URL+"/v1/dunning/runs/"+run.ID+"/resolve", map[string]any{}, "dunning-control-writer", http.StatusOK)
+	resolveRun, ok := resolveResp["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected run object from resolve")
+	}
+	if got, _ := resolveRun["state"].(string); got != "resolved" {
+		t.Fatalf("expected resolved state, got %q", got)
+	}
+	if got, _ := resolveRun["resolution"].(string); got != "operator_resolved" {
+		t.Fatalf("expected operator_resolved resolution, got %q", got)
+	}
+}

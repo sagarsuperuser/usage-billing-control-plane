@@ -216,6 +216,20 @@ export interface DunningReminderDispatchResult {
   escalated: boolean;
 }
 
+export interface DunningRunControlResult {
+  run: DunningRun;
+  event: DunningEvent;
+}
+
+export interface DunningRetryNowResult {
+  policy: DunningPolicy;
+  run: DunningRun;
+  event: DunningEvent;
+  status_code?: number;
+  escalated: boolean;
+  response_body?: string;
+}
+
 export interface PaymentFilters extends InvoiceStatusFilters {
   invoice_id?: string;
   invoice_number?: string;

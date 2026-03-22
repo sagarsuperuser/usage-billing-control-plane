@@ -819,6 +819,149 @@ func TestDunningServiceProcessCollectPaymentReminderBatch(t *testing.T) {
 	}
 }
 
+func TestDunningServicePauseRun(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_pause",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_pause",
+		CustomerExternalID: "cust_pause",
+		PolicyID:           "dpo_pause",
+		State:              domain.DunningRunStateRetryDue,
+		Reason:             "payment_setup_ready",
+		NextActionType:     domain.DunningActionTypeRetryPayment,
+		NextActionAt:       ptrTime(base.Add(time.Hour)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_pause"] = run
+	repo.runsByID[run.ID] = run
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	result, err := svc.PauseRun("tenant_a", run.ID)
+	if err != nil {
+		t.Fatalf("pause run: %v", err)
+	}
+	if !result.Run.Paused || result.Run.State != domain.DunningRunStatePaused {
+		t.Fatalf("expected paused run, got %+v", result.Run)
+	}
+	if result.Event.EventType != domain.DunningEventTypePaused {
+		t.Fatalf("expected paused event, got %q", result.Event.EventType)
+	}
+}
+
+func TestDunningServiceResumeRun(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:               "dpo_resume",
+		TenantID:         "tenant_a",
+		Name:             "Default dunning policy",
+		Enabled:          true,
+		RetrySchedule:    []string{"1d", "3d"},
+		MaxRetryAttempts: 3,
+		FinalAction:      domain.DunningFinalActionManualReview,
+	}
+	repo.invoiceViews["tenant_a|inv_resume"] = domain.InvoicePaymentStatusView{
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_resume",
+		CustomerExternalID: "cust_resume",
+		InvoiceStatus:      "finalized",
+		PaymentStatus:      "failed",
+		LastEventType:      "invoice.payment_failure",
+		LastEventAt:        base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.customers["tenant_a|cust_resume"] = domain.Customer{
+		ID:         "cust_row_resume",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_resume",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.paymentSetups["tenant_a|cust_row_resume"] = domain.CustomerPaymentSetup{
+		CustomerID:                  "cust_row_resume",
+		TenantID:                    "tenant_a",
+		SetupStatus:                 domain.PaymentSetupStatusReady,
+		DefaultPaymentMethodPresent: true,
+	}
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_resume",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_resume",
+		CustomerExternalID: "cust_resume",
+		PolicyID:           "dpo_resume",
+		State:              domain.DunningRunStatePaused,
+		Reason:             "paused_by_operator",
+		Paused:             true,
+		CreatedAt:          base.Add(-2 * time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_resume"] = run
+	repo.runsByID[run.ID] = run
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	result, err := svc.ResumeRun("tenant_a", run.ID)
+	if err != nil {
+		t.Fatalf("resume run: %v", err)
+	}
+	if result.Run.Paused {
+		t.Fatalf("expected run to be unpaused")
+	}
+	if result.Run.State != domain.DunningRunStateRetryDue {
+		t.Fatalf("expected retry_due state, got %q", result.Run.State)
+	}
+	if result.Event.EventType != domain.DunningEventTypeResumed {
+		t.Fatalf("expected resumed event, got %q", result.Event.EventType)
+	}
+}
+
+func TestDunningServiceResolveRun(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_resolve",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_resolve",
+		CustomerExternalID: "cust_resolve",
+		PolicyID:           "dpo_resolve",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		Reason:             "payment_setup_pending",
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		CreatedAt:          base.Add(-2 * time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_resolve"] = run
+	repo.runsByID[run.ID] = run
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	result, err := svc.ResolveRun("tenant_a", run.ID)
+	if err != nil {
+		t.Fatalf("resolve run: %v", err)
+	}
+	if result.Run.State != domain.DunningRunStateResolved {
+		t.Fatalf("expected resolved state, got %q", result.Run.State)
+	}
+	if result.Run.Resolution != domain.DunningResolutionOperatorResolved {
+		t.Fatalf("expected operator_resolved, got %q", result.Run.Resolution)
+	}
+	if result.Event.EventType != domain.DunningEventTypeResolved {
+		t.Fatalf("expected resolved event, got %q", result.Event.EventType)
+	}
+}
+
 func TestDunningServiceDispatchRetryPaymentMovesRunToAwaitingResult(t *testing.T) {
 	t.Parallel()
 

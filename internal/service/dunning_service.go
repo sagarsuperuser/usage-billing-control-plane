@@ -92,6 +92,11 @@ type DunningCollectPaymentReminderBatchResult struct {
 	LastError  string `json:"last_error,omitempty"`
 }
 
+type DunningRunControlResult struct {
+	Run   domain.InvoiceDunningRun   `json:"run"`
+	Event domain.InvoiceDunningEvent `json:"event"`
+}
+
 type RetryPaymentResult struct {
 	Policy       domain.DunningPolicy       `json:"policy"`
 	Run          domain.InvoiceDunningRun   `json:"run"`
@@ -674,6 +679,211 @@ func (s *DunningService) DispatchCollectPaymentReminder(tenantID, runID string) 
 		return result, err
 	}
 	return result, nil
+}
+
+func (s *DunningService) PauseRun(tenantID, runID string) (DunningRunControlResult, error) {
+	if s == nil || s.store == nil {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return DunningRunControlResult{}, fmt.Errorf("%w: run_id is required", ErrValidation)
+	}
+
+	run, err := s.store.GetInvoiceDunningRun(tenantID, runID)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	if run.ResolvedAt != nil {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning run is already resolved", store.ErrInvalidState)
+	}
+	if run.Paused || run.State == domain.DunningRunStatePaused {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning run is already paused", store.ErrInvalidState)
+	}
+
+	now := s.now()
+	run.Paused = true
+	run.State = domain.DunningRunStatePaused
+	run.NextActionAt = nil
+	run.NextActionType = ""
+	run.Reason = "paused_by_operator"
+	run.UpdatedAt = now
+
+	run, err = s.store.UpdateInvoiceDunningRun(run)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              run.ID,
+		TenantID:           tenantID,
+		InvoiceID:          run.InvoiceID,
+		CustomerExternalID: run.CustomerExternalID,
+		EventType:          domain.DunningEventTypePaused,
+		State:              run.State,
+		Reason:             run.Reason,
+		AttemptCount:       run.AttemptCount,
+		CreatedAt:          now,
+	})
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	return DunningRunControlResult{Run: run, Event: event}, nil
+}
+
+func (s *DunningService) ResumeRun(tenantID, runID string) (DunningRunControlResult, error) {
+	if s == nil || s.store == nil {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return DunningRunControlResult{}, fmt.Errorf("%w: run_id is required", ErrValidation)
+	}
+
+	run, err := s.store.GetInvoiceDunningRun(tenantID, runID)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	if run.ResolvedAt != nil {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning run is already resolved", store.ErrInvalidState)
+	}
+	if !run.Paused && run.State != domain.DunningRunStatePaused {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning run is not paused", store.ErrInvalidState)
+	}
+
+	policy, err := s.GetPolicy(tenantID)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	view, err := s.store.GetInvoicePaymentStatusView(tenantID, run.InvoiceID)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	eval, err := s.evaluate(policy, view)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+
+	now := s.now()
+	run.Paused = false
+	run.UpdatedAt = now
+	metadata := map[string]any{
+		"resumed_from": string(domain.DunningRunStatePaused),
+	}
+	if !eval.eligible {
+		run.State = domain.DunningRunStateResolved
+		run.NextActionAt = nil
+		run.NextActionType = ""
+		run.ResolvedAt = ptrTime(now)
+		run.Resolution = eval.resolution
+		run.Reason = eval.reason
+		run, err = s.store.UpdateInvoiceDunningRun(run)
+		if err != nil {
+			return DunningRunControlResult{}, err
+		}
+		metadata["resolution"] = string(run.Resolution)
+		event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+			RunID:              run.ID,
+			TenantID:           tenantID,
+			InvoiceID:          run.InvoiceID,
+			CustomerExternalID: run.CustomerExternalID,
+			EventType:          domain.DunningEventTypeResolved,
+			State:              run.State,
+			Reason:             run.Reason,
+			AttemptCount:       run.AttemptCount,
+			Metadata:           metadata,
+			CreatedAt:          now,
+		})
+		if err != nil {
+			return DunningRunControlResult{}, err
+		}
+		return DunningRunControlResult{Run: run, Event: event}, nil
+	}
+
+	run.State = eval.state
+	run.NextActionAt = eval.nextActionAt
+	run.NextActionType = eval.nextActionType
+	run.ResolvedAt = nil
+	run.Resolution = ""
+	run.Reason = eval.reason
+	for k, v := range eval.metadata {
+		metadata[k] = v
+	}
+	metadata["resumed_to_state"] = string(run.State)
+	metadata["resumed_to_action"] = string(run.NextActionType)
+	run, err = s.store.UpdateInvoiceDunningRun(run)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              run.ID,
+		TenantID:           tenantID,
+		InvoiceID:          run.InvoiceID,
+		CustomerExternalID: run.CustomerExternalID,
+		EventType:          domain.DunningEventTypeResumed,
+		State:              run.State,
+		ActionType:         run.NextActionType,
+		Reason:             run.Reason,
+		AttemptCount:       run.AttemptCount,
+		Metadata:           metadata,
+		CreatedAt:          now,
+	})
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	return DunningRunControlResult{Run: run, Event: event}, nil
+}
+
+func (s *DunningService) ResolveRun(tenantID, runID string) (DunningRunControlResult, error) {
+	if s == nil || s.store == nil {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return DunningRunControlResult{}, fmt.Errorf("%w: run_id is required", ErrValidation)
+	}
+
+	run, err := s.store.GetInvoiceDunningRun(tenantID, runID)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	if run.ResolvedAt != nil {
+		return DunningRunControlResult{}, fmt.Errorf("%w: dunning run is already resolved", store.ErrInvalidState)
+	}
+
+	now := s.now()
+	run.Paused = false
+	run.State = domain.DunningRunStateResolved
+	run.NextActionAt = nil
+	run.NextActionType = ""
+	run.ResolvedAt = ptrTime(now)
+	run.Resolution = domain.DunningResolutionOperatorResolved
+	run.Reason = "operator_resolved"
+	run.UpdatedAt = now
+	run, err = s.store.UpdateInvoiceDunningRun(run)
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              run.ID,
+		TenantID:           tenantID,
+		InvoiceID:          run.InvoiceID,
+		CustomerExternalID: run.CustomerExternalID,
+		EventType:          domain.DunningEventTypeResolved,
+		State:              run.State,
+		Reason:             run.Reason,
+		AttemptCount:       run.AttemptCount,
+		Metadata: map[string]any{
+			"resolution": string(run.Resolution),
+		},
+		CreatedAt: now,
+	})
+	if err != nil {
+		return DunningRunControlResult{}, err
+	}
+	return DunningRunControlResult{Run: run, Event: event}, nil
 }
 
 func (s *DunningService) ProcessNextCollectPaymentReminder(tenantID string) (bool, *QueueCollectPaymentReminderResult, error) {
