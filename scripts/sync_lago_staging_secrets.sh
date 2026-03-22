@@ -209,17 +209,25 @@ encryption_payload="$(jq -nc \
 if kubectl -n "$namespace" get secret "$app_secret_name" >/dev/null 2>&1; then
   secret_key_base="$(read_k8s_secret_value "$app_secret_name" secretKeyBase)"
   rsa_private_key="$(read_k8s_secret_value "$app_secret_name" rsaPrivateKey)"
+  admin_api_key="$(read_k8s_secret_value "$app_secret_name" adminApiKey)"
 else
   secret_key_base="$(openssl rand -hex 64)"
   rsa_private_key="$(openssl genrsa 2048 2>/dev/null | openssl base64 -A)"
+  admin_api_key="$(openssl rand -hex 32)"
+fi
+
+if [[ -z "$admin_api_key" ]]; then
+  admin_api_key="$(openssl rand -hex 32)"
 fi
 
 app_payload="$(jq -nc \
   --arg secretKeyBase "$secret_key_base" \
   --arg rsaPrivateKey "$rsa_private_key" \
+  --arg adminApiKey "$admin_api_key" \
   '{
     secretKeyBase: $secretKeyBase,
-    rsaPrivateKey: $rsaPrivateKey
+    rsaPrivateKey: $rsaPrivateKey,
+    adminApiKey: $adminApiKey
   }')"
 
 ensure_aws_secret "$encryption_secret_id" "$encryption_payload"
@@ -275,6 +283,7 @@ echo_info "upserting Kubernetes secret $app_secret_name from AWS seed data"
 kubectl -n "$namespace" create secret generic "$app_secret_name" \
   --from-literal=secretKeyBase="$secret_key_base" \
   --from-literal=rsaPrivateKey="$rsa_private_key" \
+  --from-literal=adminApiKey="$admin_api_key" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 wait_for_k8s_secret "$app_secret_name"

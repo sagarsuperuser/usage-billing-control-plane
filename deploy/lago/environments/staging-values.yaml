@@ -54,6 +54,8 @@ encryption:
 
 api:
   replicas: 1
+  extraEnv:
+    LAGO_ENABLE_ADMIN_BILL_NOW: "true"
   volumes:
     storageClassName: "gp2"
   rails:
