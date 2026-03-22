@@ -45,6 +45,10 @@ spec:
               value: "false"
             - name: RUN_REPLAY_DISPATCHER
               value: "false"
+            - name: RUN_DUNNING_WORKER
+              value: {{ .Values.api.runDunningWorker | quote }}
+            - name: RUN_DUNNING_SCHEDULER
+              value: {{ .Values.api.runDunningScheduler | quote }}
           ports:
             - name: http
               containerPort: 8080

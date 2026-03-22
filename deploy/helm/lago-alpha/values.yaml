@@ -45,6 +45,8 @@ api:
     targetMemoryUtilizationPercentage: 75
   podAnnotations: {}
   podLabels: {}
+  runDunningWorker: "false"
+  runDunningScheduler: "false"
 
 migrations:
   enabled: true
