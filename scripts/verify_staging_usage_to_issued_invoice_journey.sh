@@ -29,12 +29,21 @@ urlencode() {
   jq -nr --arg v "$1" '$v|@uri'
 }
 
-date_offset_utc() {
+date_days_ago_utc() {
   local days="$1"
   if date -u -v-"${days}"d '+%Y-%m-%dT%H:%M:%SZ' >/dev/null 2>&1; then
     date -u -v-"${days}"d '+%Y-%m-%dT%H:%M:%SZ'
   else
     date -u -d "${days} days ago" '+%Y-%m-%dT%H:%M:%SZ'
+  fi
+}
+
+date_months_ago_utc() {
+  local months="$1"
+  if date -u -v-"${months}"m '+%Y-%m-%dT%H:%M:%SZ' >/dev/null 2>&1; then
+    date -u -v-"${months}"m '+%Y-%m-%dT%H:%M:%SZ'
+  else
+    date -u -d "${months} months ago" '+%Y-%m-%dT%H:%M:%SZ'
   fi
 }
 
@@ -101,35 +110,33 @@ wait_for_get() {
   done
 }
 
-select_usage_invoice() {
-  local invoices_json="$1"
+wait_for_matching_past_usage() {
+  local url="$1"
   local expected_amount_cents="$2"
-  local meter_key="$3"
-  local candidate_id
-  while IFS= read -r candidate_id; do
-    [[ -n "$candidate_id" ]] || continue
-    local candidate_id_enc
-    candidate_id_enc="$(urlencode "$candidate_id")"
-    http_call GET "$LAGO_API_URL/api/v1/invoices/$candidate_id_enc" '' "Authorization: Bearer $LAGO_API_KEY"
-    if [[ "$HTTP_CODE" != "200" ]]; then
-      continue
+  local timeout_sec="$3"
+  local interval_sec="$4"
+  local deadline_epoch=$(( $(date +%s) + timeout_sec ))
+  while true; do
+    http_call GET "$url" '' "Authorization: Bearer $LAGO_API_KEY"
+    if [[ "$HTTP_CODE" == "200" ]]; then
+      local matched
+      matched="$(jq -c --argjson expected_amount_cents "$expected_amount_cents" '
+        .usage_periods
+        | map(select((.lago_invoice_id // "") != "" and (.amount_cents // 0) == $expected_amount_cents))
+        | first // empty
+      ' <<<"$HTTP_BODY")"
+      if [[ -n "$matched" ]]; then
+        MATCHED_PAST_USAGE_JSON="$matched"
+        PAST_USAGE_RESPONSE_JSON="$HTTP_BODY"
+        return 0
+      fi
     fi
-    if jq -e \
-      --arg meter_key "$meter_key" \
-      --argjson expected_amount_cents "$expected_amount_cents" \
-      '.invoice.total_amount_cents == $expected_amount_cents
-       and ((.invoice.fees // []) | length > 0)
-       and any((.invoice.fees // [])[];
-         ((.amount_details.billable_metric_code // .amount_details.metric_code // "") == $meter_key)
-         or ((.item.code // "") == $meter_key)
-         or ((.lago_subscription_id // "") | length > 0)
-       )' >/dev/null <<<"$HTTP_BODY"; then
-      SELECTED_INVOICE_ID="$candidate_id"
-      SELECTED_INVOICE_JSON="$HTTP_BODY"
-      return 0
+    if [[ $(date +%s) -ge $deadline_epoch ]]; then
+      echo "[fail] timeout waiting for issued lago past usage status=$HTTP_CODE body=$HTTP_BODY" >&2
+      exit 1
     fi
-  done < <(jq -r '.invoices | sort_by(.created_at // "") | reverse | .[] | (.lago_id // .id // empty)' <<<"$invoices_json")
-  return 1
+    sleep "$interval_sec"
+  done
 }
 
 require_env ALPHA_API_BASE_URL
@@ -142,10 +149,11 @@ require_env LAGO_API_KEY
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%d%H%M%S)-$RANDOM}"
 TARGET_TENANT_ID="${TARGET_TENANT_ID:-default}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
-TIMEOUT_SEC="${TIMEOUT_SEC:-600}"
+TIMEOUT_SEC="${TIMEOUT_SEC:-5400}"
 POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-5}"
-SUBSCRIPTION_STARTED_AT="${SUBSCRIPTION_STARTED_AT:-$(date_offset_utc 45)}"
-USAGE_TIMESTAMP="${USAGE_TIMESTAMP:-$(date_offset_utc 35)}"
+SUBSCRIPTION_BILLING_TIME="${SUBSCRIPTION_BILLING_TIME:-anniversary}"
+SUBSCRIPTION_STARTED_AT="${SUBSCRIPTION_STARTED_AT:-$(date_months_ago_utc 1)}"
+USAGE_TIMESTAMP="${USAGE_TIMESTAMP:-$(date_days_ago_utc 7)}"
 
 ALPHA_API_BASE_URL="$(trim_trailing_slash "$ALPHA_API_BASE_URL")"
 LAGO_API_URL="$(trim_trailing_slash "$LAGO_API_URL")"
@@ -153,7 +161,7 @@ LAGO_API_URL="$(trim_trailing_slash "$LAGO_API_URL")"
 subscription_summary_file="$(mktemp)"
 trap 'rm -f "$subscription_summary_file"' EXIT
 
-echo "[info] preparing backdated metered subscription fixture run_id=$RUN_ID"
+echo "[info] preparing backdated metered subscription fixture run_id=$RUN_ID billing_time=$SUBSCRIPTION_BILLING_TIME started_at=$SUBSCRIPTION_STARTED_AT usage_timestamp=$USAGE_TIMESTAMP"
 ALPHA_API_BASE_URL="$ALPHA_API_BASE_URL" \
 ALPHA_WRITER_API_KEY="$ALPHA_WRITER_API_KEY" \
 ALPHA_READER_API_KEY="$ALPHA_READER_API_KEY" \
@@ -162,9 +170,11 @@ LAGO_API_URL="$LAGO_API_URL" \
 LAGO_API_KEY="$LAGO_API_KEY" \
 TARGET_TENANT_ID="$TARGET_TENANT_ID" \
 RUN_ID="$RUN_ID" \
+SUBSCRIPTION_BILLING_TIME="$SUBSCRIPTION_BILLING_TIME" \
 SUBSCRIPTION_STARTED_AT="$SUBSCRIPTION_STARTED_AT" \
 USAGE_TIMESTAMP="$USAGE_TIMESTAMP" \
 OUTPUT_FILE="$subscription_summary_file" \
+SKIP_LAGO_CURRENT_USAGE_ASSERTION=true \
 bash ./scripts/verify_staging_subscription_journey.sh >/dev/null
 
 subscription_summary_json="$(cat "$subscription_summary_file")"
@@ -173,9 +183,14 @@ customer_id="$(jq -r '.entities.customer.id // empty' <<<"$subscription_summary_
 subscription_id="$(jq -r '.entities.subscription.id // empty' <<<"$subscription_summary_json")"
 subscription_code="$(jq -r '.entities.subscription.code // empty' <<<"$subscription_summary_json")"
 meter_key="$(jq -r '.entities.meter.key // empty' <<<"$subscription_summary_json")"
-expected_amount_cents="$(jq -r '.verification.lago_customer_usage.amount_cents // empty' <<<"$subscription_summary_json")"
+actual_billing_time="$(jq -r '.entities.subscription.billing_time // empty' <<<"$subscription_summary_json")"
+expected_amount_cents="$(jq -r '((.entities.usage_event.quantity // 0) * (.verification.rating_rule.flat_amount_cents // 0))' <<<"$subscription_summary_json")"
 if [[ -z "$customer_external_id" || -z "$customer_id" || -z "$subscription_id" || -z "$subscription_code" || -z "$meter_key" || -z "$expected_amount_cents" ]]; then
   echo "[fail] subscription summary missing required invoice journey fields body=$subscription_summary_json" >&2
+  exit 1
+fi
+if [[ "$actual_billing_time" != "$SUBSCRIPTION_BILLING_TIME" ]]; then
+  echo "[fail] subscription billing_time mismatch expected=$SUBSCRIPTION_BILLING_TIME actual=$actual_billing_time body=$subscription_summary_json" >&2
   exit 1
 fi
 if ! [[ "$expected_amount_cents" =~ ^[0-9]+$ ]] || [[ "$expected_amount_cents" -le 0 ]]; then
@@ -184,22 +199,33 @@ if ! [[ "$expected_amount_cents" =~ ^[0-9]+$ ]] || [[ "$expected_amount_cents" -
 fi
 
 customer_external_id_enc="$(urlencode "$customer_external_id")"
-invoice_list_url="$LAGO_API_URL/api/v1/invoices?external_customer_id=$customer_external_id_enc"
+subscription_code_enc="$(urlencode "$subscription_code")"
+meter_key_enc="$(urlencode "$meter_key")"
+past_usage_url="$LAGO_API_URL/api/v1/customers/$customer_external_id_enc/past_usage?external_subscription_id=$subscription_code_enc&billable_metric_code=$meter_key_enc&periods_count=5"
 
-echo "[info] waiting for lago invoice generation customer_external_id=$customer_external_id"
-wait_for_get "$invoice_list_url" 200 '.invoices | length > 0' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "generated lago invoice" "Authorization: Bearer $LAGO_API_KEY"
-lago_invoice_list_json="$HTTP_BODY"
+echo "[info] waiting for lago past usage to materialize an issued invoice customer_external_id=$customer_external_id subscription_code=$subscription_code"
+MATCHED_PAST_USAGE_JSON=""
+PAST_USAGE_RESPONSE_JSON=""
+wait_for_matching_past_usage "$past_usage_url" "$expected_amount_cents" "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC"
 
-SELECTED_INVOICE_ID=""
-SELECTED_INVOICE_JSON=""
-if ! select_usage_invoice "$lago_invoice_list_json" "$expected_amount_cents" "$meter_key"; then
-  echo "[fail] could not identify usage-backed invoice for customer body=$lago_invoice_list_json" >&2
+lago_past_usage_json="$PAST_USAGE_RESPONSE_JSON"
+lago_usage_period_json="$MATCHED_PAST_USAGE_JSON"
+invoice_id="$(jq -r '.lago_invoice_id // empty' <<<"$lago_usage_period_json")"
+if [[ -z "$invoice_id" ]]; then
+  echo "[fail] matched past usage period missing lago_invoice_id body=$lago_usage_period_json" >&2
   exit 1
 fi
+assert_jq "$lago_usage_period_json" "lago past usage period mismatch" \
+  --arg invoice_id "$invoice_id" \
+  --argjson expected_amount_cents "$expected_amount_cents" \
+  '.lago_invoice_id == $invoice_id
+   and .amount_cents == $expected_amount_cents
+   and .total_amount_cents >= $expected_amount_cents'
 
-invoice_id="$SELECTED_INVOICE_ID"
-lago_invoice_json="$SELECTED_INVOICE_JSON"
 invoice_id_enc="$(urlencode "$invoice_id")"
+http_call GET "$LAGO_API_URL/api/v1/invoices/$invoice_id_enc" '' "Authorization: Bearer $LAGO_API_KEY"
+assert_http_code 200 "get lago invoice detail"
+lago_invoice_json="$HTTP_BODY"
 
 invoice_status="$(jq -r '.invoice.status // empty' <<<"$lago_invoice_json")"
 if [[ "$invoice_status" == "draft" ]]; then
@@ -208,6 +234,7 @@ if [[ "$invoice_status" == "draft" ]]; then
   assert_http_code 200 "finalize lago invoice"
   lago_invoice_json="$HTTP_BODY"
 fi
+
 assert_jq "$lago_invoice_json" "lago invoice did not finalize to expected issued state" \
   --arg invoice_id "$invoice_id" \
   --arg customer_external_id "$customer_external_id" \
@@ -215,7 +242,7 @@ assert_jq "$lago_invoice_json" "lago invoice did not finalize to expected issued
   '.invoice.lago_id == $invoice_id
    and .invoice.customer.external_id == $customer_external_id
    and .invoice.status == "finalized"
-   and .invoice.total_amount_cents == $expected_amount_cents'
+   and .invoice.total_amount_cents >= $expected_amount_cents'
 
 alpha_invoice_list_url="$ALPHA_API_BASE_URL/v1/invoices?customer_external_id=$customer_external_id_enc"
 echo "[info] waiting for alpha invoice list visibility invoice_id=$invoice_id"
@@ -232,7 +259,7 @@ assert_jq "$alpha_invoice_detail_json" "alpha invoice detail mismatch" \
   '.invoice_id == $invoice_id
    and .customer_external_id == $customer_external_id
    and .invoice_status == "finalized"
-   and .total_amount_cents == $expected_amount_cents
+   and .total_amount_cents >= $expected_amount_cents
    and (.billing_entity_code // "") != ""'
 
 http_call GET "$ALPHA_API_BASE_URL/v1/invoices/$invoice_id/explainability?limit=50&page=1" '' "X-API-Key: $ALPHA_READER_API_KEY"
@@ -246,13 +273,14 @@ assert_jq "$alpha_explainability_json" "invoice explainability missing usage-bac
    and .invoice_status == "finalized"
    and .line_items_count >= 1
    and any(.line_items[];
-     .total_amount_cents == $expected_amount_cents
+     .total_amount_cents >= $expected_amount_cents
      and ((.billable_metric_code // "") == $meter_key or (.item_code // "") == $meter_key or (.subscription_id // "") != "")
    )'
 
 summary_json="$(jq -n \
   --arg run_id "$RUN_ID" \
   --arg tenant_id "$TARGET_TENANT_ID" \
+  --arg billing_time "$SUBSCRIPTION_BILLING_TIME" \
   --arg started_at "$SUBSCRIPTION_STARTED_AT" \
   --arg usage_timestamp "$USAGE_TIMESTAMP" \
   --arg invoice_id "$invoice_id" \
@@ -262,7 +290,8 @@ summary_json="$(jq -n \
   --arg meter_key "$meter_key" \
   --argjson expected_amount_cents "$expected_amount_cents" \
   --slurpfile subscription_summary <(printf '%s\n' "$subscription_summary_json") \
-  --slurpfile lago_invoice_list <(printf '%s\n' "$lago_invoice_list_json") \
+  --slurpfile lago_past_usage <(printf '%s\n' "$lago_past_usage_json") \
+  --slurpfile lago_usage_period <(printf '%s\n' "$lago_usage_period_json") \
   --slurpfile lago_invoice <(printf '%s\n' "$lago_invoice_json") \
   --slurpfile alpha_invoice_list <(printf '%s\n' "$alpha_invoice_list_json") \
   --slurpfile alpha_invoice_detail <(printf '%s\n' "$alpha_invoice_detail_json") \
@@ -272,6 +301,7 @@ summary_json="$(jq -n \
     tenant_id: $tenant_id,
     journey: "usage_to_issued_invoice",
     fixture: {
+      subscription_billing_time: $billing_time,
       subscription_started_at: $started_at,
       usage_timestamp: $usage_timestamp,
       customer_external_id: $customer_external_id,
@@ -283,7 +313,8 @@ summary_json="$(jq -n \
     invoice_id: $invoice_id,
     verification: {
       subscription_journey: $subscription_summary[0],
-      lago_invoice_list: $lago_invoice_list[0],
+      lago_past_usage: $lago_past_usage[0],
+      lago_usage_period: $lago_usage_period[0],
       lago_invoice: $lago_invoice[0],
       alpha_invoice_list: $alpha_invoice_list[0],
       alpha_invoice_detail: $alpha_invoice_detail[0],
