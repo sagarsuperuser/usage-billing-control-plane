@@ -125,5 +125,18 @@ func (s *Server) handleDunningRunByID(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, result)
 		return
 	}
+	if len(parts) == 2 && strings.EqualFold(parts[1], "retry-now") {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+		result, err := s.dunningService.DispatchRetryPayment(requestTenantID(r), runID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
 	writeMethodNotAllowed(w)
 }

@@ -16,6 +16,7 @@ type LagoWebhookService struct {
 	verifier     LagoWebhookVerifier
 	tenantMapper LagoOrganizationTenantMapper
 	customerSvc  *CustomerService
+	dunningSvc   *DunningService
 }
 
 func NewLagoWebhookService(repo store.Repository, verifier LagoWebhookVerifier, tenantMapper LagoOrganizationTenantMapper, customerSvc *CustomerService) *LagoWebhookService {
@@ -31,6 +32,14 @@ func NewLagoWebhookService(repo store.Repository, verifier LagoWebhookVerifier, 
 		tenantMapper: tenantMapper,
 		customerSvc:  customerSvc,
 	}
+}
+
+func (s *LagoWebhookService) WithDunningService(dunningSvc *DunningService) *LagoWebhookService {
+	if s == nil {
+		return nil
+	}
+	s.dunningSvc = dunningSvc
+	return s
 }
 
 type IngestLagoWebhookResult struct {
@@ -66,6 +75,9 @@ func (s *LagoWebhookService) Ingest(ctx context.Context, headers http.Header, bo
 	if err := s.applyCustomerWebhookEffects(stored); err != nil {
 		return IngestLagoWebhookResult{}, err
 	}
+	if err := s.applyDunningWebhookEffects(stored); err != nil {
+		return IngestLagoWebhookResult{}, err
+	}
 	return IngestLagoWebhookResult{
 		Event:      stored,
 		Idempotent: !created,
@@ -95,6 +107,19 @@ func (s *LagoWebhookService) applyCustomerWebhookEffects(event domain.LagoWebhoo
 	default:
 		return nil
 	}
+}
+
+func (s *LagoWebhookService) applyDunningWebhookEffects(event domain.LagoWebhookEvent) error {
+	if s == nil || s.dunningSvc == nil {
+		return nil
+	}
+	tenantID := normalizeTenantID(event.TenantID)
+	invoiceID := strings.TrimSpace(event.InvoiceID)
+	if tenantID == "" || invoiceID == "" {
+		return nil
+	}
+	_, err := s.dunningSvc.EnsureRunForInvoice(tenantID, invoiceID)
+	return err
 }
 
 type ListInvoicePaymentStatusViewsRequest struct {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -818,6 +819,171 @@ func TestDunningServiceProcessCollectPaymentReminderBatch(t *testing.T) {
 	}
 }
 
+func TestDunningServiceDispatchRetryPaymentMovesRunToAwaitingResult(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 11, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:               "dpo_retry",
+		TenantID:         "tenant_a",
+		Name:             "Default dunning policy",
+		Enabled:          true,
+		RetrySchedule:    []string{"1d", "3d"},
+		MaxRetryAttempts: 3,
+		FinalAction:      domain.DunningFinalActionManualReview,
+	}
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_retry",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_retry",
+		CustomerExternalID: "cust_retry",
+		PolicyID:           "dpo_retry",
+		State:              domain.DunningRunStateRetryDue,
+		NextActionType:     domain.DunningActionTypeRetryPayment,
+		NextActionAt:       ptrTime(base.Add(-time.Minute)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_retry"] = run
+	repo.runsByID[run.ID] = run
+
+	retrier := &fakeDunningInvoiceRetryExecutor{
+		statusCode: 200,
+		body:       []byte(`{"status":"queued"}`),
+	}
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+	svc.WithInvoiceRetryExecutor(retrier)
+
+	result, err := svc.DispatchRetryPayment("tenant_a", run.ID)
+	if err != nil {
+		t.Fatalf("dispatch retry payment: %v", err)
+	}
+	if retrier.calls != 1 {
+		t.Fatalf("expected one retry call, got %d", retrier.calls)
+	}
+	if result.Run.State != domain.DunningRunStateAwaitingRetryResult {
+		t.Fatalf("expected awaiting_retry_result, got %q", result.Run.State)
+	}
+	if result.Run.AttemptCount != 1 {
+		t.Fatalf("expected attempt_count=1, got %d", result.Run.AttemptCount)
+	}
+	if result.Event.EventType != domain.DunningEventTypeRetryAttempted {
+		t.Fatalf("expected retry_attempted event, got %q", result.Event.EventType)
+	}
+}
+
+func TestDunningServiceDispatchRetryPaymentReschedulesFailure(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 11, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:               "dpo_retry_fail",
+		TenantID:         "tenant_a",
+		Name:             "Default dunning policy",
+		Enabled:          true,
+		RetrySchedule:    []string{"1d", "3d"},
+		MaxRetryAttempts: 3,
+		FinalAction:      domain.DunningFinalActionManualReview,
+	}
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_retry_fail",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_retry_fail",
+		CustomerExternalID: "cust_retry_fail",
+		PolicyID:           "dpo_retry_fail",
+		State:              domain.DunningRunStateRetryDue,
+		NextActionType:     domain.DunningActionTypeRetryPayment,
+		NextActionAt:       ptrTime(base.Add(-time.Minute)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_retry_fail"] = run
+	repo.runsByID[run.ID] = run
+
+	retrier := &fakeDunningInvoiceRetryExecutor{
+		statusCode: 502,
+		body:       []byte(`{"error":"gateway"}`),
+	}
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+	svc.WithInvoiceRetryExecutor(retrier)
+
+	result, err := svc.DispatchRetryPayment("tenant_a", run.ID)
+	if err == nil {
+		t.Fatalf("expected retry failure error")
+	}
+	if result.Run.State != domain.DunningRunStateScheduled {
+		t.Fatalf("expected scheduled state, got %q", result.Run.State)
+	}
+	if result.Run.NextActionType != domain.DunningActionTypeRetryPayment {
+		t.Fatalf("expected retry_payment next action, got %q", result.Run.NextActionType)
+	}
+	if result.Event.EventType != domain.DunningEventTypeRetryFailed {
+		t.Fatalf("expected retry_failed event, got %q", result.Event.EventType)
+	}
+	if result.Run.AttemptCount != 1 {
+		t.Fatalf("expected attempt_count=1, got %d", result.Run.AttemptCount)
+	}
+}
+
+func TestDunningServiceProcessRetryPaymentBatch(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 11, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:               "dpo_retry_batch",
+		TenantID:         "tenant_a",
+		Name:             "Default dunning policy",
+		Enabled:          true,
+		RetrySchedule:    []string{"1d", "3d"},
+		MaxRetryAttempts: 3,
+		FinalAction:      domain.DunningFinalActionManualReview,
+	}
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_retry_batch",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_retry_batch",
+		CustomerExternalID: "cust_retry_batch",
+		PolicyID:           "dpo_retry_batch",
+		State:              domain.DunningRunStateRetryDue,
+		NextActionType:     domain.DunningActionTypeRetryPayment,
+		NextActionAt:       ptrTime(base.Add(-time.Minute)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_retry_batch"] = run
+	repo.runsByID[run.ID] = run
+
+	retrier := &fakeDunningInvoiceRetryExecutor{
+		statusCode: 200,
+		body:       []byte(`{"status":"queued"}`),
+	}
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+	svc.WithInvoiceRetryExecutor(retrier)
+
+	result, err := svc.ProcessRetryPaymentBatch("tenant_a", 5)
+	if err != nil {
+		t.Fatalf("process retry batch: %v", err)
+	}
+	if result.Processed != 1 {
+		t.Fatalf("expected processed=1, got %d", result.Processed)
+	}
+	if result.Dispatched != 1 {
+		t.Fatalf("expected dispatched=1, got %d", result.Dispatched)
+	}
+	if result.Failed != 0 {
+		t.Fatalf("expected failed=0, got %d", result.Failed)
+	}
+	if result.LastRunID != run.ID {
+		t.Fatalf("expected last_run_id %q, got %q", run.ID, result.LastRunID)
+	}
+}
+
 type fakeDunningStore struct {
 	policies       map[string]domain.DunningPolicy
 	invoiceViews   map[string]domain.InvoicePaymentStatusView
@@ -1013,6 +1179,18 @@ type fakeDunningPaymentSetupSender struct {
 func (f *fakeDunningPaymentSetupSender) Resend(tenantID, externalID string, actor CustomerPaymentSetupRequestActor, paymentMethodType string) (CustomerPaymentSetupRequestResult, error) {
 	f.calls++
 	return f.result, f.err
+}
+
+type fakeDunningInvoiceRetryExecutor struct {
+	statusCode int
+	body       []byte
+	err        error
+	calls      int
+}
+
+func (f *fakeDunningInvoiceRetryExecutor) RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error) {
+	f.calls++
+	return f.statusCode, f.body, f.err
 }
 
 func TestParseDunningDelayRejectsInvalid(t *testing.T) {

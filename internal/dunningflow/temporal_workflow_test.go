@@ -52,3 +52,32 @@ func TestCollectPaymentReminderWorkflowExecutesActivity(t *testing.T) {
 		t.Fatalf("expected workflow success, got: %v", err)
 	}
 }
+
+func TestRetryPaymentWorkflowExecutesActivity(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(RetryPaymentWorkflow, workflow.RegisterOptions{Name: DunningRetryPaymentWorkflowName})
+
+	called := false
+	env.RegisterActivityWithOptions(func(input CollectPaymentReminderWorkflowInput) (service.DunningRetryPaymentBatchResult, error) {
+		called = true
+		if input.TenantID != "tenant_a" {
+			t.Fatalf("expected tenant_a, got %q", input.TenantID)
+		}
+		if input.Limit != 3 {
+			t.Fatalf("expected limit=3, got %d", input.Limit)
+		}
+		return service.DunningRetryPaymentBatchResult{TenantID: input.TenantID, Limit: input.Limit, Processed: 1, Dispatched: 1}, nil
+	}, activity.RegisterOptions{Name: DunningRetryPaymentRunActivityName})
+
+	env.ExecuteWorkflow(RetryPaymentWorkflow, CollectPaymentReminderWorkflowInput{TenantID: "tenant_a", Limit: 3})
+	if !called {
+		t.Fatalf("expected retry activity to be called")
+	}
+	if !env.IsWorkflowCompleted() {
+		t.Fatalf("expected workflow to complete")
+	}
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("expected workflow success, got: %v", err)
+	}
+}

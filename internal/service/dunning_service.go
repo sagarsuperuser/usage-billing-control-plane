@@ -35,9 +35,14 @@ type dunningPaymentSetupRequestSender interface {
 	Resend(tenantID, externalID string, actor CustomerPaymentSetupRequestActor, paymentMethodType string) (CustomerPaymentSetupRequestResult, error)
 }
 
+type dunningInvoiceRetryExecutor interface {
+	RetryInvoicePayment(ctx context.Context, invoiceID string, payload []byte) (int, []byte, error)
+}
+
 type DunningService struct {
 	store                dunningStore
 	paymentSetupRequests dunningPaymentSetupRequestSender
+	invoiceRetries       dunningInvoiceRetryExecutor
 	now                  func() time.Time
 }
 
@@ -87,6 +92,25 @@ type DunningCollectPaymentReminderBatchResult struct {
 	LastError  string `json:"last_error,omitempty"`
 }
 
+type RetryPaymentResult struct {
+	Policy       domain.DunningPolicy       `json:"policy"`
+	Run          domain.InvoiceDunningRun   `json:"run"`
+	Event        domain.InvoiceDunningEvent `json:"event"`
+	StatusCode   int                        `json:"status_code,omitempty"`
+	Escalated    bool                       `json:"escalated"`
+	ResponseBody string                     `json:"response_body,omitempty"`
+}
+
+type DunningRetryPaymentBatchResult struct {
+	TenantID   string `json:"tenant_id"`
+	Limit      int    `json:"limit"`
+	Processed  int    `json:"processed"`
+	Dispatched int    `json:"dispatched"`
+	Failed     int    `json:"failed"`
+	LastRunID  string `json:"last_run_id,omitempty"`
+	LastError  string `json:"last_error,omitempty"`
+}
+
 type ListDunningRunsRequest struct {
 	InvoiceID          string `json:"invoice_id,omitempty"`
 	CustomerExternalID string `json:"customer_external_id,omitempty"`
@@ -119,6 +143,14 @@ func (s *DunningService) WithPaymentSetupRequestSender(sender dunningPaymentSetu
 		return nil
 	}
 	s.paymentSetupRequests = sender
+	return s
+}
+
+func (s *DunningService) WithInvoiceRetryExecutor(executor dunningInvoiceRetryExecutor) *DunningService {
+	if s == nil {
+		return nil
+	}
+	s.invoiceRetries = executor
 	return s
 }
 
@@ -230,12 +262,16 @@ func (s *DunningService) EnsureRunForInvoice(tenantID, invoiceID string) (Ensure
 		if err != nil {
 			return EnsureInvoiceDunningRunResult{}, err
 		}
+		eventType := domain.DunningEventTypeResolved
+		if previousState := activeRun.State; previousState == domain.DunningRunStateAwaitingRetryResult && updatedRun.Resolution == domain.DunningResolutionPaymentSucceeded {
+			eventType = domain.DunningEventTypeRetrySucceeded
+		}
 		event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
 			RunID:              updatedRun.ID,
 			TenantID:           tenantID,
 			InvoiceID:          invoiceID,
 			CustomerExternalID: updatedRun.CustomerExternalID,
-			EventType:          domain.DunningEventTypeResolved,
+			EventType:          eventType,
 			State:              updatedRun.State,
 			Reason:             updatedRun.Reason,
 			AttemptCount:       updatedRun.AttemptCount,
@@ -702,6 +738,66 @@ func (s *DunningService) ProcessCollectPaymentReminderBatch(tenantID string, lim
 	return out, nil
 }
 
+func (s *DunningService) DispatchRetryPayment(tenantID, runID string) (RetryPaymentResult, error) {
+	return s.dispatchRetryPayment(tenantID, runID, false)
+}
+
+func (s *DunningService) ProcessNextRetryPayment(tenantID string) (bool, *RetryPaymentResult, error) {
+	runs, err := s.ListDueRuns(tenantID, ListDueDunningRunsRequest{
+		ActionType: domain.DunningActionTypeRetryPayment,
+		Limit:      1,
+	})
+	if err != nil {
+		return false, nil, err
+	}
+	if len(runs) == 0 {
+		return false, nil, nil
+	}
+	result, err := s.dispatchRetryPayment(runs[0].TenantID, runs[0].ID, true)
+	if err != nil {
+		return true, &result, err
+	}
+	return true, &result, nil
+}
+
+func (s *DunningService) ProcessRetryPaymentBatch(tenantID string, limit int) (DunningRetryPaymentBatchResult, error) {
+	if s == nil || s.store == nil {
+		return DunningRetryPaymentBatchResult{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	if limit <= 0 {
+		limit = 1
+	}
+	if limit > 100 {
+		return DunningRetryPaymentBatchResult{}, fmt.Errorf("%w: limit must be between 1 and 100", ErrValidation)
+	}
+
+	out := DunningRetryPaymentBatchResult{
+		TenantID: normalizeTenantID(tenantID),
+		Limit:    limit,
+	}
+	for i := 0; i < limit; i++ {
+		processed, result, err := s.ProcessNextRetryPayment(out.TenantID)
+		if !processed {
+			return out, nil
+		}
+		out.Processed++
+		if result != nil {
+			out.LastRunID = strings.TrimSpace(result.Run.ID)
+			if result.Event.EventType == domain.DunningEventTypeRetryAttempted {
+				out.Dispatched++
+			}
+		}
+		if err != nil {
+			out.Failed++
+			out.LastError = err.Error()
+			if result == nil {
+				return out, err
+			}
+		}
+	}
+	return out, nil
+}
+
 type DunningWorker struct {
 	service         *DunningService
 	tenantID        string
@@ -976,6 +1072,9 @@ func invoiceRequiresDunning(view domain.InvoicePaymentStatusView) bool {
 }
 
 func transitionEventType(previousState, nextState domain.DunningRunState) domain.DunningEventType {
+	if previousState == domain.DunningRunStateAwaitingRetryResult && (nextState == domain.DunningRunStateRetryDue || nextState == domain.DunningRunStateScheduled) {
+		return domain.DunningEventTypeRetryFailed
+	}
 	if nextState == domain.DunningRunStateResolved {
 		return domain.DunningEventTypeResolved
 	}
@@ -992,6 +1091,145 @@ func transitionEventType(previousState, nextState domain.DunningRunState) domain
 		return domain.DunningEventTypePaused
 	}
 	return domain.DunningEventTypeStarted
+}
+
+func (s *DunningService) dispatchRetryPayment(tenantID, runID string, requireDue bool) (RetryPaymentResult, error) {
+	if s == nil || s.store == nil {
+		return RetryPaymentResult{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	if s.invoiceRetries == nil {
+		return RetryPaymentResult{}, fmt.Errorf("%w: invoice retry executor is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return RetryPaymentResult{}, fmt.Errorf("%w: run_id is required", ErrValidation)
+	}
+
+	run, err := s.store.GetInvoiceDunningRun(tenantID, runID)
+	if err != nil {
+		return RetryPaymentResult{}, err
+	}
+	if run.ResolvedAt != nil {
+		return RetryPaymentResult{}, fmt.Errorf("%w: dunning run is already resolved", store.ErrInvalidState)
+	}
+	if run.Paused {
+		return RetryPaymentResult{}, fmt.Errorf("%w: dunning run is paused", store.ErrInvalidState)
+	}
+	if run.NextActionType != domain.DunningActionTypeRetryPayment {
+		return RetryPaymentResult{}, fmt.Errorf("%w: next action is not retry_payment", store.ErrInvalidState)
+	}
+	if requireDue && run.NextActionAt != nil && run.NextActionAt.After(s.now()) {
+		return RetryPaymentResult{}, fmt.Errorf("%w: dunning run is not due yet", store.ErrInvalidState)
+	}
+
+	policy, err := s.GetPolicy(tenantID)
+	if err != nil {
+		return RetryPaymentResult{}, err
+	}
+
+	statusCode, body, retryErr := s.invoiceRetries.RetryInvoicePayment(context.Background(), run.InvoiceID, []byte("{}"))
+	now := s.now()
+	updatedRun := run
+	updatedRun.AttemptCount++
+	updatedRun.LastAttemptAt = ptrTime(now)
+	updatedRun.UpdatedAt = now
+
+	result := RetryPaymentResult{
+		Policy:       policy,
+		StatusCode:   statusCode,
+		ResponseBody: abbreviateRetryResponse(body),
+	}
+
+	if retryErr == nil && statusCode >= 200 && statusCode < 300 {
+		updatedRun.State = domain.DunningRunStateAwaitingRetryResult
+		updatedRun.NextActionAt = nil
+		updatedRun.NextActionType = ""
+		updatedRun.Reason = "retry_requested"
+		updatedRun, err = s.store.UpdateInvoiceDunningRun(updatedRun)
+		if err != nil {
+			return RetryPaymentResult{}, err
+		}
+		event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+			RunID:              updatedRun.ID,
+			TenantID:           tenantID,
+			InvoiceID:          updatedRun.InvoiceID,
+			CustomerExternalID: updatedRun.CustomerExternalID,
+			EventType:          domain.DunningEventTypeRetryAttempted,
+			State:              updatedRun.State,
+			ActionType:         domain.DunningActionTypeRetryPayment,
+			Reason:             updatedRun.Reason,
+			AttemptCount:       updatedRun.AttemptCount,
+			Metadata: map[string]any{
+				"status_code": statusCode,
+			},
+			CreatedAt: now,
+		})
+		if err != nil {
+			return RetryPaymentResult{}, err
+		}
+		result.Run = updatedRun
+		result.Event = event
+		return result, nil
+	}
+
+	nextActionAt, exhausted := nextRetryActionAt(now, policy, updatedRun.AttemptCount)
+	if exhausted {
+		switch policy.FinalAction {
+		case domain.DunningFinalActionPause:
+			updatedRun.Paused = true
+			updatedRun.State = domain.DunningRunStatePaused
+			updatedRun.NextActionAt = nil
+			updatedRun.NextActionType = ""
+			updatedRun.Reason = "retry_attempts_exhausted"
+		default:
+			updatedRun.State = domain.DunningRunStateEscalated
+			updatedRun.NextActionAt = nil
+			updatedRun.NextActionType = ""
+			updatedRun.Reason = "retry_attempts_exhausted"
+			result.Escalated = true
+		}
+	} else {
+		updatedRun.State = domain.DunningRunStateScheduled
+		updatedRun.NextActionAt = nextActionAt
+		updatedRun.NextActionType = domain.DunningActionTypeRetryPayment
+		updatedRun.Reason = "retry_failed"
+	}
+	updatedRun, err = s.store.UpdateInvoiceDunningRun(updatedRun)
+	if err != nil {
+		return RetryPaymentResult{}, err
+	}
+	eventMetadata := map[string]any{
+		"status_code": statusCode,
+	}
+	if result.ResponseBody != "" {
+		eventMetadata["response_body"] = result.ResponseBody
+	}
+	if retryErr != nil {
+		eventMetadata["dispatch_error"] = retryErr.Error()
+	}
+	event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              updatedRun.ID,
+		TenantID:           tenantID,
+		InvoiceID:          updatedRun.InvoiceID,
+		CustomerExternalID: updatedRun.CustomerExternalID,
+		EventType:          domain.DunningEventTypeRetryFailed,
+		State:              updatedRun.State,
+		ActionType:         domain.DunningActionTypeRetryPayment,
+		Reason:             updatedRun.Reason,
+		AttemptCount:       updatedRun.AttemptCount,
+		Metadata:           eventMetadata,
+		CreatedAt:          now,
+	})
+	if err != nil {
+		return RetryPaymentResult{}, err
+	}
+	result.Run = updatedRun
+	result.Event = event
+	if retryErr != nil {
+		return result, retryErr
+	}
+	return result, fmt.Errorf("retry payment request returned status %d", statusCode)
 }
 
 func latestDunningEvent(items []domain.InvoiceDunningEvent) *domain.InvoiceDunningEvent {
@@ -1075,6 +1313,13 @@ func nextReminderActionAt(now time.Time, schedule []string, nextIndex int) (*tim
 	return &at, false
 }
 
+func nextRetryActionAt(now time.Time, policy domain.DunningPolicy, attemptCount int) (*time.Time, bool) {
+	if policy.MaxRetryAttempts > 0 && attemptCount >= policy.MaxRetryAttempts {
+		return nil, true
+	}
+	return nextReminderActionAt(now, policy.RetrySchedule, attemptCount)
+}
+
 func validateDunningSchedule(values []string) error {
 	for _, value := range values {
 		if _, err := parseDunningDelay(value); err != nil {
@@ -1136,4 +1381,12 @@ func normalizeDunningFinalAction(v domain.DunningFinalAction) domain.DunningFina
 func ptrTime(v time.Time) *time.Time {
 	value := v.UTC()
 	return &value
+}
+
+func abbreviateRetryResponse(body []byte) string {
+	trimmed := strings.TrimSpace(string(body))
+	if len(trimmed) <= 256 {
+		return trimmed
+	}
+	return trimmed[:256] + "..."
 }

@@ -333,12 +333,16 @@ func main() {
 		fatal(logger, "initialize lago webhook verifier", "error", err)
 	}
 	workspaceBillingBindingService := service.NewWorkspaceBillingBindingService(repo)
+	webhookDunningSvc, err := service.NewDunningService(repo)
+	if err != nil {
+		fatal(logger, "initialize webhook dunning service", "error", err)
+	}
 	lagoWebhookSvc := service.NewLagoWebhookService(
 		repo,
 		webhookVerifier,
 		service.NewTenantBackedLagoOrganizationTenantMapper(repo),
 		service.NewCustomerService(repo, customerBillingAdapter).WithWorkspaceBillingBindingService(workspaceBillingBindingService),
-	)
+	).WithDunningService(webhookDunningSvc)
 	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
 	logger.Info("lago webhook sync enabled", "component", "server", "mapper_backend", "tenant_store")
 
@@ -445,7 +449,7 @@ func main() {
 		)
 		if cfg.Roles.RunDunningWorker {
 			temporalDunningWorker = temporalsdkworker.New(temporalClient, cfg.Dunning.TaskQueue, temporalsdkworker.Options{})
-			if err := dunningflow.RegisterTemporalDunningWorker(temporalDunningWorker, repo, customerBillingAdapter, notificationSvc); err != nil {
+			if err := dunningflow.RegisterTemporalDunningWorker(temporalDunningWorker, repo, customerBillingAdapter, invoiceBillingAdapter, notificationSvc); err != nil {
 				fatal(logger, "register dunning worker", "error", err)
 			}
 			if err := temporalDunningWorker.Start(); err != nil {
@@ -478,6 +482,34 @@ func main() {
 				"temporal_namespace", cfg.Temporal.Namespace,
 				"dunning_task_queue", cfg.Dunning.TaskQueue,
 				"workflow_id", cfg.Dunning.WorkflowID,
+				"cron_schedule", cfg.Dunning.CronSchedule,
+				"batch", cfg.Dunning.Batch,
+				"tenant_id", cfg.Dunning.TenantID,
+			)
+
+			retryWorkflowID := strings.TrimSpace(cfg.Dunning.WorkflowID)
+			if retryWorkflowID == "" || retryWorkflowID == dunningflow.DefaultDunningWorkflowID {
+				retryWorkflowID = dunningflow.DefaultDunningRetryWorkflowID
+			} else {
+				retryWorkflowID += "/retry"
+			}
+			startCtx, cancel = context.WithTimeout(ctx, 10*time.Second)
+			err = dunningflow.EnsureRetryPaymentCronWorkflow(startCtx, temporalClient, cfg.Dunning.TaskQueue, retryWorkflowID, cfg.Dunning.CronSchedule, dunningflow.CollectPaymentReminderWorkflowInput{
+				TenantID: cfg.Dunning.TenantID,
+				Limit:    cfg.Dunning.Batch,
+			})
+			cancel()
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "ensure dunning retry cron workflow", "error", err)
+			}
+			logger.Info(
+				"dunning retry scheduler ensured",
+				"component", "server",
+				"temporal_address", cfg.Temporal.Address,
+				"temporal_namespace", cfg.Temporal.Namespace,
+				"dunning_task_queue", cfg.Dunning.TaskQueue,
+				"workflow_id", retryWorkflowID,
 				"cron_schedule", cfg.Dunning.CronSchedule,
 				"batch", cfg.Dunning.Batch,
 				"tenant_id", cfg.Dunning.TenantID,

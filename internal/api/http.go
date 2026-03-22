@@ -701,7 +701,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
 	if dunningSvc, err := service.NewDunningService(repo); err == nil {
-		s.dunningService = dunningSvc.WithPaymentSetupRequestSender(s.customerPaymentSetupRequestService)
+		s.dunningService = dunningSvc.WithPaymentSetupRequestSender(s.customerPaymentSetupRequestService).WithInvoiceRetryExecutor(s.invoiceBillingAdapter)
 	}
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)

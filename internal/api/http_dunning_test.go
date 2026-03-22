@@ -319,3 +319,102 @@ func TestDunningCollectPaymentReminderDispatchEndpoint(t *testing.T) {
 		t.Fatalf("expected persisted dispatched intent, got %q", got)
 	}
 }
+
+func TestDunningRetryNowEndpoint(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "dunning-retry-reader", api.RoleReader, "default")
+	mustCreateAPIKey(t, repo, "dunning-retry-writer", api.RoleWriter, "default")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/invoices/inv_retry_123/retry_payment" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"invoice":{"lago_id":"inv_retry_123"},"status":"queued"}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer lagoMock.Close()
+
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	policy, err := repo.UpsertDunningPolicy(domain.DunningPolicy{
+		TenantID:         "default",
+		Name:             "Default dunning policy",
+		Enabled:          true,
+		RetrySchedule:    []string{"1d", "3d"},
+		MaxRetryAttempts: 3,
+		FinalAction:      domain.DunningFinalActionManualReview,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	if err != nil {
+		t.Fatalf("upsert dunning policy: %v", err)
+	}
+	run, err := repo.CreateInvoiceDunningRun(domain.InvoiceDunningRun{
+		TenantID:           "default",
+		InvoiceID:          "inv_retry_123",
+		CustomerExternalID: "cust_retry_123",
+		PolicyID:           policy.ID,
+		State:              domain.DunningRunStateRetryDue,
+		Reason:             "payment_setup_ready",
+		NextActionType:     domain.DunningActionTypeRetryPayment,
+		NextActionAt:       ptrTime(now.Add(6 * time.Hour)),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create dunning run: %v", err)
+	}
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+	).Handler())
+	defer ts.Close()
+
+	resp := postJSON(t, ts.URL+"/v1/dunning/runs/"+run.ID+"/retry-now", map[string]any{}, "dunning-retry-writer", http.StatusOK)
+	event, ok := resp["event"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected event object")
+	}
+	if got, _ := event["event_type"].(string); got != "retry_attempted" {
+		t.Fatalf("expected retry_attempted event, got %q", got)
+	}
+	runResp, ok := resp["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected run object")
+	}
+	if got, _ := runResp["state"].(string); got != "awaiting_retry_result" {
+		t.Fatalf("expected awaiting_retry_result state, got %q", got)
+	}
+}

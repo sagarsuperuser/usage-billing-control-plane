@@ -292,6 +292,9 @@ type DunningEventType string
 const (
 	DunningEventTypeStarted             DunningEventType = "dunning_started"
 	DunningEventTypeRetryScheduled      DunningEventType = "retry_scheduled"
+	DunningEventTypeRetryAttempted      DunningEventType = "retry_attempted"
+	DunningEventTypeRetrySucceeded      DunningEventType = "retry_succeeded"
+	DunningEventTypeRetryFailed         DunningEventType = "retry_failed"
 	DunningEventTypePaymentSetupPending DunningEventType = "payment_setup_pending"
 	DunningEventTypePaymentSetupReady   DunningEventType = "payment_setup_ready"
 	DunningEventTypeNotificationSent    DunningEventType = "notification_sent"
