@@ -77,6 +77,16 @@ type QueueCollectPaymentReminderResult struct {
 	Escalated          bool                             `json:"escalated"`
 }
 
+type DunningCollectPaymentReminderBatchResult struct {
+	TenantID   string `json:"tenant_id"`
+	Limit      int    `json:"limit"`
+	Processed  int    `json:"processed"`
+	Dispatched int    `json:"dispatched"`
+	Failed     int    `json:"failed"`
+	LastRunID  string `json:"last_run_id,omitempty"`
+	LastError  string `json:"last_error,omitempty"`
+}
+
 type ListDunningRunsRequest struct {
 	InvoiceID          string `json:"invoice_id,omitempty"`
 	CustomerExternalID string `json:"customer_external_id,omitempty"`
@@ -652,6 +662,44 @@ func (s *DunningService) ProcessNextCollectPaymentReminder(tenantID string) (boo
 		return true, &result, err
 	}
 	return true, &result, nil
+}
+
+func (s *DunningService) ProcessCollectPaymentReminderBatch(tenantID string, limit int) (DunningCollectPaymentReminderBatchResult, error) {
+	if s == nil || s.store == nil {
+		return DunningCollectPaymentReminderBatchResult{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	if limit <= 0 {
+		limit = 1
+	}
+	if limit > 100 {
+		return DunningCollectPaymentReminderBatchResult{}, fmt.Errorf("%w: limit must be between 1 and 100", ErrValidation)
+	}
+
+	out := DunningCollectPaymentReminderBatchResult{
+		TenantID: normalizeTenantID(tenantID),
+		Limit:    limit,
+	}
+	for i := 0; i < limit; i++ {
+		processed, result, err := s.ProcessNextCollectPaymentReminder(out.TenantID)
+		if !processed {
+			return out, nil
+		}
+		out.Processed++
+		if result != nil {
+			out.LastRunID = strings.TrimSpace(result.Run.ID)
+			if result.NotificationIntent.Status == domain.DunningNotificationIntentStatusDispatched {
+				out.Dispatched++
+			}
+		}
+		if err != nil {
+			out.Failed++
+			out.LastError = err.Error()
+			if result == nil {
+				return out, err
+			}
+		}
+	}
+	return out, nil
 }
 
 type DunningWorker struct {

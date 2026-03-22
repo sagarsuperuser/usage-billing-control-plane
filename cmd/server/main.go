@@ -21,6 +21,7 @@ import (
 
 	"usage-billing-control-plane/internal/api"
 	"usage-billing-control-plane/internal/appconfig"
+	"usage-billing-control-plane/internal/dunningflow"
 	"usage-billing-control-plane/internal/logging"
 	"usage-billing-control-plane/internal/paymentsync"
 	"usage-billing-control-plane/internal/replay"
@@ -69,16 +70,19 @@ func main() {
 		"replay_dispatcher", cfg.Roles.RunReplayDispatcher,
 		"payment_reconcile_worker", cfg.Roles.RunPaymentReconcileWorker,
 		"payment_reconcile_scheduler", cfg.Roles.RunPaymentReconcileScheduler,
+		"dunning_worker", cfg.Roles.RunDunningWorker,
+		"dunning_scheduler", cfg.Roles.RunDunningScheduler,
 	)
 
 	var (
 		temporalClient           temporalclient.Client
 		temporalReplayWorker     temporalsdkworker.Worker
 		temporalPaymentWorker    temporalsdkworker.Worker
+		temporalDunningWorker    temporalsdkworker.Worker
 		replayTemporalDispatcher *replay.TemporalDispatcher
 		rateLimiterCloser        interface{ Close() error }
 	)
-	if cfg.Roles.RunReplayWorker || cfg.Roles.RunReplayDispatcher || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler {
+	if cfg.Roles.RunReplayWorker || cfg.Roles.RunReplayDispatcher || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler || cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler {
 		temporalClient, err = temporalclient.Dial(temporalclient.Options{
 			HostPort:  cfg.Temporal.Address,
 			Namespace: cfg.Temporal.Namespace,
@@ -131,6 +135,9 @@ func main() {
 		}
 		if temporalPaymentWorker != nil {
 			temporalPaymentWorker.Stop()
+		}
+		if temporalDunningWorker != nil {
+			temporalDunningWorker.Stop()
 		}
 		if temporalClient != nil {
 			temporalClient.Close()
@@ -425,6 +432,58 @@ func main() {
 		"component", "server",
 		"backend", "lago",
 	)
+
+	if cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler {
+		if temporalClient == nil {
+			fatal(logger, "temporal client is required when dunning roles are enabled")
+		}
+		notificationSvc := service.NewNotificationService(
+			invitationEmailSender,
+			passwordResetEmailSender,
+			paymentSetupEmailSender,
+			invoiceBillingAdapter,
+		)
+		if cfg.Roles.RunDunningWorker {
+			temporalDunningWorker = temporalsdkworker.New(temporalClient, cfg.Dunning.TaskQueue, temporalsdkworker.Options{})
+			if err := dunningflow.RegisterTemporalDunningWorker(temporalDunningWorker, repo, customerBillingAdapter, notificationSvc); err != nil {
+				fatal(logger, "register dunning worker", "error", err)
+			}
+			if err := temporalDunningWorker.Start(); err != nil {
+				closeReplayRuntime()
+				fatal(logger, "start dunning worker", "error", err)
+			}
+			logger.Info(
+				"dunning worker started",
+				"component", "server",
+				"temporal_address", cfg.Temporal.Address,
+				"temporal_namespace", cfg.Temporal.Namespace,
+				"dunning_task_queue", cfg.Dunning.TaskQueue,
+			)
+		}
+		if cfg.Roles.RunDunningScheduler {
+			startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := dunningflow.EnsureCollectPaymentReminderCronWorkflow(startCtx, temporalClient, cfg.Dunning.TaskQueue, cfg.Dunning.WorkflowID, cfg.Dunning.CronSchedule, dunningflow.CollectPaymentReminderWorkflowInput{
+				TenantID: cfg.Dunning.TenantID,
+				Limit:    cfg.Dunning.Batch,
+			})
+			cancel()
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "ensure dunning cron workflow", "error", err)
+			}
+			logger.Info(
+				"dunning scheduler ensured",
+				"component", "server",
+				"temporal_address", cfg.Temporal.Address,
+				"temporal_namespace", cfg.Temporal.Namespace,
+				"dunning_task_queue", cfg.Dunning.TaskQueue,
+				"workflow_id", cfg.Dunning.WorkflowID,
+				"cron_schedule", cfg.Dunning.CronSchedule,
+				"batch", cfg.Dunning.Batch,
+				"tenant_id", cfg.Dunning.TenantID,
+			)
+		}
+	}
 
 	if len(cfg.SSO.OIDCProviders) > 0 {
 		oidcProviders := make([]service.BrowserSSOProvider, 0, len(cfg.SSO.OIDCProviders))

@@ -742,6 +742,82 @@ func TestDunningServiceDispatchCollectPaymentReminderIgnoresDueTime(t *testing.T
 	}
 }
 
+func TestDunningServiceProcessCollectPaymentReminderBatch(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:                             "dpo_batch",
+		TenantID:                       "tenant_a",
+		Name:                           "Default dunning policy",
+		Enabled:                        true,
+		CollectPaymentReminderSchedule: []string{"0d", "2d"},
+		RetrySchedule:                  []string{"1d"},
+		MaxRetryAttempts:               3,
+		FinalAction:                    domain.DunningFinalActionManualReview,
+	}
+	repo.customers["tenant_a|cust_batch"] = domain.Customer{
+		ID:         "cust_row_batch",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_batch",
+		Email:      "customer@example.com",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.paymentSetups["tenant_a|cust_row_batch"] = domain.CustomerPaymentSetup{
+		CustomerID:        "cust_row_batch",
+		TenantID:          "tenant_a",
+		PaymentMethodType: "card",
+	}
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_batch",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_batch",
+		CustomerExternalID: "cust_batch",
+		PolicyID:           "dpo_batch",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		NextActionAt:       ptrTime(base.Add(-time.Minute)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_batch"] = run
+	repo.runsByID[run.ID] = run
+
+	sender := &fakeDunningPaymentSetupSender{
+		result: CustomerPaymentSetupRequestResult{
+			Action: "resent",
+			PaymentSetup: domain.CustomerPaymentSetup{
+				LastRequestToEmail: "customer@example.com",
+			},
+			Dispatch: NotificationDispatchResult{
+				Backend:      "alpha_email",
+				DispatchedAt: base.Add(time.Minute),
+			},
+		},
+	}
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+	svc.WithPaymentSetupRequestSender(sender)
+
+	result, err := svc.ProcessCollectPaymentReminderBatch("tenant_a", 5)
+	if err != nil {
+		t.Fatalf("process batch: %v", err)
+	}
+	if result.Processed != 1 {
+		t.Fatalf("expected processed=1, got %d", result.Processed)
+	}
+	if result.Dispatched != 1 {
+		t.Fatalf("expected dispatched=1, got %d", result.Dispatched)
+	}
+	if result.Failed != 0 {
+		t.Fatalf("expected failed=0, got %d", result.Failed)
+	}
+	if result.LastRunID != run.ID {
+		t.Fatalf("expected last_run_id %q, got %q", run.ID, result.LastRunID)
+	}
+}
+
 type fakeDunningStore struct {
 	policies       map[string]domain.DunningPolicy
 	invoiceViews   map[string]domain.InvoicePaymentStatusView

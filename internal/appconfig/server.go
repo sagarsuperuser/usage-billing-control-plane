@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/dunningflow"
 	"usage-billing-control-plane/internal/paymentsync"
 	"usage-billing-control-plane/internal/replay"
 	"usage-billing-control-plane/internal/service"
@@ -28,6 +29,7 @@ type ServerConfig struct {
 	Lago             LagoConfig
 	BillingProviders BillingProviderConfig
 	Payment          PaymentReconcileConfig
+	Dunning          DunningConfig
 	APIKeysRaw       string
 	AuditExport      AuditExportConfig
 	Email            InvitationEmailConfig
@@ -50,6 +52,8 @@ type RoleConfig struct {
 	RunReplayDispatcher          bool
 	RunPaymentReconcileWorker    bool
 	RunPaymentReconcileScheduler bool
+	RunDunningWorker             bool
+	RunDunningScheduler          bool
 }
 
 type TemporalConfig struct {
@@ -121,6 +125,14 @@ type PaymentReconcileConfig struct {
 	StaleAfterSeconds int
 }
 
+type DunningConfig struct {
+	TaskQueue    string
+	CronSchedule string
+	WorkflowID   string
+	Batch        int
+	TenantID     string
+}
+
 type AuditExportConfig struct {
 	Enabled     bool
 	S3          service.S3Config
@@ -148,12 +160,14 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		RunReplayDispatcher:          getBoolEnv("RUN_REPLAY_DISPATCHER", true),
 		RunPaymentReconcileWorker:    getBoolEnv("RUN_PAYMENT_RECONCILE_WORKER", false),
 		RunPaymentReconcileScheduler: getBoolEnv("RUN_PAYMENT_RECONCILE_SCHEDULER", false),
+		RunDunningWorker:             getBoolEnv("RUN_DUNNING_WORKER", false),
+		RunDunningScheduler:          getBoolEnv("RUN_DUNNING_SCHEDULER", false),
 	}
-	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler {
-		return ServerConfig{}, fmt.Errorf("at least one role must be enabled: RUN_API_SERVER, RUN_REPLAY_WORKER, RUN_REPLAY_DISPATCHER, RUN_PAYMENT_RECONCILE_WORKER, RUN_PAYMENT_RECONCILE_SCHEDULER")
+	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler && !roles.RunDunningWorker && !roles.RunDunningScheduler {
+		return ServerConfig{}, fmt.Errorf("at least one role must be enabled: RUN_API_SERVER, RUN_REPLAY_WORKER, RUN_REPLAY_DISPATCHER, RUN_PAYMENT_RECONCILE_WORKER, RUN_PAYMENT_RECONCILE_SCHEDULER, RUN_DUNNING_WORKER, RUN_DUNNING_SCHEDULER")
 	}
-	if !roles.RunAPIServer && (roles.RunPaymentReconcileWorker || roles.RunPaymentReconcileScheduler) {
-		return ServerConfig{}, fmt.Errorf("payment reconcile roles require RUN_API_SERVER=true")
+	if !roles.RunAPIServer && (roles.RunPaymentReconcileWorker || roles.RunPaymentReconcileScheduler || roles.RunDunningWorker || roles.RunDunningScheduler) {
+		return ServerConfig{}, fmt.Errorf("payment reconcile and dunning roles require RUN_API_SERVER=true")
 	}
 
 	uiSessionCookieSecure := getBoolEnv("UI_SESSION_COOKIE_SECURE", productionLike)
@@ -315,6 +329,13 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			WorkflowID:        firstNonEmpty(strings.TrimSpace(os.Getenv("PAYMENT_RECONCILE_WORKFLOW_ID")), paymentsync.DefaultPaymentReconcileWorkflowID),
 			Batch:             getIntEnv("PAYMENT_RECONCILE_BATCH", 100),
 			StaleAfterSeconds: getIntEnv("PAYMENT_RECONCILE_STALE_AFTER_SEC", 300),
+		},
+		Dunning: DunningConfig{
+			TaskQueue:    firstNonEmpty(strings.TrimSpace(os.Getenv("DUNNING_TEMPORAL_TASK_QUEUE")), dunningflow.DefaultTemporalDunningTaskQueue),
+			CronSchedule: firstNonEmpty(strings.TrimSpace(os.Getenv("DUNNING_CRON_SCHEDULE")), dunningflow.DefaultDunningCronSchedule),
+			WorkflowID:   firstNonEmpty(strings.TrimSpace(os.Getenv("DUNNING_WORKFLOW_ID")), dunningflow.DefaultDunningWorkflowID),
+			Batch:        getIntEnv("DUNNING_BATCH", 20),
+			TenantID:     firstNonEmpty(strings.TrimSpace(os.Getenv("DUNNING_TENANT_ID")), "default"),
 		},
 		APIKeysRaw: strings.TrimSpace(os.Getenv("API_KEYS")),
 		AuditExport: AuditExportConfig{
