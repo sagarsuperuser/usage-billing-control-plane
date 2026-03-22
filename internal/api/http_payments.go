@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -164,6 +166,11 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadGateway, "failed to proxy payment retry to lago: "+err.Error())
 			return
 		}
+		if statusCode >= 200 && statusCode < 300 {
+			if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), invoiceID); syncErr != nil && s.logger != nil {
+				s.logger.Warn("materialize retry payment projection failed", "invoice_id", invoiceID, "tenant_id", requestTenantID(r), "error", syncErr)
+			}
+		}
 		writeJSONRaw(w, statusCode, body)
 		return
 	}
@@ -292,6 +299,36 @@ func paymentDetailFromStatusView(view domain.InvoicePaymentStatusView, customer 
 	}
 }
 
+func (s *Server) materializeRetryPaymentProjection(ctx context.Context, tenantID, invoiceID string) error {
+	if s == nil || s.repo == nil || s.invoiceBillingAdapter == nil {
+		return nil
+	}
+	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, strings.TrimSpace(invoiceID))
+	if err != nil {
+		return err
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return fmt.Errorf("get invoice after retry returned status %d", statusCode)
+	}
+	invoicePayload, err := extractInvoicePayload(body)
+	if err != nil {
+		return err
+	}
+	view := buildInvoicePaymentStatusViewFromInvoicePayload(tenantID, invoicePayload, "invoice.payment_status_observed", time.Now().UTC())
+	if strings.TrimSpace(view.InvoiceID) == "" {
+		return fmt.Errorf("invoice payload missing invoice id")
+	}
+	if _, err := s.repo.UpsertInvoicePaymentStatusView(view); err != nil {
+		return err
+	}
+	if s.dunningService != nil {
+		if _, err := s.dunningService.EnsureRunForInvoice(strings.TrimSpace(tenantID), view.InvoiceID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) lookupInvoiceDunningSummary(tenantID, invoiceID string) (*domain.DunningSummary, error) {
 	if s == nil || s.dunningService == nil {
 		return nil, nil
@@ -321,8 +358,8 @@ func applyCustomerReadinessToPaymentLifecycle(lifecycle service.InvoicePaymentLi
 
 	shouldCollect := false
 	switch strings.ToLower(strings.TrimSpace(lifecycle.PaymentStatus)) {
-	case "failed":
-		shouldCollect = lifecycle.RecommendedAction == "retry_payment" || lifecycle.RecommendedAction == "collect_payment"
+	case "failed", "pending":
+		shouldCollect = true
 	default:
 		shouldCollect = lifecycle.PaymentOverdue != nil && *lifecycle.PaymentOverdue
 	}

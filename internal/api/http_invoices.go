@@ -313,6 +313,35 @@ func extractCollectionPayload(body []byte, key string) ([]map[string]any, error)
 	return items, nil
 }
 
+func buildInvoicePaymentStatusViewFromInvoicePayload(tenantID string, invoice map[string]any, lastEventType string, observedAt time.Time) domain.InvoicePaymentStatusView {
+	eventAt := observedAt.UTC()
+	if eventAt.IsZero() {
+		eventAt = time.Now().UTC()
+	}
+	if updatedAt := firstTimePtr(timeValue(invoice["updated_at"]), timeValue(invoice["created_at"])); updatedAt != nil && updatedAt.After(eventAt) {
+		eventAt = updatedAt.UTC()
+	}
+	return domain.InvoicePaymentStatusView{
+		TenantID:             strings.TrimSpace(tenantID),
+		OrganizationID:       firstNonEmpty(stringValue(invoice["billing_entity_code"]), stringValue(invoice["organization_id"])),
+		InvoiceID:            firstNonEmpty(stringValue(invoice["lago_id"]), stringValue(invoice["id"])),
+		CustomerExternalID:   invoiceCustomerExternalID(invoice),
+		InvoiceNumber:        stringValue(invoice["number"]),
+		Currency:             stringValue(invoice["currency"]),
+		InvoiceStatus:        stringValue(invoice["status"]),
+		PaymentStatus:        stringValue(invoice["payment_status"]),
+		PaymentOverdue:       boolPtr(invoice["payment_overdue"]),
+		TotalAmountCents:     int64Ptr(invoice["total_amount_cents"]),
+		TotalDueAmountCents:  int64Ptr(invoice["total_due_amount_cents"]),
+		TotalPaidAmountCents: int64Ptr(invoice["total_paid_amount_cents"]),
+		LastPaymentError:     firstNonEmpty(stringValue(invoice["payment_error"]), stringValue(invoice["last_payment_error"])),
+		LastEventType:        strings.TrimSpace(lastEventType),
+		LastWebhookKey:       fmt.Sprintf("synthetic:%s:%d", firstNonEmpty(stringValue(invoice["lago_id"]), stringValue(invoice["id"])), eventAt.UnixNano()),
+		LastEventAt:          eventAt,
+		UpdatedAt:            eventAt,
+	}
+}
+
 func invoiceSummaryFromStatusView(view domain.InvoicePaymentStatusView, customer *domain.Customer) domain.InvoiceSummary {
 	summary := domain.InvoiceSummary{
 		InvoiceID:            strings.TrimSpace(view.InvoiceID),

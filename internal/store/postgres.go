@@ -4542,6 +4542,84 @@ func (s *PostgresStore) upsertInvoicePaymentStatusViewTx(ctx context.Context, tx
 	return err
 }
 
+func (s *PostgresStore) UpsertInvoicePaymentStatusView(input domain.InvoicePaymentStatusView) (domain.InvoicePaymentStatusView, error) {
+	tenantID := normalizeTenantID(input.TenantID)
+	if tenantID == "" {
+		return domain.InvoicePaymentStatusView{}, fmt.Errorf("tenant_id is required")
+	}
+	invoiceID := strings.TrimSpace(input.InvoiceID)
+	if invoiceID == "" {
+		return domain.InvoicePaymentStatusView{}, fmt.Errorf("invoice_id is required")
+	}
+	now := time.Now().UTC()
+	lastEventAt := input.LastEventAt.UTC()
+	if lastEventAt.IsZero() {
+		lastEventAt = now
+	}
+	updatedAt := input.UpdatedAt.UTC()
+	if updatedAt.IsZero() {
+		updatedAt = lastEventAt
+	}
+	lastEventType := strings.TrimSpace(input.LastEventType)
+	if lastEventType == "" {
+		lastEventType = "invoice.payment_status_observed"
+	}
+	lastWebhookKey := strings.TrimSpace(input.LastWebhookKey)
+	if lastWebhookKey == "" {
+		lastWebhookKey = fmt.Sprintf("synthetic:%s:%d", invoiceID, lastEventAt.UnixNano())
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.InvoicePaymentStatusView{}, err
+	}
+	defer rollbackSilently(tx)
+
+	event := domain.LagoWebhookEvent{
+		TenantID:             tenantID,
+		OrganizationID:       strings.TrimSpace(input.OrganizationID),
+		InvoiceID:            invoiceID,
+		CustomerExternalID:   strings.TrimSpace(input.CustomerExternalID),
+		InvoiceNumber:        strings.TrimSpace(input.InvoiceNumber),
+		Currency:             strings.TrimSpace(input.Currency),
+		InvoiceStatus:        strings.TrimSpace(input.InvoiceStatus),
+		PaymentStatus:        strings.TrimSpace(input.PaymentStatus),
+		PaymentOverdue:       input.PaymentOverdue,
+		TotalAmountCents:     input.TotalAmountCents,
+		TotalDueAmountCents:  input.TotalDueAmountCents,
+		TotalPaidAmountCents: input.TotalPaidAmountCents,
+		LastPaymentError:     strings.TrimSpace(input.LastPaymentError),
+		WebhookType:          lastEventType,
+		WebhookKey:           lastWebhookKey,
+		OccurredAt:           lastEventAt,
+		ReceivedAt:           updatedAt,
+	}
+	if err := s.upsertInvoicePaymentStatusViewTx(ctx, tx, event); err != nil {
+		return domain.InvoicePaymentStatusView{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.InvoicePaymentStatusView{}, err
+	}
+
+	input.TenantID = tenantID
+	input.InvoiceID = invoiceID
+	input.OrganizationID = strings.TrimSpace(input.OrganizationID)
+	input.CustomerExternalID = strings.TrimSpace(input.CustomerExternalID)
+	input.InvoiceNumber = strings.TrimSpace(input.InvoiceNumber)
+	input.Currency = strings.TrimSpace(input.Currency)
+	input.InvoiceStatus = strings.TrimSpace(input.InvoiceStatus)
+	input.PaymentStatus = strings.TrimSpace(input.PaymentStatus)
+	input.LastPaymentError = strings.TrimSpace(input.LastPaymentError)
+	input.LastEventType = lastEventType
+	input.LastWebhookKey = lastWebhookKey
+	input.LastEventAt = lastEventAt
+	input.UpdatedAt = updatedAt
+	return input, nil
+}
+
 func (s *PostgresStore) ListInvoicePaymentStatusViews(filter InvoicePaymentStatusListFilter) ([]domain.InvoicePaymentStatusView, error) {
 	tenantID := normalizeTenantID(filter.TenantID)
 	limit := filter.Limit

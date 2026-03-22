@@ -3980,6 +3980,148 @@ func TestBillingDocumentResendEmailDelegatesThroughNotificationService(t *testin
 	}
 }
 
+func TestRetryPaymentMaterializesPendingProjectionWithoutWebhook(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+
+	mustCreateAPIKey(t, repo, "tenant-a-writer", api.RoleWriter, "default")
+	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
+
+	now := time.Now().UTC().Truncate(time.Second)
+	customer, err := repo.CreateCustomer(domain.Customer{
+		TenantID:    "default",
+		ExternalID:  "cust_retry_pending",
+		DisplayName: "Retry Pending Corp",
+		Email:       "billing@retry-pending.test",
+		Status:      domain.CustomerStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	if _, err := repo.UpsertCustomerBillingProfile(domain.CustomerBillingProfile{
+		CustomerID:    customer.ID,
+		TenantID:      "default",
+		LegalName:     "Retry Pending Corp",
+		Email:         "billing@retry-pending.test",
+		Currency:      "USD",
+		ProviderCode:  "stripe_default",
+		ProfileStatus: domain.BillingProfileStatusReady,
+		LastSyncedAt:  &now,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}); err != nil {
+		t.Fatalf("upsert billing profile: %v", err)
+	}
+	if _, err := repo.UpsertCustomerPaymentSetup(domain.CustomerPaymentSetup{
+		CustomerID:                  customer.ID,
+		TenantID:                    "default",
+		SetupStatus:                 domain.PaymentSetupStatusPending,
+		DefaultPaymentMethodPresent: false,
+		PaymentMethodType:           "card",
+		CreatedAt:                   now,
+		UpdatedAt:                   now,
+	}); err != nil {
+		t.Fatalf("upsert payment setup: %v", err)
+	}
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	retryCalls := 0
+	getInvoiceCalls := 0
+	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/invoices/inv_pending_1/retry_payment":
+			retryCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"invoice":{"lago_id":"inv_pending_1","payment_status":"pending"}}`))
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/invoices/inv_pending_1":
+			getInvoiceCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"invoice":{"lago_id":"inv_pending_1","billing_entity_code":"org_test_1","status":"finalized","payment_status":"pending","payment_overdue":false,"number":"INV-PENDING-1","currency":"USD","total_amount_cents":199,"total_due_amount_cents":199,"total_paid_amount_cents":0,"updated_at":"2026-03-22T12:00:00Z","created_at":"2026-03-22T11:59:00Z","customer":{"external_id":"cust_retry_pending"}}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lagoMock.Close()
+
+	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+		BaseURL: lagoMock.URL,
+		APIKey:  "test-api-key",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	lagoWebhookSvc := service.NewLagoWebhookService(repo, service.NoopLagoWebhookVerifier{}, nil, nil)
+
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+		api.WithLagoWebhookService(lagoWebhookSvc),
+	).Handler())
+	defer ts.Close()
+
+	retryResp := postJSON(t, ts.URL+"/v1/invoices/inv_pending_1/retry-payment", map[string]any{}, "tenant-a-writer", http.StatusOK)
+	retryInvoice, ok := retryResp["invoice"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected retry response to include invoice object")
+	}
+	if got, _ := retryInvoice["payment_status"].(string); got != "pending" {
+		t.Fatalf("expected retry payment_status pending, got %q", got)
+	}
+	if retryCalls != 1 {
+		t.Fatalf("expected exactly one retry call to lago, got %d", retryCalls)
+	}
+	if getInvoiceCalls != 1 {
+		t.Fatalf("expected exactly one get-invoice call to lago, got %d", getInvoiceCalls)
+	}
+
+	paymentResp := getJSON(t, ts.URL+"/v1/payments/inv_pending_1", "tenant-a-reader", http.StatusOK)
+	if got, _ := paymentResp["payment_status"].(string); got != "pending" {
+		t.Fatalf("expected payment_status pending, got %q", got)
+	}
+	lifecycle, ok := paymentResp["lifecycle"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected lifecycle in payment response")
+	}
+	if got, _ := lifecycle["recommended_action"].(string); got != "collect_payment" {
+		t.Fatalf("expected collect_payment recommended_action, got %q", got)
+	}
+	if got, _ := lifecycle["payment_status"].(string); got != "pending" {
+		t.Fatalf("expected lifecycle payment_status pending, got %q", got)
+	}
+	dunning, ok := paymentResp["dunning"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected dunning summary in payment response")
+	}
+	if got, _ := dunning["state"].(string); got != string(domain.DunningRunStateAwaitingPaymentSetup) {
+		t.Fatalf("expected dunning state awaiting_payment_setup, got %q", got)
+	}
+}
+
 func envInt64OrDefault(t *testing.T, key string, defaultValue int64) int64 {
 	t.Helper()
 

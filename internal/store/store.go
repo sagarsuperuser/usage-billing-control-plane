@@ -356,6 +356,7 @@ type Repository interface {
 	IngestLagoWebhookEvent(input domain.LagoWebhookEvent) (domain.LagoWebhookEvent, bool, error)
 	ListInvoicePaymentStatusViews(filter InvoicePaymentStatusListFilter) ([]domain.InvoicePaymentStatusView, error)
 	GetInvoicePaymentStatusView(tenantID, invoiceID string) (domain.InvoicePaymentStatusView, error)
+	UpsertInvoicePaymentStatusView(input domain.InvoicePaymentStatusView) (domain.InvoicePaymentStatusView, error)
 	GetInvoicePaymentStatusSummary(filter InvoicePaymentStatusSummaryFilter) (InvoicePaymentStatusSummary, error)
 	ListLagoWebhookEvents(filter LagoWebhookEventListFilter) ([]domain.LagoWebhookEvent, error)
 	ListInvoicePaymentSyncCandidates(filter InvoicePaymentSyncCandidateFilter) ([]InvoicePaymentSyncCandidate, error)
