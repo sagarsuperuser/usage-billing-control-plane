@@ -8137,6 +8137,12 @@ func normalizeDunningEventType(v domain.DunningEventType) domain.DunningEventTyp
 	switch strings.ToLower(strings.TrimSpace(string(v))) {
 	case string(domain.DunningEventTypeRetryScheduled):
 		return domain.DunningEventTypeRetryScheduled
+	case string(domain.DunningEventTypeRetryAttempted):
+		return domain.DunningEventTypeRetryAttempted
+	case string(domain.DunningEventTypeRetrySucceeded):
+		return domain.DunningEventTypeRetrySucceeded
+	case string(domain.DunningEventTypeRetryFailed):
+		return domain.DunningEventTypeRetryFailed
 	case string(domain.DunningEventTypePaymentSetupPending):
 		return domain.DunningEventTypePaymentSetupPending
 	case string(domain.DunningEventTypePaymentSetupReady):
