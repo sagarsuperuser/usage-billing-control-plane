@@ -33,6 +33,9 @@ env:
   UI_SESSION_COOKIE_SAMESITE: "lax"
   UI_SESSION_REQUIRE_ORIGIN: "true"
   UI_SESSION_ALLOWED_ORIGINS: "https://staging.sagarwaidande.org,https://api-staging.sagarwaidande.org"
+  RUN_DUNNING_WORKER: "true"
+  RUN_DUNNING_SCHEDULER: "true"
+  DUNNING_CRON_SCHEDULE: "@every 30s"
 
 serviceAccounts:
   api:
