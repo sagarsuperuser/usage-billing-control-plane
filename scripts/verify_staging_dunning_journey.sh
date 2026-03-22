@@ -245,7 +245,7 @@ pending_lifecycle_json="$HTTP_BODY"
 invoice_id_enc="$(urlencode "$invoice_id")"
 runs_url="$ALPHA_API_BASE_URL/v1/dunning/runs?invoice_id=$invoice_id_enc&active_only=true"
 echo "[info] waiting for active dunning run to appear"
-wait_for_get "$runs_url" 200 '.items | length > 0 and .["items"][0].state == "awaiting_payment_setup" and .["items"][0].next_action_type == "collect_payment_reminder"' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "active dunning run" "X-API-Key: $ALPHA_READER_API_KEY"
+wait_for_get "$runs_url" 200 '(.items | length > 0) and .items[0].state == "awaiting_payment_setup" and .items[0].next_action_type == "collect_payment_reminder"' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "active dunning run" "X-API-Key: $ALPHA_READER_API_KEY"
 dunning_run_list_json="$HTTP_BODY"
 run_id="$(jq -r '.items[0].id // empty' <<<"$dunning_run_list_json")"
 if [[ -z "$run_id" ]]; then
@@ -254,9 +254,9 @@ if [[ -z "$run_id" ]]; then
 fi
 
 echo "[info] waiting for scheduler-dispatched collect-payment reminder run_id=$run_id"
-wait_for_get "$ALPHA_API_BASE_URL/v1/dunning/runs/$run_id" 200 '.run.state == "awaiting_payment_setup" and .run.next_action_type == "collect_payment_reminder" and (.notification_intents | length) > 0 and any(.notification_intents[]; .status == "dispatched") and any(.events[]; .event_type == "notification_sent")' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "dispatched collect-payment reminder" "X-API-Key: $ALPHA_READER_API_KEY"
+wait_for_get "$ALPHA_API_BASE_URL/v1/dunning/runs/$run_id" 200 '.run.state == "awaiting_payment_setup" and .run.next_action_type == "collect_payment_reminder" and (.notification_intents | length) > 0 and any(.notification_intents[]; .status == "dispatched") and any(.events[]; .event_type == "payment_setup_pending")' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "dispatched collect-payment reminder" "X-API-Key: $ALPHA_READER_API_KEY"
 reminder_run_detail_json="$HTTP_BODY"
-assert_jq "$reminder_run_detail_json" "expected payment method required reminder intent" 'any(.notification_intents[]; .intent_type == "payment_method_required" and .status == "dispatched")'
+assert_jq "$reminder_run_detail_json" "expected payment method required reminder intent" 'any(.notification_intents[]; .intent_type == "dunning.payment_method_required" and .status == "dispatched")'
 
 echo "[info] verifying payment and invoice detail surfaces show active dunning summary"
 http_call GET "$ALPHA_API_BASE_URL/v1/payments/$invoice_id" '' "X-API-Key: $ALPHA_READER_API_KEY"
