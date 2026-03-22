@@ -4809,6 +4809,11 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadGateway, "failed to proxy retry payment to lago: "+err.Error())
 			return
 		}
+		if statusCode >= 200 && statusCode < 300 {
+			if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), invoiceID); syncErr != nil && s.logger != nil {
+				s.logger.Warn("materialize retry payment projection failed", "invoice_id", invoiceID, "tenant_id", requestTenantID(r), "error", syncErr)
+			}
+		}
 		writeJSONRaw(w, statusCode, body)
 		return
 	}
