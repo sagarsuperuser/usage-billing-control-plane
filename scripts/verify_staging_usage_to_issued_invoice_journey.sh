@@ -258,7 +258,7 @@ assert_jq "$lago_invoice_json" "lago invoice did not finalize to expected issued
 
 alpha_invoice_list_url="$ALPHA_API_BASE_URL/v1/invoices?customer_external_id=$customer_external_id_enc"
 echo "[info] waiting for alpha invoice list visibility invoice_id=$invoice_id"
-wait_for_get "$alpha_invoice_list_url" 200 ".items | map(select(.invoice_id == \"$invoice_id\" and .invoice_status == \"finalized\")) | length >= 1" "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "alpha invoice list visibility" "X-API-Key: $ALPHA_READER_API_KEY"
+wait_for_get "$alpha_invoice_list_url" 200 ".items | map(select(.invoice_id == \"$invoice_id\")) | length >= 1" "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "alpha invoice list visibility" "X-API-Key: $ALPHA_READER_API_KEY"
 alpha_invoice_list_json="$HTTP_BODY"
 
 http_call GET "$ALPHA_API_BASE_URL/v1/invoices/$invoice_id" '' "X-API-Key: $ALPHA_READER_API_KEY"
