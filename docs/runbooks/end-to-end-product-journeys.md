@@ -52,6 +52,7 @@ Use these terms consistently:
 | Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | implemented |
 | Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | implemented |
 | Usage-to-issued-invoice journey | prove usage becomes an issued invoice that Alpha can inspect and explain | planned |
+| Dunning and collections journey | prove policy-driven collections and reminders behave correctly end to end | planned |
 | Billing connection lifecycle journey | prove billing connection create, rotate, verify, and tenant mapping lifecycle end to end | planned |
 
 ---
