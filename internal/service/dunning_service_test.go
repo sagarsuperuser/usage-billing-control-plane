@@ -240,23 +240,138 @@ func TestDunningServiceEnsureRunResolvesSucceededInvoice(t *testing.T) {
 	}
 }
 
+func TestDunningServiceQueueCollectPaymentReminderCreatesIntentAndReschedules(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:                             "dpo_1",
+		TenantID:                       "tenant_a",
+		Name:                           "Default dunning policy",
+		Enabled:                        true,
+		CollectPaymentReminderSchedule: []string{"0d", "2d", "5d"},
+		RetrySchedule:                  []string{"1d"},
+		MaxRetryAttempts:               3,
+		FinalAction:                    domain.DunningFinalActionManualReview,
+	}
+	repo.customers["tenant_a|cust_5"] = domain.Customer{
+		ID:         "cust_row_5",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_5",
+		Email:      "customer@example.com",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.activeRuns["tenant_a|inv_5"] = domain.InvoiceDunningRun{
+		ID:                 "dru_5",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_5",
+		CustomerExternalID: "cust_5",
+		PolicyID:           "dpo_1",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		NextActionAt:       ptrTime(base.Add(-time.Minute)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.runsByID["dru_5"] = repo.activeRuns["tenant_a|inv_5"]
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	result, err := svc.QueueCollectPaymentReminder("tenant_a", "dru_5")
+	if err != nil {
+		t.Fatalf("queue collect payment reminder: %v", err)
+	}
+	if result.NotificationIntent.IntentType != domain.DunningNotificationIntentTypePaymentMethodRequired {
+		t.Fatalf("expected payment_method_required intent, got %q", result.NotificationIntent.IntentType)
+	}
+	if result.NotificationIntent.Status != domain.DunningNotificationIntentStatusQueued {
+		t.Fatalf("expected queued status, got %q", result.NotificationIntent.Status)
+	}
+	if result.Run.NextActionAt == nil || !result.Run.NextActionAt.Equal(base.Add(48*time.Hour)) {
+		t.Fatalf("expected next action at +48h, got %v", result.Run.NextActionAt)
+	}
+	if result.Event.EventType != domain.DunningEventTypePaymentSetupPending {
+		t.Fatalf("expected payment_setup_pending event, got %q", result.Event.EventType)
+	}
+}
+
+func TestDunningServiceQueueCollectPaymentReminderEscalatesWhenScheduleExhausted(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:                             "dpo_2",
+		TenantID:                       "tenant_a",
+		Name:                           "Default dunning policy",
+		Enabled:                        true,
+		CollectPaymentReminderSchedule: []string{"0d"},
+		RetrySchedule:                  []string{"1d"},
+		MaxRetryAttempts:               3,
+		FinalAction:                    domain.DunningFinalActionManualReview,
+	}
+	repo.customers["tenant_a|cust_6"] = domain.Customer{
+		ID:         "cust_row_6",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_6",
+		Email:      "customer@example.com",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.activeRuns["tenant_a|inv_6"] = domain.InvoiceDunningRun{
+		ID:                 "dru_6",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_6",
+		CustomerExternalID: "cust_6",
+		PolicyID:           "dpo_2",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		NextActionAt:       ptrTime(base.Add(-time.Minute)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.runsByID["dru_6"] = repo.activeRuns["tenant_a|inv_6"]
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	result, err := svc.QueueCollectPaymentReminder("tenant_a", "dru_6")
+	if err != nil {
+		t.Fatalf("queue collect payment reminder: %v", err)
+	}
+	if !result.Escalated {
+		t.Fatalf("expected escalated result")
+	}
+	if result.Run.State != domain.DunningRunStateEscalated {
+		t.Fatalf("expected escalated run state, got %q", result.Run.State)
+	}
+	if result.Event.EventType != domain.DunningEventTypeEscalated {
+		t.Fatalf("expected escalated event, got %q", result.Event.EventType)
+	}
+}
+
 type fakeDunningStore struct {
-	policies      map[string]domain.DunningPolicy
-	invoiceViews  map[string]domain.InvoicePaymentStatusView
-	customers     map[string]domain.Customer
-	paymentSetups map[string]domain.CustomerPaymentSetup
-	activeRuns    map[string]domain.InvoiceDunningRun
-	eventsByRunID map[string][]domain.InvoiceDunningEvent
+	policies       map[string]domain.DunningPolicy
+	invoiceViews   map[string]domain.InvoicePaymentStatusView
+	customers      map[string]domain.Customer
+	paymentSetups  map[string]domain.CustomerPaymentSetup
+	activeRuns     map[string]domain.InvoiceDunningRun
+	runsByID       map[string]domain.InvoiceDunningRun
+	eventsByRunID  map[string][]domain.InvoiceDunningEvent
+	intentsByRunID map[string][]domain.DunningNotificationIntent
 }
 
 func newFakeDunningStore() *fakeDunningStore {
 	return &fakeDunningStore{
-		policies:      map[string]domain.DunningPolicy{},
-		invoiceViews:  map[string]domain.InvoicePaymentStatusView{},
-		customers:     map[string]domain.Customer{},
-		paymentSetups: map[string]domain.CustomerPaymentSetup{},
-		activeRuns:    map[string]domain.InvoiceDunningRun{},
-		eventsByRunID: map[string][]domain.InvoiceDunningEvent{},
+		policies:       map[string]domain.DunningPolicy{},
+		invoiceViews:   map[string]domain.InvoicePaymentStatusView{},
+		customers:      map[string]domain.Customer{},
+		paymentSetups:  map[string]domain.CustomerPaymentSetup{},
+		activeRuns:     map[string]domain.InvoiceDunningRun{},
+		runsByID:       map[string]domain.InvoiceDunningRun{},
+		eventsByRunID:  map[string][]domain.InvoiceDunningEvent{},
+		intentsByRunID: map[string][]domain.DunningNotificationIntent{},
 	}
 }
 
@@ -317,6 +432,7 @@ func (f *fakeDunningStore) CreateInvoiceDunningRun(input domain.InvoiceDunningRu
 		input.ID = "dru_test_" + input.InvoiceID
 	}
 	f.activeRuns[key] = input
+	f.runsByID[input.ID] = input
 	return input, nil
 }
 
@@ -330,11 +446,37 @@ func (f *fakeDunningStore) UpdateInvoiceDunningRun(input domain.InvoiceDunningRu
 	} else {
 		f.activeRuns[key] = input
 	}
+	f.runsByID[input.ID] = input
 	return input, nil
+}
+
+func (f *fakeDunningStore) GetInvoiceDunningRun(tenantID, id string) (domain.InvoiceDunningRun, error) {
+	item, ok := f.runsByID[id]
+	if !ok || item.TenantID != tenantID {
+		return domain.InvoiceDunningRun{}, store.ErrNotFound
+	}
+	return item, nil
 }
 
 func (f *fakeDunningStore) ListInvoiceDunningRuns(filter store.InvoiceDunningRunListFilter) ([]domain.InvoiceDunningRun, error) {
 	panic("not used in tests")
+}
+
+func (f *fakeDunningStore) ListDueInvoiceDunningRuns(filter store.DueInvoiceDunningRunFilter) ([]domain.InvoiceDunningRun, error) {
+	items := make([]domain.InvoiceDunningRun, 0)
+	for _, item := range f.activeRuns {
+		if item.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.ActionType != "" && string(item.NextActionType) != filter.ActionType {
+			continue
+		}
+		if item.NextActionAt == nil || item.NextActionAt.After(filter.DueBefore) {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }
 
 func (f *fakeDunningStore) CreateInvoiceDunningEvent(input domain.InvoiceDunningEvent) (domain.InvoiceDunningEvent, error) {
@@ -347,6 +489,19 @@ func (f *fakeDunningStore) CreateInvoiceDunningEvent(input domain.InvoiceDunning
 
 func (f *fakeDunningStore) ListInvoiceDunningEvents(tenantID, runID string) ([]domain.InvoiceDunningEvent, error) {
 	return append([]domain.InvoiceDunningEvent(nil), f.eventsByRunID[runID]...), nil
+}
+
+func (f *fakeDunningStore) CreateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error) {
+	if input.ID == "" {
+		input.ID = fmt.Sprintf("dni_%d", len(f.intentsByRunID[input.RunID])+1)
+	}
+	f.intentsByRunID[input.RunID] = append(f.intentsByRunID[input.RunID], input)
+	return input, nil
+}
+
+func (f *fakeDunningStore) ListDunningNotificationIntents(filter store.DunningNotificationIntentListFilter) ([]domain.DunningNotificationIntent, error) {
+	items := append([]domain.DunningNotificationIntent(nil), f.intentsByRunID[filter.RunID]...)
+	return items, nil
 }
 
 var _ dunningStore = (*fakeDunningStore)(nil)

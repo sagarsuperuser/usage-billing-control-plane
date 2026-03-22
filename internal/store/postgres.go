@@ -2540,6 +2540,32 @@ func (s *PostgresStore) UpdateInvoiceDunningRun(input domain.InvoiceDunningRun) 
 	return out, nil
 }
 
+func (s *PostgresStore) GetInvoiceDunningRun(tenantID, id string) (domain.InvoiceDunningRun, error) {
+	tenantID = normalizeTenantID(tenantID)
+	id = strings.TrimSpace(id)
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.InvoiceDunningRun{}, err
+	}
+	defer rollbackSilently(tx)
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, invoice_id, customer_external_id, policy_id, state, reason, attempt_count, last_attempt_at, next_action_at, next_action_type, paused, resolved_at, resolution, created_at, updated_at
+		FROM invoice_dunning_runs
+		WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+	out, err := scanInvoiceDunningRun(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.InvoiceDunningRun{}, ErrNotFound
+		}
+		return domain.InvoiceDunningRun{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.InvoiceDunningRun{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) GetActiveInvoiceDunningRunByInvoiceID(tenantID, invoiceID string) (domain.InvoiceDunningRun, error) {
 	tenantID = normalizeTenantID(tenantID)
 	invoiceID = strings.TrimSpace(invoiceID)
@@ -2616,6 +2642,67 @@ func (s *PostgresStore) ListInvoiceDunningRuns(filter InvoiceDunningRunListFilte
 	query := base + " WHERE " + strings.Join(clauses, " AND ") + fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPos, argPos+1)
 	args = append(args, limit, offset)
 
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]domain.InvoiceDunningRun, 0)
+	for rows.Next() {
+		item, scanErr := scanInvoiceDunningRun(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (s *PostgresStore) ListDueInvoiceDunningRuns(filter DueInvoiceDunningRunFilter) ([]domain.InvoiceDunningRun, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit == 0 {
+		limit = 20
+	}
+	if limit < 1 || limit > 100 {
+		return nil, fmt.Errorf("validation failed: limit must be between 1 and 100")
+	}
+	dueBefore := filter.DueBefore
+	if dueBefore.IsZero() {
+		dueBefore = time.Now().UTC()
+	}
+	actionType := strings.ToLower(strings.TrimSpace(filter.ActionType))
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	query := `SELECT id, tenant_id, invoice_id, customer_external_id, policy_id, state, reason, attempt_count, last_attempt_at, next_action_at, next_action_type, paused, resolved_at, resolution, created_at, updated_at
+		FROM invoice_dunning_runs
+		WHERE tenant_id = $1
+		  AND resolved_at IS NULL
+		  AND paused IS FALSE
+		  AND next_action_at IS NOT NULL
+		  AND next_action_at <= $2`
+	args := []any{tenantID, dueBefore.UTC()}
+	if actionType != "" {
+		query += ` AND next_action_type = $3`
+		args = append(args, actionType)
+		query += ` ORDER BY next_action_at ASC, created_at ASC LIMIT $4`
+		args = append(args, limit)
+	} else {
+		query += ` ORDER BY next_action_at ASC, created_at ASC LIMIT $3`
+		args = append(args, limit)
+	}
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -2719,6 +2806,128 @@ func (s *PostgresStore) ListInvoiceDunningEvents(tenantID, runID string) ([]doma
 	items := make([]domain.InvoiceDunningEvent, 0)
 	for rows.Next() {
 		item, scanErr := scanInvoiceDunningEvent(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (s *PostgresStore) CreateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.RunID = strings.TrimSpace(input.RunID)
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.InvoiceID = strings.TrimSpace(input.InvoiceID)
+	input.CustomerExternalID = normalizeOptionalText(input.CustomerExternalID)
+	input.IntentType = normalizeDunningNotificationIntentType(input.IntentType)
+	input.ActionType = normalizeDunningActionType(input.ActionType)
+	input.Status = normalizeDunningNotificationIntentStatus(input.Status)
+	input.DeliveryBackend = normalizeOptionalText(input.DeliveryBackend)
+	input.RecipientEmail = strings.ToLower(normalizeOptionalText(input.RecipientEmail))
+	input.LastError = normalizeOptionalText(input.LastError)
+	if input.RunID == "" {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: run_id is required")
+	}
+	if input.TenantID == "" {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: tenant_id is required")
+	}
+	if input.InvoiceID == "" {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: invoice_id is required")
+	}
+	if input.ID == "" {
+		input.ID = newID("dni")
+	}
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = time.Now().UTC()
+	}
+	payloadRaw, err := json.Marshal(input.Payload)
+	if err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+	defer rollbackSilently(tx)
+	row := tx.QueryRowContext(ctx, `INSERT INTO dunning_notification_intents (
+			id, run_id, tenant_id, invoice_id, customer_external_id, intent_type, action_type, status, delivery_backend, recipient_email, payload, last_error, created_at, dispatched_at
+		) VALUES (
+			$1,$2,$3,$4,NULLIF($5,''),$6,NULLIF($7,''),$8,NULLIF($9,''),NULLIF($10,''),$11::jsonb,NULLIF($12,''),$13,$14
+		)
+		RETURNING id, run_id, tenant_id, invoice_id, customer_external_id, intent_type, action_type, status, delivery_backend, recipient_email, payload, last_error, created_at, dispatched_at`,
+		input.ID, input.RunID, input.TenantID, input.InvoiceID, input.CustomerExternalID, string(input.IntentType), string(input.ActionType), string(input.Status), input.DeliveryBackend, input.RecipientEmail, payloadRaw, input.LastError, input.CreatedAt, input.DispatchedAt)
+	out, err := scanDunningNotificationIntent(row)
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return domain.DunningNotificationIntent{}, ErrNotFound
+		}
+		return domain.DunningNotificationIntent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListDunningNotificationIntents(filter DunningNotificationIntentListFilter) ([]domain.DunningNotificationIntent, error) {
+	tenantID := normalizeTenantID(filter.TenantID)
+	limit := filter.Limit
+	if limit == 0 {
+		limit = 20
+	}
+	if limit < 1 || limit > 100 {
+		return nil, fmt.Errorf("validation failed: limit must be between 1 and 100")
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		return nil, fmt.Errorf("validation failed: offset must be >= 0")
+	}
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+	query := `SELECT id, run_id, tenant_id, invoice_id, customer_external_id, intent_type, action_type, status, delivery_backend, recipient_email, payload, last_error, created_at, dispatched_at
+		FROM dunning_notification_intents WHERE tenant_id = $1`
+	args := []any{tenantID}
+	argPos := 2
+	if runID := strings.TrimSpace(filter.RunID); runID != "" {
+		query += fmt.Sprintf(" AND run_id = $%d", argPos)
+		args = append(args, runID)
+		argPos++
+	}
+	if invoiceID := strings.TrimSpace(filter.InvoiceID); invoiceID != "" {
+		query += fmt.Sprintf(" AND invoice_id = $%d", argPos)
+		args = append(args, invoiceID)
+		argPos++
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		query += fmt.Sprintf(" AND status = $%d", argPos)
+		args = append(args, strings.ToLower(status))
+		argPos++
+	}
+	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPos, argPos+1)
+	args = append(args, limit, offset)
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]domain.DunningNotificationIntent, 0)
+	for rows.Next() {
+		item, scanErr := scanDunningNotificationIntent(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
@@ -7344,6 +7553,70 @@ func scanInvoiceDunningEvent(s rowScanner) (domain.InvoiceDunningEvent, error) {
 	return out, nil
 }
 
+func scanDunningNotificationIntent(s rowScanner) (domain.DunningNotificationIntent, error) {
+	var out domain.DunningNotificationIntent
+	var customerExternalID sql.NullString
+	var intentType string
+	var actionType sql.NullString
+	var status string
+	var deliveryBackend sql.NullString
+	var recipientEmail sql.NullString
+	var payloadRaw []byte
+	var lastError sql.NullString
+	var dispatchedAt sql.NullTime
+	if err := s.Scan(
+		&out.ID,
+		&out.RunID,
+		&out.TenantID,
+		&out.InvoiceID,
+		&customerExternalID,
+		&intentType,
+		&actionType,
+		&status,
+		&deliveryBackend,
+		&recipientEmail,
+		&payloadRaw,
+		&lastError,
+		&out.CreatedAt,
+		&dispatchedAt,
+	); err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.RunID = strings.TrimSpace(out.RunID)
+	out.InvoiceID = strings.TrimSpace(out.InvoiceID)
+	out.IntentType = normalizeDunningNotificationIntentType(domain.DunningNotificationIntentType(intentType))
+	out.Status = normalizeDunningNotificationIntentStatus(domain.DunningNotificationIntentStatus(status))
+	if customerExternalID.Valid {
+		out.CustomerExternalID = strings.TrimSpace(customerExternalID.String)
+	}
+	if actionType.Valid {
+		out.ActionType = normalizeDunningActionType(domain.DunningActionType(actionType.String))
+	}
+	if deliveryBackend.Valid {
+		out.DeliveryBackend = strings.TrimSpace(deliveryBackend.String)
+	}
+	if recipientEmail.Valid {
+		out.RecipientEmail = strings.ToLower(strings.TrimSpace(recipientEmail.String))
+	}
+	if lastError.Valid {
+		out.LastError = strings.TrimSpace(lastError.String)
+	}
+	if len(payloadRaw) == 0 {
+		out.Payload = map[string]any{}
+	} else if err := json.Unmarshal(payloadRaw, &out.Payload); err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+	if out.Payload == nil {
+		out.Payload = map[string]any{}
+	}
+	if dispatchedAt.Valid {
+		value := dispatchedAt.Time.UTC()
+		out.DispatchedAt = &value
+	}
+	return out, nil
+}
+
 func scanLagoWebhookEvent(s rowScanner) (domain.LagoWebhookEvent, error) {
 	var out domain.LagoWebhookEvent
 	var invoiceID sql.NullString
@@ -7735,6 +8008,32 @@ func normalizeDunningEventType(v domain.DunningEventType) domain.DunningEventTyp
 		return domain.DunningEventTypeResolved
 	default:
 		return domain.DunningEventTypeStarted
+	}
+}
+
+func normalizeDunningNotificationIntentType(v domain.DunningNotificationIntentType) domain.DunningNotificationIntentType {
+	switch strings.ToLower(strings.TrimSpace(string(v))) {
+	case string(domain.DunningNotificationIntentTypePaymentFailed):
+		return domain.DunningNotificationIntentTypePaymentFailed
+	case string(domain.DunningNotificationIntentTypeRetryScheduled):
+		return domain.DunningNotificationIntentTypeRetryScheduled
+	case string(domain.DunningNotificationIntentTypeFinalAttempt):
+		return domain.DunningNotificationIntentTypeFinalAttempt
+	case string(domain.DunningNotificationIntentTypeEscalated):
+		return domain.DunningNotificationIntentTypeEscalated
+	default:
+		return domain.DunningNotificationIntentTypePaymentMethodRequired
+	}
+}
+
+func normalizeDunningNotificationIntentStatus(v domain.DunningNotificationIntentStatus) domain.DunningNotificationIntentStatus {
+	switch strings.ToLower(strings.TrimSpace(string(v))) {
+	case string(domain.DunningNotificationIntentStatusDispatched):
+		return domain.DunningNotificationIntentStatusDispatched
+	case string(domain.DunningNotificationIntentStatusFailed):
+		return domain.DunningNotificationIntentStatusFailed
+	default:
+		return domain.DunningNotificationIntentStatusQueued
 	}
 }
 

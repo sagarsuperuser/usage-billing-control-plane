@@ -300,6 +300,24 @@ const (
 	DunningEventTypeResolved            DunningEventType = "resolved"
 )
 
+type DunningNotificationIntentType string
+
+const (
+	DunningNotificationIntentTypePaymentFailed         DunningNotificationIntentType = "dunning.payment_failed"
+	DunningNotificationIntentTypePaymentMethodRequired DunningNotificationIntentType = "dunning.payment_method_required"
+	DunningNotificationIntentTypeRetryScheduled        DunningNotificationIntentType = "dunning.retry_scheduled"
+	DunningNotificationIntentTypeFinalAttempt          DunningNotificationIntentType = "dunning.final_attempt"
+	DunningNotificationIntentTypeEscalated             DunningNotificationIntentType = "dunning.escalated"
+)
+
+type DunningNotificationIntentStatus string
+
+const (
+	DunningNotificationIntentStatusQueued     DunningNotificationIntentStatus = "queued"
+	DunningNotificationIntentStatusDispatched DunningNotificationIntentStatus = "dispatched"
+	DunningNotificationIntentStatusFailed     DunningNotificationIntentStatus = "failed"
+)
+
 type Customer struct {
 	ID             string         `json:"id"`
 	TenantID       string         `json:"tenant_id,omitempty"`
@@ -400,6 +418,23 @@ type InvoiceDunningEvent struct {
 	AttemptCount       int               `json:"attempt_count"`
 	Metadata           map[string]any    `json:"metadata,omitempty"`
 	CreatedAt          time.Time         `json:"created_at"`
+}
+
+type DunningNotificationIntent struct {
+	ID                 string                          `json:"id"`
+	RunID              string                          `json:"run_id"`
+	TenantID           string                          `json:"tenant_id,omitempty"`
+	InvoiceID          string                          `json:"invoice_id"`
+	CustomerExternalID string                          `json:"customer_external_id,omitempty"`
+	IntentType         DunningNotificationIntentType   `json:"intent_type"`
+	ActionType         DunningActionType               `json:"action_type,omitempty"`
+	Status             DunningNotificationIntentStatus `json:"status"`
+	DeliveryBackend    string                          `json:"delivery_backend,omitempty"`
+	RecipientEmail     string                          `json:"recipient_email,omitempty"`
+	Payload            map[string]any                  `json:"payload,omitempty"`
+	LastError          string                          `json:"last_error,omitempty"`
+	CreatedAt          time.Time                       `json:"created_at"`
+	DispatchedAt       *time.Time                      `json:"dispatched_at,omitempty"`
 }
 
 type RatingTier struct {

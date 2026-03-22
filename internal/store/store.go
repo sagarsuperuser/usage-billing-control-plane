@@ -249,6 +249,22 @@ type InvoiceDunningRunListFilter struct {
 	Offset             int
 }
 
+type DueInvoiceDunningRunFilter struct {
+	TenantID   string
+	ActionType string
+	DueBefore  time.Time
+	Limit      int
+}
+
+type DunningNotificationIntentListFilter struct {
+	TenantID  string
+	RunID     string
+	InvoiceID string
+	Status    string
+	Limit     int
+	Offset    int
+}
+
 type Repository interface {
 	Migrate() error
 
@@ -347,10 +363,14 @@ type Repository interface {
 	UpsertDunningPolicy(input domain.DunningPolicy) (domain.DunningPolicy, error)
 	CreateInvoiceDunningRun(input domain.InvoiceDunningRun) (domain.InvoiceDunningRun, error)
 	UpdateInvoiceDunningRun(input domain.InvoiceDunningRun) (domain.InvoiceDunningRun, error)
+	GetInvoiceDunningRun(tenantID, id string) (domain.InvoiceDunningRun, error)
 	GetActiveInvoiceDunningRunByInvoiceID(tenantID, invoiceID string) (domain.InvoiceDunningRun, error)
 	ListInvoiceDunningRuns(filter InvoiceDunningRunListFilter) ([]domain.InvoiceDunningRun, error)
+	ListDueInvoiceDunningRuns(filter DueInvoiceDunningRunFilter) ([]domain.InvoiceDunningRun, error)
 	CreateInvoiceDunningEvent(input domain.InvoiceDunningEvent) (domain.InvoiceDunningEvent, error)
 	ListInvoiceDunningEvents(tenantID, runID string) ([]domain.InvoiceDunningEvent, error)
+	CreateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error)
+	ListDunningNotificationIntents(filter DunningNotificationIntentListFilter) ([]domain.DunningNotificationIntent, error)
 
 	CreateAPIKey(input domain.APIKey) (domain.APIKey, error)
 	GetAPIKeyByID(tenantID, id string) (domain.APIKey, error)
