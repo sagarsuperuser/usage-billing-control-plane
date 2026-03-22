@@ -42,6 +42,11 @@ if [[ -f "$api_template" ]]; then
   perl -0pi -e 's#(\s+- name: SECRET_KEY_BASE\n\s+valueFrom:\n\s+secretKeyRef:\n\s+name: \{\{ \.Release\.Name \}\}-secrets\n\s+key: secretKeyBase\n)#${1}            - name: ADMIN_API_KEY\n              valueFrom:\n                secretKeyRef:\n                  name: {{ .Release.Name }}-secrets\n                  key: adminApiKey\n#s' "$api_template"
 fi
 
+secrets_template="$chart_dir/templates/secrets.yaml"
+if [[ -f "$secrets_template" ]]; then
+  perl -0pi -e 's#(\s+\{\{ \$secretKeyBase := \(get \$secretData "secretKeyBase"\) \| default \(randAlphaNum 64 \| b64enc \| b64enc\) \}\}\n\s+secretKeyBase: \{\{ \$secretKeyBase \| quote \}\}\n)#${1}\n  {{ \$adminApiKey := (get \$secretData "adminApiKey") | default (randAlphaNum 64 | b64enc | b64enc) }}\n  adminApiKey: {{ \$adminApiKey | quote }}\n#s' "$secrets_template"
+fi
+
 printf '[pass] patched Lago chart for IRSA/S3: %s\n' "$chart_dir"
 if [[ -n "$backend_image_override" ]]; then
   printf '[pass] patched Lago chart for backend image override: %s\n' "$backend_image_override"
