@@ -160,7 +160,8 @@ bootstrap_json_file="$(mktemp)"
 fixture_json_file="$(mktemp)"
 failure_result_json_file="$(mktemp)"
 reconcile_json_file="$(mktemp)"
-trap 'rm -f "$bootstrap_json_file" "$fixture_json_file" "$failure_result_json_file" "$reconcile_json_file"' EXIT
+detach_json_file="$(mktemp)"
+trap 'rm -f "$bootstrap_json_file" "$fixture_json_file" "$failure_result_json_file" "$reconcile_json_file" "$detach_json_file"' EXIT
 
 customer_external_id_enc="$(urlencode "$CUSTOMER_EXTERNAL_ID")"
 
@@ -196,6 +197,13 @@ echo "[info] syncing customer billing profile to lago"
 billing_profile_result_json="$(upsert_alpha_billing_profile "$CUSTOMER_EXTERNAL_ID" "$CUSTOMER_NAME" "$CUSTOMER_EMAIL")"
 billing_profile_json="$(jq -c '.response' <<<"$billing_profile_result_json")"
 assert_jq "$billing_profile_json" "billing profile is not ready after sync" '.profile_status == "ready" and (.last_sync_error // "") == "" and (.last_synced_at != null)'
+
+echo "[info] forcing provider-side payment method absence before failure path"
+LAGO_ORG_ID="$bootstrap_org_id" \
+STRIPE_PROVIDER_CODE="$bootstrap_provider_code" \
+CUSTOMER_EXTERNAL_ID="$CUSTOMER_EXTERNAL_ID" \
+PAYMENT_METHOD_ACTION="detach_all" \
+bash ./scripts/reconcile_lago_stripe_customer_payment_method.sh >"$detach_json_file"
 
 echo "[info] installing deterministic dunning policy"
 http_call PUT "$ALPHA_API_BASE_URL/v1/dunning/policy" "$policy_payload" "X-API-Key: $ALPHA_WRITER_API_KEY"
@@ -309,6 +317,7 @@ jq -n \
   --slurpfile fixture "$fixture_json_file" \
   --slurpfile failed "$failure_result_json_file" \
   --slurpfile reconcile "$reconcile_json_file" \
+  --slurpfile detach "$detach_json_file" \
   --argjson policy "$dunning_policy_json" \
   --argjson initial_readiness "$initial_readiness_json" \
   --argjson refresh_result "$refresh_result_json" \
@@ -337,6 +346,7 @@ jq -n \
     failed_payment_flow: ($failed[0] // null),
     active_run_list: $run_list,
     reminder_detail: $reminder_detail,
+    initial_provider_detach: ($detach[0] // null),
     provider_completion: ($reconcile[0] // null),
     refresh_result: $refresh_result,
     post_refresh_detail: $post_refresh_detail,
