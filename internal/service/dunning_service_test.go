@@ -183,6 +183,69 @@ func TestDunningServiceEnsureRunTransitionsWhenSetupBecomesReady(t *testing.T) {
 	}
 }
 
+func TestDunningServiceEnsureRunTransitionsPendingInvoiceIntoReprocessing(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	repo.invoiceViews["tenant_a|inv_pending_ready"] = domain.InvoicePaymentStatusView{
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_pending_ready",
+		CustomerExternalID: "cust_pending_ready",
+		InvoiceStatus:      "finalized",
+		PaymentStatus:      "pending",
+		LastEventAt:        base,
+	}
+	repo.customers["tenant_a|cust_pending_ready"] = domain.Customer{
+		ID:         "cust_row_pending_ready",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_pending_ready",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.paymentSetups["tenant_a|cust_row_pending_ready"] = domain.CustomerPaymentSetup{
+		CustomerID:                  "cust_row_pending_ready",
+		TenantID:                    "tenant_a",
+		SetupStatus:                 domain.PaymentSetupStatusMissing,
+		DefaultPaymentMethodPresent: false,
+	}
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	first, err := svc.EnsureRunForInvoice("tenant_a", "inv_pending_ready")
+	if err != nil {
+		t.Fatalf("first ensure: %v", err)
+	}
+	if first.Run == nil || first.Run.State != domain.DunningRunStateAwaitingPaymentSetup {
+		t.Fatalf("expected initial awaiting_payment_setup state")
+	}
+
+	repo.paymentSetups["tenant_a|cust_row_pending_ready"] = domain.CustomerPaymentSetup{
+		CustomerID:                  "cust_row_pending_ready",
+		TenantID:                    "tenant_a",
+		SetupStatus:                 domain.PaymentSetupStatusReady,
+		DefaultPaymentMethodPresent: true,
+	}
+	svc.now = func() time.Time { return base.Add(2 * time.Hour) }
+
+	second, err := svc.EnsureRunForInvoice("tenant_a", "inv_pending_ready")
+	if err != nil {
+		t.Fatalf("second ensure: %v", err)
+	}
+	if !second.Updated || second.Run == nil {
+		t.Fatalf("expected updated run")
+	}
+	if second.Run.State != domain.DunningRunStateAwaitingRetryResult {
+		t.Fatalf("expected awaiting_retry_result after payment method reprocessing, got %q", second.Run.State)
+	}
+	if second.Run.NextActionType != "" || second.Run.NextActionAt != nil {
+		t.Fatalf("expected no scheduled next action while waiting for payment reprocessing, got %+v", second.Run)
+	}
+	if second.Event == nil || second.Event.EventType != domain.DunningEventTypePaymentSetupReady {
+		t.Fatalf("expected payment_setup_ready event, got %+v", second.Event)
+	}
+}
+
 func TestDunningServiceEnsureRunResolvesSucceededInvoice(t *testing.T) {
 	t.Parallel()
 

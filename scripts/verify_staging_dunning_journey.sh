@@ -287,8 +287,8 @@ echo "[info] waiting for dunning run to observe payment setup readiness"
 wait_for_get "$ALPHA_API_BASE_URL/v1/dunning/runs/$run_id" 200 'any(.events[]; .event_type == "payment_setup_ready") and (.run.state == "retry_due" or .run.state == "awaiting_retry_result" or .run.state == "resolved")' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "dunning transition into retry flow" "X-API-Key: $ALPHA_READER_API_KEY"
 post_refresh_dunning_json="$HTTP_BODY"
 
-echo "[info] waiting for scheduler-driven retry and dunning resolution"
-wait_for_get "$ALPHA_API_BASE_URL/v1/dunning/runs/$run_id" 200 '.run.state == "resolved" and .run.resolution == "payment_succeeded" and any(.events[]; .event_type == "retry_attempted") and any(.events[]; .event_type == "retry_succeeded")' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "resolved dunning run after successful retry" "X-API-Key: $ALPHA_READER_API_KEY"
+echo "[info] waiting for pending invoice reprocess and dunning resolution"
+wait_for_get "$ALPHA_API_BASE_URL/v1/dunning/runs/$run_id" 200 '.run.state == "resolved" and .run.resolution == "payment_succeeded" and any(.events[]; .event_type == "payment_setup_ready") and any(.events[]; .event_type == "retry_succeeded")' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "resolved dunning run after successful payment reprocess" "X-API-Key: $ALPHA_READER_API_KEY"
 resolved_dunning_json="$HTTP_BODY"
 
 http_call GET "$ALPHA_API_BASE_URL/v1/payments/$invoice_id" '' "X-API-Key: $ALPHA_READER_API_KEY"

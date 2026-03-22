@@ -1126,17 +1126,25 @@ func (s *DunningService) evaluate(policy domain.DunningPolicy, view domain.Invoi
 	if err != nil {
 		return dunningEvaluation{}, err
 	}
+	paymentStatus := strings.ToLower(strings.TrimSpace(view.PaymentStatus))
 	eval := dunningEvaluation{
 		eligible: true,
 		reason:   readinessReason,
 		metadata: map[string]any{
-			"payment_status":       strings.ToLower(strings.TrimSpace(view.PaymentStatus)),
+			"payment_status":       paymentStatus,
 			"invoice_status":       strings.ToLower(strings.TrimSpace(view.InvoiceStatus)),
 			"payment_overdue":      view.PaymentOverdue != nil && *view.PaymentOverdue,
 			"customer_external_id": strings.TrimSpace(view.CustomerExternalID),
 		},
 	}
 	if paymentReady {
+		if paymentStatus == "pending" {
+			eval.state = domain.DunningRunStateAwaitingRetryResult
+			eval.nextActionType = ""
+			eval.nextActionAt = nil
+			eval.reason = "payment_reprocessing"
+			return eval, nil
+		}
 		eval.state = domain.DunningRunStateRetryDue
 		eval.nextActionType = domain.DunningActionTypeRetryPayment
 		nextActionAt, err := scheduleFromPolicy(s.now(), policy.GracePeriodDays, policy.RetrySchedule)
@@ -1327,7 +1335,8 @@ func transitionEventType(previousState, nextState domain.DunningRunState) domain
 	if nextState == domain.DunningRunStateResolved {
 		return domain.DunningEventTypeResolved
 	}
-	if previousState == domain.DunningRunStateAwaitingPaymentSetup && nextState == domain.DunningRunStateRetryDue {
+	if previousState == domain.DunningRunStateAwaitingPaymentSetup &&
+		(nextState == domain.DunningRunStateRetryDue || nextState == domain.DunningRunStateAwaitingRetryResult) {
 		return domain.DunningEventTypePaymentSetupReady
 	}
 	if nextState == domain.DunningRunStateAwaitingPaymentSetup {
