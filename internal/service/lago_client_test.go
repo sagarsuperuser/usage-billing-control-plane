@@ -299,6 +299,96 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 	}
 }
 
+func TestLagoSubscriptionSyncAdapterFallsBackToUpdateForRename(t *testing.T) {
+	t.Parallel()
+
+	var sawUpdate bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/subscriptions":
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"status":422,"error":"already_exists"}`))
+			return
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/subscriptions/cust_123_growth":
+			sawUpdate = true
+			w.Header().Set("Content-Type", "application/json")
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if strings.Contains(payload, `"plan_code"`) {
+				t.Fatalf("expected update payload to omit plan_code, got %s", payload)
+			}
+			if !strings.Contains(payload, `"name":"Customer Growth Renamed"`) {
+				t.Fatalf("expected renamed subscription in update payload, got %s", payload)
+			}
+			_, _ = w.Write([]byte(`{"subscription":{"external_id":"cust_123_growth"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
+		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth Renamed"},
+		domain.Customer{ExternalID: "cust_123"},
+		domain.Plan{Code: "growth_v2"},
+	)
+	if err != nil {
+		t.Fatalf("sync subscription rename: %v", err)
+	}
+	if !sawUpdate {
+		t.Fatalf("expected update request to lago subscriptions endpoint")
+	}
+}
+
+func TestLagoSubscriptionSyncAdapterArchivesSubscription(t *testing.T) {
+	t.Parallel()
+
+	var sawDelete bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/subscriptions/cust_123_growth":
+			sawDelete = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"subscription":{"external_id":"cust_123_growth","status":"terminated"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
+		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth", Status: domain.SubscriptionStatusArchived},
+		domain.Customer{ExternalID: "cust_123"},
+		domain.Plan{Code: "growth"},
+	)
+	if err != nil {
+		t.Fatalf("archive subscription: %v", err)
+	}
+	if !sawDelete {
+		t.Fatalf("expected delete request to lago terminate endpoint")
+	}
+}
+
 func TestLagoUsageSyncAdapter(t *testing.T) {
 	t.Parallel()
 

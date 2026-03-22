@@ -503,22 +503,40 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 		return fmt.Errorf("%w: lago subscription sync adapter is required", ErrValidation)
 	}
 
-	payload := map[string]any{
+	externalID := strings.TrimSpace(subscription.Code)
+	if externalID == "" {
+		return fmt.Errorf("%w: subscription code is required", ErrValidation)
+	}
+
+	if subscription.Status == domain.SubscriptionStatusArchived {
+		terminatePath := "/api/v1/subscriptions/" + url.PathEscape(externalID)
+		terminateStatus, terminateBody, terminateErr := a.transport.doRawRequest(ctx, http.MethodDelete, terminatePath, nil)
+		if terminateErr == nil || terminateStatus == http.StatusNotFound {
+			return nil
+		}
+		return fmt.Errorf("%w: lago subscription terminate failed (status=%d body=%s)", ErrDependency, terminateStatus, abbrevForLog(terminateBody))
+	}
+
+	createPayload := map[string]any{
 		"subscription": map[string]any{
 			"external_customer_id": customer.ExternalID,
 			"plan_code":            plan.Code,
 			"name":                 subscription.DisplayName,
-			"external_id":          subscription.Code,
+			"external_id":          externalID,
 		},
 	}
-
-	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/subscriptions", payload)
-	if err == nil {
+	createStatus, createBody, createErr := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/subscriptions", createPayload)
+	if createErr == nil {
 		return nil
 	}
 
-	updatePath := "/api/v1/subscriptions/" + url.PathEscape(strings.TrimSpace(subscription.Code))
-	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+	updatePayload := map[string]any{
+		"subscription": map[string]any{
+			"name": subscription.DisplayName,
+		},
+	}
+	updatePath := "/api/v1/subscriptions/" + url.PathEscape(externalID)
+	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, updatePayload)
 	if updateErr == nil {
 		return nil
 	}

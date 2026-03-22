@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CreditCard, LoaderCircle, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -8,7 +9,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup } from "@/lib/api";
+import { fetchPlans, fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup, updateSubscription } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -46,11 +47,18 @@ function formatSubscriptionPaymentSetupStatus(status: string): string {
 
 export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const [selectedPlanID, setSelectedPlanID] = useState("");
 
   const detailQuery = useQuery({
     queryKey: ["subscription", apiBaseURL, subscriptionID],
     queryFn: () => fetchSubscription({ runtimeBaseURL: apiBaseURL, subscriptionID }),
     enabled: isAuthenticated && scope === "tenant" && subscriptionID.trim().length > 0,
+  });
+
+  const plansQuery = useQuery({
+    queryKey: ["plans", apiBaseURL],
+    queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
   });
 
   const requestMutation = useMutation({
@@ -67,10 +75,38 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (body: { plan_id?: string; status?: string }) =>
+      updateSubscription({ runtimeBaseURL: apiBaseURL, csrfToken, subscriptionID, body }),
+    onSuccess: async (updated) => {
+      setSelectedPlanID(updated.plan_id);
+      await detailQuery.refetch();
+    },
+  });
+
   const subscription = detailQuery.data ?? null;
   const nextActions = subscription?.missing_steps.map(describeCustomerMissingStep) ?? [];
-  const canRequestSetup = subscription?.payment_setup_status !== "ready";
+  const canRequestSetup = subscription?.payment_setup_status !== "ready" && subscription?.status !== "archived";
   const showResend = Boolean(subscription?.payment_setup_requested_at || subscription?.payment_setup_status === "error");
+
+  useEffect(() => {
+    if (subscription?.plan_id) {
+      setSelectedPlanID(subscription.plan_id);
+    }
+  }, [subscription?.id, subscription?.plan_id]);
+
+  const activePlans = useMemo(
+    () => (plansQuery.data ?? []).filter((plan) => plan.status === "active"),
+    [plansQuery.data],
+  );
+  const selectedPlan = activePlans.find((plan) => plan.id === selectedPlanID) ?? null;
+  const canChangePlan = Boolean(
+    subscription &&
+      subscription.status !== "archived" &&
+      selectedPlanID.trim().length > 0 &&
+      selectedPlanID !== subscription.plan_id,
+  );
+  const canArchive = Boolean(subscription && subscription.status !== "archived");
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -109,7 +145,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{subscription.display_name}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className="font-mono text-xs text-slate-500">{subscription.code}</span>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(subscription.status)}`}>
+                    <span data-testid="subscription-status-badge" className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(subscription.status)}`}>
                       {formatReadinessStatus(subscription.status)}
                     </span>
                   </div>
@@ -142,6 +178,61 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   </div>
                   <div className="mt-5 grid gap-3">
                     {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Subscription is billing-ready." />}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial controls</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Change plan or cancel billing</h2>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                    Plan changes sync through Lago using the subscription code as the shared commercial identity. Cancellation archives the Alpha subscription and terminates the active Lago subscription.
+                  </p>
+                  <div className="mt-5 grid gap-4">
+                    <div className="grid gap-2">
+                      <label htmlFor="subscription-plan-select" className="text-sm font-medium text-slate-800">Target plan</label>
+                      <select
+                        id="subscription-plan-select"
+                        data-testid="subscription-plan-select"
+                        value={selectedPlanID}
+                        onChange={(event) => setSelectedPlanID(event.target.value)}
+                        disabled={!canWrite || !csrfToken || updateMutation.isPending || plansQuery.isLoading || subscription.status === "archived"}
+                        className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50"
+                      >
+                        {activePlans.map((plan) => (
+                          <option key={plan.id} value={plan.id}>
+                            {plan.name} ({plan.code})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-slate-500">
+                        {selectedPlan ? `Selected plan code: ${selectedPlan.code}` : "No active target plan is available."}
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          data-testid="subscription-change-plan"
+                          onClick={() => updateMutation.mutate({ plan_id: selectedPlanID })}
+                          disabled={!canWrite || !csrfToken || updateMutation.isPending || !canChangePlan}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {updateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                          Apply plan change
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="subscription-archive"
+                          onClick={() => updateMutation.mutate({ status: "archived" })}
+                          disabled={!canWrite || !csrfToken || updateMutation.isPending || !canArchive}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {updateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                          Cancel subscription
+                        </button>
+                      </div>
+                      {updateMutation.isError ? (
+                        <p className="text-sm text-rose-700">{updateMutation.error instanceof Error ? updateMutation.error.message : "Subscription update failed."}</p>
+                      ) : null}
+                    </div>
                   </div>
                 </section>
 
@@ -195,8 +286,8 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Customer" value={subscription.customer_display_name} />
                     <MetaItem label="Customer ID" value={subscription.customer_external_id} mono />
-                    <MetaItem label="Plan" value={subscription.plan_name} />
-                    <MetaItem label="Plan code" value={subscription.plan_code} mono />
+                    <MetaItem label="Plan" value={subscription.plan_name} testID="subscription-plan-name" />
+                    <MetaItem label="Plan code" value={subscription.plan_code} mono testID="subscription-plan-code" />
                     <MetaItem label="Base price" value={`${(subscription.base_amount_cents / 100).toFixed(2)} ${subscription.currency}`} />
                   </div>
                 </section>
@@ -253,11 +344,11 @@ function ChecklistLine({ done, text }: { done: boolean; text: string }) {
   );
 }
 
-function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MetaItem({ label, value, mono, testID }: { label: string; value: string; mono?: boolean; testID?: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
       <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</dt>
-      <dd className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
+      <dd data-testid={testID} className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
     </div>
   );
 }

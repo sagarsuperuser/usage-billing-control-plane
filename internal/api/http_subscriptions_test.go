@@ -142,6 +142,20 @@ func TestSubscriptionEndpoints(t *testing.T) {
 		t.Fatalf("create plan: %v", err)
 	}
 
+	revisedPlan, err := planService.CreatePlan(context.Background(), domain.Plan{
+		TenantID:        "default",
+		Code:            "scale",
+		Name:            "Scale",
+		Currency:        "USD",
+		BillingInterval: domain.BillingIntervalMonthly,
+		Status:          domain.PlanStatusActive,
+		BaseAmountCents: 9900,
+		MeterIDs:        []string{meter.ID},
+	})
+	if err != nil {
+		t.Fatalf("create revised plan: %v", err)
+	}
+
 	_ = postJSON(t, ts.URL+"/v1/customers", map[string]any{
 		"external_id":  "cust_sub",
 		"display_name": "Subscriber Co",
@@ -193,6 +207,26 @@ func TestSubscriptionEndpoints(t *testing.T) {
 	}
 	if got, _ := detail["customer_display_name"].(string); got != "Subscriber Co" {
 		t.Fatalf("expected customer_display_name Subscriber Co, got %q", got)
+	}
+
+	updatedPlan := patchJSON(t, ts.URL+"/v1/subscriptions/"+subscriptionID, map[string]any{
+		"plan_id": revisedPlan.ID,
+	}, "subscription-writer-key", http.StatusOK)
+	if got, _ := updatedPlan["plan_id"].(string); got != revisedPlan.ID {
+		t.Fatalf("expected updated plan_id %q, got %q", revisedPlan.ID, got)
+	}
+	if got, _ := updatedPlan["plan_name"].(string); got != "Scale" {
+		t.Fatalf("expected updated plan_name Scale, got %q", got)
+	}
+	if got, _ := updatedPlan["plan_code"].(string); got != "scale" {
+		t.Fatalf("expected updated plan_code scale, got %q", got)
+	}
+
+	archived := patchJSON(t, ts.URL+"/v1/subscriptions/"+subscriptionID, map[string]any{
+		"status": "archived",
+	}, "subscription-writer-key", http.StatusOK)
+	if got, _ := archived["status"].(string); got != "archived" {
+		t.Fatalf("expected archived subscription status, got %q", got)
 	}
 
 	requested := postJSON(t, ts.URL+"/v1/subscriptions/"+subscriptionID+"/payment-setup/request", map[string]any{

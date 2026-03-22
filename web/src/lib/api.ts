@@ -421,6 +421,24 @@ export async function fetchSubscription(input: {
   return payload;
 }
 
+export async function updateSubscription(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  subscriptionID: string;
+  body: Record<string, unknown>;
+}): Promise<SubscriptionDetail> {
+  const payload = await apiRequest<SubscriptionDetail>(`/v1/subscriptions/${encodeURIComponent(input.subscriptionID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "PATCH",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
 export async function requestSubscriptionPaymentSetup(input: {
   runtimeBaseURL?: string;
   csrfToken: string;

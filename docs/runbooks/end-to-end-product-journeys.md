@@ -493,9 +493,37 @@ Prove Alpha can create a customer, sync billing profile state, and surface readi
 
 Prove upgrades, downgrades, and cancellation remain coherent across Alpha, Lago, and downstream billing state.
 
+### Real journey
+
+1. start from an existing staged subscription on a current plan
+2. open the subscription detail in the browser as a writer
+3. change the subscription to a new target plan from the Alpha UI
+4. verify Alpha reflects the new plan and Lago resolves the active subscription to the new plan code
+5. cancel the subscription from the Alpha UI
+6. verify Alpha archives the subscription and Lago resolves the same subscription code as `terminated`
+
+### End-state assertions
+
+- Alpha subscription detail reflects the target plan after the plan change
+- Lago resolves the active subscription on the target plan after the UI change
+- Alpha archives the subscription after cancellation
+- Lago resolves the terminated subscription with the same external id and target plan code
+
 ### Current automation state
 
-- `planned`
+- `implemented`
+
+### Current entrypoint
+
+```bash
+make test-staging-subscription-change-cancel-journey LAGO_API_KEY='...'
+```
+
+### Notes
+
+- the implemented journey is browser-led
+- plan change is verified in both Alpha and Lago before cancellation
+- cancellation uses the real Lago termination route, not a local-only status change
 
 ---
 
