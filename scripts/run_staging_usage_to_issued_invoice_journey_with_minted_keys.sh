@@ -19,6 +19,7 @@ require_env() {
 require_cmd bash
 require_cmd mktemp
 require_env LAGO_API_KEY
+require_env LAGO_ADMIN_API_KEY
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 key_env_file="$(mktemp)"
@@ -56,6 +57,7 @@ source "$key_env_file"
   ALPHA_API_BASE_URL="$ALPHA_API_BASE_URL" \
   LAGO_API_URL="$LAGO_API_URL" \
   LAGO_API_KEY="$LAGO_API_KEY" \
+  LAGO_ADMIN_API_KEY="$LAGO_ADMIN_API_KEY" \
   TARGET_TENANT_ID="$TARGET_TENANT_ID" \
   bash ./scripts/verify_staging_usage_to_issued_invoice_journey.sh
 )

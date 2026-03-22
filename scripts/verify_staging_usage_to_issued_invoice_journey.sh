@@ -145,18 +145,21 @@ require_env ALPHA_READER_API_KEY
 require_env PLATFORM_ADMIN_API_KEY
 require_env LAGO_API_URL
 require_env LAGO_API_KEY
+require_env LAGO_ADMIN_API_KEY
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%d%H%M%S)-$RANDOM}"
 TARGET_TENANT_ID="${TARGET_TENANT_ID:-default}"
 OUTPUT_FILE="${OUTPUT_FILE:-}"
-TIMEOUT_SEC="${TIMEOUT_SEC:-5400}"
+TIMEOUT_SEC="${TIMEOUT_SEC:-1800}"
 POLL_INTERVAL_SEC="${POLL_INTERVAL_SEC:-5}"
 SUBSCRIPTION_BILLING_TIME="${SUBSCRIPTION_BILLING_TIME:-anniversary}"
 SUBSCRIPTION_STARTED_AT="${SUBSCRIPTION_STARTED_AT:-$(date_months_ago_utc 1)}"
 USAGE_TIMESTAMP="${USAGE_TIMESTAMP:-$(date_days_ago_utc 7)}"
+LAGO_ADMIN_BASE_URL="${LAGO_ADMIN_BASE_URL:-$LAGO_API_URL}"
 
 ALPHA_API_BASE_URL="$(trim_trailing_slash "$ALPHA_API_BASE_URL")"
 LAGO_API_URL="$(trim_trailing_slash "$LAGO_API_URL")"
+LAGO_ADMIN_BASE_URL="$(trim_trailing_slash "$LAGO_ADMIN_BASE_URL")"
 
 subscription_summary_file="$(mktemp)"
 trap 'rm -f "$subscription_summary_file"' EXIT
@@ -198,8 +201,17 @@ if ! [[ "$expected_amount_cents" =~ ^[0-9]+$ ]] || [[ "$expected_amount_cents" -
   exit 1
 fi
 
-customer_external_id_enc="$(urlencode "$customer_external_id")"
+bill_now_payload="$(jq -nc --arg billing_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{billing_at: $billing_at}')"
 subscription_code_enc="$(urlencode "$subscription_code")"
+echo "[info] triggering deterministic lago billing external_id=$subscription_code"
+http_call POST "$LAGO_ADMIN_BASE_URL/admin/subscriptions/$subscription_code_enc/bill_now" "$bill_now_payload" "X-Admin-API-Key: $LAGO_ADMIN_API_KEY"
+assert_http_code 200 "trigger lago admin bill_now"
+lago_bill_now_json="$HTTP_BODY"
+assert_jq "$lago_bill_now_json" "lago bill_now response mismatch" \
+  --arg subscription_code "$subscription_code" \
+  '.subscription_external_id == $subscription_code and .mode == "inline"'
+
+customer_external_id_enc="$(urlencode "$customer_external_id")"
 meter_key_enc="$(urlencode "$meter_key")"
 past_usage_url="$LAGO_API_URL/api/v1/customers/$customer_external_id_enc/past_usage?external_subscription_id=$subscription_code_enc&billable_metric_code=$meter_key_enc&periods_count=5"
 
@@ -290,6 +302,7 @@ summary_json="$(jq -n \
   --arg meter_key "$meter_key" \
   --argjson expected_amount_cents "$expected_amount_cents" \
   --slurpfile subscription_summary <(printf '%s\n' "$subscription_summary_json") \
+  --slurpfile lago_bill_now <(printf '%s\n' "$lago_bill_now_json") \
   --slurpfile lago_past_usage <(printf '%s\n' "$lago_past_usage_json") \
   --slurpfile lago_usage_period <(printf '%s\n' "$lago_usage_period_json") \
   --slurpfile lago_invoice <(printf '%s\n' "$lago_invoice_json") \
@@ -313,6 +326,7 @@ summary_json="$(jq -n \
     invoice_id: $invoice_id,
     verification: {
       subscription_journey: $subscription_summary[0],
+      lago_bill_now: $lago_bill_now[0],
       lago_past_usage: $lago_past_usage[0],
       lago_usage_period: $lago_usage_period[0],
       lago_invoice: $lago_invoice[0],
