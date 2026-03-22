@@ -525,6 +525,9 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 			"external_id":          externalID,
 		},
 	}
+	if subscription.StartedAt != nil && !subscription.StartedAt.IsZero() {
+		createPayload["subscription"].(map[string]any)["subscription_at"] = subscription.StartedAt.UTC().Format(time.RFC3339)
+	}
 	createStatus, createBody, createErr := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/subscriptions", createPayload)
 	if createErr == nil {
 		return nil
@@ -534,6 +537,9 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 		"subscription": map[string]any{
 			"name": subscription.DisplayName,
 		},
+	}
+	if subscription.StartedAt != nil && !subscription.StartedAt.IsZero() {
+		updatePayload["subscription"].(map[string]any)["subscription_at"] = subscription.StartedAt.UTC().Format(time.RFC3339)
 	}
 	updatePath := "/api/v1/subscriptions/" + url.PathEscape(externalID)
 	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, updatePayload)

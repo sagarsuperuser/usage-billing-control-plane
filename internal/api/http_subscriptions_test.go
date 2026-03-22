@@ -178,6 +178,7 @@ func TestSubscriptionEndpoints(t *testing.T) {
 		"code":                  "subscriber_growth",
 		"customer_external_id":  "cust_sub",
 		"plan_id":               plan.ID,
+		"started_at":            "2026-02-15T08:00:00Z",
 		"request_payment_setup": false,
 	}, "subscription-writer-key", http.StatusCreated)
 
@@ -195,6 +196,9 @@ func TestSubscriptionEndpoints(t *testing.T) {
 	if got, _ := subscription["payment_setup_status"].(string); got != "missing" {
 		t.Fatalf("expected payment_setup_status missing, got %q", got)
 	}
+	if got, _ := subscription["started_at"].(string); got != "2026-02-15T08:00:00Z" {
+		t.Fatalf("expected started_at on subscription, got %q", got)
+	}
 
 	items := getJSONArray(t, ts.URL+"/v1/subscriptions", "subscription-reader-key", http.StatusOK)
 	if len(items) != 1 {
@@ -208,9 +212,13 @@ func TestSubscriptionEndpoints(t *testing.T) {
 	if got, _ := detail["customer_display_name"].(string); got != "Subscriber Co" {
 		t.Fatalf("expected customer_display_name Subscriber Co, got %q", got)
 	}
+	if got, _ := detail["started_at"].(string); got != "2026-02-15T08:00:00Z" {
+		t.Fatalf("expected detail started_at 2026-02-15T08:00:00Z, got %q", got)
+	}
 
 	updatedPlan := patchJSON(t, ts.URL+"/v1/subscriptions/"+subscriptionID, map[string]any{
-		"plan_id": revisedPlan.ID,
+		"plan_id":    revisedPlan.ID,
+		"started_at": "2026-02-20T10:15:00Z",
 	}, "subscription-writer-key", http.StatusOK)
 	if got, _ := updatedPlan["plan_id"].(string); got != revisedPlan.ID {
 		t.Fatalf("expected updated plan_id %q, got %q", revisedPlan.ID, got)
@@ -220,6 +228,9 @@ func TestSubscriptionEndpoints(t *testing.T) {
 	}
 	if got, _ := updatedPlan["plan_code"].(string); got != "scale" {
 		t.Fatalf("expected updated plan_code scale, got %q", got)
+	}
+	if got, _ := updatedPlan["started_at"].(string); got != "2026-02-20T10:15:00Z" {
+		t.Fatalf("expected updated started_at 2026-02-20T10:15:00Z, got %q", got)
 	}
 
 	archived := patchJSON(t, ts.URL+"/v1/subscriptions/"+subscriptionID, map[string]any{

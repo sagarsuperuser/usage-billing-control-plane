@@ -3,24 +3,27 @@ package api
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"usage-billing-control-plane/internal/domain"
 	"usage-billing-control-plane/internal/service"
 )
 
 type createSubscriptionRequest struct {
-	Code                string `json:"code"`
-	DisplayName         string `json:"display_name"`
-	CustomerExternalID  string `json:"customer_external_id"`
-	PlanID              string `json:"plan_id"`
-	RequestPaymentSetup bool   `json:"request_payment_setup"`
-	PaymentMethodType   string `json:"payment_method_type"`
+	Code                string     `json:"code"`
+	DisplayName         string     `json:"display_name"`
+	CustomerExternalID  string     `json:"customer_external_id"`
+	PlanID              string     `json:"plan_id"`
+	StartedAt           *time.Time `json:"started_at,omitempty"`
+	RequestPaymentSetup bool       `json:"request_payment_setup"`
+	PaymentMethodType   string     `json:"payment_method_type"`
 }
 
 type updateSubscriptionRequest struct {
-	DisplayName *string `json:"display_name,omitempty"`
-	PlanID      *string `json:"plan_id,omitempty"`
-	Status      *string `json:"status,omitempty"`
+	DisplayName *string    `json:"display_name,omitempty"`
+	PlanID      *string    `json:"plan_id,omitempty"`
+	Status      *string    `json:"status,omitempty"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
 }
 
 type subscriptionPaymentSetupRequest struct {
@@ -53,6 +56,7 @@ func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
 			DisplayName:         req.DisplayName,
 			CustomerExternalID:  req.CustomerExternalID,
 			PlanID:              req.PlanID,
+			StartedAt:           req.StartedAt,
 			RequestPaymentSetup: req.RequestPaymentSetup,
 			PaymentMethodType:   req.PaymentMethodType,
 		})
@@ -133,6 +137,7 @@ func (s *Server) handleSubscriptionByID(w http.ResponseWriter, r *http.Request) 
 			DisplayName: req.DisplayName,
 			PlanID:      req.PlanID,
 			Status:      status,
+			StartedAt:   req.StartedAt,
 		})
 		if err != nil {
 			writeDomainError(w, err)

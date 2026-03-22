@@ -473,6 +473,7 @@ export interface SubscriptionSummary {
   payment_setup_status: "missing" | "pending" | "ready" | "error";
   default_payment_method_verified: boolean;
   payment_setup_action_required: boolean;
+  started_at?: string;
   payment_setup_requested_at?: string;
   activated_at?: string;
   created_at: string;

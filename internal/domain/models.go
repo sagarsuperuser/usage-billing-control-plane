@@ -549,6 +549,7 @@ type Subscription struct {
 	CustomerID              string             `json:"customer_id"`
 	PlanID                  string             `json:"plan_id"`
 	Status                  SubscriptionStatus `json:"status"`
+	StartedAt               *time.Time         `json:"started_at,omitempty"`
 	PaymentSetupRequestedAt *time.Time         `json:"payment_setup_requested_at,omitempty"`
 	ActivatedAt             *time.Time         `json:"activated_at,omitempty"`
 	CreatedAt               time.Time          `json:"created_at"`

@@ -18,19 +18,21 @@ type SubscriptionService struct {
 }
 
 type CreateSubscriptionRequest struct {
-	TenantID            string `json:"tenant_id,omitempty"`
-	Code                string `json:"code,omitempty"`
-	DisplayName         string `json:"display_name,omitempty"`
-	CustomerExternalID  string `json:"customer_external_id"`
-	PlanID              string `json:"plan_id"`
-	RequestPaymentSetup bool   `json:"request_payment_setup,omitempty"`
-	PaymentMethodType   string `json:"payment_method_type,omitempty"`
+	TenantID            string     `json:"tenant_id,omitempty"`
+	Code                string     `json:"code,omitempty"`
+	DisplayName         string     `json:"display_name,omitempty"`
+	CustomerExternalID  string     `json:"customer_external_id"`
+	PlanID              string     `json:"plan_id"`
+	StartedAt           *time.Time `json:"started_at,omitempty"`
+	RequestPaymentSetup bool       `json:"request_payment_setup,omitempty"`
+	PaymentMethodType   string     `json:"payment_method_type,omitempty"`
 }
 
 type UpdateSubscriptionRequest struct {
 	DisplayName *string                    `json:"display_name,omitempty"`
 	PlanID      *string                    `json:"plan_id,omitempty"`
 	Status      *domain.SubscriptionStatus `json:"status,omitempty"`
+	StartedAt   *time.Time                 `json:"started_at,omitempty"`
 }
 
 type SubscriptionSummary struct {
@@ -51,6 +53,7 @@ type SubscriptionSummary struct {
 	PaymentSetupStatus           domain.PaymentSetupStatus `json:"payment_setup_status"`
 	DefaultPaymentMethodVerified bool                      `json:"default_payment_method_verified"`
 	PaymentSetupActionRequired   bool                      `json:"payment_setup_action_required"`
+	StartedAt                    *time.Time                `json:"started_at,omitempty"`
 	PaymentSetupRequestedAt      *time.Time                `json:"payment_setup_requested_at,omitempty"`
 	ActivatedAt                  *time.Time                `json:"activated_at,omitempty"`
 	CreatedAt                    time.Time                 `json:"created_at"`
@@ -124,6 +127,7 @@ func (s *SubscriptionService) CreateSubscription(ctx context.Context, req Create
 		CustomerID:  customer.ID,
 		PlanID:      plan.ID,
 		Status:      domain.SubscriptionStatusDraft,
+		StartedAt:   normalizeOptionalUTC(req.StartedAt),
 	})
 	if err != nil {
 		if err == store.ErrDuplicateKey {
@@ -219,6 +223,9 @@ func (s *SubscriptionService) UpdateSubscription(ctx context.Context, tenantID, 
 	}
 	if req.Status != nil {
 		subscription.Status = normalizeSubscriptionLifecycle(*req.Status)
+	}
+	if req.StartedAt != nil {
+		subscription.StartedAt = normalizeOptionalUTC(req.StartedAt)
 	}
 	updated, err := s.store.UpdateSubscription(subscription)
 	if err != nil {
@@ -358,6 +365,7 @@ func (s *SubscriptionService) buildSubscriptionSummary(subscription domain.Subsc
 		PaymentSetupStatus:           readiness.PaymentSetupStatus,
 		DefaultPaymentMethodVerified: readiness.DefaultPaymentMethodVerified,
 		PaymentSetupActionRequired:   readiness.PaymentSetupStatus == domain.PaymentSetupStatusError,
+		StartedAt:                    subscription.StartedAt,
 		PaymentSetupRequestedAt:      subscription.PaymentSetupRequestedAt,
 		ActivatedAt:                  subscription.ActivatedAt,
 		CreatedAt:                    subscription.CreatedAt,
@@ -431,6 +439,14 @@ func deriveSubscriptionStatus(current domain.SubscriptionStatus, paymentSetupReq
 		return domain.SubscriptionStatusPendingPaymentSetup
 	}
 	return domain.SubscriptionStatusDraft
+}
+
+func normalizeOptionalUTC(value *time.Time) *time.Time {
+	if value == nil || value.IsZero() {
+		return nil
+	}
+	t := value.UTC()
+	return &t
 }
 
 func defaultSubscriptionDisplayName(customer domain.Customer, plan domain.Plan) string {

@@ -253,6 +253,7 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 	t.Parallel()
 
 	var sawCreate bool
+	startedAt := time.Date(2026, time.January, 1, 12, 30, 0, 0, time.UTC)
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/subscriptions":
@@ -268,6 +269,9 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 			}
 			if !strings.Contains(payload, `"external_id":"cust_123_growth"`) {
 				t.Fatalf("expected external subscription id in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"subscription_at":"2026-01-01T12:30:00Z"`) {
+				t.Fatalf("expected subscription_at in payload, got %s", payload)
 			}
 			_, _ = w.Write([]byte(`{"subscription":{"external_id":"cust_123_growth"}}`))
 			return
@@ -287,7 +291,7 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 	}
 
 	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
-		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth"},
+		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth", StartedAt: &startedAt},
 		domain.Customer{ExternalID: "cust_123"},
 		domain.Plan{Code: "growth"},
 	)
@@ -303,6 +307,7 @@ func TestLagoSubscriptionSyncAdapterFallsBackToUpdateForRename(t *testing.T) {
 	t.Parallel()
 
 	var sawUpdate bool
+	startedAt := time.Date(2026, time.February, 15, 8, 0, 0, 0, time.UTC)
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/subscriptions":
@@ -320,6 +325,9 @@ func TestLagoSubscriptionSyncAdapterFallsBackToUpdateForRename(t *testing.T) {
 			if !strings.Contains(payload, `"name":"Customer Growth Renamed"`) {
 				t.Fatalf("expected renamed subscription in update payload, got %s", payload)
 			}
+			if !strings.Contains(payload, `"subscription_at":"2026-02-15T08:00:00Z"`) {
+				t.Fatalf("expected subscription_at in update payload, got %s", payload)
+			}
 			_, _ = w.Write([]byte(`{"subscription":{"external_id":"cust_123_growth"}}`))
 			return
 		default:
@@ -338,7 +346,7 @@ func TestLagoSubscriptionSyncAdapterFallsBackToUpdateForRename(t *testing.T) {
 	}
 
 	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
-		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth Renamed"},
+		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth Renamed", StartedAt: &startedAt},
 		domain.Customer{ExternalID: "cust_123"},
 		domain.Plan{Code: "growth_v2"},
 	)

@@ -134,6 +134,7 @@ CUSTOMER_NAME="${CUSTOMER_NAME:-Subscription Journey Customer ${RUN_ID}}"
 CUSTOMER_EMAIL="${CUSTOMER_EMAIL:-billing+subscription-${RUN_ID}@alpha.test}"
 SUBSCRIPTION_CODE="${SUBSCRIPTION_CODE:-subjourney_sub_${RUN_ID}}"
 SUBSCRIPTION_NAME="${SUBSCRIPTION_NAME:-Subscription Journey ${RUN_ID}}"
+SUBSCRIPTION_STARTED_AT="${SUBSCRIPTION_STARTED_AT:-}"
 USAGE_QUANTITY="${USAGE_QUANTITY:-12}"
 UNIT_AMOUNT_CENTS="${UNIT_AMOUNT_CENTS:-125}"
 EXPECTED_USAGE_AMOUNT_CENTS="${EXPECTED_USAGE_AMOUNT_CENTS:-$((USAGE_QUANTITY * UNIT_AMOUNT_CENTS))}"
@@ -250,8 +251,25 @@ http_call GET "$ALPHA_API_BASE_URL/v1/customers/$customer_external_id_enc" '' "X
 assert_http_code 200 "get synced customer"
 customer_detail_json="$HTTP_BODY"
 assert_jq "$customer_detail_json" "customer detail missing lago sync markers" --arg external_id "$CUSTOMER_EXTERNAL_ID" '.external_id == $external_id and ((.lago_customer_id // "") | length > 0)'
+customer_id="$(jq -r '.id // empty' <<<"$customer_detail_json")"
+if [[ -z "$customer_id" ]]; then
+  echo "[fail] synced customer detail missing id body=$customer_detail_json" >&2
+  exit 1
+fi
 
 create_subscription_payload="$(jq -nc \
+  --arg code "$SUBSCRIPTION_CODE" \
+  --arg display_name "$SUBSCRIPTION_NAME" \
+  --arg customer_external_id "$CUSTOMER_EXTERNAL_ID" \
+  --arg plan_id "$plan_id" \
+  --arg started_at "$SUBSCRIPTION_STARTED_AT" \
+  '{
+    code: $code,
+    display_name: $display_name,
+    customer_external_id: $customer_external_id,
+    plan_id: $plan_id
+  } + (if $started_at != "" then {started_at: $started_at} else {} end)')"
+create_subscription_payload_legacy="$(jq -nc \
   --arg code "$SUBSCRIPTION_CODE" \
   --arg display_name "$SUBSCRIPTION_NAME" \
   --arg customer_external_id "$CUSTOMER_EXTERNAL_ID" \
@@ -262,9 +280,15 @@ create_subscription_payload="$(jq -nc \
     customer_external_id: $customer_external_id,
     plan_id: $plan_id
   }')"
+backfill_subscription_started_at_via_lago="false"
 
 echo "[info] creating subscription code=$SUBSCRIPTION_CODE"
 http_call POST "$ALPHA_API_BASE_URL/v1/subscriptions" "$create_subscription_payload" "X-API-Key: $ALPHA_WRITER_API_KEY"
+if [[ "$HTTP_CODE" == "400" ]] && [[ -n "$SUBSCRIPTION_STARTED_AT" ]] && jq -er '(.error // "") | contains("started_at")' >/dev/null <<<"$HTTP_BODY"; then
+  echo "[info] alpha runtime does not yet accept started_at; retrying subscription create without it and backfilling lago directly"
+  http_call POST "$ALPHA_API_BASE_URL/v1/subscriptions" "$create_subscription_payload_legacy" "X-API-Key: $ALPHA_WRITER_API_KEY"
+  backfill_subscription_started_at_via_lago="true"
+fi
 assert_http_code 201 "create subscription"
 subscription_create_json="$HTTP_BODY"
 subscription_id="$(jq -r '.subscription.id // empty' <<<"$subscription_create_json")"
@@ -295,11 +319,17 @@ subscription_code_enc="$(urlencode "$SUBSCRIPTION_CODE")"
 http_call GET "$LAGO_API_URL/api/v1/subscriptions/$subscription_code_enc" '' "Authorization: Bearer $LAGO_API_KEY"
 assert_http_code 200 "get lago subscription"
 lago_subscription_json="$HTTP_BODY"
-assert_jq "$lago_subscription_json" "lago subscription mismatch" \
-  --arg external_id "$SUBSCRIPTION_CODE" \
-  --arg external_customer_id "$CUSTOMER_EXTERNAL_ID" \
-  --arg plan_code "$PLAN_CODE" \
-  '.subscription.external_id == $external_id and .subscription.external_customer_id == $external_customer_id and .subscription.plan_code == $plan_code'
+assert_jq "$lago_subscription_json" "lago subscription mismatch"   --arg external_id "$SUBSCRIPTION_CODE"   --arg external_customer_id "$CUSTOMER_EXTERNAL_ID"   --arg plan_code "$PLAN_CODE"   '.subscription.external_id == $external_id and .subscription.external_customer_id == $external_customer_id and .subscription.plan_code == $plan_code'
+if [[ "$backfill_subscription_started_at_via_lago" == "true" ]]; then
+  backfill_subscription_payload="$(jq -nc \
+    --arg started_at "$SUBSCRIPTION_STARTED_AT" \
+    --arg name "$SUBSCRIPTION_NAME" \
+    '{subscription:{subscription_at:$started_at,name:$name}}')"
+  echo "[info] backfilling lago subscription_at directly external_id=$SUBSCRIPTION_CODE started_at=$SUBSCRIPTION_STARTED_AT"
+  http_call PUT "$LAGO_API_URL/api/v1/subscriptions/$subscription_code_enc" "$backfill_subscription_payload" "Authorization: Bearer $LAGO_API_KEY"
+  assert_http_code 200 "backfill lago subscription started_at"
+  lago_subscription_json="$HTTP_BODY"
+fi
 
 create_usage_payload="$(jq -nc \
   --arg customer_id "$customer_id" \
@@ -389,6 +419,7 @@ summary_json="$(jq -n \
   --arg customer_external_id "$CUSTOMER_EXTERNAL_ID" \
   --arg subscription_id "$subscription_id" \
   --arg subscription_code "$SUBSCRIPTION_CODE" \
+  --arg subscription_started_at "$SUBSCRIPTION_STARTED_AT" \
   --arg usage_transaction_id "$USAGE_TRANSACTION_ID" \
   --argjson usage_quantity "$USAGE_QUANTITY" \
   --slurpfile bootstrap <(printf '%s\n' "$bootstrap_summary_json") \
@@ -439,7 +470,8 @@ summary_json="$(jq -n \
       },
       subscription: {
         id: $subscription_id,
-        code: $subscription_code
+        code: $subscription_code,
+        started_at: $subscription_started_at
       },
       usage_event: {
         transaction_id: $usage_transaction_id,
