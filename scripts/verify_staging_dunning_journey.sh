@@ -238,9 +238,9 @@ if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "202" ]]; then
 fi
 initial_retry_response_json="$HTTP_BODY"
 
-echo "[info] waiting for Alpha payment detail to recommend collect_payment"
-wait_for_get "$ALPHA_API_BASE_URL/v1/payments/$invoice_id" 200 '.lifecycle.recommended_action == "collect_payment" and (.payment_status == "pending" or .payment_status == "failed") and .lifecycle.requires_action == true and .lifecycle.retry_recommended == false' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "collect-payment payment detail" "X-API-Key: $ALPHA_READER_API_KEY"
-pending_payment_detail_json="$HTTP_BODY"
+echo "[info] waiting for Alpha lifecycle to recommend collect_payment"
+wait_for_get "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$invoice_id/lifecycle" 200 '.recommended_action == "collect_payment" and .payment_status == "pending" and .requires_action == true and .retry_recommended == false' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "collect-payment lifecycle" "X-API-Key: $ALPHA_READER_API_KEY"
+pending_lifecycle_json="$HTTP_BODY"
 
 invoice_id_enc="$(urlencode "$invoice_id")"
 runs_url="$ALPHA_API_BASE_URL/v1/dunning/runs?invoice_id=$invoice_id_enc&active_only=true"
@@ -322,7 +322,7 @@ jq -n \
   --argjson post_refresh_detail "$post_refresh_dunning_json" \
   --argjson resolved_detail "$resolved_dunning_json" \
   --argjson initial_retry_response "$initial_retry_response_json" \
-  --argjson payment_detail_pending "$pending_payment_detail_json" \
+  --argjson pending_lifecycle "$pending_lifecycle_json" \
   --argjson payment_detail_active "$payment_detail_with_dunning_json" \
   --argjson invoice_detail_active "$invoice_detail_with_dunning_json" \
   --argjson payment_detail_final "$final_payment_detail_json" \
@@ -342,7 +342,7 @@ jq -n \
     fixture: ($fixture[0] // null),
     initial_readiness: $initial_readiness,
     initial_retry_response: $initial_retry_response,
-    payment_detail_pending: $payment_detail_pending,
+    pending_lifecycle: $pending_lifecycle,
     active_run_list: $run_list,
     reminder_detail: $reminder_detail,
     initial_provider_detach: ($detach[0] // null),
