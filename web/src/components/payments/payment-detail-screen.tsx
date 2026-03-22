@@ -120,6 +120,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
   const payment = paymentQuery.data;
   const actionConfig = payment ? paymentActionConfig(payment) : null;
+  const dunningRunID = payment?.dunning?.run_id;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -270,7 +271,8 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   summary={payment.dunning}
                   canWrite={canWrite && Boolean(csrfToken)}
                   sendingReminder={reminderMutation.isPending}
-                  onSendReminder={payment.dunning?.run_id ? () => reminderMutation.mutate(payment.dunning!.run_id) : undefined}
+                  onSendReminder={dunningRunID ? () => reminderMutation.mutate(dunningRunID) : undefined}
+                  runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
                 />
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>

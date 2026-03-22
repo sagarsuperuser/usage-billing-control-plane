@@ -63,6 +63,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   });
 
   const invoice = invoiceQuery.data;
+  const dunningRunID = invoice?.dunning?.run_id;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -278,7 +279,8 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   summary={invoice.dunning}
                   canWrite={canWrite && Boolean(csrfToken)}
                   sendingReminder={reminderMutation.isPending}
-                  onSendReminder={invoice.dunning?.run_id ? () => reminderMutation.mutate(invoice.dunning!.run_id) : undefined}
+                  onSendReminder={dunningRunID ? () => reminderMutation.mutate(dunningRunID) : undefined}
+                  runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
                 />
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>

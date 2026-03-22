@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LoaderCircle } from "lucide-react";
 
 import { formatExactTimestamp } from "@/lib/format";
@@ -24,11 +25,13 @@ export function DunningSummaryPanel({
   canWrite,
   sendingReminder,
   onSendReminder,
+  runHref,
 }: {
   summary?: DunningSummary;
   canWrite?: boolean;
   sendingReminder?: boolean;
   onSendReminder?: () => void;
+  runHref?: string;
 }) {
   if (!summary) {
     return null;
@@ -51,6 +54,14 @@ export function DunningSummaryPanel({
           <p className="font-semibold text-amber-900">Last notification error</p>
           <p className="mt-2">{summary.last_notification_error}</p>
         </div>
+      ) : null}
+      {runHref ? (
+        <Link
+          href={runHref}
+          className="mt-4 inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+        >
+          Open dunning run
+        </Link>
       ) : null}
       {summary.next_action_type === "collect_payment_reminder" && onSendReminder ? (
         <button

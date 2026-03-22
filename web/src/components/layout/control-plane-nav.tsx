@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowRightLeft,
+  BellRing,
   Building2,
   CircleDollarSign,
   CreditCard,
@@ -42,6 +43,7 @@ const tenantItems: NavItem[] = [
   { href: "/invoices", label: "Invoices", scope: "tenant", icon: ReceiptText },
   { href: "/workspace-access", label: "Access", scope: "tenant", icon: ShieldCheck },
   { href: "/payments", label: "Payments", scope: "tenant", icon: CreditCard },
+  { href: "/dunning", label: "Dunning", scope: "tenant", icon: BellRing },
   { href: "/replay-operations", label: "Recovery", scope: "tenant", icon: Workflow },
   { href: "/invoice-explainability", label: "Explainability", scope: "tenant", icon: Layers3 },
 ];
@@ -64,6 +66,9 @@ function isActivePath(pathname: string, href: string): boolean {
   }
   if (href === "/payments") {
     return pathname === "/payments" || pathname.startsWith("/payments/") || pathname === "/payment-operations";
+  }
+  if (href === "/dunning") {
+    return pathname === "/dunning" || pathname.startsWith("/dunning/");
   }
   if (href === "/pricing") {
     return pathname === "/pricing" || pathname.startsWith("/pricing/");
