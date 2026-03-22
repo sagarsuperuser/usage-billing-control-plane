@@ -239,7 +239,7 @@ fi
 initial_retry_response_json="$HTTP_BODY"
 
 echo "[info] waiting for Alpha lifecycle to recommend collect_payment"
-wait_for_get "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$invoice_id/lifecycle" 200 '.recommended_action == "collect_payment" and .payment_status == "pending" and .requires_action == true and .retry_recommended == false' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "collect-payment lifecycle" "X-API-Key: $ALPHA_READER_API_KEY"
+wait_for_get "$ALPHA_API_BASE_URL/v1/invoice-payment-statuses/$invoice_id/lifecycle" 200 '.recommended_action == "collect_payment" and .payment_status == "failed" and .requires_action == true and .retry_recommended == false' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "collect-payment lifecycle" "X-API-Key: $ALPHA_READER_API_KEY"
 pending_lifecycle_json="$HTTP_BODY"
 
 invoice_id_enc="$(urlencode "$invoice_id")"

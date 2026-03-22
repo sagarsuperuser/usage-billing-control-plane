@@ -406,10 +406,22 @@ func (s *DunningService) GetInvoiceSummary(tenantID, invoiceID string) (*domain.
 
 	run, err := s.store.GetActiveInvoiceDunningRunByInvoiceID(tenantID, invoiceID)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if !errors.Is(err, store.ErrNotFound) {
+			return nil, err
+		}
+		runs, listErr := s.store.ListInvoiceDunningRuns(store.InvoiceDunningRunListFilter{
+			TenantID:  tenantID,
+			InvoiceID: invoiceID,
+			Limit:     1,
+			Offset:    0,
+		})
+		if listErr != nil {
+			return nil, listErr
+		}
+		if len(runs) == 0 {
 			return nil, nil
 		}
-		return nil, err
+		run = runs[0]
 	}
 	events, err := s.store.ListInvoiceDunningEvents(tenantID, run.ID)
 	if err != nil {
@@ -1111,14 +1123,22 @@ type dunningEvaluation struct {
 }
 
 func (s *DunningService) evaluate(policy domain.DunningPolicy, view domain.InvoicePaymentStatusView) (dunningEvaluation, error) {
+	paymentStatus := strings.ToLower(strings.TrimSpace(view.PaymentStatus))
+	invoiceStatus := strings.ToLower(strings.TrimSpace(view.InvoiceStatus))
 	if !invoiceRequiresDunning(view) {
+		resolution := domain.DunningResolutionInvoiceNotCollectible
+		reason := "invoice_not_collectible"
+		if paymentStatus == "succeeded" || paymentStatus == "paid" {
+			resolution = domain.DunningResolutionPaymentSucceeded
+			reason = "payment_succeeded"
+		}
 		return dunningEvaluation{
 			eligible:   false,
-			reason:     "invoice_not_collectible",
-			resolution: domain.DunningResolutionInvoiceNotCollectible,
+			reason:     reason,
+			resolution: resolution,
 			metadata: map[string]any{
-				"payment_status": strings.ToLower(strings.TrimSpace(view.PaymentStatus)),
-				"invoice_status": strings.ToLower(strings.TrimSpace(view.InvoiceStatus)),
+				"payment_status": paymentStatus,
+				"invoice_status": invoiceStatus,
 			},
 		}, nil
 	}
@@ -1126,13 +1146,12 @@ func (s *DunningService) evaluate(policy domain.DunningPolicy, view domain.Invoi
 	if err != nil {
 		return dunningEvaluation{}, err
 	}
-	paymentStatus := strings.ToLower(strings.TrimSpace(view.PaymentStatus))
 	eval := dunningEvaluation{
 		eligible: true,
 		reason:   readinessReason,
 		metadata: map[string]any{
 			"payment_status":       paymentStatus,
-			"invoice_status":       strings.ToLower(strings.TrimSpace(view.InvoiceStatus)),
+			"invoice_status":       invoiceStatus,
 			"payment_overdue":      view.PaymentOverdue != nil && *view.PaymentOverdue,
 			"customer_external_id": strings.TrimSpace(view.CustomerExternalID),
 		},

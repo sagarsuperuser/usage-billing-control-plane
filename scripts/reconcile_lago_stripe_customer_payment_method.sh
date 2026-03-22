@@ -20,7 +20,7 @@ LAGO_PAYMENT_METHOD_CLEANUP_JOB="${LAGO_PAYMENT_METHOD_CLEANUP_JOB:-1}"
 LAGO_PAYMENT_METHOD_JOB_NAME="${LAGO_PAYMENT_METHOD_JOB_NAME:-}"
 LAGO_ORG_ID="${LAGO_ORG_ID:-}"
 LAGO_ORG_NAME="${LAGO_ORG_NAME:-Usage Billing Control Plane Staging}"
-STRIPE_PROVIDER_CODE="${STRIPE_PROVIDER_CODE:-stripe_test}"
+STRIPE_PROVIDER_CODE="${STRIPE_PROVIDER_CODE:-}"
 CUSTOMER_EXTERNAL_ID="${CUSTOMER_EXTERNAL_ID:-}"
 PAYMENT_METHOD_ACTION="${PAYMENT_METHOD_ACTION:-attach_default}"
 PAYMENT_METHOD_FIXTURE="${PAYMENT_METHOD_FIXTURE:-pm_card_visa}"
@@ -171,7 +171,18 @@ org =
     Organization.find_by!(name: env!("LAGO_ORG_NAME"))
   end
 
-provider = PaymentProviders::StripeProvider.find_by!(organization_id: org.id, code: env!("STRIPE_PROVIDER_CODE"))
+requested_provider_code = env("STRIPE_PROVIDER_CODE")
+provider =
+  if requested_provider_code.present?
+    PaymentProviders::StripeProvider.find_by!(organization_id: org.id, code: requested_provider_code)
+  else
+    existing_providers = PaymentProviders::StripeProvider.where(organization_id: org.id).order(created_at: :desc).to_a
+    existing_providers.find { |candidate| candidate.code.to_s.start_with?("alpha_stripe_") } ||
+      existing_providers.find { |candidate| candidate.code.to_s == "stripe_test" } ||
+      existing_providers.first
+  end
+
+raise "missing stripe provider for organization #{org.id}" if provider.nil?
 raise "stripe provider #{provider.code} is missing secret_key" unless provider.secret_key.present?
 
 customer = Customer.find_by!(organization_id: org.id, external_id: env!("CUSTOMER_EXTERNAL_ID"))

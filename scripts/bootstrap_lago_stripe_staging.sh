@@ -21,8 +21,8 @@ LAGO_BOOTSTRAP_JOB_NAME="${LAGO_BOOTSTRAP_JOB_NAME:-}"
 LAGO_ORG_ID="${LAGO_ORG_ID:-}"
 LAGO_ORG_NAME="${LAGO_ORG_NAME:-Usage Billing Control Plane Staging}"
 
-STRIPE_PROVIDER_CODE="${STRIPE_PROVIDER_CODE:-stripe_test}"
-STRIPE_PROVIDER_NAME="${STRIPE_PROVIDER_NAME:-Stripe Test}"
+STRIPE_PROVIDER_CODE="${STRIPE_PROVIDER_CODE:-}"
+STRIPE_PROVIDER_NAME="${STRIPE_PROVIDER_NAME:-}"
 STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-}"
 STRIPE_SUCCESS_REDIRECT_URL="${STRIPE_SUCCESS_REDIRECT_URL:-https://staging.sagarwaidande.org}"
 
@@ -233,14 +233,25 @@ org =
 billing_entity_code = org.billing_entities.first&.code
 raise "organization #{org.id} has no billing entity" if billing_entity_code.nil? || billing_entity_code.empty?
 
-provider = PaymentProviders::StripeProvider.find_by(organization_id: org.id, code: env!("STRIPE_PROVIDER_CODE"))
+requested_provider_code = env("STRIPE_PROVIDER_CODE")
+provider =
+  if requested_provider_code.present?
+    PaymentProviders::StripeProvider.find_by(organization_id: org.id, code: requested_provider_code)
+  else
+    existing_providers = PaymentProviders::StripeProvider.where(organization_id: org.id).order(created_at: :desc).to_a
+    existing_providers.find { |candidate| candidate.code.to_s.start_with?("alpha_stripe_") } ||
+      existing_providers.find { |candidate| candidate.code.to_s == "stripe_test" } ||
+      existing_providers.first
+  end
 
 if provider.nil?
+  provider_code = requested_provider_code.presence || "stripe_test"
+  provider_name = env("STRIPE_PROVIDER_NAME").presence || "Stripe Test"
   secret_key = env!("STRIPE_SECRET_KEY")
   result = PaymentProviders::StripeService.new.create_or_update(
     organization_id: org.id,
-    code: env!("STRIPE_PROVIDER_CODE"),
-    name: env!("STRIPE_PROVIDER_NAME"),
+    code: provider_code,
+    name: provider_name,
     secret_key: secret_key,
     success_redirect_url: env("STRIPE_SUCCESS_REDIRECT_URL"),
     supports_3ds: false
@@ -248,8 +259,8 @@ if provider.nil?
   ensure_result!(result, "create stripe provider")
   provider = result.stripe_provider
 else
-  provider.name = env!("STRIPE_PROVIDER_NAME")
-  provider.success_redirect_url = env("STRIPE_SUCCESS_REDIRECT_URL")
+  provider.name = env("STRIPE_PROVIDER_NAME").presence || provider.name
+  provider.success_redirect_url = env("STRIPE_SUCCESS_REDIRECT_URL").presence || provider.success_redirect_url
   if !env("STRIPE_SECRET_KEY").to_s.empty? && !provider.secret_key.present?
     provider.secret_key = env("STRIPE_SECRET_KEY")
   end

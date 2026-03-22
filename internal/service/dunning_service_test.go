@@ -301,8 +301,73 @@ func TestDunningServiceEnsureRunResolvesSucceededInvoice(t *testing.T) {
 	if resolved.Run.State != domain.DunningRunStateResolved {
 		t.Fatalf("expected resolved state, got %q", resolved.Run.State)
 	}
-	if resolved.Run.Resolution != domain.DunningResolutionInvoiceNotCollectible {
-		t.Fatalf("expected invoice_not_collectible resolution, got %q", resolved.Run.Resolution)
+	if resolved.Run.Resolution != domain.DunningResolutionPaymentSucceeded {
+		t.Fatalf("expected payment_succeeded resolution, got %q", resolved.Run.Resolution)
+	}
+	if resolved.Event == nil || resolved.Event.EventType != domain.DunningEventTypeResolved {
+		t.Fatalf("expected resolved event, got %+v", resolved.Event)
+	}
+}
+
+func TestDunningServiceEnsureRunEmitsRetrySucceededFromAwaitingRetryResult(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	repo.invoiceViews["tenant_a|inv_retry_success"] = domain.InvoicePaymentStatusView{
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_retry_success",
+		CustomerExternalID: "cust_retry_success",
+		InvoiceStatus:      "finalized",
+		PaymentStatus:      "pending",
+		LastEventAt:        base,
+	}
+	repo.customers["tenant_a|cust_retry_success"] = domain.Customer{
+		ID:         "cust_row_retry_success",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_retry_success",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.paymentSetups["tenant_a|cust_row_retry_success"] = domain.CustomerPaymentSetup{
+		CustomerID:                  "cust_row_retry_success",
+		TenantID:                    "tenant_a",
+		SetupStatus:                 domain.PaymentSetupStatusReady,
+		DefaultPaymentMethodPresent: true,
+	}
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	created, err := svc.EnsureRunForInvoice("tenant_a", "inv_retry_success")
+	if err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	if created.Run == nil || created.Run.State != domain.DunningRunStateAwaitingRetryResult {
+		t.Fatalf("expected awaiting_retry_result run, got %+v", created.Run)
+	}
+
+	repo.invoiceViews["tenant_a|inv_retry_success"] = domain.InvoicePaymentStatusView{
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_retry_success",
+		CustomerExternalID: "cust_retry_success",
+		InvoiceStatus:      "finalized",
+		PaymentStatus:      "succeeded",
+		LastEventAt:        base.Add(time.Hour),
+	}
+	svc.now = func() time.Time { return base.Add(time.Hour) }
+
+	resolved, err := svc.EnsureRunForInvoice("tenant_a", "inv_retry_success")
+	if err != nil {
+		t.Fatalf("resolve run: %v", err)
+	}
+	if !resolved.Resolved || resolved.Run == nil {
+		t.Fatalf("expected resolved run")
+	}
+	if resolved.Run.Resolution != domain.DunningResolutionPaymentSucceeded {
+		t.Fatalf("expected payment_succeeded resolution, got %q", resolved.Run.Resolution)
+	}
+	if resolved.Event == nil || resolved.Event.EventType != domain.DunningEventTypeRetrySucceeded {
+		t.Fatalf("expected retry_succeeded event, got %+v", resolved.Event)
 	}
 }
 
@@ -414,6 +479,61 @@ func TestDunningServiceQueueCollectPaymentReminderEscalatesWhenScheduleExhausted
 	}
 	if result.Event.EventType != domain.DunningEventTypeEscalated {
 		t.Fatalf("expected escalated event, got %q", result.Event.EventType)
+	}
+}
+
+func TestDunningServiceGetInvoiceSummaryFallsBackToLatestResolvedRun(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	resolvedAt := base.Add(2 * time.Hour)
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_resolved_summary",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_resolved_summary",
+		CustomerExternalID: "cust_resolved_summary",
+		PolicyID:           "dpo_resolved_summary",
+		State:              domain.DunningRunStateResolved,
+		Reason:             "payment_succeeded",
+		AttemptCount:       1,
+		ResolvedAt:         &resolvedAt,
+		Resolution:         domain.DunningResolutionPaymentSucceeded,
+		CreatedAt:          base,
+		UpdatedAt:          resolvedAt,
+	}
+	repo.runsByID[run.ID] = run
+	repo.eventsByRunID[run.ID] = []domain.InvoiceDunningEvent{
+		{
+			ID:        "dne_resolved_1",
+			RunID:     run.ID,
+			TenantID:  "tenant_a",
+			InvoiceID: run.InvoiceID,
+			EventType: domain.DunningEventTypeRetrySucceeded,
+			State:     run.State,
+			CreatedAt: resolvedAt,
+		},
+	}
+
+	svc, _ := NewDunningService(repo)
+	summary, err := svc.GetInvoiceSummary("tenant_a", run.InvoiceID)
+	if err != nil {
+		t.Fatalf("get invoice summary: %v", err)
+	}
+	if summary == nil {
+		t.Fatalf("expected dunning summary")
+	}
+	if summary.RunID != run.ID {
+		t.Fatalf("expected run %q, got %q", run.ID, summary.RunID)
+	}
+	if summary.State != domain.DunningRunStateResolved {
+		t.Fatalf("expected resolved state, got %q", summary.State)
+	}
+	if summary.Resolution != domain.DunningResolutionPaymentSucceeded {
+		t.Fatalf("expected payment_succeeded resolution, got %q", summary.Resolution)
+	}
+	if summary.LastEventType != domain.DunningEventTypeRetrySucceeded {
+		t.Fatalf("expected retry_succeeded last event, got %q", summary.LastEventType)
 	}
 }
 
