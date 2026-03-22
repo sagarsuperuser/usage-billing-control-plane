@@ -3421,8 +3421,8 @@ func (s *PostgresStore) CreateSubscription(input domain.Subscription) (domain.Su
 	}
 	defer rollbackSilently(tx)
 
-	_, err = tx.ExecContext(ctx, `INSERT INTO subscriptions (id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, started_at, payment_setup_requested_at, activated_at, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-		input.ID, input.TenantID, input.Code, input.DisplayName, input.CustomerID, input.PlanID, input.Status, input.StartedAt, input.PaymentSetupRequestedAt, input.ActivatedAt, input.CreatedAt, input.UpdatedAt,
+	_, err = tx.ExecContext(ctx, `INSERT INTO subscriptions (id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, billing_time, started_at, payment_setup_requested_at, activated_at, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		input.ID, input.TenantID, input.Code, input.DisplayName, input.CustomerID, input.PlanID, input.Status, input.BillingTime, input.StartedAt, input.PaymentSetupRequestedAt, input.ActivatedAt, input.CreatedAt, input.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -3446,7 +3446,7 @@ func (s *PostgresStore) ListSubscriptions(tenantID string) ([]domain.Subscriptio
 	}
 	defer rollbackSilently(tx)
 
-	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, started_at, payment_setup_requested_at, activated_at, created_at, updated_at FROM subscriptions WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC`, normalizeTenantID(tenantID))
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, billing_time, started_at, payment_setup_requested_at, activated_at, created_at, updated_at FROM subscriptions WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC`, normalizeTenantID(tenantID))
 	if err != nil {
 		return nil, err
 	}
@@ -3479,7 +3479,7 @@ func (s *PostgresStore) GetSubscription(tenantID, id string) (domain.Subscriptio
 	}
 	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, started_at, payment_setup_requested_at, activated_at, created_at, updated_at FROM subscriptions WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), strings.TrimSpace(id))
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, subscription_code, display_name, customer_id, plan_id, status, billing_time, started_at, payment_setup_requested_at, activated_at, created_at, updated_at FROM subscriptions WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), strings.TrimSpace(id))
 	subscription, err := scanSubscription(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -3495,6 +3495,9 @@ func (s *PostgresStore) GetSubscription(tenantID, id string) (domain.Subscriptio
 
 func (s *PostgresStore) UpdateSubscription(input domain.Subscription) (domain.Subscription, error) {
 	input.TenantID = normalizeTenantID(input.TenantID)
+	if strings.TrimSpace(string(input.BillingTime)) == "" {
+		input.BillingTime = domain.SubscriptionBillingTimeCalendar
+	}
 	input.UpdatedAt = time.Now().UTC()
 
 	ctx, cancel := s.withTimeout()
@@ -3506,8 +3509,8 @@ func (s *PostgresStore) UpdateSubscription(input domain.Subscription) (domain.Su
 	}
 	defer rollbackSilently(tx)
 
-	result, err := tx.ExecContext(ctx, `UPDATE subscriptions SET subscription_code = $3, display_name = $4, customer_id = $5, plan_id = $6, status = $7, started_at = $8, payment_setup_requested_at = $9, activated_at = $10, updated_at = $11 WHERE tenant_id = $1 AND id = $2`,
-		input.TenantID, input.ID, input.Code, input.DisplayName, input.CustomerID, input.PlanID, input.Status, input.StartedAt, input.PaymentSetupRequestedAt, input.ActivatedAt, input.UpdatedAt,
+	result, err := tx.ExecContext(ctx, `UPDATE subscriptions SET subscription_code = $3, display_name = $4, customer_id = $5, plan_id = $6, status = $7, billing_time = $8, started_at = $9, payment_setup_requested_at = $10, activated_at = $11, updated_at = $12 WHERE tenant_id = $1 AND id = $2`,
+		input.TenantID, input.ID, input.Code, input.DisplayName, input.CustomerID, input.PlanID, input.Status, input.BillingTime, input.StartedAt, input.PaymentSetupRequestedAt, input.ActivatedAt, input.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -6656,6 +6659,7 @@ func scanPlan(s rowScanner) (domain.Plan, error) {
 func scanSubscription(s rowScanner) (domain.Subscription, error) {
 	var out domain.Subscription
 	var status string
+	var billingTime string
 	var startedAt sql.NullTime
 	var paymentSetupRequestedAt sql.NullTime
 	var activatedAt sql.NullTime
@@ -6667,6 +6671,7 @@ func scanSubscription(s rowScanner) (domain.Subscription, error) {
 		&out.CustomerID,
 		&out.PlanID,
 		&status,
+		&billingTime,
 		&startedAt,
 		&paymentSetupRequestedAt,
 		&activatedAt,
@@ -6677,6 +6682,12 @@ func scanSubscription(s rowScanner) (domain.Subscription, error) {
 	}
 	out.TenantID = normalizeTenantID(out.TenantID)
 	out.Status = normalizeSubscriptionStatus(domain.SubscriptionStatus(status))
+	switch strings.ToLower(strings.TrimSpace(billingTime)) {
+	case string(domain.SubscriptionBillingTimeAnniversary):
+		out.BillingTime = domain.SubscriptionBillingTimeAnniversary
+	default:
+		out.BillingTime = domain.SubscriptionBillingTimeCalendar
+	}
 	if startedAt.Valid {
 		value := startedAt.Time.UTC()
 		out.StartedAt = &value

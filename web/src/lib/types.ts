@@ -468,6 +468,7 @@ export interface SubscriptionSummary {
   plan_code: string;
   plan_name: string;
   billing_interval: "monthly" | "yearly";
+  billing_time: "calendar" | "anniversary";
   currency: string;
   base_amount_cents: number;
   payment_setup_status: "missing" | "pending" | "ready" | "error";

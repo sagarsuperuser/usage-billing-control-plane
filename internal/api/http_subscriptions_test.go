@@ -178,6 +178,7 @@ func TestSubscriptionEndpoints(t *testing.T) {
 		"code":                  "subscriber_growth",
 		"customer_external_id":  "cust_sub",
 		"plan_id":               plan.ID,
+		"billing_time":          "anniversary",
 		"started_at":            "2026-02-15T08:00:00Z",
 		"request_payment_setup": false,
 	}, "subscription-writer-key", http.StatusCreated)
@@ -199,6 +200,9 @@ func TestSubscriptionEndpoints(t *testing.T) {
 	if got, _ := subscription["started_at"].(string); got != "2026-02-15T08:00:00Z" {
 		t.Fatalf("expected started_at on subscription, got %q", got)
 	}
+	if got, _ := subscription["billing_time"].(string); got != "anniversary" {
+		t.Fatalf("expected billing_time anniversary on subscription, got %q", got)
+	}
 
 	items := getJSONArray(t, ts.URL+"/v1/subscriptions", "subscription-reader-key", http.StatusOK)
 	if len(items) != 1 {
@@ -215,10 +219,14 @@ func TestSubscriptionEndpoints(t *testing.T) {
 	if got, _ := detail["started_at"].(string); got != "2026-02-15T08:00:00Z" {
 		t.Fatalf("expected detail started_at 2026-02-15T08:00:00Z, got %q", got)
 	}
+	if got, _ := detail["billing_time"].(string); got != "anniversary" {
+		t.Fatalf("expected detail billing_time anniversary, got %q", got)
+	}
 
 	updatedPlan := patchJSON(t, ts.URL+"/v1/subscriptions/"+subscriptionID, map[string]any{
-		"plan_id":    revisedPlan.ID,
-		"started_at": "2026-02-20T10:15:00Z",
+		"plan_id":      revisedPlan.ID,
+		"billing_time": "calendar",
+		"started_at":   "2026-02-20T10:15:00Z",
 	}, "subscription-writer-key", http.StatusOK)
 	if got, _ := updatedPlan["plan_id"].(string); got != revisedPlan.ID {
 		t.Fatalf("expected updated plan_id %q, got %q", revisedPlan.ID, got)
@@ -231,6 +239,9 @@ func TestSubscriptionEndpoints(t *testing.T) {
 	}
 	if got, _ := updatedPlan["started_at"].(string); got != "2026-02-20T10:15:00Z" {
 		t.Fatalf("expected updated started_at 2026-02-20T10:15:00Z, got %q", got)
+	}
+	if got, _ := updatedPlan["billing_time"].(string); got != "calendar" {
+		t.Fatalf("expected updated billing_time calendar, got %q", got)
 	}
 
 	archived := patchJSON(t, ts.URL+"/v1/subscriptions/"+subscriptionID, map[string]any{

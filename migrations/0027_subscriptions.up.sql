@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   customer_id TEXT NOT NULL REFERENCES customers(id),
   plan_id TEXT NOT NULL REFERENCES plans(id),
   status TEXT NOT NULL CHECK (status IN ('draft', 'pending_payment_setup', 'active', 'action_required', 'archived')),
+  billing_time TEXT NOT NULL DEFAULT 'calendar' CHECK (billing_time IN ('calendar', 'anniversary')),
   payment_setup_requested_at TIMESTAMPTZ,
   activated_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

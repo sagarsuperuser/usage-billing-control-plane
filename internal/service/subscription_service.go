@@ -23,41 +23,44 @@ type CreateSubscriptionRequest struct {
 	DisplayName         string     `json:"display_name,omitempty"`
 	CustomerExternalID  string     `json:"customer_external_id"`
 	PlanID              string     `json:"plan_id"`
+	BillingTime         string     `json:"billing_time,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	RequestPaymentSetup bool       `json:"request_payment_setup,omitempty"`
 	PaymentMethodType   string     `json:"payment_method_type,omitempty"`
 }
 
 type UpdateSubscriptionRequest struct {
-	DisplayName *string                    `json:"display_name,omitempty"`
-	PlanID      *string                    `json:"plan_id,omitempty"`
-	Status      *domain.SubscriptionStatus `json:"status,omitempty"`
-	StartedAt   *time.Time                 `json:"started_at,omitempty"`
+	DisplayName *string                         `json:"display_name,omitempty"`
+	PlanID      *string                         `json:"plan_id,omitempty"`
+	Status      *domain.SubscriptionStatus      `json:"status,omitempty"`
+	BillingTime *domain.SubscriptionBillingTime `json:"billing_time,omitempty"`
+	StartedAt   *time.Time                      `json:"started_at,omitempty"`
 }
 
 type SubscriptionSummary struct {
-	ID                           string                    `json:"id"`
-	TenantID                     string                    `json:"tenant_id,omitempty"`
-	Code                         string                    `json:"code"`
-	DisplayName                  string                    `json:"display_name"`
-	Status                       domain.SubscriptionStatus `json:"status"`
-	CustomerID                   string                    `json:"customer_id"`
-	CustomerExternalID           string                    `json:"customer_external_id"`
-	CustomerDisplayName          string                    `json:"customer_display_name"`
-	PlanID                       string                    `json:"plan_id"`
-	PlanCode                     string                    `json:"plan_code"`
-	PlanName                     string                    `json:"plan_name"`
-	BillingInterval              domain.BillingInterval    `json:"billing_interval"`
-	Currency                     string                    `json:"currency"`
-	BaseAmountCents              int64                     `json:"base_amount_cents"`
-	PaymentSetupStatus           domain.PaymentSetupStatus `json:"payment_setup_status"`
-	DefaultPaymentMethodVerified bool                      `json:"default_payment_method_verified"`
-	PaymentSetupActionRequired   bool                      `json:"payment_setup_action_required"`
-	StartedAt                    *time.Time                `json:"started_at,omitempty"`
-	PaymentSetupRequestedAt      *time.Time                `json:"payment_setup_requested_at,omitempty"`
-	ActivatedAt                  *time.Time                `json:"activated_at,omitempty"`
-	CreatedAt                    time.Time                 `json:"created_at"`
-	UpdatedAt                    time.Time                 `json:"updated_at"`
+	ID                           string                         `json:"id"`
+	TenantID                     string                         `json:"tenant_id,omitempty"`
+	Code                         string                         `json:"code"`
+	DisplayName                  string                         `json:"display_name"`
+	Status                       domain.SubscriptionStatus      `json:"status"`
+	CustomerID                   string                         `json:"customer_id"`
+	CustomerExternalID           string                         `json:"customer_external_id"`
+	CustomerDisplayName          string                         `json:"customer_display_name"`
+	PlanID                       string                         `json:"plan_id"`
+	PlanCode                     string                         `json:"plan_code"`
+	PlanName                     string                         `json:"plan_name"`
+	BillingInterval              domain.BillingInterval         `json:"billing_interval"`
+	BillingTime                  domain.SubscriptionBillingTime `json:"billing_time"`
+	Currency                     string                         `json:"currency"`
+	BaseAmountCents              int64                          `json:"base_amount_cents"`
+	PaymentSetupStatus           domain.PaymentSetupStatus      `json:"payment_setup_status"`
+	DefaultPaymentMethodVerified bool                           `json:"default_payment_method_verified"`
+	PaymentSetupActionRequired   bool                           `json:"payment_setup_action_required"`
+	StartedAt                    *time.Time                     `json:"started_at,omitempty"`
+	PaymentSetupRequestedAt      *time.Time                     `json:"payment_setup_requested_at,omitempty"`
+	ActivatedAt                  *time.Time                     `json:"activated_at,omitempty"`
+	CreatedAt                    time.Time                      `json:"created_at"`
+	UpdatedAt                    time.Time                      `json:"updated_at"`
 }
 
 type SubscriptionDetail struct {
@@ -127,6 +130,7 @@ func (s *SubscriptionService) CreateSubscription(ctx context.Context, req Create
 		CustomerID:  customer.ID,
 		PlanID:      plan.ID,
 		Status:      domain.SubscriptionStatusDraft,
+		BillingTime: normalizeSubscriptionBillingTime(req.BillingTime),
 		StartedAt:   normalizeOptionalUTC(req.StartedAt),
 	})
 	if err != nil {
@@ -223,6 +227,9 @@ func (s *SubscriptionService) UpdateSubscription(ctx context.Context, tenantID, 
 	}
 	if req.Status != nil {
 		subscription.Status = normalizeSubscriptionLifecycle(*req.Status)
+	}
+	if req.BillingTime != nil {
+		subscription.BillingTime = normalizeSubscriptionBillingTime(string(*req.BillingTime))
 	}
 	if req.StartedAt != nil {
 		subscription.StartedAt = normalizeOptionalUTC(req.StartedAt)
@@ -360,6 +367,7 @@ func (s *SubscriptionService) buildSubscriptionSummary(subscription domain.Subsc
 		PlanCode:                     plan.Code,
 		PlanName:                     plan.Name,
 		BillingInterval:              plan.BillingInterval,
+		BillingTime:                  subscription.BillingTime,
 		Currency:                     plan.Currency,
 		BaseAmountCents:              plan.BaseAmountCents,
 		PaymentSetupStatus:           readiness.PaymentSetupStatus,
@@ -422,6 +430,15 @@ func normalizeSubscriptionLifecycle(status domain.SubscriptionStatus) domain.Sub
 		return domain.SubscriptionStatusArchived
 	default:
 		return domain.SubscriptionStatusDraft
+	}
+}
+
+func normalizeSubscriptionBillingTime(value string) domain.SubscriptionBillingTime {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(domain.SubscriptionBillingTimeAnniversary):
+		return domain.SubscriptionBillingTimeAnniversary
+	default:
+		return domain.SubscriptionBillingTimeCalendar
 	}
 }
 

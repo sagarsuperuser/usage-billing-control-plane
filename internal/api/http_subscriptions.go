@@ -14,6 +14,7 @@ type createSubscriptionRequest struct {
 	DisplayName         string     `json:"display_name"`
 	CustomerExternalID  string     `json:"customer_external_id"`
 	PlanID              string     `json:"plan_id"`
+	BillingTime         string     `json:"billing_time,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	RequestPaymentSetup bool       `json:"request_payment_setup"`
 	PaymentMethodType   string     `json:"payment_method_type"`
@@ -23,6 +24,7 @@ type updateSubscriptionRequest struct {
 	DisplayName *string    `json:"display_name,omitempty"`
 	PlanID      *string    `json:"plan_id,omitempty"`
 	Status      *string    `json:"status,omitempty"`
+	BillingTime *string    `json:"billing_time,omitempty"`
 	StartedAt   *time.Time `json:"started_at,omitempty"`
 }
 
@@ -56,6 +58,7 @@ func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
 			DisplayName:         req.DisplayName,
 			CustomerExternalID:  req.CustomerExternalID,
 			PlanID:              req.PlanID,
+			BillingTime:         req.BillingTime,
 			StartedAt:           req.StartedAt,
 			RequestPaymentSetup: req.RequestPaymentSetup,
 			PaymentMethodType:   req.PaymentMethodType,
@@ -133,10 +136,16 @@ func (s *Server) handleSubscriptionByID(w http.ResponseWriter, r *http.Request) 
 			value := domain.SubscriptionStatus(strings.TrimSpace(*req.Status))
 			status = &value
 		}
+		var billingTime *domain.SubscriptionBillingTime
+		if req.BillingTime != nil {
+			value := domain.SubscriptionBillingTime(strings.TrimSpace(*req.BillingTime))
+			billingTime = &value
+		}
 		detail, err := s.subscriptionService.UpdateSubscription(r.Context(), requestTenantID(r), id, service.UpdateSubscriptionRequest{
 			DisplayName: req.DisplayName,
 			PlanID:      req.PlanID,
 			Status:      status,
+			BillingTime: billingTime,
 			StartedAt:   req.StartedAt,
 		})
 		if err != nil {

@@ -267,6 +267,9 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 			if !strings.Contains(payload, `"plan_code":"growth"`) {
 				t.Fatalf("expected plan code in payload, got %s", payload)
 			}
+			if !strings.Contains(payload, `"billing_time":"anniversary"`) {
+				t.Fatalf("expected billing_time in payload, got %s", payload)
+			}
 			if !strings.Contains(payload, `"external_id":"cust_123_growth"`) {
 				t.Fatalf("expected external subscription id in payload, got %s", payload)
 			}
@@ -291,7 +294,7 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 	}
 
 	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
-		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth", StartedAt: &startedAt},
+		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth", BillingTime: domain.SubscriptionBillingTimeAnniversary, StartedAt: &startedAt},
 		domain.Customer{ExternalID: "cust_123"},
 		domain.Plan{Code: "growth"},
 	)
@@ -325,6 +328,9 @@ func TestLagoSubscriptionSyncAdapterFallsBackToUpdateForRename(t *testing.T) {
 			if !strings.Contains(payload, `"name":"Customer Growth Renamed"`) {
 				t.Fatalf("expected renamed subscription in update payload, got %s", payload)
 			}
+			if strings.Contains(payload, `"billing_time"`) {
+				t.Fatalf("expected update payload to omit billing_time, got %s", payload)
+			}
 			if !strings.Contains(payload, `"subscription_at":"2026-02-15T08:00:00Z"`) {
 				t.Fatalf("expected subscription_at in update payload, got %s", payload)
 			}
@@ -346,7 +352,7 @@ func TestLagoSubscriptionSyncAdapterFallsBackToUpdateForRename(t *testing.T) {
 	}
 
 	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
-		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth Renamed", StartedAt: &startedAt},
+		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth Renamed", BillingTime: domain.SubscriptionBillingTimeAnniversary, StartedAt: &startedAt},
 		domain.Customer{ExternalID: "cust_123"},
 		domain.Plan{Code: "growth_v2"},
 	)

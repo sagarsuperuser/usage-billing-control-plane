@@ -134,7 +134,9 @@ CUSTOMER_NAME="${CUSTOMER_NAME:-Subscription Journey Customer ${RUN_ID}}"
 CUSTOMER_EMAIL="${CUSTOMER_EMAIL:-billing+subscription-${RUN_ID}@alpha.test}"
 SUBSCRIPTION_CODE="${SUBSCRIPTION_CODE:-subjourney_sub_${RUN_ID}}"
 SUBSCRIPTION_NAME="${SUBSCRIPTION_NAME:-Subscription Journey ${RUN_ID}}"
+SUBSCRIPTION_BILLING_TIME="${SUBSCRIPTION_BILLING_TIME:-calendar}"
 SUBSCRIPTION_STARTED_AT="${SUBSCRIPTION_STARTED_AT:-}"
+SKIP_LAGO_CURRENT_USAGE_ASSERTION="${SKIP_LAGO_CURRENT_USAGE_ASSERTION:-false}"
 USAGE_QUANTITY="${USAGE_QUANTITY:-12}"
 UNIT_AMOUNT_CENTS="${UNIT_AMOUNT_CENTS:-125}"
 EXPECTED_USAGE_AMOUNT_CENTS="${EXPECTED_USAGE_AMOUNT_CENTS:-$((USAGE_QUANTITY * UNIT_AMOUNT_CENTS))}"
@@ -262,23 +264,27 @@ create_subscription_payload="$(jq -nc \
   --arg display_name "$SUBSCRIPTION_NAME" \
   --arg customer_external_id "$CUSTOMER_EXTERNAL_ID" \
   --arg plan_id "$plan_id" \
+  --arg billing_time "$SUBSCRIPTION_BILLING_TIME" \
   --arg started_at "$SUBSCRIPTION_STARTED_AT" \
   '{
     code: $code,
     display_name: $display_name,
     customer_external_id: $customer_external_id,
-    plan_id: $plan_id
+    plan_id: $plan_id,
+    billing_time: $billing_time
   } + (if $started_at != "" then {started_at: $started_at} else {} end)')"
 create_subscription_payload_legacy="$(jq -nc \
   --arg code "$SUBSCRIPTION_CODE" \
   --arg display_name "$SUBSCRIPTION_NAME" \
   --arg customer_external_id "$CUSTOMER_EXTERNAL_ID" \
   --arg plan_id "$plan_id" \
+  --arg billing_time "$SUBSCRIPTION_BILLING_TIME" \
   '{
     code: $code,
     display_name: $display_name,
     customer_external_id: $customer_external_id,
-    plan_id: $plan_id
+    plan_id: $plan_id,
+    billing_time: $billing_time
   }')"
 backfill_subscription_started_at_via_lago="false"
 
@@ -383,14 +389,16 @@ customer_usage_query="external_subscription_id=$(urlencode "$SUBSCRIPTION_CODE")
 http_call GET "$LAGO_API_URL/api/v1/customers/$customer_external_id_enc/current_usage?$customer_usage_query" '' "Authorization: Bearer $LAGO_API_KEY"
 assert_http_code 200 "get customer current usage"
 customer_usage_json="$HTTP_BODY"
-assert_jq "$customer_usage_json" "subscription current usage mismatch" \
-  --arg meter_key "$METER_KEY" \
-  --arg currency "USD" \
-  --argjson expected_amount_cents "$EXPECTED_USAGE_AMOUNT_CENTS" \
-  '.customer_usage.currency == $currency
-   and .customer_usage.amount_cents == $expected_amount_cents
-   and .customer_usage.total_amount_cents == $expected_amount_cents
-   and (.customer_usage.charges_usage | map(select(.billable_metric.code == $meter_key and .amount_cents == $expected_amount_cents)) | length >= 1)'
+if [[ "$SKIP_LAGO_CURRENT_USAGE_ASSERTION" != "true" ]]; then
+  assert_jq "$customer_usage_json" "subscription current usage mismatch" \
+    --arg meter_key "$METER_KEY" \
+    --arg currency "USD" \
+    --argjson expected_amount_cents "$EXPECTED_USAGE_AMOUNT_CENTS" \
+    '.customer_usage.currency == $currency
+     and .customer_usage.amount_cents == $expected_amount_cents
+     and .customer_usage.total_amount_cents == $expected_amount_cents
+     and (.customer_usage.charges_usage | map(select(.billable_metric.code == $meter_key and .amount_cents == $expected_amount_cents)) | length >= 1)'
+fi
 customer_usage_summary_json="$(jq -c '.customer_usage' <<<"$customer_usage_json")"
 rating_rule_summary_json="$(jq -c '.' <<<"$rating_rule_json")"
 meter_summary_json="$(jq -c '.' <<<"$meter_json")"
@@ -419,6 +427,7 @@ summary_json="$(jq -n \
   --arg customer_external_id "$CUSTOMER_EXTERNAL_ID" \
   --arg subscription_id "$subscription_id" \
   --arg subscription_code "$SUBSCRIPTION_CODE" \
+  --arg subscription_billing_time "$SUBSCRIPTION_BILLING_TIME" \
   --arg subscription_started_at "$SUBSCRIPTION_STARTED_AT" \
   --arg usage_transaction_id "$USAGE_TRANSACTION_ID" \
   --argjson usage_quantity "$USAGE_QUANTITY" \
@@ -471,6 +480,7 @@ summary_json="$(jq -n \
       subscription: {
         id: $subscription_id,
         code: $subscription_code,
+        billing_time: $subscription_billing_time,
         started_at: $subscription_started_at
       },
       usage_event: {

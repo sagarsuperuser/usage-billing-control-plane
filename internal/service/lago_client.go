@@ -523,6 +523,7 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 			"plan_code":            plan.Code,
 			"name":                 subscription.DisplayName,
 			"external_id":          externalID,
+			"billing_time":         subscription.BillingTime,
 		},
 	}
 	if subscription.StartedAt != nil && !subscription.StartedAt.IsZero() {
