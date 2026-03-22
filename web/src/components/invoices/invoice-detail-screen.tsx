@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
+import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import {
@@ -15,6 +16,7 @@ import {
   resendCreditNoteEmail,
   resendInvoiceEmail,
   resendPaymentReceiptEmail,
+  sendCollectPaymentReminder,
   retryInvoicePayment,
 } from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
@@ -52,6 +54,12 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   });
   const resendEmailMutation = useMutation({
     mutationFn: () => resendInvoiceEmail({ runtimeBaseURL: apiBaseURL, csrfToken, invoiceID }),
+  });
+  const reminderMutation = useMutation({
+    mutationFn: (runID: string) => sendCollectPaymentReminder({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
+    onSuccess: async () => {
+      await invoiceQuery.refetch();
+    },
   });
 
   const invoice = invoiceQuery.data;
@@ -266,6 +274,12 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
+                <DunningSummaryPanel
+                  summary={invoice.dunning}
+                  canWrite={canWrite && Boolean(csrfToken)}
+                  sendingReminder={reminderMutation.isPending}
+                  onSendReminder={invoice.dunning?.run_id ? () => reminderMutation.mutate(invoice.dunning!.run_id) : undefined}
+                />
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
                   <div className="mt-4 grid gap-3">

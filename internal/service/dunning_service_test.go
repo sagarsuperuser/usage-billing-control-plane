@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -423,6 +424,120 @@ func TestDunningServiceGetInvoiceSummaryIncludesLatestEventAndIntent(t *testing.
 	}
 }
 
+func TestDunningServiceListRunsFiltersActiveStateAndCustomer(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	active := domain.InvoiceDunningRun{
+		ID:                 "dru_active",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_active",
+		CustomerExternalID: "cust_match",
+		PolicyID:           "dpo_1",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		CreatedAt:          base,
+		UpdatedAt:          base,
+	}
+	resolvedAt := base.Add(time.Hour)
+	resolved := domain.InvoiceDunningRun{
+		ID:                 "dru_resolved",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_resolved",
+		CustomerExternalID: "cust_other",
+		PolicyID:           "dpo_1",
+		State:              domain.DunningRunStateResolved,
+		ResolvedAt:         &resolvedAt,
+		Resolution:         domain.DunningResolutionInvoiceNotCollectible,
+		CreatedAt:          base.Add(2 * time.Hour),
+		UpdatedAt:          base.Add(2 * time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_active"] = active
+	repo.runsByID[active.ID] = active
+	repo.runsByID[resolved.ID] = resolved
+
+	svc, _ := NewDunningService(repo)
+
+	items, err := svc.ListRuns("tenant_a", ListDunningRunsRequest{
+		CustomerExternalID: "cust_match",
+		ActiveOnly:         true,
+		Limit:              20,
+	})
+	if err != nil {
+		t.Fatalf("list runs: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != active.ID {
+		t.Fatalf("expected only active matching run, got %+v", items)
+	}
+
+	items, err = svc.ListRuns("tenant_a", ListDunningRunsRequest{
+		State:      "resolved",
+		ActiveOnly: false,
+		Limit:      20,
+	})
+	if err != nil {
+		t.Fatalf("list runs by state: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != resolved.ID {
+		t.Fatalf("expected resolved run, got %+v", items)
+	}
+}
+
+func TestDunningServiceGetRunDetailIncludesEventsAndIntents(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_detail",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_detail",
+		CustomerExternalID: "cust_detail",
+		PolicyID:           "dpo_detail",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		CreatedAt:          base,
+		UpdatedAt:          base,
+	}
+	repo.activeRuns["tenant_a|inv_detail"] = run
+	repo.runsByID[run.ID] = run
+	repo.eventsByRunID[run.ID] = []domain.InvoiceDunningEvent{{
+		ID:        "dne_detail",
+		RunID:     run.ID,
+		TenantID:  "tenant_a",
+		InvoiceID: run.InvoiceID,
+		EventType: domain.DunningEventTypeStarted,
+		State:     run.State,
+		CreatedAt: base,
+	}}
+	repo.intentsByRunID[run.ID] = []domain.DunningNotificationIntent{{
+		ID:         "dni_detail",
+		RunID:      run.ID,
+		TenantID:   "tenant_a",
+		InvoiceID:  run.InvoiceID,
+		IntentType: domain.DunningNotificationIntentTypePaymentMethodRequired,
+		ActionType: domain.DunningActionTypeCollectPaymentReminder,
+		Status:     domain.DunningNotificationIntentStatusQueued,
+		CreatedAt:  base,
+	}}
+
+	svc, _ := NewDunningService(repo)
+	detail, err := svc.GetRunDetail("tenant_a", run.ID)
+	if err != nil {
+		t.Fatalf("get run detail: %v", err)
+	}
+	if detail.Run.ID != run.ID {
+		t.Fatalf("expected run %q, got %q", run.ID, detail.Run.ID)
+	}
+	if len(detail.Events) != 1 || detail.Events[0].ID != "dne_detail" {
+		t.Fatalf("expected one event, got %+v", detail.Events)
+	}
+	if len(detail.NotificationIntents) != 1 || detail.NotificationIntents[0].ID != "dni_detail" {
+		t.Fatalf("expected one notification intent, got %+v", detail.NotificationIntents)
+	}
+}
+
 func TestDunningServiceProcessNextCollectPaymentReminderDispatchesIntent(t *testing.T) {
 	t.Parallel()
 
@@ -554,6 +669,79 @@ func TestDunningServiceProcessNextCollectPaymentReminderMarksDispatchFailure(t *
 	}
 }
 
+func TestDunningServiceDispatchCollectPaymentReminderIgnoresDueTime(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:                             "dpo_dispatch",
+		TenantID:                       "tenant_a",
+		Name:                           "Default dunning policy",
+		Enabled:                        true,
+		CollectPaymentReminderSchedule: []string{"0d", "2d"},
+		RetrySchedule:                  []string{"1d"},
+		MaxRetryAttempts:               3,
+		FinalAction:                    domain.DunningFinalActionManualReview,
+	}
+	repo.customers["tenant_a|cust_dispatch"] = domain.Customer{
+		ID:         "cust_row_dispatch",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_dispatch",
+		Email:      "customer@example.com",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.paymentSetups["tenant_a|cust_row_dispatch"] = domain.CustomerPaymentSetup{
+		CustomerID:        "cust_row_dispatch",
+		TenantID:          "tenant_a",
+		PaymentMethodType: "card",
+	}
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_dispatch",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_dispatch",
+		CustomerExternalID: "cust_dispatch",
+		PolicyID:           "dpo_dispatch",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		NextActionAt:       ptrTime(base.Add(4 * time.Hour)),
+		CreatedAt:          base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_dispatch"] = run
+	repo.runsByID[run.ID] = run
+
+	sender := &fakeDunningPaymentSetupSender{
+		result: CustomerPaymentSetupRequestResult{
+			Action: "resent",
+			PaymentSetup: domain.CustomerPaymentSetup{
+				LastRequestToEmail: "customer@example.com",
+			},
+			Dispatch: NotificationDispatchResult{
+				Backend:      "alpha_email",
+				DispatchedAt: base.Add(time.Minute),
+			},
+		},
+	}
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+	svc.WithPaymentSetupRequestSender(sender)
+
+	result, err := svc.DispatchCollectPaymentReminder("tenant_a", run.ID)
+	if err != nil {
+		t.Fatalf("dispatch collect payment reminder: %v", err)
+	}
+	if sender.calls != 1 {
+		t.Fatalf("expected one resend call, got %d", sender.calls)
+	}
+	if result.NotificationIntent.Status != domain.DunningNotificationIntentStatusDispatched {
+		t.Fatalf("expected dispatched intent status, got %q", result.NotificationIntent.Status)
+	}
+	if result.DispatchEvent == nil || result.DispatchEvent.EventType != domain.DunningEventTypeNotificationSent {
+		t.Fatalf("expected notification_sent dispatch event, got %+v", result.DispatchEvent)
+	}
+}
+
 type fakeDunningStore struct {
 	policies       map[string]domain.DunningPolicy
 	invoiceViews   map[string]domain.InvoicePaymentStatusView
@@ -662,7 +850,26 @@ func (f *fakeDunningStore) GetInvoiceDunningRun(tenantID, id string) (domain.Inv
 }
 
 func (f *fakeDunningStore) ListInvoiceDunningRuns(filter store.InvoiceDunningRunListFilter) ([]domain.InvoiceDunningRun, error) {
-	panic("not used in tests")
+	items := make([]domain.InvoiceDunningRun, 0)
+	for _, item := range f.runsByID {
+		if item.TenantID != filter.TenantID {
+			continue
+		}
+		if invoiceID := strings.TrimSpace(filter.InvoiceID); invoiceID != "" && item.InvoiceID != invoiceID {
+			continue
+		}
+		if customerExternalID := strings.TrimSpace(filter.CustomerExternalID); customerExternalID != "" && item.CustomerExternalID != customerExternalID {
+			continue
+		}
+		if state := strings.TrimSpace(filter.State); state != "" && strings.ToLower(string(item.State)) != strings.ToLower(state) {
+			continue
+		}
+		if filter.ActiveOnly && item.ResolvedAt != nil {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }
 
 func (f *fakeDunningStore) ListDueInvoiceDunningRuns(filter store.DueInvoiceDunningRunFilter) ([]domain.InvoiceDunningRun, error) {

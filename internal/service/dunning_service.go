@@ -22,6 +22,7 @@ type dunningStore interface {
 	CreateInvoiceDunningRun(input domain.InvoiceDunningRun) (domain.InvoiceDunningRun, error)
 	UpdateInvoiceDunningRun(input domain.InvoiceDunningRun) (domain.InvoiceDunningRun, error)
 	GetInvoiceDunningRun(tenantID, id string) (domain.InvoiceDunningRun, error)
+	ListInvoiceDunningRuns(filter store.InvoiceDunningRunListFilter) ([]domain.InvoiceDunningRun, error)
 	ListDueInvoiceDunningRuns(filter store.DueInvoiceDunningRunFilter) ([]domain.InvoiceDunningRun, error)
 	CreateInvoiceDunningEvent(input domain.InvoiceDunningEvent) (domain.InvoiceDunningEvent, error)
 	ListInvoiceDunningEvents(tenantID, runID string) ([]domain.InvoiceDunningEvent, error)
@@ -74,6 +75,21 @@ type QueueCollectPaymentReminderResult struct {
 	NotificationIntent domain.DunningNotificationIntent `json:"notification_intent"`
 	DispatchEvent      *domain.InvoiceDunningEvent      `json:"dispatch_event,omitempty"`
 	Escalated          bool                             `json:"escalated"`
+}
+
+type ListDunningRunsRequest struct {
+	InvoiceID          string `json:"invoice_id,omitempty"`
+	CustomerExternalID string `json:"customer_external_id,omitempty"`
+	State              string `json:"state,omitempty"`
+	ActiveOnly         bool   `json:"active_only"`
+	Limit              int    `json:"limit,omitempty"`
+	Offset             int    `json:"offset,omitempty"`
+}
+
+type DunningRunDetail struct {
+	Run                 domain.InvoiceDunningRun           `json:"run"`
+	Events              []domain.InvoiceDunningEvent       `json:"events"`
+	NotificationIntents []domain.DunningNotificationIntent `json:"notification_intents"`
 }
 
 func NewDunningService(s dunningStore) (*DunningService, error) {
@@ -384,6 +400,63 @@ func (s *DunningService) GetInvoiceSummary(tenantID, invoiceID string) (*domain.
 	return summary, nil
 }
 
+func (s *DunningService) ListRuns(tenantID string, req ListDunningRunsRequest) ([]domain.InvoiceDunningRun, error) {
+	if s == nil || s.store == nil {
+		return nil, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	limit := req.Limit
+	if limit == 0 {
+		limit = 20
+	}
+	if limit < 1 || limit > 100 {
+		return nil, fmt.Errorf("%w: limit must be between 1 and 100", ErrValidation)
+	}
+	if req.Offset < 0 {
+		return nil, fmt.Errorf("%w: offset must be >= 0", ErrValidation)
+	}
+	return s.store.ListInvoiceDunningRuns(store.InvoiceDunningRunListFilter{
+		TenantID:           normalizeTenantID(tenantID),
+		InvoiceID:          strings.TrimSpace(req.InvoiceID),
+		CustomerExternalID: strings.TrimSpace(req.CustomerExternalID),
+		State:              strings.ToLower(strings.TrimSpace(req.State)),
+		ActiveOnly:         req.ActiveOnly,
+		Limit:              limit,
+		Offset:             req.Offset,
+	})
+}
+
+func (s *DunningService) GetRunDetail(tenantID, runID string) (DunningRunDetail, error) {
+	if s == nil || s.store == nil {
+		return DunningRunDetail{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return DunningRunDetail{}, fmt.Errorf("%w: run_id is required", ErrValidation)
+	}
+	run, err := s.store.GetInvoiceDunningRun(tenantID, runID)
+	if err != nil {
+		return DunningRunDetail{}, err
+	}
+	events, err := s.store.ListInvoiceDunningEvents(tenantID, run.ID)
+	if err != nil {
+		return DunningRunDetail{}, err
+	}
+	intents, err := s.store.ListDunningNotificationIntents(store.DunningNotificationIntentListFilter{
+		TenantID: tenantID,
+		RunID:    run.ID,
+		Limit:    100,
+	})
+	if err != nil {
+		return DunningRunDetail{}, err
+	}
+	return DunningRunDetail{
+		Run:                 run,
+		Events:              events,
+		NotificationIntents: intents,
+	}, nil
+}
+
 func (s *DunningService) ListDueRuns(tenantID string, req ListDueDunningRunsRequest) ([]domain.InvoiceDunningRun, error) {
 	if s == nil || s.store == nil {
 		return nil, fmt.Errorf("%w: dunning repository is required", ErrValidation)
@@ -408,6 +481,10 @@ func (s *DunningService) ListDueRuns(tenantID string, req ListDueDunningRunsRequ
 }
 
 func (s *DunningService) QueueCollectPaymentReminder(tenantID, runID string) (QueueCollectPaymentReminderResult, error) {
+	return s.queueCollectPaymentReminder(tenantID, runID, true)
+}
+
+func (s *DunningService) queueCollectPaymentReminder(tenantID, runID string, requireDue bool) (QueueCollectPaymentReminderResult, error) {
 	if s == nil || s.store == nil {
 		return QueueCollectPaymentReminderResult{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)
 	}
@@ -430,7 +507,7 @@ func (s *DunningService) QueueCollectPaymentReminder(tenantID, runID string) (Qu
 	if run.NextActionType != domain.DunningActionTypeCollectPaymentReminder {
 		return QueueCollectPaymentReminderResult{}, fmt.Errorf("%w: next action is not collect_payment_reminder", store.ErrInvalidState)
 	}
-	if run.NextActionAt != nil && run.NextActionAt.After(s.now()) {
+	if requireDue && run.NextActionAt != nil && run.NextActionAt.After(s.now()) {
 		return QueueCollectPaymentReminderResult{}, fmt.Errorf("%w: dunning run is not due yet", store.ErrInvalidState)
 	}
 
@@ -537,6 +614,20 @@ func (s *DunningService) QueueCollectPaymentReminder(tenantID, runID string) (Qu
 		NotificationIntent: intent,
 		Escalated:          escalated,
 	}, nil
+}
+
+func (s *DunningService) DispatchCollectPaymentReminder(tenantID, runID string) (QueueCollectPaymentReminderResult, error) {
+	result, err := s.queueCollectPaymentReminder(tenantID, runID, false)
+	if err != nil {
+		return QueueCollectPaymentReminderResult{}, err
+	}
+	intent, event, err := s.dispatchCollectPaymentReminderIntent(normalizeTenantID(tenantID), result.NotificationIntent)
+	result.NotificationIntent = intent
+	result.DispatchEvent = event
+	if err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 func (s *DunningService) ProcessNextCollectPaymentReminder(tenantID string) (bool, *QueueCollectPaymentReminderResult, error) {

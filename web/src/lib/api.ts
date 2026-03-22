@@ -15,6 +15,10 @@ import {
   CustomerOnboardingResult,
   CustomerReadiness,
   CreditNoteSummary,
+  DunningPolicy,
+  DunningReminderDispatchResult,
+  DunningRun,
+  DunningRunDetail,
   InvoiceExplainability,
   InvoiceDetail,
   NotificationDispatchResult,
@@ -1626,6 +1630,105 @@ export async function fetchInvoiceLifecycle(input: {
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchDunningPolicy(input: {
+  runtimeBaseURL?: string;
+}): Promise<DunningPolicy> {
+  const payload = await apiRequest<{ policy: DunningPolicy }>("/v1/dunning/policy", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.policy;
+}
+
+export async function updateDunningPolicy(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: {
+    name?: string;
+    enabled?: boolean;
+    retry_schedule?: string[];
+    max_retry_attempts?: number;
+    collect_payment_reminder_schedule?: string[];
+    final_action?: "manual_review" | "pause" | "write_off_later";
+    grace_period_days?: number;
+  };
+}): Promise<DunningPolicy> {
+  const payload = await apiRequest<{ policy: DunningPolicy }>("/v1/dunning/policy", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "PUT",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.policy;
+}
+
+export async function fetchDunningRuns(input: {
+  runtimeBaseURL?: string;
+  invoiceID?: string;
+  customerExternalID?: string;
+  state?: string;
+  activeOnly?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<ListResponse<DunningRun>> {
+  const query = toQuery({
+    invoice_id: input.invoiceID,
+    customer_external_id: input.customerExternalID,
+    state: input.state,
+    active_only: input.activeOnly,
+    limit: input.limit,
+    offset: input.offset,
+  });
+  const payload = await apiRequest<ListResponse<DunningRun>>(`/v1/dunning/runs${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchDunningRunDetail(input: {
+  runtimeBaseURL?: string;
+  runID: string;
+}): Promise<DunningRunDetail> {
+  const payload = await apiRequest<DunningRunDetail>(`/v1/dunning/runs/${encodeURIComponent(input.runID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function sendCollectPaymentReminder(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  runID: string;
+}): Promise<DunningReminderDispatchResult> {
+  const payload = await apiRequest<DunningReminderDispatchResult>(
+    `/v1/dunning/runs/${encodeURIComponent(input.runID)}/collect-payment-reminder`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {},
     }
   );
   if (!payload) {

@@ -1694,6 +1694,18 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/invoice-payment-statuses/"):
 		return RoleReader, true
+	case path == "/v1/dunning/policy":
+		if r.Method == http.MethodPut {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case path == "/v1/dunning/runs":
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/dunning/runs/"):
+		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/collect-payment-reminder") {
+			return RoleWriter, true
+		}
+		return RoleReader, true
 	case path == "/v1/replay-jobs":
 		if r.Method == http.MethodPost {
 			return RoleWriter, true
@@ -1950,6 +1962,16 @@ func normalizeMetricsRoute(path string) string {
 			return "/v1/invoice-payment-statuses/{id}/lifecycle"
 		}
 		return "/v1/invoice-payment-statuses/{id}"
+	case path == "/v1/dunning/policy":
+		return "/v1/dunning/policy"
+	case path == "/v1/dunning/runs":
+		return "/v1/dunning/runs"
+	case strings.HasPrefix(path, "/v1/dunning/runs/"):
+		tail := strings.Trim(strings.TrimPrefix(path, "/v1/dunning/runs/"), "/")
+		if strings.HasSuffix(tail, "/collect-payment-reminder") {
+			return "/v1/dunning/runs/{id}/collect-payment-reminder"
+		}
+		return "/v1/dunning/runs/{id}"
 	case path == "/v1/api-keys":
 		return "/v1/api-keys"
 	case path == "/v1/api-keys/audit":
@@ -2069,6 +2091,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/replay-jobs/", s.handleReplayJobByID)
 	s.mux.HandleFunc("/v1/invoice-payment-statuses", s.handleInvoicePaymentStatuses)
 	s.mux.HandleFunc("/v1/invoice-payment-statuses/", s.handleInvoicePaymentStatusByID)
+	s.mux.HandleFunc("/v1/dunning/policy", s.handleDunningPolicy)
+	s.mux.HandleFunc("/v1/dunning/runs", s.handleDunningRuns)
+	s.mux.HandleFunc("/v1/dunning/runs/", s.handleDunningRunByID)
 
 	s.mux.HandleFunc("/v1/reconciliation-report", s.handleReconciliationReport)
 	s.mux.HandleFunc("/v1/api-keys/audit/exports", s.handleAPIKeyAuditExports)

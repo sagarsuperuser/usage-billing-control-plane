@@ -55,6 +55,7 @@ export interface InvoiceDetail extends InvoiceSummary {
   fees?: unknown[];
   metadata?: unknown[];
   applied_taxes?: unknown[];
+  dunning?: DunningSummary;
 }
 
 export interface PaymentReceiptSummary {
@@ -115,6 +116,104 @@ export interface PaymentSummary {
 
 export interface PaymentDetail extends PaymentSummary {
   lifecycle: InvoicePaymentLifecycle;
+  dunning?: DunningSummary;
+}
+
+export interface DunningSummary {
+  run_id: string;
+  state: string;
+  reason?: string;
+  attempt_count: number;
+  next_action_type?: "retry_payment" | "collect_payment_reminder";
+  next_action_at?: string;
+  paused: boolean;
+  resolution?: string;
+  last_event_type?: string;
+  last_event_at?: string;
+  last_notification_intent_type?: string;
+  last_notification_status?: "queued" | "dispatched" | "failed";
+  last_notification_at?: string;
+  last_notification_error?: string;
+}
+
+export interface DunningPolicy {
+  id: string;
+  tenant_id?: string;
+  name: string;
+  enabled: boolean;
+  retry_schedule: string[];
+  max_retry_attempts: number;
+  collect_payment_reminder_schedule: string[];
+  final_action: "manual_review" | "pause" | "write_off_later";
+  grace_period_days: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DunningRun {
+  id: string;
+  tenant_id?: string;
+  invoice_id: string;
+  customer_external_id?: string;
+  policy_id: string;
+  state: string;
+  reason?: string;
+  attempt_count: number;
+  last_attempt_at?: string;
+  next_action_at?: string;
+  next_action_type?: "retry_payment" | "collect_payment_reminder";
+  paused: boolean;
+  resolved_at?: string;
+  resolution?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DunningEvent {
+  id: string;
+  run_id: string;
+  tenant_id?: string;
+  invoice_id: string;
+  customer_external_id?: string;
+  event_type: string;
+  state: string;
+  action_type?: string;
+  reason?: string;
+  attempt_count: number;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DunningNotificationIntent {
+  id: string;
+  run_id: string;
+  tenant_id?: string;
+  invoice_id: string;
+  customer_external_id?: string;
+  intent_type: string;
+  action_type?: string;
+  status: "queued" | "dispatched" | "failed";
+  delivery_backend?: string;
+  recipient_email?: string;
+  payload?: Record<string, unknown>;
+  last_error?: string;
+  created_at: string;
+  dispatched_at?: string;
+}
+
+export interface DunningRunDetail {
+  run: DunningRun;
+  events: DunningEvent[];
+  notification_intents: DunningNotificationIntent[];
+}
+
+export interface DunningReminderDispatchResult {
+  policy: DunningPolicy;
+  run: DunningRun;
+  event: DunningEvent;
+  notification_intent: DunningNotificationIntent;
+  dispatch_event?: DunningEvent;
+  escalated: boolean;
 }
 
 export interface PaymentFilters extends InvoiceStatusFilters {
