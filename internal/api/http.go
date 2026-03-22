@@ -4327,6 +4327,12 @@ func (s *Server) handleCustomerByExternalID(w http.ResponseWriter, r *http.Reque
 				writeDomainError(w, err)
 				return
 			}
+			if s.dunningService != nil {
+				if _, err := s.dunningService.RefreshRunsForCustomer(tenantID, externalID); err != nil {
+					writeDomainError(w, err)
+					return
+				}
+			}
 			writeJSON(w, http.StatusOK, result)
 			return
 		}

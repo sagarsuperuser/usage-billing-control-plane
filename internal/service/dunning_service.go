@@ -476,6 +476,45 @@ func (s *DunningService) ListRuns(tenantID string, req ListDunningRunsRequest) (
 	})
 }
 
+func (s *DunningService) RefreshRunsForCustomer(tenantID, customerExternalID string) ([]EnsureInvoiceDunningRunResult, error) {
+	if s == nil || s.store == nil {
+		return nil, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	customerExternalID = strings.TrimSpace(customerExternalID)
+	if customerExternalID == "" {
+		return nil, fmt.Errorf("%w: customer_external_id is required", ErrValidation)
+	}
+	runs, err := s.store.ListInvoiceDunningRuns(store.InvoiceDunningRunListFilter{
+		TenantID:           tenantID,
+		CustomerExternalID: customerExternalID,
+		ActiveOnly:         true,
+		Limit:              100,
+		Offset:             0,
+	})
+	if err != nil {
+		return nil, err
+	}
+	results := make([]EnsureInvoiceDunningRunResult, 0, len(runs))
+	seen := make(map[string]struct{}, len(runs))
+	for _, run := range runs {
+		invoiceID := strings.TrimSpace(run.InvoiceID)
+		if invoiceID == "" {
+			continue
+		}
+		if _, ok := seen[invoiceID]; ok {
+			continue
+		}
+		seen[invoiceID] = struct{}{}
+		result, err := s.EnsureRunForInvoice(tenantID, invoiceID)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
 func (s *DunningService) GetRunDetail(tenantID, runID string) (DunningRunDetail, error) {
 	if s == nil || s.store == nil {
 		return DunningRunDetail{}, fmt.Errorf("%w: dunning repository is required", ErrValidation)

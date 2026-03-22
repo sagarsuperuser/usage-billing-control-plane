@@ -962,6 +962,73 @@ func TestDunningServiceResolveRun(t *testing.T) {
 	}
 }
 
+func TestDunningServiceRefreshRunsForCustomer(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeDunningStore()
+	base := time.Date(2026, 3, 22, 12, 30, 0, 0, time.UTC)
+	repo.policies["tenant_a"] = domain.DunningPolicy{
+		ID:               "dpo_refresh_customer",
+		TenantID:         "tenant_a",
+		Name:             "Default dunning policy",
+		Enabled:          true,
+		RetrySchedule:    []string{"1d", "3d"},
+		MaxRetryAttempts: 3,
+		FinalAction:      domain.DunningFinalActionManualReview,
+	}
+	repo.invoiceViews["tenant_a|inv_refresh_customer"] = domain.InvoicePaymentStatusView{
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_refresh_customer",
+		CustomerExternalID: "cust_refresh_customer",
+		InvoiceStatus:      "finalized",
+		PaymentStatus:      "failed",
+		LastEventType:      "invoice.payment_failure",
+		LastEventAt:        base.Add(-time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.customers["tenant_a|cust_refresh_customer"] = domain.Customer{
+		ID:         "cust_row_refresh_customer",
+		TenantID:   "tenant_a",
+		ExternalID: "cust_refresh_customer",
+		Status:     domain.CustomerStatusActive,
+	}
+	repo.paymentSetups["tenant_a|cust_row_refresh_customer"] = domain.CustomerPaymentSetup{
+		CustomerID:                  "cust_row_refresh_customer",
+		TenantID:                    "tenant_a",
+		SetupStatus:                 domain.PaymentSetupStatusReady,
+		DefaultPaymentMethodPresent: true,
+	}
+	run := domain.InvoiceDunningRun{
+		ID:                 "dru_refresh_customer",
+		TenantID:           "tenant_a",
+		InvoiceID:          "inv_refresh_customer",
+		CustomerExternalID: "cust_refresh_customer",
+		PolicyID:           "dpo_refresh_customer",
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		Reason:             "payment_setup_pending",
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		NextActionAt:       ptrTime(base.Add(time.Hour)),
+		CreatedAt:          base.Add(-2 * time.Hour),
+		UpdatedAt:          base.Add(-time.Hour),
+	}
+	repo.activeRuns["tenant_a|inv_refresh_customer"] = run
+	repo.runsByID[run.ID] = run
+
+	svc, _ := NewDunningService(repo)
+	svc.now = func() time.Time { return base }
+
+	results, err := svc.RefreshRunsForCustomer("tenant_a", "cust_refresh_customer")
+	if err != nil {
+		t.Fatalf("refresh runs for customer: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one refreshed run, got %d", len(results))
+	}
+	if results[0].Run == nil || results[0].Run.State != domain.DunningRunStateRetryDue {
+		t.Fatalf("expected run to move to retry_due, got %+v", results[0].Run)
+	}
+}
+
 func TestDunningServiceDispatchRetryPaymentMovesRunToAwaitingResult(t *testing.T) {
 	t.Parallel()
 
