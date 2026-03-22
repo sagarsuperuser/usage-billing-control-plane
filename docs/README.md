@@ -39,6 +39,7 @@ If you are starting cold, read in this order:
 - [Production Architecture](./models/production-architecture.md)
 - [Engineering Standards](./standards/engineering-standards.md)
 - [Alpha Lago Boundary](./models/alpha-lago-boundary.md)
+- [Alpha Capability Ownership Map](./models/alpha_capability_ownership_map.md)
 - [Alpha Billing Execution Model](./models/alpha-billing-execution-model.md)
 - [Alpha Notification Architecture](./models/alpha_notification_architecture.md)
 
@@ -49,6 +50,7 @@ If you are starting cold, read in this order:
 Use these docs when shaping long-term boundaries and ownership.
 
 - [Alpha Billing Execution Model](./models/alpha-billing-execution-model.md)
+- [Alpha Capability Ownership Map](./models/alpha_capability_ownership_map.md)
 - [Alpha Customer Model](./models/alpha-customer-model.md)
 - [Alpha Workspace Access Model](./models/alpha-workspace-access-model.md)
 - [Alpha API Credentials Model](./models/alpha_api_credentials_model.md)
@@ -79,6 +81,7 @@ Use these when building or extending concrete product slices.
 ## Active Roadmaps
 
 - [Alpha Wave 1 Roadmap](./roadmaps/alpha_wave1_roadmap.md)
+- [Alpha Market Gap Priorities](./roadmaps/alpha_market_gap_priorities.md)
 
 ---
 

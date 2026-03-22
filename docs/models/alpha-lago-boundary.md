@@ -4,6 +4,8 @@ This document defines the intended long-term production architecture.
 
 Use this as the decision guide for future onboarding, customer, billing, and payment work.
 
+For a practical current-state ownership map, read [Alpha Capability Ownership Map](./alpha_capability_ownership_map.md).
+
 ## One-Line Model
 
 - `Alpha` is the product surface, control plane, and orchestration layer.
