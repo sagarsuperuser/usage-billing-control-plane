@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS invoice_dunning_events (
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT chk_invoice_dunning_events_event_type
-    CHECK (event_type IN ('dunning_started', 'retry_scheduled', 'payment_setup_pending', 'payment_setup_ready', 'paused', 'resumed', 'escalated', 'resolved')),
+    CHECK (event_type IN ('dunning_started', 'retry_scheduled', 'retry_attempted', 'retry_succeeded', 'retry_failed', 'payment_setup_pending', 'payment_setup_ready', 'notification_sent', 'notification_failed', 'paused', 'resumed', 'escalated', 'resolved')),
   CONSTRAINT chk_invoice_dunning_events_state
     CHECK (state IN ('scheduled', 'retry_due', 'awaiting_payment_setup', 'awaiting_retry_result', 'resolved', 'paused', 'escalated', 'exhausted')),
   CONSTRAINT chk_invoice_dunning_events_action_type
