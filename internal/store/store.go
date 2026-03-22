@@ -370,6 +370,7 @@ type Repository interface {
 	CreateInvoiceDunningEvent(input domain.InvoiceDunningEvent) (domain.InvoiceDunningEvent, error)
 	ListInvoiceDunningEvents(tenantID, runID string) ([]domain.InvoiceDunningEvent, error)
 	CreateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error)
+	UpdateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error)
 	ListDunningNotificationIntents(filter DunningNotificationIntentListFilter) ([]domain.DunningNotificationIntent, error)
 
 	CreateAPIKey(input domain.APIKey) (domain.APIKey, error)

@@ -294,6 +294,8 @@ const (
 	DunningEventTypeRetryScheduled      DunningEventType = "retry_scheduled"
 	DunningEventTypePaymentSetupPending DunningEventType = "payment_setup_pending"
 	DunningEventTypePaymentSetupReady   DunningEventType = "payment_setup_ready"
+	DunningEventTypeNotificationSent    DunningEventType = "notification_sent"
+	DunningEventTypeNotificationFailed  DunningEventType = "notification_failed"
 	DunningEventTypePaused              DunningEventType = "paused"
 	DunningEventTypeResumed             DunningEventType = "resumed"
 	DunningEventTypeEscalated           DunningEventType = "escalated"
@@ -435,6 +437,23 @@ type DunningNotificationIntent struct {
 	LastError          string                          `json:"last_error,omitempty"`
 	CreatedAt          time.Time                       `json:"created_at"`
 	DispatchedAt       *time.Time                      `json:"dispatched_at,omitempty"`
+}
+
+type DunningSummary struct {
+	RunID                      string                          `json:"run_id"`
+	State                      DunningRunState                 `json:"state"`
+	Reason                     string                          `json:"reason,omitempty"`
+	AttemptCount               int                             `json:"attempt_count"`
+	NextActionType             DunningActionType               `json:"next_action_type,omitempty"`
+	NextActionAt               *time.Time                      `json:"next_action_at,omitempty"`
+	Paused                     bool                            `json:"paused"`
+	Resolution                 DunningResolution               `json:"resolution,omitempty"`
+	LastEventType              DunningEventType                `json:"last_event_type,omitempty"`
+	LastEventAt                *time.Time                      `json:"last_event_at,omitempty"`
+	LastNotificationIntentType DunningNotificationIntentType   `json:"last_notification_intent_type,omitempty"`
+	LastNotificationStatus     DunningNotificationIntentStatus `json:"last_notification_status,omitempty"`
+	LastNotificationAt         *time.Time                      `json:"last_notification_at,omitempty"`
+	LastNotificationError      string                          `json:"last_notification_error,omitempty"`
 }
 
 type RatingTier struct {
@@ -750,22 +769,23 @@ type InvoiceSummaryList struct {
 
 type InvoiceDetail struct {
 	InvoiceSummary
-	LagoID            string         `json:"lago_id,omitempty"`
-	BillingEntityCode string         `json:"billing_entity_code,omitempty"`
-	SequentialID      any            `json:"sequential_id,omitempty"`
-	InvoiceType       string         `json:"invoice_type,omitempty"`
-	NetPaymentTerm    any            `json:"net_payment_term,omitempty"`
-	FileURL           string         `json:"file_url,omitempty"`
-	XMLURL            string         `json:"xml_url,omitempty"`
-	VersionNumber     any            `json:"version_number,omitempty"`
-	SelfBilled        *bool          `json:"self_billed,omitempty"`
-	VoidedAt          *time.Time     `json:"voided_at,omitempty"`
-	Customer          map[string]any `json:"customer,omitempty"`
-	Subscriptions     []any          `json:"subscriptions,omitempty"`
-	Fees              []any          `json:"fees,omitempty"`
-	Metadata          []any          `json:"metadata,omitempty"`
-	AppliedTaxes      []any          `json:"applied_taxes,omitempty"`
-	Raw               map[string]any `json:"raw,omitempty"`
+	LagoID            string          `json:"lago_id,omitempty"`
+	BillingEntityCode string          `json:"billing_entity_code,omitempty"`
+	SequentialID      any             `json:"sequential_id,omitempty"`
+	InvoiceType       string          `json:"invoice_type,omitempty"`
+	NetPaymentTerm    any             `json:"net_payment_term,omitempty"`
+	FileURL           string          `json:"file_url,omitempty"`
+	XMLURL            string          `json:"xml_url,omitempty"`
+	VersionNumber     any             `json:"version_number,omitempty"`
+	SelfBilled        *bool           `json:"self_billed,omitempty"`
+	VoidedAt          *time.Time      `json:"voided_at,omitempty"`
+	Customer          map[string]any  `json:"customer,omitempty"`
+	Subscriptions     []any           `json:"subscriptions,omitempty"`
+	Fees              []any           `json:"fees,omitempty"`
+	Metadata          []any           `json:"metadata,omitempty"`
+	AppliedTaxes      []any           `json:"applied_taxes,omitempty"`
+	Dunning           *DunningSummary `json:"dunning,omitempty"`
+	Raw               map[string]any  `json:"raw,omitempty"`
 }
 
 type PaymentReceiptSummary struct {

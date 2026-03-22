@@ -42,6 +42,7 @@ type Server struct {
 	workspaceAccessService             *service.WorkspaceAccessService
 	serviceAccountService              *service.ServiceAccountService
 	notificationService                *service.NotificationService
+	dunningService                     *service.DunningService
 	workspaceInvitationEmailSender     service.WorkspaceInvitationEmailSender
 	passwordResetService               *service.PasswordResetService
 	passwordResetEmailSender           service.PasswordResetEmailSender
@@ -699,6 +700,9 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.tenantService = service.NewTenantService(repo).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
+	if dunningSvc, err := service.NewDunningService(repo); err == nil {
+		s.dunningService = dunningSvc.WithPaymentSetupRequestSender(s.customerPaymentSetupRequestService)
+	}
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)
 	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)

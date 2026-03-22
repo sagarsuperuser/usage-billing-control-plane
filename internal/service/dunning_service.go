@@ -26,12 +26,18 @@ type dunningStore interface {
 	CreateInvoiceDunningEvent(input domain.InvoiceDunningEvent) (domain.InvoiceDunningEvent, error)
 	ListInvoiceDunningEvents(tenantID, runID string) ([]domain.InvoiceDunningEvent, error)
 	CreateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error)
+	UpdateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error)
 	ListDunningNotificationIntents(filter store.DunningNotificationIntentListFilter) ([]domain.DunningNotificationIntent, error)
 }
 
+type dunningPaymentSetupRequestSender interface {
+	Resend(tenantID, externalID string, actor CustomerPaymentSetupRequestActor, paymentMethodType string) (CustomerPaymentSetupRequestResult, error)
+}
+
 type DunningService struct {
-	store dunningStore
-	now   func() time.Time
+	store                dunningStore
+	paymentSetupRequests dunningPaymentSetupRequestSender
+	now                  func() time.Time
 }
 
 type PutDunningPolicyRequest struct {
@@ -66,6 +72,7 @@ type QueueCollectPaymentReminderResult struct {
 	Run                domain.InvoiceDunningRun         `json:"run"`
 	Event              domain.InvoiceDunningEvent       `json:"event"`
 	NotificationIntent domain.DunningNotificationIntent `json:"notification_intent"`
+	DispatchEvent      *domain.InvoiceDunningEvent      `json:"dispatch_event,omitempty"`
 	Escalated          bool                             `json:"escalated"`
 }
 
@@ -79,6 +86,14 @@ func NewDunningService(s dunningStore) (*DunningService, error) {
 			return time.Now().UTC()
 		},
 	}, nil
+}
+
+func (s *DunningService) WithPaymentSetupRequestSender(sender dunningPaymentSetupRequestSender) *DunningService {
+	if s == nil {
+		return nil
+	}
+	s.paymentSetupRequests = sender
+	return s
 }
 
 func (s *DunningService) GetPolicy(tenantID string) (domain.DunningPolicy, error) {
@@ -312,6 +327,63 @@ func (s *DunningService) ListRunEvents(tenantID, runID string) ([]domain.Invoice
 	return s.store.ListInvoiceDunningEvents(normalizeTenantID(tenantID), runID)
 }
 
+func (s *DunningService) GetInvoiceSummary(tenantID, invoiceID string) (*domain.DunningSummary, error) {
+	if s == nil || s.store == nil {
+		return nil, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	invoiceID = strings.TrimSpace(invoiceID)
+	if invoiceID == "" {
+		return nil, fmt.Errorf("%w: invoice_id is required", ErrValidation)
+	}
+
+	run, err := s.store.GetActiveInvoiceDunningRunByInvoiceID(tenantID, invoiceID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	events, err := s.store.ListInvoiceDunningEvents(tenantID, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	intents, err := s.store.ListDunningNotificationIntents(store.DunningNotificationIntentListFilter{
+		TenantID: tenantID,
+		RunID:    run.ID,
+		Limit:    100,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	summary := &domain.DunningSummary{
+		RunID:          run.ID,
+		State:          run.State,
+		Reason:         run.Reason,
+		AttemptCount:   run.AttemptCount,
+		NextActionType: run.NextActionType,
+		NextActionAt:   run.NextActionAt,
+		Paused:         run.Paused,
+		Resolution:     run.Resolution,
+	}
+	if latest := latestDunningEvent(events); latest != nil {
+		summary.LastEventType = latest.EventType
+		summary.LastEventAt = ptrTime(latest.CreatedAt)
+	}
+	if latest := latestDunningNotificationIntent(intents); latest != nil {
+		summary.LastNotificationIntentType = latest.IntentType
+		summary.LastNotificationStatus = latest.Status
+		summary.LastNotificationError = strings.TrimSpace(latest.LastError)
+		if latest.DispatchedAt != nil {
+			summary.LastNotificationAt = ptrTime(latest.DispatchedAt.UTC())
+		} else {
+			summary.LastNotificationAt = ptrTime(latest.CreatedAt)
+		}
+	}
+	return summary, nil
+}
+
 func (s *DunningService) ListDueRuns(tenantID string, req ListDueDunningRunsRequest) ([]domain.InvoiceDunningRun, error) {
 	if s == nil || s.store == nil {
 		return nil, fmt.Errorf("%w: dunning repository is required", ErrValidation)
@@ -482,6 +554,12 @@ func (s *DunningService) ProcessNextCollectPaymentReminder(tenantID string) (boo
 	if err != nil {
 		return true, nil, err
 	}
+	intent, event, err := s.dispatchCollectPaymentReminderIntent(runs[0].TenantID, result.NotificationIntent)
+	result.NotificationIntent = intent
+	result.DispatchEvent = event
+	if err != nil {
+		return true, &result, err
+	}
 	return true, &result, nil
 }
 
@@ -622,6 +700,108 @@ func (s *DunningService) defaultPaymentMethodReady(tenantID, customerExternalID 
 	return true, "payment_setup_ready", nil
 }
 
+func (s *DunningService) dispatchCollectPaymentReminderIntent(tenantID string, intent domain.DunningNotificationIntent) (domain.DunningNotificationIntent, *domain.InvoiceDunningEvent, error) {
+	if s == nil || s.store == nil {
+		return domain.DunningNotificationIntent{}, nil, fmt.Errorf("%w: dunning repository is required", ErrValidation)
+	}
+	if s.paymentSetupRequests == nil {
+		return domain.DunningNotificationIntent{}, nil, fmt.Errorf("%w: payment setup request sender is required", ErrValidation)
+	}
+	tenantID = normalizeTenantID(tenantID)
+	if intent.ActionType != domain.DunningActionTypeCollectPaymentReminder {
+		return domain.DunningNotificationIntent{}, nil, fmt.Errorf("%w: intent action_type must be collect_payment_reminder", ErrValidation)
+	}
+
+	run, err := s.store.GetInvoiceDunningRun(tenantID, intent.RunID)
+	if err != nil {
+		return domain.DunningNotificationIntent{}, nil, err
+	}
+	customer, err := s.store.GetCustomerByExternalID(tenantID, run.CustomerExternalID)
+	if err != nil {
+		return domain.DunningNotificationIntent{}, nil, err
+	}
+	setup, err := s.store.GetCustomerPaymentSetup(tenantID, customer.ID)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return domain.DunningNotificationIntent{}, nil, err
+	}
+	paymentMethodType := ""
+	if err == nil {
+		paymentMethodType = strings.TrimSpace(setup.PaymentMethodType)
+	}
+
+	updatedIntent := intent
+	updatedIntent.TenantID = tenantID
+	dispatchResult, dispatchErr := s.paymentSetupRequests.Resend(tenantID, run.CustomerExternalID, CustomerPaymentSetupRequestActor{
+		SubjectType: "system",
+		SubjectID:   "dunning",
+		UserEmail:   "system@alpha.internal",
+	}, paymentMethodType)
+	if dispatchErr != nil {
+		updatedIntent.Status = domain.DunningNotificationIntentStatusFailed
+		updatedIntent.LastError = dispatchErr.Error()
+		updatedIntent.DispatchedAt = nil
+		updatedIntent, updateErr := s.store.UpdateDunningNotificationIntent(updatedIntent)
+		if updateErr != nil {
+			return domain.DunningNotificationIntent{}, nil, updateErr
+		}
+		event, eventErr := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+			RunID:              run.ID,
+			TenantID:           tenantID,
+			InvoiceID:          run.InvoiceID,
+			CustomerExternalID: run.CustomerExternalID,
+			EventType:          domain.DunningEventTypeNotificationFailed,
+			State:              run.State,
+			ActionType:         domain.DunningActionTypeCollectPaymentReminder,
+			Reason:             "collect_payment_reminder_dispatch_failed",
+			AttemptCount:       run.AttemptCount,
+			Metadata: map[string]any{
+				"notification_intent_id": updatedIntent.ID,
+				"dispatch_error":         dispatchErr.Error(),
+			},
+			CreatedAt: s.now(),
+		})
+		if eventErr != nil {
+			return domain.DunningNotificationIntent{}, nil, eventErr
+		}
+		return updatedIntent, &event, dispatchErr
+	}
+
+	updatedIntent.Status = domain.DunningNotificationIntentStatusDispatched
+	updatedIntent.LastError = ""
+	updatedIntent.DispatchedAt = ptrTime(dispatchResult.Dispatch.DispatchedAt)
+	if backend := strings.TrimSpace(dispatchResult.Dispatch.Backend); backend != "" {
+		updatedIntent.DeliveryBackend = backend
+	}
+	if email := strings.TrimSpace(dispatchResult.PaymentSetup.LastRequestToEmail); email != "" {
+		updatedIntent.RecipientEmail = strings.ToLower(email)
+	}
+	updatedIntent, err = s.store.UpdateDunningNotificationIntent(updatedIntent)
+	if err != nil {
+		return domain.DunningNotificationIntent{}, nil, err
+	}
+	event, err := s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              run.ID,
+		TenantID:           tenantID,
+		InvoiceID:          run.InvoiceID,
+		CustomerExternalID: run.CustomerExternalID,
+		EventType:          domain.DunningEventTypeNotificationSent,
+		State:              run.State,
+		ActionType:         domain.DunningActionTypeCollectPaymentReminder,
+		Reason:             "collect_payment_reminder_dispatched",
+		AttemptCount:       run.AttemptCount,
+		Metadata: map[string]any{
+			"notification_intent_id": updatedIntent.ID,
+			"dispatch_action":        dispatchResult.Action,
+			"delivery_backend":       dispatchResult.Dispatch.Backend,
+		},
+		CreatedAt: s.now(),
+	})
+	if err != nil {
+		return domain.DunningNotificationIntent{}, nil, err
+	}
+	return updatedIntent, &event, nil
+}
+
 func defaultDunningPolicy(tenantID string, now time.Time) domain.DunningPolicy {
 	return domain.DunningPolicy{
 		TenantID:                       normalizeTenantID(tenantID),
@@ -673,6 +853,39 @@ func transitionEventType(previousState, nextState domain.DunningRunState) domain
 		return domain.DunningEventTypePaused
 	}
 	return domain.DunningEventTypeStarted
+}
+
+func latestDunningEvent(items []domain.InvoiceDunningEvent) *domain.InvoiceDunningEvent {
+	if len(items) == 0 {
+		return nil
+	}
+	latest := items[0]
+	for _, item := range items[1:] {
+		if item.CreatedAt.After(latest.CreatedAt) {
+			latest = item
+		}
+	}
+	return &latest
+}
+
+func latestDunningNotificationIntent(items []domain.DunningNotificationIntent) *domain.DunningNotificationIntent {
+	if len(items) == 0 {
+		return nil
+	}
+	latest := items[0]
+	for _, item := range items[1:] {
+		if dunningNotificationSortTime(item).After(dunningNotificationSortTime(latest)) {
+			latest = item
+		}
+	}
+	return &latest
+}
+
+func dunningNotificationSortTime(item domain.DunningNotificationIntent) time.Time {
+	if item.DispatchedAt != nil {
+		return item.DispatchedAt.UTC()
+	}
+	return item.CreatedAt.UTC()
 }
 
 func runMatchesEvaluation(run domain.InvoiceDunningRun, eval dunningEvaluation) bool {

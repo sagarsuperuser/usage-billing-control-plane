@@ -60,7 +60,6 @@ func TestInvoiceListEndpointReturnsNormalizedSummaries(t *testing.T) {
 	`, now, now); err != nil {
 		t.Fatalf("insert invoice projection: %v", err)
 	}
-
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
@@ -145,6 +144,64 @@ func TestInvoiceDetailEndpointReturnsNormalizedDetail(t *testing.T) {
 	`, now, now); err != nil {
 		t.Fatalf("insert invoice projection: %v", err)
 	}
+	policy, err := repo.UpsertDunningPolicy(domain.DunningPolicy{
+		TenantID:                       "default",
+		Name:                           "Default dunning policy",
+		Enabled:                        true,
+		RetrySchedule:                  []string{"1d"},
+		MaxRetryAttempts:               3,
+		CollectPaymentReminderSchedule: []string{"0d", "2d"},
+		FinalAction:                    domain.DunningFinalActionManualReview,
+		CreatedAt:                      now,
+		UpdatedAt:                      now,
+	})
+	if err != nil {
+		t.Fatalf("upsert dunning policy: %v", err)
+	}
+	run, err := repo.CreateInvoiceDunningRun(domain.InvoiceDunningRun{
+		TenantID:           "default",
+		InvoiceID:          "inv_123",
+		CustomerExternalID: "cust_123",
+		PolicyID:           policy.ID,
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		Reason:             "payment_setup_pending",
+		AttemptCount:       1,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		NextActionAt:       ptrTime(now.Add(2 * time.Hour)),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create dunning run: %v", err)
+	}
+	if _, err := repo.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              run.ID,
+		TenantID:           "default",
+		InvoiceID:          "inv_123",
+		CustomerExternalID: "cust_123",
+		EventType:          domain.DunningEventTypeNotificationSent,
+		State:              run.State,
+		ActionType:         domain.DunningActionTypeCollectPaymentReminder,
+		AttemptCount:       run.AttemptCount,
+		CreatedAt:          now.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("create dunning event: %v", err)
+	}
+	if _, err := repo.CreateDunningNotificationIntent(domain.DunningNotificationIntent{
+		RunID:              run.ID,
+		TenantID:           "default",
+		InvoiceID:          "inv_123",
+		CustomerExternalID: "cust_123",
+		IntentType:         domain.DunningNotificationIntentTypePaymentMethodRequired,
+		ActionType:         domain.DunningActionTypeCollectPaymentReminder,
+		Status:             domain.DunningNotificationIntentStatusDispatched,
+		DeliveryBackend:    "alpha_email",
+		RecipientEmail:     "billing@acme.test",
+		CreatedAt:          now,
+		DispatchedAt:       ptrTime(now.Add(time.Minute)),
+	}); err != nil {
+		t.Fatalf("create dunning notification intent: %v", err)
+	}
 
 	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/invoices/inv_123" {
@@ -217,6 +274,16 @@ func TestInvoiceDetailEndpointReturnsNormalizedDetail(t *testing.T) {
 	}
 	if got, _ := resp["payment_status"].(string); got != "failed" {
 		t.Fatalf("expected payment_status failed, got %q", got)
+	}
+	dunning, ok := resp["dunning"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected dunning object in invoice detail")
+	}
+	if got, _ := dunning["state"].(string); got != "awaiting_payment_setup" {
+		t.Fatalf("expected dunning state awaiting_payment_setup, got %q", got)
+	}
+	if got, _ := dunning["last_event_type"].(string); got != "notification_sent" {
+		t.Fatalf("expected last_event_type notification_sent, got %q", got)
 	}
 }
 

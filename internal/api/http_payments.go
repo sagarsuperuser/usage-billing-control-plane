@@ -36,6 +36,7 @@ type paymentSummaryResponse struct {
 type paymentDetailResponse struct {
 	paymentSummaryResponse
 	Lifecycle service.InvoicePaymentLifecycle `json:"lifecycle"`
+	Dunning   *domain.DunningSummary          `json:"dunning,omitempty"`
 }
 
 func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
@@ -237,8 +238,13 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 		writeDomainError(w, err)
 		return
 	}
+	dunning, err := s.lookupInvoiceDunningSummary(requestTenantID(r), invoiceID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
 
-	writeJSON(w, http.StatusOK, paymentDetailFromStatusView(view, customer, lifecycle))
+	writeJSON(w, http.StatusOK, paymentDetailFromStatusView(view, customer, lifecycle, dunning))
 }
 
 func (s *Server) buildPaymentSummaries(tenantID string, items []domain.InvoicePaymentStatusView) ([]paymentSummaryResponse, error) {
@@ -278,11 +284,19 @@ func paymentSummaryFromStatusView(view domain.InvoicePaymentStatusView, customer
 	return out
 }
 
-func paymentDetailFromStatusView(view domain.InvoicePaymentStatusView, customer *domain.Customer, lifecycle service.InvoicePaymentLifecycle) paymentDetailResponse {
+func paymentDetailFromStatusView(view domain.InvoicePaymentStatusView, customer *domain.Customer, lifecycle service.InvoicePaymentLifecycle, dunning *domain.DunningSummary) paymentDetailResponse {
 	return paymentDetailResponse{
 		paymentSummaryResponse: paymentSummaryFromStatusView(view, customer),
 		Lifecycle:              lifecycle,
+		Dunning:                dunning,
 	}
+}
+
+func (s *Server) lookupInvoiceDunningSummary(tenantID, invoiceID string) (*domain.DunningSummary, error) {
+	if s == nil || s.dunningService == nil {
+		return nil, nil
+	}
+	return s.dunningService.GetInvoiceSummary(tenantID, invoiceID)
 }
 
 func (s *Server) enrichPaymentLifecycleWithCustomerReadiness(tenantID, customerExternalID string, lifecycle service.InvoicePaymentLifecycle) (service.InvoicePaymentLifecycle, error) {

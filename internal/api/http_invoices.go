@@ -145,7 +145,15 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 		}
 	}
 
-	return statusCode, body, buildInvoiceDetail(invoicePayload, view, customer), nil
+	detail := buildInvoiceDetail(invoicePayload, view, customer)
+	if s.dunningService != nil {
+		dunning, err := s.dunningService.GetInvoiceSummary(tenantID, invoiceID)
+		if err != nil {
+			return 0, nil, domain.InvoiceDetail{}, err
+		}
+		detail.Dunning = dunning
+	}
+	return statusCode, body, detail, nil
 }
 
 func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Request, invoiceID string) {

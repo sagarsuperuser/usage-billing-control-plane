@@ -18,6 +18,10 @@ import (
 	"usage-billing-control-plane/internal/store"
 )
 
+func ptrTime(t time.Time) *time.Time {
+	return &t
+}
+
 func TestPaymentsListEndpointReturnsNormalizedSummaries(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -265,6 +269,64 @@ func TestPaymentDetailEndpointReturnsLifecycleAndEvents(t *testing.T) {
 	`, now, now); err != nil {
 		t.Fatalf("insert payment projection: %v", err)
 	}
+	policy, err := repo.UpsertDunningPolicy(domain.DunningPolicy{
+		TenantID:                       "default",
+		Name:                           "Default dunning policy",
+		Enabled:                        true,
+		RetrySchedule:                  []string{"1d"},
+		MaxRetryAttempts:               3,
+		CollectPaymentReminderSchedule: []string{"0d", "2d"},
+		FinalAction:                    domain.DunningFinalActionManualReview,
+		CreatedAt:                      now,
+		UpdatedAt:                      now,
+	})
+	if err != nil {
+		t.Fatalf("upsert dunning policy: %v", err)
+	}
+	run, err := repo.CreateInvoiceDunningRun(domain.InvoiceDunningRun{
+		TenantID:           "default",
+		InvoiceID:          "inv_pay_123",
+		CustomerExternalID: "cust_123",
+		PolicyID:           policy.ID,
+		State:              domain.DunningRunStateAwaitingPaymentSetup,
+		Reason:             "payment_setup_pending",
+		AttemptCount:       1,
+		NextActionType:     domain.DunningActionTypeCollectPaymentReminder,
+		NextActionAt:       ptrTime(now.Add(2 * time.Hour)),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		t.Fatalf("create dunning run: %v", err)
+	}
+	if _, err := repo.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              run.ID,
+		TenantID:           "default",
+		InvoiceID:          "inv_pay_123",
+		CustomerExternalID: "cust_123",
+		EventType:          domain.DunningEventTypeNotificationSent,
+		State:              run.State,
+		ActionType:         domain.DunningActionTypeCollectPaymentReminder,
+		AttemptCount:       run.AttemptCount,
+		CreatedAt:          now.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("create dunning event: %v", err)
+	}
+	if _, err := repo.CreateDunningNotificationIntent(domain.DunningNotificationIntent{
+		RunID:              run.ID,
+		TenantID:           "default",
+		InvoiceID:          "inv_pay_123",
+		CustomerExternalID: "cust_123",
+		IntentType:         domain.DunningNotificationIntentTypePaymentMethodRequired,
+		ActionType:         domain.DunningActionTypeCollectPaymentReminder,
+		Status:             domain.DunningNotificationIntentStatusDispatched,
+		DeliveryBackend:    "alpha_email",
+		RecipientEmail:     "billing@acme.test",
+		CreatedAt:          now,
+		DispatchedAt:       ptrTime(now.Add(time.Minute)),
+	}); err != nil {
+		t.Fatalf("create dunning notification intent: %v", err)
+	}
 	if _, err := db.Exec(`
 		INSERT INTO lago_webhook_events (
 			id, tenant_id, organization_id, webhook_key, webhook_type, object_type, invoice_id,
@@ -313,6 +375,16 @@ func TestPaymentDetailEndpointReturnsLifecycleAndEvents(t *testing.T) {
 	}
 	if got, _ := lifecycle["retry_recommended"].(bool); got {
 		t.Fatalf("expected retry_recommended false when payment setup is not ready")
+	}
+	dunning, ok := detail["dunning"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected dunning object in payment detail")
+	}
+	if got, _ := dunning["state"].(string); got != "awaiting_payment_setup" {
+		t.Fatalf("expected dunning state awaiting_payment_setup, got %q", got)
+	}
+	if got, _ := dunning["last_notification_status"].(string); got != "dispatched" {
+		t.Fatalf("expected last_notification_status dispatched, got %q", got)
 	}
 
 	events := getJSON(t, ts.URL+"/v1/payments/inv_pay_123/events", "tenant-a-reader", http.StatusOK)

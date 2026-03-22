@@ -2879,6 +2879,71 @@ func (s *PostgresStore) CreateDunningNotificationIntent(input domain.DunningNoti
 	return out, nil
 }
 
+func (s *PostgresStore) UpdateDunningNotificationIntent(input domain.DunningNotificationIntent) (domain.DunningNotificationIntent, error) {
+	input.ID = strings.TrimSpace(input.ID)
+	input.RunID = strings.TrimSpace(input.RunID)
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.InvoiceID = strings.TrimSpace(input.InvoiceID)
+	input.CustomerExternalID = normalizeOptionalText(input.CustomerExternalID)
+	input.IntentType = normalizeDunningNotificationIntentType(input.IntentType)
+	input.ActionType = normalizeDunningActionType(input.ActionType)
+	input.Status = normalizeDunningNotificationIntentStatus(input.Status)
+	input.DeliveryBackend = normalizeOptionalText(input.DeliveryBackend)
+	input.RecipientEmail = strings.ToLower(normalizeOptionalText(input.RecipientEmail))
+	input.LastError = normalizeOptionalText(input.LastError)
+	if input.ID == "" {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: id is required")
+	}
+	if input.RunID == "" {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: run_id is required")
+	}
+	if input.TenantID == "" {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: tenant_id is required")
+	}
+	if input.InvoiceID == "" {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: invoice_id is required")
+	}
+	if input.CreatedAt.IsZero() {
+		return domain.DunningNotificationIntent{}, fmt.Errorf("validation failed: created_at is required")
+	}
+	payloadRaw, err := json.Marshal(input.Payload)
+	if err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+	defer rollbackSilently(tx)
+	row := tx.QueryRowContext(ctx, `UPDATE dunning_notification_intents SET
+			customer_external_id = NULLIF($3,''),
+			intent_type = $4,
+			action_type = NULLIF($5,''),
+			status = $6,
+			delivery_backend = NULLIF($7,''),
+			recipient_email = NULLIF($8,''),
+			payload = $9::jsonb,
+			last_error = NULLIF($10,''),
+			dispatched_at = $11
+		WHERE tenant_id = $1 AND id = $2
+		RETURNING id, run_id, tenant_id, invoice_id, customer_external_id, intent_type, action_type, status, delivery_backend, recipient_email, payload, last_error, created_at, dispatched_at`,
+		input.TenantID, input.ID, input.CustomerExternalID, string(input.IntentType), string(input.ActionType), string(input.Status), input.DeliveryBackend, input.RecipientEmail, payloadRaw, input.LastError, input.DispatchedAt)
+	out, err := scanDunningNotificationIntent(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.DunningNotificationIntent{}, ErrNotFound
+		}
+		return domain.DunningNotificationIntent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.DunningNotificationIntent{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) ListDunningNotificationIntents(filter DunningNotificationIntentListFilter) ([]domain.DunningNotificationIntent, error) {
 	tenantID := normalizeTenantID(filter.TenantID)
 	limit := filter.Limit
@@ -7998,6 +8063,10 @@ func normalizeDunningEventType(v domain.DunningEventType) domain.DunningEventTyp
 		return domain.DunningEventTypePaymentSetupPending
 	case string(domain.DunningEventTypePaymentSetupReady):
 		return domain.DunningEventTypePaymentSetupReady
+	case string(domain.DunningEventTypeNotificationSent):
+		return domain.DunningEventTypeNotificationSent
+	case string(domain.DunningEventTypeNotificationFailed):
+		return domain.DunningEventTypeNotificationFailed
 	case string(domain.DunningEventTypePaused):
 		return domain.DunningEventTypePaused
 	case string(domain.DunningEventTypeResumed):
