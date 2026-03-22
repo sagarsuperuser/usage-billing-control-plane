@@ -158,10 +158,9 @@ BOOTSTRAP_SUCCESS_CUSTOMER_EXTERNAL_ID="${BOOTSTRAP_SUCCESS_CUSTOMER_EXTERNAL_ID
 
 bootstrap_json_file="$(mktemp)"
 fixture_json_file="$(mktemp)"
-failure_result_json_file="$(mktemp)"
 reconcile_json_file="$(mktemp)"
 detach_json_file="$(mktemp)"
-trap 'rm -f "$bootstrap_json_file" "$fixture_json_file" "$failure_result_json_file" "$reconcile_json_file" "$detach_json_file"' EXIT
+trap 'rm -f "$bootstrap_json_file" "$fixture_json_file" "$reconcile_json_file" "$detach_json_file"' EXIT
 
 customer_external_id_enc="$(urlencode "$CUSTOMER_EXTERNAL_ID")"
 
@@ -231,19 +230,17 @@ if [[ -z "$invoice_id" ]]; then
   exit 1
 fi
 
-echo "[info] forcing failed payment outcome for dunning invoice=$invoice_id"
-ALPHA_API_BASE_URL="$ALPHA_API_BASE_URL" \
-ALPHA_WRITER_API_KEY="$ALPHA_WRITER_API_KEY" \
-ALPHA_READER_API_KEY="$ALPHA_READER_API_KEY" \
-LAGO_API_URL="$LAGO_API_URL" \
-LAGO_API_KEY="$LAGO_API_KEY" \
-INVOICE_ID="$invoice_id" \
-EXPECTED_FINAL_STATUS="failed" \
-EXPECTED_LIFECYCLE_ACTION="collect_payment" \
-EXPECTED_LIFECYCLE_REQUIRES_ACTION="true" \
-EXPECTED_LIFECYCLE_RETRY_RECOMMENDED="false" \
-OUTPUT_FILE="$failure_result_json_file" \
-bash ./scripts/test_real_payment_e2e.sh
+echo "[info] triggering initial collection attempt for dunning invoice=$invoice_id"
+http_call POST "$ALPHA_API_BASE_URL/v1/invoices/$invoice_id/retry-payment" {} "X-API-Key: $ALPHA_WRITER_API_KEY"
+if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "202" ]]; then
+  echo "[fail] initial retry-payment failed: status=$HTTP_CODE body=$HTTP_BODY" >&2
+  exit 1
+fi
+initial_retry_response_json="$HTTP_BODY"
+
+echo "[info] waiting for Alpha payment detail to recommend collect_payment"
+wait_for_get "$ALPHA_API_BASE_URL/v1/payments/$invoice_id" 200 '.lifecycle.recommended_action == "collect_payment" and (.payment_status == "pending" or .payment_status == "failed") and .lifecycle.requires_action == true and .lifecycle.retry_recommended == false' "$TIMEOUT_SEC" "$POLL_INTERVAL_SEC" "collect-payment payment detail" "X-API-Key: $ALPHA_READER_API_KEY"
+pending_payment_detail_json="$HTTP_BODY"
 
 invoice_id_enc="$(urlencode "$invoice_id")"
 runs_url="$ALPHA_API_BASE_URL/v1/dunning/runs?invoice_id=$invoice_id_enc&active_only=true"
@@ -315,8 +312,7 @@ jq -n \
   --arg payment_method_fixture "$PAYMENT_METHOD_FIXTURE" \
   --slurpfile bootstrap "$bootstrap_json_file" \
   --slurpfile fixture "$fixture_json_file" \
-  --slurpfile failed "$failure_result_json_file" \
-  --slurpfile reconcile "$reconcile_json_file" \
+    --slurpfile reconcile "$reconcile_json_file" \
   --slurpfile detach "$detach_json_file" \
   --argjson policy "$dunning_policy_json" \
   --argjson initial_readiness "$initial_readiness_json" \
@@ -325,6 +321,8 @@ jq -n \
   --argjson reminder_detail "$reminder_run_detail_json" \
   --argjson post_refresh_detail "$post_refresh_dunning_json" \
   --argjson resolved_detail "$resolved_dunning_json" \
+  --argjson initial_retry_response "$initial_retry_response_json" \
+  --argjson payment_detail_pending "$pending_payment_detail_json" \
   --argjson payment_detail_active "$payment_detail_with_dunning_json" \
   --argjson invoice_detail_active "$invoice_detail_with_dunning_json" \
   --argjson payment_detail_final "$final_payment_detail_json" \
@@ -343,7 +341,8 @@ jq -n \
     bootstrap: ($bootstrap[0] // null),
     fixture: ($fixture[0] // null),
     initial_readiness: $initial_readiness,
-    failed_payment_flow: ($failed[0] // null),
+    initial_retry_response: $initial_retry_response,
+    payment_detail_pending: $payment_detail_pending,
     active_run_list: $run_list,
     reminder_detail: $reminder_detail,
     initial_provider_detach: ($detach[0] // null),
