@@ -24,6 +24,9 @@ export function PricingCouponNewScreen() {
   const [currency, setCurrency] = useState("USD");
   const [amountOff, setAmountOff] = useState("10");
   const [percentOff, setPercentOff] = useState("20");
+  const [frequency, setFrequency] = useState<"once" | "recurring" | "forever">("forever");
+  const [frequencyDuration, setFrequencyDuration] = useState("3");
+  const [expirationAt, setExpirationAt] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -40,6 +43,9 @@ export function PricingCouponNewScreen() {
           currency: discountType === "amount_off" ? currency : "",
           amount_off_cents: discountType === "amount_off" ? Math.round(Number(amountOff || 0) * 100) : 0,
           percent_off: discountType === "percent_off" ? Math.round(Number(percentOff || 0)) : 0,
+          frequency,
+          frequency_duration: frequency === "recurring" ? Math.max(1, Math.round(Number(frequencyDuration || 0))) : 0,
+          expiration_at: expirationAt ? new Date(expirationAt).toISOString() : null,
         },
       }),
     onSuccess: (coupon) => router.push(`/pricing/coupons/${encodeURIComponent(coupon.id)}`),
@@ -88,6 +94,25 @@ export function PricingCouponNewScreen() {
                 </div>
               </section>
 
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <h2 className="text-lg font-semibold text-slate-950">Runtime behavior</h2>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <SelectField label="Frequency" value={frequency} onChange={(value) => setFrequency(value as "once" | "recurring" | "forever")} options={["forever", "once", "recurring"]} testID="pricing-coupon-frequency" />
+                  {frequency === "recurring" ? (
+                    <Field label="Recurring billing periods" value={frequencyDuration} onChange={setFrequencyDuration} placeholder="3" testID="pricing-coupon-frequency-duration" />
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">Recurring duration is only needed when frequency is recurring.</div>
+                  )}
+                  <label className="grid gap-2 text-sm text-slate-700">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Expires at</span>
+                    <input data-testid="pricing-coupon-expiration-at" type="datetime-local" value={expirationAt} onChange={(event) => setExpirationAt(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" />
+                  </label>
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+                    Leave expiration empty for ongoing coupons. Use once or recurring when the discount should stop after a defined number of billing periods.
+                  </div>
+                </div>
+              </section>
+
               {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
 
               <div className="flex flex-wrap gap-3">
@@ -102,7 +127,7 @@ export function PricingCouponNewScreen() {
 
           <aside className="grid gap-5 self-start">
             <InfoCard title="Good fit" body="Use percent-off for simple promos and amount-off for negotiated fixed relief." />
-            <InfoCard title="Current scope" body="Coupons are synced into Lago with plan scoping and applied to customers through active subscription plans." />
+            <InfoCard title="Current scope" body="Coupons are synced into Lago with plan scoping, billing-period frequency, and optional expiration, then applied to customers through active subscription plans." />
           </aside>
         </div>
       </main>
@@ -114,8 +139,8 @@ function Field({ label, value, onChange, placeholder, testID }: { label: string;
   return <label className="grid gap-2 text-sm text-slate-700"><span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span><input data-testid={testID} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2" /></label>;
 }
 
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
-  return <label className="grid gap-2 text-sm text-slate-700"><span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2">{options.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}</select></label>;
+function SelectField({ label, value, onChange, options, testID }: { label: string; value: string; onChange: (value: string) => void; options: string[]; testID?: string }) {
+  return <label className="grid gap-2 text-sm text-slate-700"><span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span><select data-testid={testID} value={value} onChange={(event) => onChange(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2">{options.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}</select></label>;
 }
 
 function InfoCard({ title, body }: { title: string; body: string }) {

@@ -499,6 +499,9 @@ export interface Coupon {
   currency?: string;
   amount_off_cents: number;
   percent_off: number;
+  frequency: "once" | "recurring" | "forever";
+  frequency_duration: number;
+  expiration_at?: string;
   created_at: string;
   updated_at: string;
 }

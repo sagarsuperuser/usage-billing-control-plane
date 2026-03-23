@@ -102,18 +102,34 @@ func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 	}
 
 	coupon := postJSON(t, ts.URL+"/v1/coupons", map[string]any{
-		"code":             "launch_20",
-		"name":             "Launch 20",
-		"status":           "active",
-		"discount_type":    "percent_off",
-		"percent_off":      20,
-		"amount_off_cents": 0,
+		"code":               "launch_20",
+		"name":               "Launch 20",
+		"status":             "active",
+		"discount_type":      "percent_off",
+		"percent_off":        20,
+		"amount_off_cents":   0,
+		"frequency":          "recurring",
+		"frequency_duration": 3,
+		"expiration_at":      "2030-01-01T00:00:00Z",
 	}, "pricing-writer-key", http.StatusCreated)
 	couponID := coupon["id"].(string)
+	if got := coupon["frequency"]; got != "recurring" {
+		t.Fatalf("expected recurring frequency, got %#v", got)
+	}
+	if got := coupon["frequency_duration"]; got != float64(3) {
+		t.Fatalf("expected frequency_duration=3, got %#v", got)
+	}
 
 	coupons := getJSONArray(t, ts.URL+"/v1/coupons", "pricing-reader-key", http.StatusOK)
 	if len(coupons) != 1 {
 		t.Fatalf("expected 1 coupon, got %d", len(coupons))
+	}
+	gotCoupon, ok := coupons[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected coupon object, got %#v", coupons[0])
+	}
+	if gotCoupon["frequency"] != "recurring" {
+		t.Fatalf("expected recurring coupon in list, got %#v", gotCoupon["frequency"])
 	}
 
 	tax := postJSON(t, ts.URL+"/v1/taxes", map[string]any{

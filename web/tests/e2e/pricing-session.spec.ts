@@ -61,6 +61,9 @@ type Coupon = {
   currency?: string;
   amount_off_cents: number;
   percent_off: number;
+  frequency: "once" | "recurring" | "forever";
+  frequency_duration: number;
+  expiration_at?: string;
   created_at: string;
   updated_at: string;
 };
@@ -271,6 +274,9 @@ async function installPricingMock(context: BrowserContext, session: TenantSessio
         currency: typeof body.currency === "string" ? body.currency : undefined,
         amount_off_cents: Number(body.amount_off_cents || 0),
         percent_off: Number(body.percent_off || 0),
+        frequency: (body.frequency as "once" | "recurring" | "forever") || "forever",
+        frequency_duration: Number(body.frequency_duration || 0),
+        expiration_at: typeof body.expiration_at === "string" ? body.expiration_at : undefined,
         created_at: now,
         updated_at: now,
       };
@@ -376,12 +382,14 @@ test("tenant writer can create pricing metric tax add-on coupon and plan", async
   await page.goto("/pricing/coupons/new");
   await page.getByTestId("pricing-coupon-name").fill("Launch 20");
   await page.getByTestId("pricing-coupon-code").fill("launch_20");
+  await expect(page.getByTestId("pricing-coupon-frequency")).toBeVisible();
   await expect(page.getByTestId("pricing-coupon-submit")).toBeEnabled();
   await page.getByTestId("pricing-coupon-submit").click();
 
   await expect(page).toHaveURL(/\/pricing\/coupons\/cpn_launch_20$/);
   await expect(page.getByRole("heading", { name: "Launch 20" })).toBeVisible();
   await expect(page.getByText("20% off")).toBeVisible();
+  await expect(page.getByText("Forever")).toBeVisible();
 
   await page.goto("/pricing/taxes/new");
   await page.getByTestId("pricing-tax-name").fill("India GST 18");

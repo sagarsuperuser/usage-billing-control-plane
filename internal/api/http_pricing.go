@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"usage-billing-control-plane/internal/domain"
 	"usage-billing-control-plane/internal/service"
@@ -48,14 +49,17 @@ type createAddOnRequest struct {
 }
 
 type createCouponRequest struct {
-	Code           string `json:"code"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-	Status         string `json:"status"`
-	DiscountType   string `json:"discount_type"`
-	Currency       string `json:"currency"`
-	AmountOffCents int64  `json:"amount_off_cents"`
-	PercentOff     int    `json:"percent_off"`
+	Code              string     `json:"code"`
+	Name              string     `json:"name"`
+	Description       string     `json:"description"`
+	Status            string     `json:"status"`
+	DiscountType      string     `json:"discount_type"`
+	Currency          string     `json:"currency"`
+	AmountOffCents    int64      `json:"amount_off_cents"`
+	PercentOff        int        `json:"percent_off"`
+	Frequency         string     `json:"frequency"`
+	FrequencyDuration int        `json:"frequency_duration"`
+	ExpirationAt      *time.Time `json:"expiration_at"`
 }
 
 func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
@@ -335,15 +339,18 @@ func (s *Server) handleCoupons(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		item, err := s.couponService.CreateCoupon(domain.Coupon{
-			TenantID:       tenantID,
-			Code:           req.Code,
-			Name:           req.Name,
-			Description:    req.Description,
-			Status:         domain.CouponStatus(req.Status),
-			DiscountType:   domain.CouponDiscountType(req.DiscountType),
-			Currency:       req.Currency,
-			AmountOffCents: req.AmountOffCents,
-			PercentOff:     req.PercentOff,
+			TenantID:          tenantID,
+			Code:              req.Code,
+			Name:              req.Name,
+			Description:       req.Description,
+			Status:            domain.CouponStatus(req.Status),
+			DiscountType:      domain.CouponDiscountType(req.DiscountType),
+			Currency:          req.Currency,
+			AmountOffCents:    req.AmountOffCents,
+			PercentOff:        req.PercentOff,
+			Frequency:         domain.CouponFrequency(req.Frequency),
+			FrequencyDuration: req.FrequencyDuration,
+			ExpirationAt:      req.ExpirationAt,
 		})
 		if err != nil {
 			writeDomainError(w, err)

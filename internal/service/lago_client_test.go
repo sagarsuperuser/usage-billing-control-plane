@@ -577,12 +577,14 @@ func TestLagoPlanSyncAdapterSyncsCommercialArtifacts(t *testing.T) {
 		t.Fatalf("create add-on: %v", err)
 	}
 	coupon, err := repo.CreateCoupon(domain.Coupon{
-		TenantID:     tenantID,
-		Code:         "launch_20",
-		Name:         "Launch 20",
-		Status:       domain.CouponStatusActive,
-		DiscountType: domain.CouponDiscountTypePercentOff,
-		PercentOff:   20,
+		TenantID:          tenantID,
+		Code:              "launch_20",
+		Name:              "Launch 20",
+		Status:            domain.CouponStatusActive,
+		DiscountType:      domain.CouponDiscountTypePercentOff,
+		PercentOff:        20,
+		Frequency:         domain.CouponFrequencyRecurring,
+		FrequencyDuration: 3,
 	})
 	if err != nil {
 		t.Fatalf("create coupon: %v", err)
@@ -637,7 +639,7 @@ func TestLagoPlanSyncAdapterSyncsCommercialArtifacts(t *testing.T) {
 			sawCoupon = true
 			body, _ := io.ReadAll(r.Body)
 			payload := string(body)
-			if !strings.Contains(payload, `"code":"launch_20"`) || !strings.Contains(payload, `"coupon_type":"percentage"`) || !strings.Contains(payload, `"plan_codes":["growth"]`) {
+			if !strings.Contains(payload, `"code":"launch_20"`) || !strings.Contains(payload, `"coupon_type":"percentage"`) || !strings.Contains(payload, `"plan_codes":["growth"]`) || !strings.Contains(payload, `"frequency":"recurring"`) || !strings.Contains(payload, `"frequency_duration":3`) {
 				t.Fatalf("unexpected coupon payload: %s", payload)
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -721,12 +723,14 @@ func TestLagoSubscriptionSyncAdapterReconcilesAppliedCoupons(t *testing.T) {
 		t.Fatalf("create meter: %v", err)
 	}
 	desiredCoupon, err := repo.CreateCoupon(domain.Coupon{
-		TenantID:     tenantID,
-		Code:         "launch_20_runtime",
-		Name:         "Launch 20 Runtime",
-		Status:       domain.CouponStatusActive,
-		DiscountType: domain.CouponDiscountTypePercentOff,
-		PercentOff:   20,
+		TenantID:          tenantID,
+		Code:              "launch_20_runtime",
+		Name:              "Launch 20 Runtime",
+		Status:            domain.CouponStatusActive,
+		DiscountType:      domain.CouponDiscountTypePercentOff,
+		PercentOff:        20,
+		Frequency:         domain.CouponFrequencyRecurring,
+		FrequencyDuration: 3,
 	})
 	if err != nil {
 		t.Fatalf("create desired coupon: %v", err)
@@ -780,7 +784,7 @@ func TestLagoSubscriptionSyncAdapterReconcilesAppliedCoupons(t *testing.T) {
 			sawCouponCreate = true
 			body, _ := io.ReadAll(r.Body)
 			payload := string(body)
-			if !strings.Contains(payload, `"code":"launch_20_runtime"`) {
+			if !strings.Contains(payload, `"code":"launch_20_runtime"`) || !strings.Contains(payload, `"frequency":"recurring"`) {
 				t.Fatalf("unexpected coupon sync payload: %s", payload)
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -824,6 +828,132 @@ func TestLagoSubscriptionSyncAdapterReconcilesAppliedCoupons(t *testing.T) {
 	}
 	if staleCoupon.Code != "stale_10_runtime" {
 		t.Fatalf("expected stale coupon fixture to exist")
+	}
+}
+
+func TestLagoSubscriptionSyncAdapterDoesNotReapplyRecurringCouponAfterTermination(t *testing.T) {
+	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	tenantID := "tenant_lago_subscription_coupon_no_reapply"
+	customer, err := repo.CreateCustomer(domain.Customer{
+		TenantID:    tenantID,
+		ExternalID:  "cust_coupon_terminated_123",
+		DisplayName: "Coupon Customer",
+		Status:      domain.CustomerStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	rule, err := repo.CreateRatingRuleVersion(domain.RatingRuleVersion{
+		TenantID:        tenantID,
+		RuleKey:         "rule_growth_coupon_no_reapply",
+		Name:            "Growth Rule",
+		Version:         1,
+		LifecycleState:  domain.RatingRuleLifecycleActive,
+		Mode:            domain.PricingModeFlat,
+		Currency:        "USD",
+		FlatAmountCents: 100,
+	})
+	if err != nil {
+		t.Fatalf("create rule version: %v", err)
+	}
+	meter, err := repo.CreateMeter(domain.Meter{
+		TenantID:            tenantID,
+		Key:                 "coupon_meter_no_reapply",
+		Name:                "Coupon Meter",
+		Unit:                "event",
+		Aggregation:         "sum",
+		RatingRuleVersionID: rule.ID,
+	})
+	if err != nil {
+		t.Fatalf("create meter: %v", err)
+	}
+	desiredCoupon, err := repo.CreateCoupon(domain.Coupon{
+		TenantID:          tenantID,
+		Code:              "launch_20_no_reapply",
+		Name:              "Launch 20 Runtime",
+		Status:            domain.CouponStatusActive,
+		DiscountType:      domain.CouponDiscountTypePercentOff,
+		PercentOff:        20,
+		Frequency:         domain.CouponFrequencyRecurring,
+		FrequencyDuration: 3,
+	})
+	if err != nil {
+		t.Fatalf("create desired coupon: %v", err)
+	}
+	plan, err := repo.CreatePlan(domain.Plan{
+		TenantID:        tenantID,
+		Code:            "growth_coupon_no_reapply",
+		Name:            "Growth Coupon Runtime",
+		Currency:        "USD",
+		BillingInterval: domain.BillingIntervalMonthly,
+		Status:          domain.PlanStatusActive,
+		BaseAmountCents: 4900,
+		MeterIDs:        []string{meter.ID},
+		CouponIDs:       []string{desiredCoupon.ID},
+	})
+	if err != nil {
+		t.Fatalf("create plan: %v", err)
+	}
+	subscription, err := repo.CreateSubscription(domain.Subscription{
+		TenantID:    tenantID,
+		Code:        "cust_coupon_terminated_123_growth",
+		DisplayName: "Coupon Subscription",
+		CustomerID:  customer.ID,
+		PlanID:      plan.ID,
+		Status:      domain.SubscriptionStatusActive,
+		BillingTime: domain.SubscriptionBillingTimeAnniversary,
+	})
+	if err != nil {
+		t.Fatalf("create subscription: %v", err)
+	}
+
+	var sawAppliedCouponCreate bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/subscriptions":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"subscription":{"external_id":"cust_coupon_terminated_123_growth"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/coupons":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"coupon":{"code":"launch_20_no_reapply"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/applied_coupons":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"applied_coupons":[{"lago_id":"ac_old","coupon_code":"launch_20_no_reapply","external_customer_id":"cust_coupon_terminated_123","status":"terminated"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/applied_coupons":
+			sawAppliedCouponCreate = true
+			http.Error(w, "should not reapply recurring coupon", http.StatusInternalServerError)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{BaseURL: lago.URL, APIKey: "test", Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoSubscriptionSyncAdapter(transport, repo).SyncSubscription(context.Background(), subscription, customer, plan)
+	if err != nil {
+		t.Fatalf("sync subscription coupons: %v", err)
+	}
+	if sawAppliedCouponCreate {
+		t.Fatalf("expected terminated recurring coupon not to be reapplied")
 	}
 }
 

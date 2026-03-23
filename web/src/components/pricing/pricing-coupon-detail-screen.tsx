@@ -58,12 +58,25 @@ export function PricingCouponDetailScreen({ couponID }: { couponID: string }) {
               <Stat label="Type" value={coupon.discount_type} />
               <Stat label="Value" value={coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`} />
               <Stat label="Currency" value={coupon.currency || "N/A"} />
+              <Stat label="Frequency" value={renderFrequency(coupon)} />
+              <Stat label="Expires" value={coupon.expiration_at ? new Date(coupon.expiration_at).toLocaleString() : "No expiration"} />
             </section>
           </>
         )}
       </main>
     </div>
   );
+}
+
+function renderFrequency(coupon: { frequency: "once" | "recurring" | "forever"; frequency_duration: number }) {
+  switch (coupon.frequency) {
+    case "once":
+      return "Once";
+    case "recurring":
+      return `${coupon.frequency_duration} billing periods`;
+    default:
+      return "Forever";
+  }
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

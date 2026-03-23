@@ -89,7 +89,7 @@ export function PricingCouponListScreen() {
 
 function CouponRow({ coupon }: { coupon: Coupon }) {
   return (
-    <Link href={`/pricing/coupons/${encodeURIComponent(coupon.id)}`} className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(5,minmax(0,0.55fr))_auto] lg:items-center">
+    <Link href={`/pricing/coupons/${encodeURIComponent(coupon.id)}`} className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(6,minmax(0,0.55fr))_auto] lg:items-center">
       <div className="min-w-0">
         <h3 className="truncate text-base font-semibold text-slate-950">{coupon.name}</h3>
         <p className="mt-1 break-all font-mono text-xs text-slate-500">{coupon.code}</p>
@@ -99,10 +99,23 @@ function CouponRow({ coupon }: { coupon: Coupon }) {
       <StatusCell label="Type" value={coupon.discount_type} />
       <StatusCell label="Value" value={coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`} />
       <StatusCell label="Currency" value={coupon.currency?.toUpperCase() || "N/A"} />
+      <StatusCell label="Frequency" value={renderFrequency(coupon)} />
+      <StatusCell label="Expires" value={coupon.expiration_at ? "Timed" : "Ongoing"} />
       <StatusCell label="Scope" value="Plan" />
       <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">Open<ChevronRight className="h-4 w-4" /></span>
     </Link>
   );
+}
+
+function renderFrequency(coupon: Coupon) {
+  switch (coupon.frequency) {
+    case "once":
+      return "Once";
+    case "recurring":
+      return `${coupon.frequency_duration} periods`;
+    default:
+      return "Forever";
+  }
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {

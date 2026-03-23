@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"usage-billing-control-plane/internal/domain"
 	"usage-billing-control-plane/internal/store"
@@ -29,7 +30,12 @@ func (s *CouponService) CreateCoupon(input domain.Coupon) (domain.Coupon, error)
 	input.Code = normalizeCouponCode(input.Code)
 	input.Status = normalizeCouponStatus(input.Status)
 	input.DiscountType = normalizeCouponDiscountType(input.DiscountType)
+	input.Frequency = normalizeCouponFrequency(input.Frequency)
 	input.Currency = strings.ToUpper(strings.TrimSpace(input.Currency))
+	if input.ExpirationAt != nil {
+		ts := input.ExpirationAt.UTC()
+		input.ExpirationAt = &ts
+	}
 
 	if err := validateCoupon(input); err != nil {
 		return domain.Coupon{}, err
@@ -82,6 +88,17 @@ func normalizeCouponDiscountType(raw domain.CouponDiscountType) domain.CouponDis
 	}
 }
 
+func normalizeCouponFrequency(raw domain.CouponFrequency) domain.CouponFrequency {
+	switch domain.CouponFrequency(strings.ToLower(strings.TrimSpace(string(raw)))) {
+	case domain.CouponFrequencyOnce:
+		return domain.CouponFrequencyOnce
+	case domain.CouponFrequencyRecurring:
+		return domain.CouponFrequencyRecurring
+	default:
+		return domain.CouponFrequencyForever
+	}
+}
+
 func validateCoupon(input domain.Coupon) error {
 	if input.TenantID == "" {
 		return fmt.Errorf("%w: tenant_id is required", ErrValidation)
@@ -121,6 +138,24 @@ func validateCoupon(input domain.Coupon) error {
 		}
 	default:
 		return fmt.Errorf("%w: unsupported discount_type", ErrValidation)
+	}
+	if input.Frequency == "" {
+		return fmt.Errorf("%w: frequency is required", ErrValidation)
+	}
+	switch input.Frequency {
+	case domain.CouponFrequencyRecurring:
+		if input.FrequencyDuration <= 0 {
+			return fmt.Errorf("%w: frequency_duration must be > 0 for recurring coupons", ErrValidation)
+		}
+	case domain.CouponFrequencyOnce, domain.CouponFrequencyForever:
+		if input.FrequencyDuration != 0 {
+			return fmt.Errorf("%w: frequency_duration must be 0 unless frequency is recurring", ErrValidation)
+		}
+	default:
+		return fmt.Errorf("%w: unsupported frequency", ErrValidation)
+	}
+	if input.ExpirationAt != nil && !input.ExpirationAt.After(time.Now().UTC()) {
+		return fmt.Errorf("%w: expiration_at must be in the future", ErrValidation)
 	}
 	return nil
 }

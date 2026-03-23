@@ -761,12 +761,21 @@ func (a *LagoPlanSyncAdapter) upsertCoupon(ctx context.Context, tenantID string,
 			"name":        coupon.Name,
 			"code":        coupon.Code,
 			"description": coupon.Description,
-			"frequency":   "forever",
+			"frequency":   couponFrequencyForLago(coupon),
 			"reusable":    true,
 			"applies_to": map[string]any{
 				"plan_codes": planCodes,
 			},
 		},
+	}
+	if coupon.Frequency == domain.CouponFrequencyRecurring {
+		payload["coupon"].(map[string]any)["frequency_duration"] = coupon.FrequencyDuration
+	}
+	if coupon.ExpirationAt != nil {
+		payload["coupon"].(map[string]any)["expiration"] = "time_limit"
+		payload["coupon"].(map[string]any)["expiration_at"] = coupon.ExpirationAt.UTC().Format(time.RFC3339)
+	} else {
+		payload["coupon"].(map[string]any)["expiration"] = "no_expiration"
 	}
 	if coupon.DiscountType == domain.CouponDiscountTypePercentOff {
 		payload["coupon"].(map[string]any)["coupon_type"] = "percentage"
@@ -896,13 +905,18 @@ func (a *LagoSubscriptionSyncAdapter) syncAppliedCoupons(ctx context.Context, su
 	}
 
 	existingActive := map[string]lagoAppliedCoupon{}
+	seenByCode := map[string]bool{}
 	for _, item := range appliedCoupons {
+		seenByCode[item.CouponCode] = true
 		if strings.EqualFold(strings.TrimSpace(item.Status), "active") {
 			existingActive[item.CouponCode] = item
 		}
 	}
-	for code := range desiredByCode {
+	for code, coupon := range desiredByCode {
 		if _, ok := existingActive[code]; ok {
+			continue
+		}
+		if !shouldCreateAppliedCoupon(coupon, seenByCode[code]) {
 			continue
 		}
 		payload := map[string]any{
@@ -958,6 +972,9 @@ func (a *LagoSubscriptionSyncAdapter) desiredCustomerCoupons(subscription domain
 			if coupon.Status != domain.CouponStatusActive {
 				continue
 			}
+			if coupon.ExpirationAt != nil && !coupon.ExpirationAt.After(time.Now().UTC()) {
+				continue
+			}
 			seen[coupon.Code] = coupon
 		}
 	}
@@ -966,6 +983,24 @@ func (a *LagoSubscriptionSyncAdapter) desiredCustomerCoupons(subscription domain
 		out = append(out, coupon)
 	}
 	return out, nil
+}
+
+func couponFrequencyForLago(coupon domain.Coupon) string {
+	switch coupon.Frequency {
+	case domain.CouponFrequencyOnce:
+		return "once"
+	case domain.CouponFrequencyRecurring:
+		return "recurring"
+	default:
+		return "forever"
+	}
+}
+
+func shouldCreateAppliedCoupon(coupon domain.Coupon, seenBefore bool) bool {
+	if coupon.Frequency == domain.CouponFrequencyForever {
+		return true
+	}
+	return !seenBefore
 }
 
 func (a *LagoSubscriptionSyncAdapter) listAppliedCoupons(ctx context.Context, externalCustomerID string) ([]lagoAppliedCoupon, error) {

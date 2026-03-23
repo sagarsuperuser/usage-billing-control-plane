@@ -569,19 +569,30 @@ const (
 	CouponDiscountTypePercentOff CouponDiscountType = "percent_off"
 )
 
+type CouponFrequency string
+
+const (
+	CouponFrequencyOnce      CouponFrequency = "once"
+	CouponFrequencyRecurring CouponFrequency = "recurring"
+	CouponFrequencyForever   CouponFrequency = "forever"
+)
+
 type Coupon struct {
-	ID             string             `json:"id"`
-	TenantID       string             `json:"tenant_id,omitempty"`
-	Code           string             `json:"code"`
-	Name           string             `json:"name"`
-	Description    string             `json:"description,omitempty"`
-	Status         CouponStatus       `json:"status"`
-	DiscountType   CouponDiscountType `json:"discount_type"`
-	Currency       string             `json:"currency,omitempty"`
-	AmountOffCents int64              `json:"amount_off_cents"`
-	PercentOff     int                `json:"percent_off"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	ID                string             `json:"id"`
+	TenantID          string             `json:"tenant_id,omitempty"`
+	Code              string             `json:"code"`
+	Name              string             `json:"name"`
+	Description       string             `json:"description,omitempty"`
+	Status            CouponStatus       `json:"status"`
+	DiscountType      CouponDiscountType `json:"discount_type"`
+	Currency          string             `json:"currency,omitempty"`
+	AmountOffCents    int64              `json:"amount_off_cents"`
+	PercentOff        int                `json:"percent_off"`
+	Frequency         CouponFrequency    `json:"frequency"`
+	FrequencyDuration int                `json:"frequency_duration"`
+	ExpirationAt      *time.Time         `json:"expiration_at,omitempty"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
 }
 
 type TaxStatus string

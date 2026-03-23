@@ -3590,6 +3590,9 @@ func (s *PostgresStore) CreateCoupon(input domain.Coupon) (domain.Coupon, error)
 		input.CreatedAt = now
 	}
 	input.TenantID = normalizeTenantID(input.TenantID)
+	if strings.TrimSpace(string(input.Frequency)) == "" {
+		input.Frequency = domain.CouponFrequencyForever
+	}
 	input.UpdatedAt = now
 
 	ctx, cancel := s.withTimeout()
@@ -3601,8 +3604,8 @@ func (s *PostgresStore) CreateCoupon(input domain.Coupon) (domain.Coupon, error)
 	}
 	defer rollbackSilently(tx)
 
-	_, err = tx.ExecContext(ctx, `INSERT INTO coupons (id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-		input.ID, input.TenantID, input.Code, input.Name, input.Description, input.Status, input.DiscountType, input.Currency, input.AmountOffCents, input.PercentOff, input.CreatedAt, input.UpdatedAt,
+	_, err = tx.ExecContext(ctx, `INSERT INTO coupons (id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, frequency, frequency_duration, expiration_at, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		input.ID, input.TenantID, input.Code, input.Name, input.Description, input.Status, input.DiscountType, input.Currency, input.AmountOffCents, input.PercentOff, input.Frequency, input.FrequencyDuration, input.ExpirationAt, input.CreatedAt, input.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -3683,7 +3686,7 @@ func (s *PostgresStore) ListCoupons(tenantID string) ([]domain.Coupon, error) {
 	}
 	defer rollbackSilently(tx)
 
-	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, created_at, updated_at FROM coupons WHERE tenant_id = $1 ORDER BY created_at ASC, id ASC`, normalizeTenantID(tenantID))
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, frequency, frequency_duration, expiration_at, created_at, updated_at FROM coupons WHERE tenant_id = $1 ORDER BY created_at ASC, id ASC`, normalizeTenantID(tenantID))
 	if err != nil {
 		return nil, err
 	}
@@ -3716,7 +3719,7 @@ func (s *PostgresStore) GetCoupon(tenantID, id string) (domain.Coupon, error) {
 	}
 	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, created_at, updated_at FROM coupons WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, frequency, frequency_duration, expiration_at, created_at, updated_at FROM coupons WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
 	coupon, err := scanCoupon(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -7165,17 +7168,27 @@ func scanCoupon(s rowScanner) (domain.Coupon, error) {
 	var status string
 	var discountType string
 	var currency sql.NullString
-	if err := s.Scan(&out.ID, &out.TenantID, &out.Code, &out.Name, &description, &status, &discountType, &currency, &out.AmountOffCents, &out.PercentOff, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	var frequency string
+	var expirationAt sql.NullTime
+	if err := s.Scan(&out.ID, &out.TenantID, &out.Code, &out.Name, &description, &status, &discountType, &currency, &out.AmountOffCents, &out.PercentOff, &frequency, &out.FrequencyDuration, &expirationAt, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.Coupon{}, err
 	}
 	out.TenantID = normalizeTenantID(out.TenantID)
 	out.Status = domain.CouponStatus(strings.TrimSpace(status))
 	out.DiscountType = domain.CouponDiscountType(strings.TrimSpace(discountType))
+	out.Frequency = domain.CouponFrequency(strings.TrimSpace(frequency))
+	if out.Frequency == "" {
+		out.Frequency = domain.CouponFrequencyForever
+	}
 	if description.Valid {
 		out.Description = normalizeOptionalText(description.String)
 	}
 	if currency.Valid {
 		out.Currency = normalizeOptionalText(strings.ToUpper(currency.String))
+	}
+	if expirationAt.Valid {
+		ts := expirationAt.Time.UTC()
+		out.ExpirationAt = &ts
 	}
 	return out, nil
 }
