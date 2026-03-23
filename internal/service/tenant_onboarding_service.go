@@ -251,7 +251,7 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 	if s.workspaceBillingBindingService != nil {
 		if billingContext, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID); err == nil {
 			billingIntegrationReadiness.BillingMappingReady = true
-			billingIntegrationReadiness.BillingConnected = true
+			billingIntegrationReadiness.BillingConnected = billingContext.Status == string(domain.WorkspaceBillingBindingStatusConnected)
 			billingIntegrationReadiness.WorkspaceBillingStatus = billingContext.Status
 			billingIntegrationReadiness.WorkspaceBillingSource = billingContext.Source
 			billingIntegrationReadiness.ActiveBillingConnectionID = billingContext.BillingProviderConnectionID
@@ -270,6 +270,9 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 	}
 	if !billingIntegrationReadiness.BillingMappingReady {
 		billingIntegrationReadiness.MissingSteps = append(billingIntegrationReadiness.MissingSteps, "billing_mapping")
+	}
+	if billingIntegrationReadiness.BillingMappingReady && !billingIntegrationReadiness.BillingConnected {
+		billingIntegrationReadiness.MissingSteps = append(billingIntegrationReadiness.MissingSteps, "billing_verification")
 	}
 	if !billingIntegrationReadiness.PricingReady {
 		billingIntegrationReadiness.MissingSteps = append(billingIntegrationReadiness.MissingSteps, "pricing")

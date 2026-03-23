@@ -36,6 +36,7 @@ const tenantSectionStepLabels: Record<string, string> = {
   tenant_admin_key: "Admin access has not been created yet",
   billing_mapping_ready: "Billing connection is not configured yet",
   billing_mapping: "Billing connection is not configured yet",
+  billing_verification: "Billing connection is attached but not verified yet",
   pricing: "Pricing rules still need to be configured",
   customer_created: "No billing-ready customer has been created yet",
 };
@@ -47,6 +48,7 @@ const tenantStepLabels: Record<string, string> = {
   "tenant.tenant_admin_key": tenantSectionStepLabels.tenant_admin_key,
   "billing_integration.billing_mapping_ready": tenantSectionStepLabels.billing_mapping_ready,
   "billing_integration.billing_mapping": tenantSectionStepLabels.billing_mapping,
+  "billing_integration.billing_verification": tenantSectionStepLabels.billing_verification,
   "billing_integration.pricing": tenantSectionStepLabels.pricing,
   "first_customer.customer_created": tenantSectionStepLabels.customer_created,
 };

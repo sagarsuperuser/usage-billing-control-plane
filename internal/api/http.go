@@ -317,11 +317,11 @@ func (s *Server) buildWorkspaceBillingResponse(tenant domain.Tenant) workspaceBi
 	}
 	if effective, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID); err == nil {
 		resp.Configured = true
-		resp.Connected = true
 		resp.ActiveBillingConnectionID = effective.BillingProviderConnectionID
 		resp.Status = effective.Status
 		resp.Source = effective.Source
 		resp.IsolationMode = string(effective.IsolationMode)
+		resp.Connected = effective.Status == string(domain.WorkspaceBillingBindingStatusConnected)
 		return resp
 	}
 	if binding, err := s.workspaceBillingBindingService.GetWorkspaceBillingBinding(tenant.ID); err == nil {

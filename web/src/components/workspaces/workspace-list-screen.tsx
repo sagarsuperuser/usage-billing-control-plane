@@ -28,6 +28,46 @@ function statusTone(status?: string): string {
   }
 }
 
+function workspaceBillingInventoryLabel(tenant: Tenant): string {
+  const billing = tenant.workspace_billing;
+  if (!billing.configured) {
+    return "Missing";
+  }
+  switch ((billing.status || "").toLowerCase()) {
+    case "connected":
+      return "Attached";
+    case "pending":
+    case "provisioning":
+      return "Pending";
+    case "verification_failed":
+      return "Failed";
+    case "disabled":
+      return "Disabled";
+    default:
+      return billing.connected ? "Attached" : "Pending";
+  }
+}
+
+function workspaceAccessLabel(tenant: Tenant): string {
+  const billing = tenant.workspace_billing;
+  if (!billing.configured) {
+    return "Platform setup";
+  }
+  switch ((billing.status || "").toLowerCase()) {
+    case "connected":
+      return "Handoff ready";
+    case "pending":
+    case "provisioning":
+      return "Verification pending";
+    case "verification_failed":
+      return "Platform repair";
+    case "disabled":
+      return "Blocked";
+    default:
+      return billing.connected ? "Handoff ready" : "Platform setup";
+  }
+}
+
 export function WorkspaceListScreen() {
   const { apiBaseURL, isAuthenticated, isPlatformAdmin, scope } = useUISession();
   const [statusFilter, setStatusFilter] = useState("");
@@ -71,7 +111,7 @@ export function WorkspaceListScreen() {
       total: filteredTenants.length,
       ready: readiness.filter((item) => item.status === "ready").length,
       needsAttention: readiness.filter((item) => item.status !== "ready").length,
-      missingBilling: filteredTenants.filter((tenant) => !tenant.workspace_billing.connected).length,
+      billingNotReady: filteredTenants.filter((tenant) => (tenant.workspace_billing.status || "").toLowerCase() !== "connected").length,
     };
   }, [filteredTenants, readinessByTenant]);
 
@@ -110,7 +150,7 @@ export function WorkspaceListScreen() {
             <MetricCard label="Visible" value={summary.total} />
             <MetricCard label="Ready" value={summary.ready} tone="success" />
             <MetricCard label="Needs attention" value={summary.needsAttention} tone="warn" />
-            <MetricCard label="Missing billing" value={summary.missingBilling} tone="warn" />
+            <MetricCard label="Billing not ready" value={summary.billingNotReady} tone="warn" />
           </div>
         </section>
 
@@ -188,10 +228,10 @@ function WorkspaceRow({ tenant, readiness }: { tenant: Tenant; readiness?: Tenan
         </p>
       </div>
       <StatCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
-      <StatCell label="Billing" value={tenant.workspace_billing.connected ? "Attached" : "Missing"} />
+      <StatCell label="Billing" value={workspaceBillingInventoryLabel(tenant)} />
       <StatCell label="First customer" value={readiness?.first_customer.customer_exists ? "Created" : "Missing"} />
       <StatCell label="Pricing" value={readiness?.billing_integration.pricing_ready ? "Ready" : "Missing"} />
-      <StatCell label="Access" value={tenant.workspace_billing.connected ? "Handoff ready" : "Platform setup"} />
+      <StatCell label="Access" value={workspaceAccessLabel(tenant)} />
     </Link>
   );
 }

@@ -33,6 +33,28 @@ function readinessTone(status?: string): string {
     : "border-amber-200 bg-amber-50 text-amber-700";
 }
 
+function describeWorkspaceBillingHelper(readiness: {
+  billing_connected?: boolean;
+  workspace_billing_status?: string;
+  isolation_mode?: string;
+  pricing_ready: boolean;
+}): string {
+  if (readiness.billing_connected) {
+    return `Active connection linked${readiness.isolation_mode ? ` · ${readiness.isolation_mode}` : ""}`;
+  }
+  switch ((readiness.workspace_billing_status || "").toLowerCase()) {
+    case "verification_failed":
+      return "Connection attached, but verification failed";
+    case "pending":
+    case "provisioning":
+      return "Connection attached, verification still pending";
+    case "disabled":
+      return "Billing connection is disabled";
+    default:
+      return readiness.pricing_ready ? "Pricing ready, billing not attached" : "Billing and pricing still need setup";
+  }
+}
+
 export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope, session } = useUISession();
@@ -314,13 +336,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
               <SummaryStat
                 label="Billing"
                 value={selectedReadiness.billing_integration.status}
-                helper={
-                  selectedReadiness.billing_integration.billing_connected
-                    ? `Active connection linked${selectedReadiness.billing_integration.isolation_mode ? ` · ${selectedReadiness.billing_integration.isolation_mode}` : ""}`
-                    : selectedReadiness.billing_integration.pricing_ready
-                      ? "Pricing ready, billing not attached"
-                      : "Billing and pricing still need setup"
-                }
+                helper={describeWorkspaceBillingHelper(selectedReadiness.billing_integration)}
               />
               <SummaryStat
                 label="First customer"
