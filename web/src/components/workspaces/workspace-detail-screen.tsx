@@ -285,8 +285,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
               <SummaryStat label="Open actions" value={String(readinessMissingSteps.length)} helper="Remaining checklist items" />
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-              <div className="grid gap-5">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -309,12 +309,12 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace access</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Members and pending invites</h2>
                     </div>
-                    <div className="grid min-w-[180px] gap-2 text-sm text-slate-600">
+                    <div className="grid w-full gap-2 text-sm text-slate-600 sm:min-w-[180px] sm:w-auto">
                       <InlineStat label="Members" value={String(workspaceMembers.length)} />
                       <InlineStat label="Pending" value={String(pendingInvitations.length)} />
                     </div>
@@ -579,14 +579,14 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                 </section>
               </div>
 
-              <aside className="grid gap-5 self-start">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+              <aside className="min-w-0 grid gap-5 self-start">
+                <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace billing</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Active billing path</h2>
                     </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(workspaceBilling?.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}`}>
+                    <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${readinessTone(workspaceBilling?.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}`}>
                       {formatReadinessStatus(workspaceBilling?.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}
                     </span>
                   </div>
