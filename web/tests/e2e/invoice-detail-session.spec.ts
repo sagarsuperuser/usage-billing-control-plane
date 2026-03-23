@@ -34,6 +34,19 @@ const invoiceDetail = {
   updated_at: new Date().toISOString(),
   billing_entity_code: "be_default",
   invoice_type: "subscription",
+  dunning: {
+    run_id: "drun_123",
+    state: "active",
+    attempt_count: 1,
+    next_action_type: "collect_payment_reminder",
+    next_action_at: new Date().toISOString(),
+    paused: false,
+    last_event_type: "collect_payment_reminder_queued",
+    last_event_at: new Date().toISOString(),
+    last_notification_intent_type: "collect_payment_reminder",
+    last_notification_status: "queued",
+    last_notification_at: new Date().toISOString(),
+  },
   lifecycle: {
     tenant_id: "tenant_a",
     organization_id: "org_test_1",
@@ -96,6 +109,69 @@ async function installInvoiceDetailMock(page: Page) {
       if (path === "/v1/invoices/inv_123/credit-notes" && method === "GET") {
         return json(200, { items: [] });
       }
+      if (path === "/v1/invoice-payment-statuses/inv_123/events" && method === "GET") {
+        return json(200, {
+          items: [
+            {
+              id: "evt_1",
+              webhook_key: "invoice.payment_failure:inv_123",
+              webhook_type: "invoice.payment_failure",
+              object_type: "invoice",
+              invoice_id: "inv_123",
+              customer_external_id: "cust_123",
+              invoice_number: "INV-123",
+              invoice_status: "finalized",
+              payment_status: "failed",
+              payload: {},
+              received_at: "2026-03-23T10:05:00Z",
+              occurred_at: "2026-03-23T10:04:00Z",
+            },
+          ],
+        });
+      }
+      if (path === "/v1/dunning/runs/drun_123" && method === "GET") {
+        return json(200, {
+          run: {
+            id: "drun_123",
+            invoice_id: "inv_123",
+            customer_external_id: "cust_123",
+            policy_id: "policy_1",
+            state: "active",
+            attempt_count: 1,
+            next_action_at: "2026-03-23T10:15:00Z",
+            next_action_type: "collect_payment_reminder",
+            paused: false,
+            created_at: "2026-03-23T10:00:00Z",
+            updated_at: "2026-03-23T10:05:00Z",
+          },
+          events: [
+            {
+              id: "devt_1",
+              run_id: "drun_123",
+              invoice_id: "inv_123",
+              customer_external_id: "cust_123",
+              event_type: "payment_failed",
+              state: "active",
+              action_type: "retry_payment",
+              reason: "payment_failure",
+              attempt_count: 1,
+              created_at: "2026-03-23T10:06:00Z",
+            },
+          ],
+          notification_intents: [
+            {
+              id: "intent_1",
+              run_id: "drun_123",
+              invoice_id: "inv_123",
+              customer_external_id: "cust_123",
+              intent_type: "collect_payment_reminder",
+              status: "queued",
+              recipient_email: "billing@acme.test",
+              created_at: "2026-03-23T10:07:00Z",
+            },
+          ],
+        });
+      }
       if (path === "/v1/invoices/inv_123/retry-payment" && method === "POST") {
         w.__invoiceMock.retryCSRF = headers.get("X-CSRF-Token") || "";
         return json(200, { accepted: true });
@@ -113,4 +189,8 @@ test("invoice detail follows lifecycle guidance instead of exposing retry premat
   await expect(page.getByRole("link", { name: "Open payment setup" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry payment" })).toHaveCount(0);
   await expect(page.getByText("invoice payment failure")).toBeVisible();
+  const timeline = page.locator("section").filter({ has: page.getByRole("heading", { name: "Correlated events" }) });
+  await expect(timeline.getByRole("heading", { name: "Correlated events" })).toBeVisible();
+  await expect(timeline.getByText("payment failed", { exact: true })).toBeVisible();
+  await expect(timeline.getByText("collect payment reminder", { exact: true })).toBeVisible();
 });

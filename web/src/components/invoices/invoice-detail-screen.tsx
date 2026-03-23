@@ -5,6 +5,7 @@ import { ArrowLeft, LoaderCircle, Mail, RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
+import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -12,7 +13,9 @@ import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import {
   fetchInvoiceCreditNotes,
   fetchInvoiceDetail,
+  fetchInvoiceEvents,
   fetchInvoicePaymentReceipts,
+  fetchDunningRunDetail,
   resendCreditNoteEmail,
   resendInvoiceEmail,
   resendPaymentReceiptEmail,
@@ -25,27 +28,41 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const invoiceQuery = useQuery({
     queryKey: ["invoice-detail", apiBaseURL, invoiceID],
     queryFn: () => fetchInvoiceDetail({ runtimeBaseURL: apiBaseURL, invoiceID }),
-    enabled: isAuthenticated && scope === "tenant" && invoiceID.trim().length > 0,
+    enabled: isTenantSession && invoiceID.trim().length > 0,
   });
   const paymentReceiptsQuery = useQuery({
     queryKey: ["invoice-payment-receipts", apiBaseURL, invoiceID],
     queryFn: () => fetchInvoicePaymentReceipts({ runtimeBaseURL: apiBaseURL, invoiceID }),
-    enabled: isAuthenticated && scope === "tenant" && invoiceID.trim().length > 0,
+    enabled: isTenantSession && invoiceID.trim().length > 0,
   });
   const creditNotesQuery = useQuery({
     queryKey: ["invoice-credit-notes", apiBaseURL, invoiceID],
     queryFn: () => fetchInvoiceCreditNotes({ runtimeBaseURL: apiBaseURL, invoiceID }),
-    enabled: isAuthenticated && scope === "tenant" && invoiceID.trim().length > 0,
+    enabled: isTenantSession && invoiceID.trim().length > 0,
+  });
+  const invoiceEventsQuery = useQuery({
+    queryKey: ["invoice-events", apiBaseURL, invoiceID, "invoice-detail"],
+    queryFn: () =>
+      fetchInvoiceEvents({
+        runtimeBaseURL: apiBaseURL,
+        invoiceID,
+        sortBy: "occurred_at",
+        order: "desc",
+        limit: 15,
+        offset: 0,
+      }),
+    enabled: isTenantSession && invoiceID.trim().length > 0,
   });
 
   const retryMutation = useMutation({
     mutationFn: () => retryInvoicePayment({ runtimeBaseURL: apiBaseURL, csrfToken, invoiceID }),
     onSuccess: async () => {
-      await invoiceQuery.refetch();
+      await Promise.all([invoiceQuery.refetch(), invoiceEventsQuery.refetch()]);
     },
   });
   const resendEmailMutation = useMutation({
@@ -61,6 +78,18 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   const invoice = invoiceQuery.data;
   const actionConfig = invoice ? billingActionConfig(invoice) : null;
   const dunningRunID = invoice?.dunning?.run_id;
+  const dunningDetailQuery = useQuery({
+    queryKey: ["dunning-run-detail", apiBaseURL, dunningRunID],
+    queryFn: () => fetchDunningRunDetail({ runtimeBaseURL: apiBaseURL, runID: dunningRunID as string }),
+    enabled: isTenantSession && Boolean(dunningRunID),
+  });
+  const timelineLoading = invoiceEventsQuery.isLoading || (Boolean(dunningRunID) && dunningDetailQuery.isLoading);
+  const timelineError =
+    invoiceEventsQuery.error instanceof Error
+      ? invoiceEventsQuery.error.message
+      : dunningDetailQuery.error instanceof Error
+        ? dunningDetailQuery.error.message
+        : undefined;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -193,6 +222,14 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     </div>
                   </section>
                 ) : null}
+
+                <BillingActivityTimeline
+                  webhookEvents={invoiceEventsQuery.data?.items}
+                  dunningDetail={dunningDetailQuery.data}
+                  dunningRunHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
+                  loading={timelineLoading}
+                  error={timelineError}
+                />
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked billing documents</p>

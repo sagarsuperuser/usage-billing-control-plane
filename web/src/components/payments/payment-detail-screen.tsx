@@ -6,11 +6,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
+import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
+import { fetchDunningRunDetail, fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
 import { billingActionConfig, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -18,11 +19,12 @@ import { useUISession } from "@/hooks/use-ui-session";
 export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
   const [eventLimit, setEventLimit] = useState(25);
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const paymentQuery = useQuery({
     queryKey: ["payment-detail", apiBaseURL, paymentID],
     queryFn: () => fetchPaymentDetail({ runtimeBaseURL: apiBaseURL, paymentID }),
-    enabled: isAuthenticated && scope === "tenant" && paymentID.trim().length > 0,
+    enabled: isTenantSession && paymentID.trim().length > 0,
   });
 
   const eventsQuery = useQuery({
@@ -36,7 +38,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
         limit: eventLimit,
         offset: 0,
       }),
-    enabled: isAuthenticated && scope === "tenant" && paymentID.trim().length > 0,
+    enabled: isTenantSession && paymentID.trim().length > 0,
   });
 
   const retryMutation = useMutation({
@@ -55,6 +57,18 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
   const payment = paymentQuery.data;
   const actionConfig = payment ? billingActionConfig(payment) : null;
   const dunningRunID = payment?.dunning?.run_id;
+  const dunningDetailQuery = useQuery({
+    queryKey: ["payment-dunning-run-detail", apiBaseURL, dunningRunID],
+    queryFn: () => fetchDunningRunDetail({ runtimeBaseURL: apiBaseURL, runID: dunningRunID as string }),
+    enabled: isTenantSession && Boolean(dunningRunID),
+  });
+  const timelineLoading = eventsQuery.isLoading || (Boolean(dunningRunID) && dunningDetailQuery.isLoading);
+  const timelineError =
+    eventsQuery.error instanceof Error
+      ? eventsQuery.error.message
+      : dunningDetailQuery.error instanceof Error
+        ? dunningDetailQuery.error.message
+        : undefined;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -170,8 +184,8 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent payment events</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Timeline</h2>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Timeline window</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Correlation range</h2>
                     </div>
                     <select
                       value={String(eventLimit)}
@@ -183,31 +197,18 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                       <option value="50">50</option>
                     </select>
                   </div>
-
-                  <div className="mt-4 grid gap-3">
-                    {eventsQuery.isLoading ? (
-                      <LoadingPanel label="Loading payment events" compact />
-                    ) : (eventsQuery.data?.items || []).length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-                        <p className="font-semibold text-slate-950">No payment events found yet.</p>
-                        <p className="mt-2">The payment timeline will populate as invoice payment webhooks are received and projected.</p>
-                      </div>
-                    ) : (
-                      (eventsQuery.data?.items || []).map((event) => (
-                        <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-950">{event.webhook_type}</p>
-                              <p className="mt-1 text-xs text-slate-500">Occurred {formatExactTimestamp(event.occurred_at)}</p>
-                              <p className="text-[11px] text-slate-400">Received {formatExactTimestamp(event.received_at)}</p>
-                            </div>
-                            <Badge>{formatBillingState(event.payment_status)}</Badge>
-                          </div>
-                        </article>
-                      ))
-                    )}
-                  </div>
+                  <p className="mt-3 text-sm text-slate-600">
+                    Expand or tighten the webhook window used to correlate payment state with dunning actions.
+                  </p>
                 </section>
+
+                <BillingActivityTimeline
+                  webhookEvents={eventsQuery.data?.items}
+                  dunningDetail={dunningDetailQuery.data}
+                  dunningRunHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
+                  loading={timelineLoading}
+                  error={timelineError}
+                />
               </div>
 
               <aside className="min-w-0 grid gap-5 self-start">
