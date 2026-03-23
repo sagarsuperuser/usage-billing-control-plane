@@ -95,6 +95,24 @@ export interface NotificationDispatchResult {
 }
 
 
+export interface UsageEvent {
+  id: string;
+  tenant_id?: string;
+  customer_id: string;
+  meter_id: string;
+  subscription_id?: string;
+  quantity: number;
+  idempotency_key?: string;
+  timestamp: string;
+}
+
+export interface UsageEventListResult {
+  items: UsageEvent[];
+  limit: number;
+  offset: number;
+  next_cursor?: string;
+}
+
 export interface PaymentSummary {
   invoice_id: string;
   invoice_number?: string;

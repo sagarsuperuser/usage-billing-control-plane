@@ -49,6 +49,8 @@ import {
   TenantOnboardingResult,
   UIAuthProviderList,
   UISession,
+  UsageEvent,
+  UsageEventListResult,
   WorkspaceInvitationIssueResult,
   WorkspaceInvitationPreview,
   WorkspaceInvitation,
@@ -1402,6 +1404,37 @@ export async function onboardCustomer(input: {
     method: "POST",
     csrfToken: input.csrfToken,
     body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchUsageEvents(input: {
+  runtimeBaseURL?: string;
+  customerID?: string;
+  meterID?: string;
+  from?: string;
+  to?: string;
+  order?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+  cursor?: string;
+}): Promise<UsageEventListResult> {
+  const query = toQuery({
+    customer_id: input.customerID,
+    meter_id: input.meterID,
+    from: input.from,
+    to: input.to,
+    order: input.order,
+    limit: input.limit,
+    offset: input.offset,
+    cursor: input.cursor,
+  });
+  const payload = await apiRequest<UsageEventListResult>(`/v1/usage-events${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
   });
   if (!payload) {
     throw new Error("unauthorized");

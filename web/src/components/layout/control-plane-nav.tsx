@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   ArrowRightLeft,
   BellRing,
   Building2,
@@ -43,6 +44,7 @@ const tenantItems: NavItem[] = [
   { href: "/invoices", label: "Invoices", scope: "tenant", icon: ReceiptText },
   { href: "/workspace-access", label: "Access", scope: "tenant", icon: ShieldCheck },
   { href: "/payments", label: "Payments", scope: "tenant", icon: CreditCard },
+  { href: "/usage-events", label: "Usage", scope: "tenant", icon: Activity },
   { href: "/dunning", label: "Dunning", scope: "tenant", icon: BellRing },
   { href: "/replay-operations", label: "Recovery", scope: "tenant", icon: Workflow },
   { href: "/invoice-explainability", label: "Explainability", scope: "tenant", icon: Layers3 },
@@ -66,6 +68,9 @@ function isActivePath(pathname: string, href: string): boolean {
   }
   if (href === "/payments") {
     return pathname === "/payments" || pathname.startsWith("/payments/") || pathname === "/payment-operations";
+  }
+  if (href === "/usage-events") {
+    return pathname === "/usage-events";
   }
   if (href === "/dunning") {
     return pathname === "/dunning" || pathname.startsWith("/dunning/");
