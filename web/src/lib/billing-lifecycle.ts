@@ -10,8 +10,28 @@ type BillingLifecycleInput = {
   invoice_status?: string;
   payment_overdue?: boolean;
   last_payment_error?: string;
-  lifecycle?: Pick<InvoicePaymentLifecycle, "recommended_action" | "recommended_action_note">;
-  dunning?: Pick<DunningSummary, "state" | "next_action_type" | "paused" | "attempt_count" | "last_notification_error">;
+  last_event_type?: string;
+  lifecycle?: Pick<
+    InvoicePaymentLifecycle,
+    | "recommended_action"
+    | "recommended_action_note"
+    | "last_event_type"
+    | "failure_event_count"
+    | "pending_event_count"
+    | "overdue_signal_count"
+    | "last_failure_at"
+    | "last_pending_at"
+    | "last_overdue_at"
+  >;
+  dunning?: Pick<
+    DunningSummary,
+    | "state"
+    | "next_action_type"
+    | "paused"
+    | "attempt_count"
+    | "last_notification_error"
+    | "last_notification_status"
+  >;
 };
 
 export type BillingDiagnosis = {
@@ -20,6 +40,11 @@ export type BillingDiagnosis = {
   title: string;
   summary: string;
   nextStep: string;
+};
+
+export type BillingEvidenceItem = {
+  label: string;
+  value: string;
 };
 
 export function billingFailureDiagnosis(subject: BillingLifecycleInput): BillingDiagnosis {
@@ -170,4 +195,81 @@ export function billingActionConfig(subject: BillingLifecycleInput) {
         showExplainability: false,
       };
   }
+}
+
+export function billingFailureEvidence(subject: BillingLifecycleInput): BillingEvidenceItem[] {
+  const items: BillingEvidenceItem[] = [];
+
+  if (subject.lifecycle?.recommended_action) {
+    items.push({
+      label: "Recommended action",
+      value: formatBillingState(subject.lifecycle.recommended_action),
+    });
+  }
+
+  const lastEvent = subject.last_event_type || subject.lifecycle?.last_event_type;
+  if (lastEvent) {
+    items.push({
+      label: "Last event",
+      value: formatBillingState(lastEvent),
+    });
+  }
+
+  if (subject.last_payment_error) {
+    items.push({
+      label: "Last payment error",
+      value: subject.last_payment_error,
+    });
+  }
+
+  if (subject.dunning?.state) {
+    items.push({
+      label: "Dunning state",
+      value: formatBillingState(subject.dunning.state),
+    });
+  }
+
+  if (subject.dunning?.next_action_type) {
+    items.push({
+      label: "Dunning next action",
+      value: formatBillingState(subject.dunning.next_action_type),
+    });
+  }
+
+  if (subject.dunning?.last_notification_status) {
+    items.push({
+      label: "Reminder status",
+      value: formatBillingState(subject.dunning.last_notification_status),
+    });
+  }
+
+  if ((subject.lifecycle?.failure_event_count || 0) > 0) {
+    items.push({
+      label: "Failure signals",
+      value: String(subject.lifecycle?.failure_event_count || 0),
+    });
+  }
+
+  if ((subject.lifecycle?.pending_event_count || 0) > 0) {
+    items.push({
+      label: "Pending signals",
+      value: String(subject.lifecycle?.pending_event_count || 0),
+    });
+  }
+
+  if (subject.payment_overdue || (subject.lifecycle?.overdue_signal_count || 0) > 0) {
+    items.push({
+      label: "Overdue signals",
+      value: String(subject.lifecycle?.overdue_signal_count || 0),
+    });
+  }
+
+  if (subject.dunning?.paused) {
+    items.push({
+      label: "Collections workflow",
+      value: "Paused",
+    });
+  }
+
+  return items;
 }

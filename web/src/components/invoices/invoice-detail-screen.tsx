@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
+import { BillingFailureEvidence } from "@/components/billing/billing-failure-evidence";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -23,7 +24,7 @@ import {
   sendCollectPaymentReminder,
   retryInvoicePayment,
 } from "@/lib/api";
-import { billingActionConfig, billingFailureDiagnosis, formatBillingState } from "@/lib/billing-lifecycle";
+import { billingActionConfig, billingFailureDiagnosis, billingFailureEvidence, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -79,6 +80,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   const invoice = invoiceQuery.data;
   const actionConfig = invoice ? billingActionConfig(invoice) : null;
   const diagnosis = invoice ? billingFailureDiagnosis(invoice) : null;
+  const diagnosisEvidence = invoice ? billingFailureEvidence(invoice) : [];
   const dunningRunID = invoice?.dunning?.run_id;
   const dunningDetailQuery = useQuery({
     queryKey: ["dunning-run-detail", apiBaseURL, dunningRunID],
@@ -226,6 +228,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 ) : null}
 
                 {diagnosis ? <BillingFailureDiagnosisCard diagnosis={diagnosis} /> : null}
+                {diagnosisEvidence.length > 0 ? <BillingFailureEvidence items={diagnosisEvidence} /> : null}
 
                 <BillingActivityTimeline
                   webhookEvents={invoiceEventsQuery.data?.items}
