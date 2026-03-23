@@ -866,6 +866,7 @@ type InvoiceSummary struct {
 	TotalDueAmountCents  *int64     `json:"total_due_amount_cents,omitempty"`
 	TotalPaidAmountCents *int64     `json:"total_paid_amount_cents,omitempty"`
 	LastPaymentError     string     `json:"last_payment_error,omitempty"`
+	LastEventType        string     `json:"last_event_type,omitempty"`
 	IssuingDate          *time.Time `json:"issuing_date,omitempty"`
 	PaymentDueDate       *time.Time `json:"payment_due_date,omitempty"`
 	CreatedAt            *time.Time `json:"created_at,omitempty"`

@@ -32,6 +32,7 @@ export interface InvoiceSummary {
   total_due_amount_cents?: number;
   total_paid_amount_cents?: number;
   last_payment_error?: string;
+  last_event_type?: string;
   issuing_date?: string;
   payment_due_date?: string;
   created_at?: string;
@@ -56,6 +57,7 @@ export interface InvoiceDetail extends InvoiceSummary {
   metadata?: unknown[];
   applied_taxes?: unknown[];
   dunning?: DunningSummary;
+  lifecycle?: InvoicePaymentLifecycle;
 }
 
 export interface PaymentReceiptSummary {

@@ -11,75 +11,9 @@ import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel"
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
+import { billingActionConfig, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
-
-function formatState(value?: string): string {
-  if (!value) return "-";
-  return value.replaceAll("_", " ");
-}
-
-type PaymentActionInput = {
-  lifecycle: {
-    recommended_action: "none" | "monitor_processing" | "retry_payment" | "collect_payment" | "investigate";
-    recommended_action_note: string;
-  };
-};
-
-function paymentActionConfig(payment: PaymentActionInput) {
-  switch (payment.lifecycle.recommended_action) {
-    case "retry_payment":
-      return {
-        title: "Retry payment collection",
-        body:
-          payment.lifecycle.recommended_action_note ||
-          "Recent failures look retryable. Retry collection first, then escalate to recovery or explainability only if the state does not move.",
-        emphasizeRetry: true,
-        showRecovery: false,
-        showExplainability: false,
-      };
-    case "collect_payment":
-      return {
-        title: "Collect payment before replaying",
-        body:
-          payment.lifecycle.recommended_action_note ||
-          "The main issue is missing or incomplete payment collection. Use customer and invoice flows to collect payment before running deeper recovery.",
-        emphasizeRetry: false,
-        showRecovery: false,
-        showExplainability: false,
-      };
-    case "investigate":
-      return {
-        title: "Investigate before retrying",
-        body:
-          payment.lifecycle.recommended_action_note ||
-          "The signal points to a state or projection issue rather than a simple transient failure. Use explainability and replay recovery before retrying collection.",
-        emphasizeRetry: false,
-        showRecovery: true,
-        showExplainability: true,
-      };
-    case "monitor_processing":
-      return {
-        title: "Monitor processing state",
-        body:
-          payment.lifecycle.recommended_action_note ||
-          "Payment processing is still in flight. Monitor the event timeline before taking manual recovery action.",
-        emphasizeRetry: false,
-        showRecovery: false,
-        showExplainability: false,
-      };
-    default:
-      return {
-        title: "No action required",
-        body:
-          payment.lifecycle.recommended_action_note ||
-          "Payment activity currently looks healthy. Use linked invoice, customer, and event timelines for normal inspection.",
-        emphasizeRetry: false,
-        showRecovery: false,
-        showExplainability: false,
-      };
-  }
-}
 
 export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
@@ -119,7 +53,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
   });
 
   const payment = paymentQuery.data;
-  const actionConfig = payment ? paymentActionConfig(payment) : null;
+  const actionConfig = payment ? billingActionConfig(payment) : null;
   const dunningRunID = payment?.dunning?.run_id;
 
   return (
@@ -168,8 +102,8 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{payment.invoice_number || payment.invoice_id}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className="font-mono text-xs text-slate-500">{payment.invoice_id}</span>
-                    <Badge>{formatState(payment.payment_status)}</Badge>
-                    <Badge>{formatState(payment.invoice_status)}</Badge>
+                    <Badge>{formatBillingState(payment.payment_status)}</Badge>
+                    <Badge>{formatBillingState(payment.invoice_status)}</Badge>
                     {payment.payment_overdue ? <Badge>Overdue</Badge> : null}
                   </div>
                 </div>
@@ -181,15 +115,25 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     <ArrowLeft className="h-4 w-4" />
                     Back to payments
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => retryMutation.mutate()}
-                    disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Retry payment
-                  </button>
+                  {actionConfig?.emphasizeRetry ? (
+                    <button
+                      type="button"
+                      onClick={() => retryMutation.mutate()}
+                      disabled={!canWrite || !csrfToken || retryMutation.isPending}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      Retry payment
+                    </button>
+                  ) : null}
+                  {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
+                    <Link
+                      href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
+                      className="inline-flex h-10 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+                    >
+                      Open payment setup
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -206,9 +150,9 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lifecycle summary</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
-                    <StatusCard label="Recommended action" value={formatState(payment.lifecycle.recommended_action)} />
+                    <StatusCard label="Recommended action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <StatusCard label="Requires action" value={payment.lifecycle.requires_action ? "Yes" : "No"} />
-                    <StatusCard label="Last event" value={formatState(payment.last_event_type)} />
+                    <StatusCard label="Last event" value={formatBillingState(payment.last_event_type)} />
                     <StatusCard label="Last event at" value={formatExactTimestamp(payment.last_event_at)} />
                   </div>
                   <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
@@ -257,7 +201,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                               <p className="mt-1 text-xs text-slate-500">Occurred {formatExactTimestamp(event.occurred_at)}</p>
                               <p className="text-[11px] text-slate-400">Received {formatExactTimestamp(event.received_at)}</p>
                             </div>
-                            <Badge>{formatState(event.payment_status)}</Badge>
+                            <Badge>{formatBillingState(event.payment_status)}</Badge>
                           </div>
                         </article>
                       ))
@@ -277,7 +221,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
                   <div className="mt-4 grid gap-3">
-                    <MetaItem label="Recommended action" value={formatState(payment.lifecycle.recommended_action)} />
+                    <MetaItem label="Recommended action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                       <p className="font-semibold text-slate-950">{actionConfig?.title || "No action required"}</p>
                       <p className="mt-2">{actionConfig?.body || "No payment action guidance is currently available."}</p>

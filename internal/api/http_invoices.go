@@ -15,6 +15,11 @@ import (
 	"usage-billing-control-plane/internal/store"
 )
 
+type invoiceDetailResponse struct {
+	domain.InvoiceDetail
+	Lifecycle *service.InvoicePaymentLifecycle `json:"lifecycle,omitempty"`
+}
+
 func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w)
@@ -102,35 +107,51 @@ func (s *Server) buildInvoiceSummaries(tenantID string, items []domain.InvoicePa
 	return out, nil
 }
 
-func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID string) (int, []byte, domain.InvoiceDetail, error) {
+func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID string) (int, []byte, invoiceDetailResponse, error) {
 	if s.invoiceBillingAdapter == nil {
-		return 0, nil, domain.InvoiceDetail{}, fmt.Errorf("%w: invoice billing adapter is required", service.ErrValidation)
+		return 0, nil, invoiceDetailResponse{}, fmt.Errorf("%w: invoice billing adapter is required", service.ErrValidation)
 	}
 
 	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
 	if err != nil {
-		return 0, nil, domain.InvoiceDetail{}, err
+		return 0, nil, invoiceDetailResponse{}, err
 	}
 	if statusCode < 200 || statusCode >= 300 {
-		return statusCode, body, domain.InvoiceDetail{}, nil
+		return statusCode, body, invoiceDetailResponse{}, nil
 	}
 
 	invoicePayload, err := extractInvoicePayload(body)
 	if err != nil {
-		return 0, nil, domain.InvoiceDetail{}, err
+		return 0, nil, invoiceDetailResponse{}, err
 	}
 
 	var (
-		view     *domain.InvoicePaymentStatusView
-		customer *domain.Customer
+		view      *domain.InvoicePaymentStatusView
+		customer  *domain.Customer
+		lifecycle *service.InvoicePaymentLifecycle
 	)
 	if s.lagoWebhookSvc != nil {
 		item, viewErr := s.lagoWebhookSvc.GetInvoicePaymentStatusView(tenantID, invoiceID)
 		if viewErr != nil && !errors.Is(viewErr, store.ErrNotFound) {
-			return 0, nil, domain.InvoiceDetail{}, viewErr
+			return 0, nil, invoiceDetailResponse{}, viewErr
 		}
 		if viewErr == nil {
 			view = &item
+		} else if errors.Is(viewErr, store.ErrNotFound) {
+			synthetic := buildInvoicePaymentStatusViewFromInvoicePayload(tenantID, invoicePayload, "invoice.payment_status_observed", time.Now().UTC())
+			view = &synthetic
+		}
+		if view != nil {
+			if viewErr == nil {
+				itemLifecycle, lifecycleErr := s.lagoWebhookSvc.GetInvoicePaymentLifecycle(tenantID, invoiceID, 50)
+				if lifecycleErr != nil {
+					return 0, nil, invoiceDetailResponse{}, lifecycleErr
+				}
+				lifecycle = &itemLifecycle
+			} else {
+				fallback := service.BuildInvoicePaymentLifecycleFromView(*view, nil, 0)
+				lifecycle = &fallback
+			}
 		}
 	}
 
@@ -141,19 +162,29 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 	if customerExternalID != "" {
 		customer, err = s.lookupInvoiceCustomer(tenantID, customerExternalID, map[string]*domain.Customer{})
 		if err != nil {
-			return 0, nil, domain.InvoiceDetail{}, err
+			return 0, nil, invoiceDetailResponse{}, err
 		}
+	}
+	if lifecycle != nil {
+		enriched, lifecycleErr := s.enrichPaymentLifecycleWithCustomerReadiness(tenantID, customerExternalID, *lifecycle)
+		if lifecycleErr != nil {
+			return 0, nil, invoiceDetailResponse{}, lifecycleErr
+		}
+		lifecycle = &enriched
 	}
 
 	detail := buildInvoiceDetail(invoicePayload, view, customer)
 	if s.dunningService != nil {
 		dunning, err := s.dunningService.GetInvoiceSummary(tenantID, invoiceID)
 		if err != nil {
-			return 0, nil, domain.InvoiceDetail{}, err
+			return 0, nil, invoiceDetailResponse{}, err
 		}
 		detail.Dunning = dunning
 	}
-	return statusCode, body, detail, nil
+	return statusCode, body, invoiceDetailResponse{
+		InvoiceDetail: detail,
+		Lifecycle:     lifecycle,
+	}, nil
 }
 
 func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Request, invoiceID string) {
@@ -356,6 +387,7 @@ func invoiceSummaryFromStatusView(view domain.InvoicePaymentStatusView, customer
 		TotalDueAmountCents:  view.TotalDueAmountCents,
 		TotalPaidAmountCents: view.TotalPaidAmountCents,
 		LastPaymentError:     strings.TrimSpace(view.LastPaymentError),
+		LastEventType:        strings.TrimSpace(view.LastEventType),
 		UpdatedAt:            timePtr(view.UpdatedAt),
 		LastEventAt:          timePtr(view.LastEventAt),
 	}
@@ -386,6 +418,7 @@ func buildInvoiceDetail(invoice map[string]any, view *domain.InvoicePaymentStatu
 			TotalDueAmountCents:  firstInt64Ptr(int64Ptr(invoice["total_due_amount_cents"]), viewInt64Ptr(view, func(v *domain.InvoicePaymentStatusView) *int64 { return v.TotalDueAmountCents })),
 			TotalPaidAmountCents: firstInt64Ptr(int64Ptr(invoice["total_paid_amount_cents"]), viewInt64Ptr(view, func(v *domain.InvoicePaymentStatusView) *int64 { return v.TotalPaidAmountCents })),
 			LastPaymentError:     firstNonEmpty(stringValue(invoice["payment_error"]), stringValue(invoice["last_payment_error"]), viewString(view, func(v *domain.InvoicePaymentStatusView) string { return v.LastPaymentError })),
+			LastEventType:        viewString(view, func(v *domain.InvoicePaymentStatusView) string { return v.LastEventType }),
 			IssuingDate:          timeValue(invoice["issuing_date"]),
 			PaymentDueDate:       timeValue(invoice["payment_due_date"]),
 			CreatedAt:            timeValue(invoice["created_at"]),

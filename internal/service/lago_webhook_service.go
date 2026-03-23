@@ -298,6 +298,16 @@ func (s *LagoWebhookService) GetInvoicePaymentLifecycle(tenantID, invoiceID stri
 	return buildInvoicePaymentLifecycle(view, events, eventLimit), nil
 }
 
+func BuildInvoicePaymentLifecycleFromView(view domain.InvoicePaymentStatusView, events []domain.LagoWebhookEvent, eventLimit int) InvoicePaymentLifecycle {
+	if eventLimit <= 0 {
+		eventLimit = defaultLifecycleEventLimit
+	}
+	if eventLimit > maxWebhookListLimit {
+		eventLimit = maxWebhookListLimit
+	}
+	return buildInvoicePaymentLifecycle(view, events, eventLimit)
+}
+
 type ListLagoWebhookEventsRequest struct {
 	OrganizationID string
 	InvoiceID      string

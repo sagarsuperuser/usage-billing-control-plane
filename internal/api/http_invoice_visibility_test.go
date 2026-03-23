@@ -275,6 +275,16 @@ func TestInvoiceDetailEndpointReturnsNormalizedDetail(t *testing.T) {
 	if got, _ := resp["payment_status"].(string); got != "failed" {
 		t.Fatalf("expected payment_status failed, got %q", got)
 	}
+	lifecycle, ok := resp["lifecycle"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected lifecycle object in invoice detail")
+	}
+	if got, _ := lifecycle["recommended_action"].(string); got != "collect_payment" {
+		t.Fatalf("expected recommended_action collect_payment, got %q", got)
+	}
+	if got, _ := lifecycle["last_event_type"].(string); got != "invoice.payment_failure" {
+		t.Fatalf("expected last_event_type invoice.payment_failure, got %q", got)
+	}
 	dunning, ok := resp["dunning"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected dunning object in invoice detail")
