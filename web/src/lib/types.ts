@@ -465,6 +465,21 @@ export interface AddOn {
   updated_at: string;
 }
 
+export interface Coupon {
+  id: string;
+  tenant_id?: string;
+  code: string;
+  name: string;
+  description?: string;
+  status: "draft" | "active" | "archived";
+  discount_type: "amount_off" | "percent_off";
+  currency?: string;
+  amount_off_cents: number;
+  percent_off: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Plan {
   id: string;
   tenant_id?: string;
@@ -477,6 +492,7 @@ export interface Plan {
   base_amount_cents: number;
   meter_ids: string[];
   add_on_ids: string[];
+  coupon_ids: string[];
   created_at: string;
   updated_at: string;
 }

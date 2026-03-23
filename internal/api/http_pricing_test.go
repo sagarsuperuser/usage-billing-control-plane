@@ -94,6 +94,21 @@ func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 		t.Fatalf("expected 1 add-on, got %d", len(addOns))
 	}
 
+	coupon := postJSON(t, ts.URL+"/v1/coupons", map[string]any{
+		"code":             "launch_20",
+		"name":             "Launch 20",
+		"status":           "active",
+		"discount_type":    "percent_off",
+		"percent_off":      20,
+		"amount_off_cents": 0,
+	}, "pricing-writer-key", http.StatusCreated)
+	couponID := coupon["id"].(string)
+
+	coupons := getJSONArray(t, ts.URL+"/v1/coupons", "pricing-reader-key", http.StatusOK)
+	if len(coupons) != 1 {
+		t.Fatalf("expected 1 coupon, got %d", len(coupons))
+	}
+
 	plan := postJSON(t, ts.URL+"/v1/plans", map[string]any{
 		"code":              "growth",
 		"name":              "Growth",
@@ -103,6 +118,7 @@ func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 		"base_amount_cents": 4900,
 		"meter_ids":         []string{metricID},
 		"add_on_ids":        []string{addOnID},
+		"coupon_ids":        []string{couponID},
 	}, "pricing-writer-key", http.StatusCreated)
 	planID := plan["id"].(string)
 
@@ -121,6 +137,10 @@ func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 	addOnIDs, ok := gotPlan["add_on_ids"].([]any)
 	if !ok || len(addOnIDs) != 1 {
 		t.Fatalf("expected 1 linked add-on, got %#v", gotPlan["add_on_ids"])
+	}
+	couponIDs, ok := gotPlan["coupon_ids"].([]any)
+	if !ok || len(couponIDs) != 1 {
+		t.Fatalf("expected 1 linked coupon, got %#v", gotPlan["coupon_ids"])
 	}
 
 	_ = postJSON(t, ts.URL+"/v1/plans", map[string]any{

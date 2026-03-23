@@ -10,7 +10,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { createPlan, fetchAddOns, fetchPricingMetrics } from "@/lib/api";
+import { createPlan, fetchAddOns, fetchCoupons, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanNewScreen() {
@@ -25,6 +25,7 @@ export function PricingPlanNewScreen() {
   const [baseAmount, setBaseAmount] = useState("49");
   const [selectedMetricIDs, setSelectedMetricIDs] = useState<string[]>([]);
   const [selectedAddOnIDs, setSelectedAddOnIDs] = useState<string[]>([]);
+  const [selectedCouponIDs, setSelectedCouponIDs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const metricsQuery = useQuery({
@@ -35,6 +36,11 @@ export function PricingPlanNewScreen() {
   const addOnsQuery = useQuery({
     queryKey: ["pricing-add-ons", apiBaseURL],
     queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
+  const couponsQuery = useQuery({
+    queryKey: ["pricing-coupons", apiBaseURL],
+    queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
 
@@ -53,6 +59,7 @@ export function PricingPlanNewScreen() {
           base_amount_cents: Math.round(Number(baseAmount || 0) * 100),
           meter_ids: selectedMetricIDs,
           add_on_ids: selectedAddOnIDs,
+          coupon_ids: selectedCouponIDs,
         },
       }),
     onSuccess: (plan) => router.push(`/pricing/plans/${encodeURIComponent(plan.id)}`),
@@ -64,6 +71,9 @@ export function PricingPlanNewScreen() {
   };
   const toggleAddOn = (addOnID: string) => {
     setSelectedAddOnIDs((current) => (current.includes(addOnID) ? current.filter((id) => id !== addOnID) : [...current, addOnID]));
+  };
+  const toggleCoupon = (couponID: string) => {
+    setSelectedCouponIDs((current) => (current.includes(couponID) ? current.filter((id) => id !== couponID) : [...current, couponID]));
   };
 
   return (
@@ -140,6 +150,24 @@ export function PricingPlanNewScreen() {
                 </div>
               </section>
 
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Attached coupons</p>
+                <div className="mt-3 grid gap-3">
+                  {(couponsQuery.data ?? []).length === 0 ? (
+                    <p className="text-sm text-slate-600">No coupons created yet. This plan can still be created without them.</p>
+                  ) : (
+                    couponsQuery.data?.map((coupon) => (
+                      <label key={coupon.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        <input data-testid={`pricing-plan-coupon-${coupon.id}`} type="checkbox" checked={selectedCouponIDs.includes(coupon.id)} onChange={() => toggleCoupon(coupon.id)} className="h-4 w-4 rounded border-slate-300" />
+                        <span className="font-semibold text-slate-950">{coupon.name}</span>
+                        <span className="font-mono text-xs text-slate-500">{coupon.code}</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </section>
+
               {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
 
               <div className="flex flex-wrap gap-3">
@@ -155,7 +183,7 @@ export function PricingPlanNewScreen() {
           <aside className="grid gap-5 self-start">
             <InfoCard title="Before you start" body="You need at least one metric before a plan can be created." />
             <InfoCard title="Design rule" body="Keep the first version simple: stable naming, one base price, and explicit linked metrics." />
-            <InfoCard title="Current selection" body={`${selectedMetricIDs.length} metric(s), ${selectedAddOnIDs.length} add-on(s)`} />
+            <InfoCard title="Current selection" body={`${selectedMetricIDs.length} metric(s), ${selectedAddOnIDs.length} add-on(s), ${selectedCouponIDs.length} coupon(s)`} />
           </aside>
         </div>
       </main>

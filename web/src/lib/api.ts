@@ -4,6 +4,7 @@ import {
   APIKeyAuditExportJobResponse,
   BillingProviderConnection,
   AddOn,
+  Coupon,
   BeginCustomerPaymentSetupResult,
   CustomerPaymentSetupRequestResult,
   CustomerBillingProfile,
@@ -391,6 +392,50 @@ export async function fetchAddOn(input: {
   addOnID: string;
 }): Promise<AddOn> {
   const payload = await apiRequest<AddOn>(`/v1/add-ons/${encodeURIComponent(input.addOnID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchCoupons(input: {
+  runtimeBaseURL?: string;
+}): Promise<Coupon[]> {
+  const payload = await apiRequest<Coupon[]>("/v1/coupons", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createCoupon(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<Coupon> {
+  const payload = await apiRequest<Coupon>("/v1/coupons", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchCoupon(input: {
+  runtimeBaseURL?: string;
+  couponID: string;
+}): Promise<Coupon> {
+  const payload = await apiRequest<Coupon>(`/v1/coupons/${encodeURIComponent(input.couponID)}`, {
     runtimeBaseURL: input.runtimeBaseURL,
     method: "GET",
   });

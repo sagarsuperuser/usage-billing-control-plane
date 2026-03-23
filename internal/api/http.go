@@ -51,6 +51,7 @@ type Server struct {
 	browserSSOService                  *service.BrowserSSOService
 	pricingMetricService               *service.PricingMetricService
 	addOnService                       *service.AddOnService
+	couponService                      *service.CouponService
 	planService                        *service.PlanService
 	subscriptionService                *service.SubscriptionService
 	meterService                       *service.MeterService
@@ -747,6 +748,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.meterService = service.NewMeterService(repo)
 	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)
 	s.addOnService = service.NewAddOnService(repo)
+	s.couponService = service.NewCouponService(repo)
 	s.planService = service.NewPlanService(repo).WithPlanSyncAdapter(s.planSyncAdapter)
 	s.subscriptionService = service.NewSubscriptionService(repo, s.customerService).WithSubscriptionSyncAdapter(s.subscriptionSyncAdapter)
 	s.usageService = service.NewUsageService(repo).WithUsageSyncAdapter(s.usageSyncAdapter)
@@ -2114,6 +2116,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/pricing/metrics/", s.handlePricingMetricByID)
 	s.mux.HandleFunc("/v1/add-ons", s.handleAddOns)
 	s.mux.HandleFunc("/v1/add-ons/", s.handleAddOnByID)
+	s.mux.HandleFunc("/v1/coupons", s.handleCoupons)
+	s.mux.HandleFunc("/v1/coupons/", s.handleCouponByID)
 	s.mux.HandleFunc("/v1/plans", s.handlePlans)
 	s.mux.HandleFunc("/v1/plans/", s.handlePlanByID)
 	s.mux.HandleFunc("/v1/subscriptions", s.handleSubscriptions)

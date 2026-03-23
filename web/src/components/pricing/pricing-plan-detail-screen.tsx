@@ -9,7 +9,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchAddOns, fetchPlan, fetchPricingMetrics } from "@/lib/api";
+import { fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanDetailScreen({ planID }: { planID: string }) {
@@ -31,6 +31,11 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
     queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
+  const couponsQuery = useQuery({
+    queryKey: ["pricing-coupons", apiBaseURL],
+    queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
 
   const plan = planQuery.data ?? null;
   const linkedMetrics = useMemo(() => {
@@ -43,6 +48,11 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
     const byID = new Map((addOnsQuery.data ?? []).map((item) => [item.id, item]));
     return (plan.add_on_ids ?? []).map((id) => byID.get(id)).filter(Boolean);
   }, [addOnsQuery.data, plan]);
+  const linkedCoupons = useMemo(() => {
+    if (!plan) return [];
+    const byID = new Map((couponsQuery.data ?? []).map((item) => [item.id, item]));
+    return (plan.coupon_ids ?? []).map((id) => byID.get(id)).filter(Boolean);
+  }, [couponsQuery.data, plan]);
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -83,12 +93,13 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
               <Stat label="Status" value={plan.status} />
               <Stat label="Interval" value={plan.billing_interval} />
               <Stat label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} />
               <Stat label="Metrics" value={String(plan.meter_ids.length)} />
               <Stat label="Add-ons" value={String((plan.add_on_ids ?? []).length)} />
+              <Stat label="Coupons" value={String((plan.coupon_ids ?? []).length)} />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -112,6 +123,34 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                         </div>
                         <InfoCell label="Aggregation" value={metric.aggregation} />
                         <InfoCell label="Unit" value={metric.unit} />
+                      </div>
+                    ) : null,
+                  )
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Attached coupons</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial relief</h2>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{linkedCoupons.length} attached coupon(s)</div>
+              </div>
+              <div className="mt-5 grid gap-3">
+                {linkedCoupons.length === 0 ? (
+                  <EmptyPanel message="No coupons are attached to this plan." />
+                ) : (
+                  linkedCoupons.map((coupon) =>
+                    coupon ? (
+                      <div key={coupon.id} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1fr)_180px_140px] lg:items-center">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-950">{coupon.name}</p>
+                          <p className="mt-1 break-all font-mono text-xs text-slate-500">{coupon.code}</p>
+                        </div>
+                        <InfoCell label="Discount" value={coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`} />
+                        <InfoCell label="Status" value={coupon.status} />
                       </div>
                     ) : null,
                   )

@@ -31,6 +31,7 @@ type Plan = {
   base_amount_cents: number;
   meter_ids: string[];
   add_on_ids: string[];
+  coupon_ids: string[];
   created_at: string;
   updated_at: string;
 };
@@ -82,7 +83,7 @@ async function installSubscriptionMock(context: BrowserContext, session: TenantS
     { id: "cus_1", external_id: "acme", display_name: "Acme Corp", email: "billing@acme.test", status: "active", created_at: now, updated_at: now },
   ];
   const plans: Plan[] = [
-    { id: "pln_growth", code: "growth", name: "Growth", currency: "USD", billing_interval: "monthly", status: "active", base_amount_cents: 4900, meter_ids: ["mtr_1"], add_on_ids: [], created_at: now, updated_at: now },
+    { id: "pln_growth", code: "growth", name: "Growth", currency: "USD", billing_interval: "monthly", status: "active", base_amount_cents: 4900, meter_ids: ["mtr_1"], add_on_ids: [], coupon_ids: [], created_at: now, updated_at: now },
   ];
   let subscriptions: Subscription[] = [];
 

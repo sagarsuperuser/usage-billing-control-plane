@@ -33,6 +33,7 @@ type Plan = {
   base_amount_cents: number;
   meter_ids: string[];
   add_on_ids: string[];
+  coupon_ids: string[];
   created_at: string;
   updated_at: string;
 };
@@ -50,9 +51,24 @@ type AddOn = {
   updated_at: string;
 };
 
+type Coupon = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  status: "draft" | "active" | "archived";
+  discount_type: "amount_off" | "percent_off";
+  currency?: string;
+  amount_off_cents: number;
+  percent_off: number;
+  created_at: string;
+  updated_at: string;
+};
+
 async function installPricingMock(context: BrowserContext, session: TenantSessionPayload) {
   let metrics: PricingMetric[] = [];
   let addOns: AddOn[] = [];
+  let coupons: Coupon[] = [];
   let plans: Plan[] = [];
 
   await context.route("**/runtime-config", async (route) => {
@@ -145,6 +161,7 @@ async function installPricingMock(context: BrowserContext, session: TenantSessio
         base_amount_cents: Number(body.base_amount_cents || 4900),
         meter_ids: (body.meter_ids as string[]) || [],
         add_on_ids: (body.add_on_ids as string[]) || [],
+        coupon_ids: (body.coupon_ids as string[]) || [],
         created_at: now,
         updated_at: now,
       };
@@ -215,6 +232,55 @@ async function installPricingMock(context: BrowserContext, session: TenantSessio
       body: JSON.stringify(addOns[0]),
     });
   });
+
+  await context.route("**/v1/coupons", async (route) => {
+    const request = route.request();
+    const method = request.method().toUpperCase();
+
+    if (method === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(coupons),
+      });
+      return;
+    }
+
+    if (method === "POST") {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      const now = new Date().toISOString();
+      const coupon: Coupon = {
+        id: "cpn_launch_20",
+        code: String(body.code || "launch_20"),
+        name: String(body.name || "Launch 20"),
+        description: String(body.description || ""),
+        status: (body.status as "draft" | "active" | "archived") || "draft",
+        discount_type: (body.discount_type as "amount_off" | "percent_off") || "percent_off",
+        currency: typeof body.currency === "string" ? body.currency : undefined,
+        amount_off_cents: Number(body.amount_off_cents || 0),
+        percent_off: Number(body.percent_off || 0),
+        created_at: now,
+        updated_at: now,
+      };
+      coupons = [coupon];
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(coupon),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+
+  await context.route("**/v1/coupons/cpn_launch_20", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(coupons[0]),
+    });
+  });
 }
 
 test("tenant writer can create pricing metric add-on and plan", async ({ page, context }) => {
@@ -249,12 +315,23 @@ test("tenant writer can create pricing metric add-on and plan", async ({ page, c
   await expect(page.getByRole("heading", { name: "Priority support" })).toBeVisible();
   await expect(page.getByText("15.00 USD")).toBeVisible();
 
+  await page.goto("/pricing/coupons/new");
+  await page.getByTestId("pricing-coupon-name").fill("Launch 20");
+  await page.getByTestId("pricing-coupon-code").fill("launch_20");
+  await expect(page.getByTestId("pricing-coupon-submit")).toBeEnabled();
+  await page.getByTestId("pricing-coupon-submit").click();
+
+  await expect(page).toHaveURL(/\/pricing\/coupons\/cpn_launch_20$/);
+  await expect(page.getByRole("heading", { name: "Launch 20" })).toBeVisible();
+  await expect(page.getByText("20% off")).toBeVisible();
+
   await page.goto("/pricing/plans/new");
   await page.getByTestId("pricing-plan-name").fill("Growth");
   await page.getByTestId("pricing-plan-code").fill("growth");
   await page.getByTestId("pricing-plan-base-price").fill("49");
   await page.getByTestId("pricing-plan-metric-mtr_metric_1").check();
   await page.getByTestId("pricing-plan-addon-aon_support_1").check();
+  await page.getByTestId("pricing-plan-coupon-cpn_launch_20").check();
   await expect(page.getByTestId("pricing-plan-submit")).toBeEnabled();
   await page.getByTestId("pricing-plan-submit").click();
 
@@ -262,4 +339,5 @@ test("tenant writer can create pricing metric add-on and plan", async ({ page, c
   await expect(page.getByRole("heading", { name: "Growth" })).toBeVisible();
   await expect(page.getByText("49.00 USD")).toBeVisible();
   await expect(page.getByText("Priority support")).toBeVisible();
+  await expect(page.getByText("Launch 20")).toBeVisible();
 });

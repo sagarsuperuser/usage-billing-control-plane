@@ -3422,6 +3422,14 @@ func (s *PostgresStore) CreatePlan(input domain.Plan) (domain.Plan, error) {
 			return domain.Plan{}, err
 		}
 	}
+	for idx, couponID := range input.CouponIDs {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO plan_coupons (tenant_id, plan_id, coupon_id, position, created_at) VALUES ($1,$2,$3,$4,$5)`, input.TenantID, input.ID, couponID, idx, now); err != nil {
+			if isUniqueViolation(err) {
+				return domain.Plan{}, ErrDuplicateKey
+			}
+			return domain.Plan{}, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return domain.Plan{}, err
 	}
@@ -3459,6 +3467,41 @@ func (s *PostgresStore) CreateAddOn(input domain.AddOn) (domain.AddOn, error) {
 	}
 	if err := tx.Commit(); err != nil {
 		return domain.AddOn{}, err
+	}
+	return input, nil
+}
+
+func (s *PostgresStore) CreateCoupon(input domain.Coupon) (domain.Coupon, error) {
+	if input.ID == "" {
+		input.ID = newID("cpn")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.UpdatedAt = now
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.Coupon{}, err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(ctx, `INSERT INTO coupons (id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		input.ID, input.TenantID, input.Code, input.Name, input.Description, input.Status, input.DiscountType, input.Currency, input.AmountOffCents, input.PercentOff, input.CreatedAt, input.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.Coupon{}, ErrDuplicateKey
+		}
+		return domain.Coupon{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Coupon{}, err
 	}
 	return input, nil
 }
@@ -3520,6 +3563,63 @@ func (s *PostgresStore) GetAddOn(tenantID, id string) (domain.AddOn, error) {
 	return addOn, nil
 }
 
+func (s *PostgresStore) ListCoupons(tenantID string) ([]domain.Coupon, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, created_at, updated_at FROM coupons WHERE tenant_id = $1 ORDER BY created_at ASC, id ASC`, normalizeTenantID(tenantID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.Coupon, 0)
+	for rows.Next() {
+		coupon, scanErr := scanCoupon(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, coupon)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetCoupon(tenantID, id string) (domain.Coupon, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.Coupon{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, coupon_code, name, description, status, discount_type, currency, amount_off_cents, percent_off, created_at, updated_at FROM coupons WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
+	coupon, err := scanCoupon(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Coupon{}, ErrNotFound
+		}
+		return domain.Coupon{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Coupon{}, err
+	}
+	return coupon, nil
+}
+
 func (s *PostgresStore) ListPlans(tenantID string) ([]domain.Plan, error) {
 	ctx, cancel := s.withTimeout()
 	defer cancel()
@@ -3557,6 +3657,10 @@ func (s *PostgresStore) ListPlans(tenantID string) ([]domain.Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	couponIDsByPlan, err := loadPlanCouponIDs(ctx, tx, normalizeTenantID(tenantID), ids)
+	if err != nil {
+		return nil, err
+	}
 	for i := range out {
 		out[i].MeterIDs = metricIDsByPlan[out[i].ID]
 		if out[i].MeterIDs == nil {
@@ -3565,6 +3669,10 @@ func (s *PostgresStore) ListPlans(tenantID string) ([]domain.Plan, error) {
 		out[i].AddOnIDs = addOnIDsByPlan[out[i].ID]
 		if out[i].AddOnIDs == nil {
 			out[i].AddOnIDs = []string{}
+		}
+		out[i].CouponIDs = couponIDsByPlan[out[i].ID]
+		if out[i].CouponIDs == nil {
+			out[i].CouponIDs = []string{}
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -3606,6 +3714,14 @@ func (s *PostgresStore) GetPlan(tenantID, id string) (domain.Plan, error) {
 	plan.AddOnIDs = addOnIDsByPlan[id]
 	if plan.AddOnIDs == nil {
 		plan.AddOnIDs = []string{}
+	}
+	couponIDsByPlan, err := loadPlanCouponIDs(ctx, tx, normalizeTenantID(tenantID), []string{id})
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	plan.CouponIDs = couponIDsByPlan[id]
+	if plan.CouponIDs == nil {
+		plan.CouponIDs = []string{}
 	}
 	if err := tx.Commit(); err != nil {
 		return domain.Plan{}, err
@@ -3784,6 +3900,30 @@ func loadPlanAddOnIDs(ctx context.Context, tx *sql.Tx, tenantID string, planIDs 
 			return nil, err
 		}
 		out[planID] = append(out[planID], addOnID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func loadPlanCouponIDs(ctx context.Context, tx *sql.Tx, tenantID string, planIDs []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(planIDs))
+	if len(planIDs) == 0 {
+		return out, nil
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT plan_id, coupon_id FROM plan_coupons WHERE tenant_id = $1 AND plan_id = ANY($2) ORDER BY position ASC, coupon_id ASC`, tenantID, pq.Array(planIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var planID string
+		var couponID string
+		if err := rows.Scan(&planID, &couponID); err != nil {
+			return nil, err
+		}
+		out[planID] = append(out[planID], couponID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -6905,6 +7045,27 @@ func scanAddOn(s rowScanner) (domain.AddOn, error) {
 	out.Status = domain.AddOnStatus(strings.TrimSpace(status))
 	if description.Valid {
 		out.Description = normalizeOptionalText(description.String)
+	}
+	return out, nil
+}
+
+func scanCoupon(s rowScanner) (domain.Coupon, error) {
+	var out domain.Coupon
+	var description sql.NullString
+	var status string
+	var discountType string
+	var currency sql.NullString
+	if err := s.Scan(&out.ID, &out.TenantID, &out.Code, &out.Name, &description, &status, &discountType, &currency, &out.AmountOffCents, &out.PercentOff, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.Coupon{}, err
+	}
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.Status = domain.CouponStatus(strings.TrimSpace(status))
+	out.DiscountType = domain.CouponDiscountType(strings.TrimSpace(discountType))
+	if description.Valid {
+		out.Description = normalizeOptionalText(description.String)
+	}
+	if currency.Valid {
+		out.Currency = normalizeOptionalText(strings.ToUpper(currency.String))
 	}
 	return out, nil
 }

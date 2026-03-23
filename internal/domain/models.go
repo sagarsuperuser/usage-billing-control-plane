@@ -548,6 +548,36 @@ type AddOn struct {
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
+type CouponStatus string
+
+const (
+	CouponStatusDraft    CouponStatus = "draft"
+	CouponStatusActive   CouponStatus = "active"
+	CouponStatusArchived CouponStatus = "archived"
+)
+
+type CouponDiscountType string
+
+const (
+	CouponDiscountTypeAmountOff  CouponDiscountType = "amount_off"
+	CouponDiscountTypePercentOff CouponDiscountType = "percent_off"
+)
+
+type Coupon struct {
+	ID             string             `json:"id"`
+	TenantID       string             `json:"tenant_id,omitempty"`
+	Code           string             `json:"code"`
+	Name           string             `json:"name"`
+	Description    string             `json:"description,omitempty"`
+	Status         CouponStatus       `json:"status"`
+	DiscountType   CouponDiscountType `json:"discount_type"`
+	Currency       string             `json:"currency,omitempty"`
+	AmountOffCents int64              `json:"amount_off_cents"`
+	PercentOff     int                `json:"percent_off"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
 type Plan struct {
 	ID              string          `json:"id"`
 	TenantID        string          `json:"tenant_id,omitempty"`
@@ -560,6 +590,7 @@ type Plan struct {
 	BaseAmountCents int64           `json:"base_amount_cents"`
 	MeterIDs        []string        `json:"meter_ids"`
 	AddOnIDs        []string        `json:"add_on_ids"`
+	CouponIDs       []string        `json:"coupon_ids"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }

@@ -42,6 +42,7 @@ func (s *PlanService) CreatePlan(ctx context.Context, input domain.Plan) (domain
 	input.Status = normalizePlanStatus(input.Status)
 	input.MeterIDs = dedupeIDs(input.MeterIDs)
 	input.AddOnIDs = dedupeIDs(input.AddOnIDs)
+	input.CouponIDs = dedupeIDs(input.CouponIDs)
 
 	if err := validatePlan(input); err != nil {
 		return domain.Plan{}, err
@@ -71,6 +72,14 @@ func (s *PlanService) CreatePlan(ctx context.Context, input domain.Plan) (domain
 		if _, err := s.store.GetAddOn(input.TenantID, addOnID); err != nil {
 			if err == store.ErrNotFound {
 				return domain.Plan{}, fmt.Errorf("%w: add_on_id %s not found", ErrValidation, addOnID)
+			}
+			return domain.Plan{}, err
+		}
+	}
+	for _, couponID := range input.CouponIDs {
+		if _, err := s.store.GetCoupon(input.TenantID, couponID); err != nil {
+			if err == store.ErrNotFound {
+				return domain.Plan{}, fmt.Errorf("%w: coupon_id %s not found", ErrValidation, couponID)
 			}
 			return domain.Plan{}, err
 		}

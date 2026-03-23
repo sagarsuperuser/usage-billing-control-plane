@@ -26,6 +26,7 @@ type createPlanRequest struct {
 	BaseAmountCents int64    `json:"base_amount_cents"`
 	MeterIDs        []string `json:"meter_ids"`
 	AddOnIDs        []string `json:"add_on_ids"`
+	CouponIDs       []string `json:"coupon_ids"`
 }
 
 type createAddOnRequest struct {
@@ -36,6 +37,17 @@ type createAddOnRequest struct {
 	BillingInterval string `json:"billing_interval"`
 	Status          string `json:"status"`
 	AmountCents     int64  `json:"amount_cents"`
+}
+
+type createCouponRequest struct {
+	Code           string `json:"code"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Status         string `json:"status"`
+	DiscountType   string `json:"discount_type"`
+	Currency       string `json:"currency"`
+	AmountOffCents int64  `json:"amount_off_cents"`
+	PercentOff     int    `json:"percent_off"`
 }
 
 func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +150,7 @@ func (s *Server) handlePlans(w http.ResponseWriter, r *http.Request) {
 			BaseAmountCents: req.BaseAmountCents,
 			MeterIDs:        req.MeterIDs,
 			AddOnIDs:        req.AddOnIDs,
+			CouponIDs:       req.CouponIDs,
 		})
 		if err != nil {
 			writeDomainError(w, err)
@@ -226,6 +239,69 @@ func (s *Server) handleAddOnByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := s.addOnService.GetAddOn(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (s *Server) handleCoupons(w http.ResponseWriter, r *http.Request) {
+	if s.couponService == nil {
+		writeError(w, http.StatusServiceUnavailable, "coupon service is required")
+		return
+	}
+	tenantID := requestTenantID(r)
+	switch r.Method {
+	case http.MethodGet:
+		items, err := s.couponService.ListCoupons(tenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+	case http.MethodPost:
+		var req createCouponRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		item, err := s.couponService.CreateCoupon(domain.Coupon{
+			TenantID:       tenantID,
+			Code:           req.Code,
+			Name:           req.Name,
+			Description:    req.Description,
+			Status:         domain.CouponStatus(req.Status),
+			DiscountType:   domain.CouponDiscountType(req.DiscountType),
+			Currency:       req.Currency,
+			AmountOffCents: req.AmountOffCents,
+			PercentOff:     req.PercentOff,
+		})
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, item)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleCouponByID(w http.ResponseWriter, r *http.Request) {
+	if s.couponService == nil {
+		writeError(w, http.StatusServiceUnavailable, "coupon service is required")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/v1/coupons/")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	item, err := s.couponService.GetCoupon(requestTenantID(r), id)
 	if err != nil {
 		writeDomainError(w, err)
 		return
