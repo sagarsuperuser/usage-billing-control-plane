@@ -28,6 +28,7 @@ func TestWorkspaceBillingSettingsServiceSyncWorkspaceBillingSettings(t *testing.
 		WorkspaceID:        "tenant_sync",
 		BillingEntityCode:  "be_primary",
 		NetPaymentTermDays: &netTerms,
+		TaxCodes:           []string{"GST_IN"},
 		InvoiceFooter:      "Wire details available on request.",
 	})
 	if err != nil {
@@ -38,6 +39,9 @@ func TestWorkspaceBillingSettingsServiceSyncWorkspaceBillingSettings(t *testing.
 	}
 	if adapter.settings.BillingEntityCode != "be_primary" {
 		t.Fatalf("expected billing entity code be_primary, got %q", adapter.settings.BillingEntityCode)
+	}
+	if len(adapter.settings.TaxCodes) != 1 || adapter.settings.TaxCodes[0] != "GST_IN" {
+		t.Fatalf("expected tax codes to round-trip, got %#v", adapter.settings.TaxCodes)
 	}
 }
 

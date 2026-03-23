@@ -248,6 +248,12 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <InputField label="Phone" value={profileDraft.phone || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, phone: value }))} placeholder="+1 415 555 0100" />
                     <InputField label="Tax identifier" value={profileDraft.tax_identifier || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, tax_identifier: value }))} placeholder="VAT / GST / EIN" />
                     <InputField
+                      label="Tax codes"
+                      value={(profileDraft.tax_codes || []).join(", ")}
+                      onChange={(value) => setProfileDraft((current) => ({ ...current, tax_codes: parseCodeList(value) }))}
+                      placeholder="GST_IN, VAT_DE"
+                    />
+                    <InputField
                       label="Billing address line 1"
                       value={profileDraft.billing_address_line1 || ""}
                       onChange={(value) => setProfileDraft((current) => ({ ...current, billing_address_line1: value }))}
@@ -292,6 +298,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       <ChecklistLine done={Boolean((profileDraft.billing_postal_code || "").trim())} text="Billing postal code is set" />
                       <ChecklistLine done={Boolean((profileDraft.billing_country || "").trim())} text="Billing country is set" />
                       <ChecklistLine done={Boolean((profileDraft.currency || "").trim())} text="Currency is set" />
+                      <ChecklistLine done={Boolean((profileDraft.tax_codes || []).length)} text="Tax codes are optional but ready when assigned" />
                       <ChecklistLine done={Boolean((profileDraft.tax_identifier || "").trim())} text="Tax identifier is optional but ready when present" />
                     </div>
                   </div>
@@ -597,6 +604,7 @@ function emptyBillingProfileDraft(): CustomerBillingProfileInput {
     billing_country: "",
     currency: "",
     tax_identifier: "",
+    tax_codes: [],
     provider_code: "",
   };
 }
@@ -620,6 +628,7 @@ function billingProfileDraftFromProfile(profile: CustomerBillingProfile | null, 
     billing_country: profile.billing_country || "",
     currency: profile.currency || "",
     tax_identifier: profile.tax_identifier || "",
+    tax_codes: profile.tax_codes || [],
     provider_code: profile.provider_code || "",
   };
 }
@@ -637,6 +646,7 @@ function normalizeBillingProfileDraft(input: CustomerBillingProfileInput): Custo
     billing_country: (input.billing_country || "").trim(),
     currency: (input.currency || "").trim(),
     tax_identifier: (input.tax_identifier || "").trim(),
+    tax_codes: parseCodeList((input.tax_codes || []).join(",")),
     provider_code: (input.provider_code || "").trim(),
   };
 }
@@ -656,4 +666,17 @@ function requiredBillingProfileFields(input: CustomerBillingProfileInput): boole
     normalized.billing_country !== "",
     normalized.currency !== "",
   ];
+}
+
+function parseCodeList(value: string): string[] {
+  const seen = new Set<string>();
+  return value
+    .split(",")
+    .map((item) => item.trim().toUpperCase())
+    .filter((item) => item.length > 0)
+    .filter((item) => {
+      if (seen.has(item)) return false;
+      seen.add(item);
+      return true;
+    });
 }

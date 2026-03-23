@@ -40,18 +40,19 @@ type ListCustomersRequest struct {
 }
 
 type UpsertCustomerBillingProfileRequest struct {
-	LegalName     string `json:"legal_name,omitempty"`
-	Email         string `json:"email,omitempty"`
-	Phone         string `json:"phone,omitempty"`
-	AddressLine1  string `json:"billing_address_line1,omitempty"`
-	AddressLine2  string `json:"billing_address_line2,omitempty"`
-	City          string `json:"billing_city,omitempty"`
-	State         string `json:"billing_state,omitempty"`
-	PostalCode    string `json:"billing_postal_code,omitempty"`
-	Country       string `json:"billing_country,omitempty"`
-	Currency      string `json:"currency,omitempty"`
-	TaxIdentifier string `json:"tax_identifier,omitempty"`
-	ProviderCode  string `json:"provider_code,omitempty"`
+	LegalName     string   `json:"legal_name,omitempty"`
+	Email         string   `json:"email,omitempty"`
+	Phone         string   `json:"phone,omitempty"`
+	AddressLine1  string   `json:"billing_address_line1,omitempty"`
+	AddressLine2  string   `json:"billing_address_line2,omitempty"`
+	City          string   `json:"billing_city,omitempty"`
+	State         string   `json:"billing_state,omitempty"`
+	PostalCode    string   `json:"billing_postal_code,omitempty"`
+	Country       string   `json:"billing_country,omitempty"`
+	Currency      string   `json:"currency,omitempty"`
+	TaxIdentifier string   `json:"tax_identifier,omitempty"`
+	TaxCodes      []string `json:"tax_codes,omitempty"`
+	ProviderCode  string   `json:"provider_code,omitempty"`
 }
 
 type BeginCustomerPaymentSetupRequest struct {
@@ -239,6 +240,7 @@ func (s *CustomerService) UpsertCustomerBillingProfile(tenantID, externalID stri
 	current.Country = strings.TrimSpace(req.Country)
 	current.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
 	current.TaxIdentifier = strings.TrimSpace(req.TaxIdentifier)
+	current.TaxCodes = normalizeTaxCodes(req.TaxCodes)
 	current.ProviderCode = strings.TrimSpace(req.ProviderCode)
 	current.ProfileStatus = deriveBillingProfileStatus(current)
 	current.LastSyncedAt = nil
@@ -726,6 +728,9 @@ func buildLagoCustomerPayload(defaultProviderCode string, customer domain.Custom
 	if workspaceSettings.NetPaymentTermDays != nil {
 		payload["customer"].(map[string]any)["net_payment_term"] = *workspaceSettings.NetPaymentTermDays
 	}
+	if codes := normalizeTaxCodes(profile.TaxCodes); len(codes) > 0 {
+		payload["customer"].(map[string]any)["tax_codes"] = codes
+	}
 	if setup.ProviderCustomerReference != "" {
 		payload["customer"].(map[string]any)["billing_configuration"].(map[string]any)["provider_customer_id"] = setup.ProviderCustomerReference
 	}
@@ -933,7 +938,28 @@ func hasAnyBillingProfileData(profile domain.CustomerBillingProfile) bool {
 		strings.TrimSpace(profile.Country) != "" ||
 		strings.TrimSpace(profile.Currency) != "" ||
 		strings.TrimSpace(profile.TaxIdentifier) != "" ||
+		len(profile.TaxCodes) > 0 ||
 		strings.TrimSpace(profile.ProviderCode) != ""
+}
+
+func normalizeTaxCodes(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, item := range values {
+		normalized := strings.ToUpper(strings.TrimSpace(item))
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }
 
 func derivePaymentSetupStatus(setup domain.CustomerPaymentSetup) domain.PaymentSetupStatus {

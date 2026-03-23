@@ -194,6 +194,9 @@ func TestLagoCustomerBillingAdapterSyncBillingEntitySettings(t *testing.T) {
 			if !strings.Contains(payload, `"net_payment_term":21`) {
 				t.Fatalf("expected net_payment_term in payload, got %s", payload)
 			}
+			if !strings.Contains(payload, `"tax_codes":["GST_IN"]`) {
+				t.Fatalf("expected tax_codes in payload, got %s", payload)
+			}
 			if !strings.Contains(payload, `"invoice_footer":"Wire details available on request."`) {
 				t.Fatalf("expected invoice_footer in payload, got %s", payload)
 			}
@@ -220,6 +223,7 @@ func TestLagoCustomerBillingAdapterSyncBillingEntitySettings(t *testing.T) {
 		WorkspaceID:        "tenant_demo",
 		BillingEntityCode:  "be_us_primary",
 		NetPaymentTermDays: &netTerms,
+		TaxCodes:           []string{"gst_in"},
 		InvoiceFooter:      "Wire details available on request.",
 	})
 	if err != nil {
@@ -227,6 +231,51 @@ func TestLagoCustomerBillingAdapterSyncBillingEntitySettings(t *testing.T) {
 	}
 	if !sawUpdate {
 		t.Fatalf("expected update request to lago billing entities endpoint")
+	}
+}
+
+func TestLagoTaxSyncAdapter(t *testing.T) {
+	t.Parallel()
+
+	var sawCreate bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/taxes":
+			sawCreate = true
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"code":"gst_in"`) || !strings.Contains(payload, `"rate":18`) {
+				t.Fatalf("unexpected tax payload: %s", payload)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"tax":{"code":"gst_in"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoTaxSyncAdapter(transport).SyncTax(context.Background(), domain.Tax{
+		Code:        "gst_in",
+		Name:        "GST India",
+		Description: "India GST",
+		Rate:        18,
+	})
+	if err != nil {
+		t.Fatalf("sync tax: %v", err)
+	}
+	if !sawCreate {
+		t.Fatalf("expected create request to lago taxes endpoint")
 	}
 }
 

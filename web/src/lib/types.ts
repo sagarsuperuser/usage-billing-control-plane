@@ -299,6 +299,7 @@ export interface WorkspaceBillingSettings {
   workspace_id: string;
   billing_entity_code?: string;
   net_payment_term_days?: number;
+  tax_codes?: string[];
   invoice_memo?: string;
   invoice_footer?: string;
   has_overrides: boolean;
@@ -645,6 +646,7 @@ export interface CustomerBillingProfile {
   billing_country?: string;
   currency?: string;
   tax_identifier?: string;
+  tax_codes?: string[];
   provider_code?: string;
   profile_status: "missing" | "incomplete" | "ready" | "sync_error";
   last_synced_at?: string;
@@ -665,7 +667,19 @@ export interface CustomerBillingProfileInput {
   billing_country?: string;
   currency?: string;
   tax_identifier?: string;
+  tax_codes?: string[];
   provider_code?: string;
+}
+
+export interface Tax {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  status: "draft" | "active" | "archived";
+  rate: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CustomerPaymentSetup {

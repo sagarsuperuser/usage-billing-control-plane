@@ -92,6 +92,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     workspaceBillingSettings?.updated_at || "",
     workspaceBillingSettings?.billing_entity_code || "",
     String(workspaceBillingSettings?.net_payment_term_days ?? ""),
+    (workspaceBillingSettings?.tax_codes || []).join(","),
     workspaceBillingSettings?.invoice_memo || "",
     workspaceBillingSettings?.invoice_footer || "",
   ].join(":");
@@ -696,6 +697,12 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         placeholder="14"
                         inputMode="numeric"
                       />
+                      <SidebarInput
+                        label="Tax codes"
+                        value={billingSettingsDraft.tax_codes}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, tax_codes: value }))}
+                        placeholder="GST_IN, VAT_DE"
+                      />
                       <SidebarTextarea
                         label="Invoice memo"
                         value={billingSettingsDraft.invoice_memo}
@@ -731,6 +738,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <div className="mt-4 grid gap-3">
                       <MetaItem label="Billing entity code" value={workspaceBillingSettings?.billing_entity_code || "Default"} />
                       <MetaItem label="Net payment term" value={formatPaymentTerm(workspaceBillingSettings?.net_payment_term_days)} />
+                      <MetaItem label="Tax codes" value={workspaceBillingSettings?.tax_codes?.join(", ") || "None assigned"} />
                       <MetaItem label="Settings status" value={workspaceBillingSettings?.has_overrides ? "Custom overrides" : "Default values"} />
                     </div>
                     {updateWorkspaceBillingSettingsMutation.isError ? (
@@ -839,6 +847,7 @@ function EmptyPanel({ message }: { message: string }) {
 type WorkspaceBillingSettingsDraft = {
   billing_entity_code: string;
   net_payment_term_days: string;
+  tax_codes: string;
   invoice_memo: string;
   invoice_footer: string;
 };
@@ -847,6 +856,7 @@ function emptyWorkspaceBillingSettingsDraft(): WorkspaceBillingSettingsDraft {
   return {
     billing_entity_code: "",
     net_payment_term_days: "",
+    tax_codes: "",
     invoice_memo: "",
     invoice_footer: "",
   };
@@ -859,6 +869,7 @@ function workspaceBillingSettingsDraftFromSettings(settings: WorkspaceBillingSet
   return {
     billing_entity_code: settings.billing_entity_code || "",
     net_payment_term_days: settings.net_payment_term_days === undefined ? "" : String(settings.net_payment_term_days),
+    tax_codes: (settings.tax_codes || []).join(", "),
     invoice_memo: settings.invoice_memo || "",
     invoice_footer: settings.invoice_footer || "",
   };
@@ -868,6 +879,11 @@ function normalizeWorkspaceBillingSettingsDraft(draft: WorkspaceBillingSettingsD
   return {
     billing_entity_code: draft.billing_entity_code.trim(),
     net_payment_term_days: draft.net_payment_term_days.trim(),
+    tax_codes: draft.tax_codes
+      .split(",")
+      .map((item) => item.trim().toUpperCase())
+      .filter((item, index, items) => item.length > 0 && items.indexOf(item) === index)
+      .join(", "),
     invoice_memo: draft.invoice_memo.trim(),
     invoice_footer: draft.invoice_footer.trim(),
   };
@@ -880,6 +896,7 @@ function serializeWorkspaceBillingSettingsDraft(draft: WorkspaceBillingSettingsD
 function workspaceBillingSettingsPayloadFromDraft(draft: WorkspaceBillingSettingsDraft): {
   billing_entity_code?: string;
   net_payment_term_days?: number;
+  tax_codes?: string[];
   invoice_memo?: string;
   invoice_footer?: string;
 } {
@@ -887,6 +904,7 @@ function workspaceBillingSettingsPayloadFromDraft(draft: WorkspaceBillingSetting
   return {
     billing_entity_code: normalized.billing_entity_code || undefined,
     net_payment_term_days: normalized.net_payment_term_days === "" ? undefined : Number(normalized.net_payment_term_days),
+    tax_codes: normalized.tax_codes === "" ? undefined : normalized.tax_codes.split(", "),
     invoice_memo: normalized.invoice_memo || undefined,
     invoice_footer: normalized.invoice_footer || undefined,
   };

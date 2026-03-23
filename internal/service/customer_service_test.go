@@ -47,6 +47,7 @@ func TestBuildLagoCustomerPayloadIncludesCommercialExecutionFields(t *testing.T)
 			Currency:      "USD",
 			Country:       "US",
 			TaxIdentifier: "US123456",
+			TaxCodes:      []string{"us_sales"},
 		},
 		domain.CustomerPaymentSetup{PaymentMethodType: "card"},
 		domain.WorkspaceBillingSettings{
@@ -78,5 +79,9 @@ func TestBuildLagoCustomerPayloadIncludesCommercialExecutionFields(t *testing.T)
 	}
 	if got, _ := customer["tax_identification_number"].(string); got != "US123456" {
 		t.Fatalf("expected tax_identification_number US123456, got %q", got)
+	}
+	taxCodes, ok := customer["tax_codes"].([]any)
+	if !ok || len(taxCodes) != 1 || taxCodes[0] != "US_SALES" {
+		t.Fatalf("expected tax_codes [US_SALES], got %#v", customer["tax_codes"])
 	}
 }

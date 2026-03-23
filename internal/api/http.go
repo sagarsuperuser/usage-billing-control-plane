@@ -50,6 +50,7 @@ type Server struct {
 	browserUserAuthService             *service.BrowserUserAuthService
 	browserSSOService                  *service.BrowserSSOService
 	pricingMetricService               *service.PricingMetricService
+	taxService                         *service.TaxService
 	addOnService                       *service.AddOnService
 	couponService                      *service.CouponService
 	planService                        *service.PlanService
@@ -60,6 +61,7 @@ type Server struct {
 	onboardingService                  *service.TenantOnboardingService
 	auditExportSvc                     *service.AuditExportService
 	meterSyncAdapter                   service.MeterSyncAdapter
+	taxSyncAdapter                     service.TaxSyncAdapter
 	planSyncAdapter                    service.PlanSyncAdapter
 	subscriptionSyncAdapter            service.SubscriptionSyncAdapter
 	usageSyncAdapter                   service.UsageSyncAdapter
@@ -96,6 +98,7 @@ type workspaceBillingSettingsResponse struct {
 	WorkspaceID        string     `json:"workspace_id"`
 	BillingEntityCode  string     `json:"billing_entity_code,omitempty"`
 	NetPaymentTermDays *int       `json:"net_payment_term_days,omitempty"`
+	TaxCodes           []string   `json:"tax_codes,omitempty"`
 	InvoiceMemo        string     `json:"invoice_memo,omitempty"`
 	InvoiceFooter      string     `json:"invoice_footer,omitempty"`
 	HasOverrides       bool       `json:"has_overrides"`
@@ -342,9 +345,10 @@ func (s *Server) buildWorkspaceBillingSettingsResponse(workspaceID string) works
 	resp.WorkspaceID = settings.WorkspaceID
 	resp.BillingEntityCode = settings.BillingEntityCode
 	resp.NetPaymentTermDays = settings.NetPaymentTermDays
+	resp.TaxCodes = settings.TaxCodes
 	resp.InvoiceMemo = settings.InvoiceMemo
 	resp.InvoiceFooter = settings.InvoiceFooter
-	resp.HasOverrides = settings.BillingEntityCode != "" || settings.NetPaymentTermDays != nil || settings.InvoiceMemo != "" || settings.InvoiceFooter != ""
+	resp.HasOverrides = settings.BillingEntityCode != "" || settings.NetPaymentTermDays != nil || len(settings.TaxCodes) > 0 || settings.InvoiceMemo != "" || settings.InvoiceFooter != ""
 	if !settings.UpdatedAt.IsZero() {
 		updatedAt := settings.UpdatedAt.UTC()
 		resp.UpdatedAt = &updatedAt
@@ -693,6 +697,12 @@ func WithLogger(logger *slog.Logger) ServerOption {
 	}
 }
 
+func WithTaxSyncAdapter(adapter service.TaxSyncAdapter) ServerOption {
+	return func(s *Server) {
+		s.taxSyncAdapter = adapter
+	}
+}
+
 func WithRateLimiter(rateLimiter RateLimiter, failOpen bool, loginFailOpen bool) ServerOption {
 	return func(s *Server) {
 		s.rateLimiter = rateLimiter
@@ -750,6 +760,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.customerOnboardingService = service.NewCustomerOnboardingService(s.customerService)
 	s.meterService = service.NewMeterService(repo)
 	s.pricingMetricService = service.NewPricingMetricService(s.ratingService, s.meterService)
+	s.taxService = service.NewTaxService(repo).WithSyncAdapter(s.taxSyncAdapter)
 	s.addOnService = service.NewAddOnService(repo)
 	s.couponService = service.NewCouponService(repo)
 	s.planService = service.NewPlanService(repo).WithPlanSyncAdapter(s.planSyncAdapter)
@@ -1686,6 +1697,13 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 		return RoleReader, true
 	case strings.HasPrefix(path, "/v1/pricing/metrics/"):
 		return RoleReader, true
+	case path == "/v1/taxes":
+		if r.Method == http.MethodPost {
+			return RoleWriter, true
+		}
+		return RoleReader, true
+	case strings.HasPrefix(path, "/v1/taxes/"):
+		return RoleReader, true
 	case path == "/v1/plans":
 		if r.Method == http.MethodPost {
 			return RoleWriter, true
@@ -1915,6 +1933,10 @@ func normalizeMetricsRoute(path string) string {
 		return "/v1/pricing/metrics"
 	case strings.HasPrefix(path, "/v1/pricing/metrics/"):
 		return "/v1/pricing/metrics/{id}"
+	case path == "/v1/taxes":
+		return "/v1/taxes"
+	case strings.HasPrefix(path, "/v1/taxes/"):
+		return "/v1/taxes/{id}"
 	case path == "/v1/plans":
 		return "/v1/plans"
 	case strings.HasPrefix(path, "/v1/plans/"):
@@ -2117,6 +2139,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/v1/meters/", s.handleMeterByID)
 	s.mux.HandleFunc("/v1/pricing/metrics", s.handlePricingMetrics)
 	s.mux.HandleFunc("/v1/pricing/metrics/", s.handlePricingMetricByID)
+	s.mux.HandleFunc("/v1/taxes", s.handleTaxes)
+	s.mux.HandleFunc("/v1/taxes/", s.handleTaxByID)
 	s.mux.HandleFunc("/v1/add-ons", s.handleAddOns)
 	s.mux.HandleFunc("/v1/add-ons/", s.handleAddOnByID)
 	s.mux.HandleFunc("/v1/coupons", s.handleCoupons)

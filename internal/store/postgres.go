@@ -1129,7 +1129,7 @@ func (s *PostgresStore) GetWorkspaceBillingSettings(workspaceID string) (domain.
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT workspace_id, billing_entity_code, net_payment_term_days, invoice_memo, invoice_footer, created_at, updated_at
+		`SELECT workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, created_at, updated_at
 		FROM workspace_billing_settings
 		WHERE workspace_id = $1`,
 		workspaceID,
@@ -1178,18 +1178,20 @@ func (s *PostgresStore) UpsertWorkspaceBillingSettings(input domain.WorkspaceBil
 	row := tx.QueryRowContext(
 		ctx,
 		`INSERT INTO workspace_billing_settings (
-			workspace_id, billing_entity_code, net_payment_term_days, invoice_memo, invoice_footer, created_at, updated_at
-		) VALUES ($1,NULLIF($2,''),$3,NULLIF($4,''),NULLIF($5,''),$6,$7)
+			workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, created_at, updated_at
+		) VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),NULLIF($6,''),$7,$8)
 		ON CONFLICT (workspace_id) DO UPDATE SET
 			billing_entity_code = EXCLUDED.billing_entity_code,
 			net_payment_term_days = EXCLUDED.net_payment_term_days,
+			tax_codes = EXCLUDED.tax_codes,
 			invoice_memo = EXCLUDED.invoice_memo,
 			invoice_footer = EXCLUDED.invoice_footer,
 			updated_at = EXCLUDED.updated_at
-		RETURNING workspace_id, billing_entity_code, net_payment_term_days, invoice_memo, invoice_footer, created_at, updated_at`,
+		RETURNING workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, created_at, updated_at`,
 		input.WorkspaceID,
 		input.BillingEntityCode,
 		input.NetPaymentTermDays,
+		pq.Array(normalizeStringList(input.TaxCodes)),
 		input.InvoiceMemo,
 		input.InvoiceFooter,
 		input.CreatedAt,
@@ -2260,6 +2262,7 @@ func (s *PostgresStore) UpsertCustomerBillingProfile(input domain.CustomerBillin
 	input.Country = normalizeOptionalText(input.Country)
 	input.Currency = normalizeOptionalText(input.Currency)
 	input.TaxIdentifier = normalizeOptionalText(input.TaxIdentifier)
+	input.TaxCodes = normalizeStringList(input.TaxCodes)
 	input.ProviderCode = normalizeOptionalText(input.ProviderCode)
 	input.ProfileStatus = normalizeBillingProfileStatus(input.ProfileStatus)
 	input.LastSyncError = normalizeOptionalText(input.LastSyncError)
@@ -2281,8 +2284,8 @@ func (s *PostgresStore) UpsertCustomerBillingProfile(input domain.CustomerBillin
 		return domain.CustomerBillingProfile{}, err
 	}
 	defer rollbackSilently(tx)
-	row := tx.QueryRowContext(ctx, `INSERT INTO customer_billing_profiles (customer_id, tenant_id, legal_name, email, phone, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_postal_code, billing_country, currency, tax_identifier, provider_code, profile_status, last_synced_at, last_sync_error, created_at, updated_at)
-	VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),NULLIF($14,''),$15,$16,NULLIF($17,''),$18,$19)
+	row := tx.QueryRowContext(ctx, `INSERT INTO customer_billing_profiles (customer_id, tenant_id, legal_name, email, phone, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_postal_code, billing_country, currency, tax_identifier, tax_codes, provider_code, profile_status, last_synced_at, last_sync_error, created_at, updated_at)
+	VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),$14,NULLIF($15,''),$16,$17,NULLIF($18,''),$19,$20)
 	ON CONFLICT (customer_id) DO UPDATE SET
 	 legal_name = EXCLUDED.legal_name,
 	 email = EXCLUDED.email,
@@ -2295,13 +2298,14 @@ func (s *PostgresStore) UpsertCustomerBillingProfile(input domain.CustomerBillin
 	 billing_country = EXCLUDED.billing_country,
 	 currency = EXCLUDED.currency,
 	 tax_identifier = EXCLUDED.tax_identifier,
+	 tax_codes = EXCLUDED.tax_codes,
 	 provider_code = EXCLUDED.provider_code,
 	 profile_status = EXCLUDED.profile_status,
 	 last_synced_at = EXCLUDED.last_synced_at,
 	 last_sync_error = EXCLUDED.last_sync_error,
 	 updated_at = EXCLUDED.updated_at
-	RETURNING customer_id, tenant_id, legal_name, email, phone, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_postal_code, billing_country, currency, tax_identifier, provider_code, profile_status, last_synced_at, last_sync_error, created_at, updated_at`,
-		input.CustomerID, input.TenantID, input.LegalName, input.Email, input.Phone, input.AddressLine1, input.AddressLine2, input.City, input.State, input.PostalCode, input.Country, input.Currency, input.TaxIdentifier, input.ProviderCode, string(input.ProfileStatus), input.LastSyncedAt, input.LastSyncError, input.CreatedAt, input.UpdatedAt)
+	RETURNING customer_id, tenant_id, legal_name, email, phone, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_postal_code, billing_country, currency, tax_identifier, tax_codes, provider_code, profile_status, last_synced_at, last_sync_error, created_at, updated_at`,
+		input.CustomerID, input.TenantID, input.LegalName, input.Email, input.Phone, input.AddressLine1, input.AddressLine2, input.City, input.State, input.PostalCode, input.Country, input.Currency, input.TaxIdentifier, pq.Array(input.TaxCodes), input.ProviderCode, string(input.ProfileStatus), input.LastSyncedAt, input.LastSyncError, input.CreatedAt, input.UpdatedAt)
 	out, err := scanCustomerBillingProfile(row)
 	if err != nil {
 		if isForeignKeyViolation(err) {
@@ -2325,7 +2329,7 @@ func (s *PostgresStore) GetCustomerBillingProfile(tenantID, customerID string) (
 		return domain.CustomerBillingProfile{}, err
 	}
 	defer rollbackSilently(tx)
-	row := tx.QueryRowContext(ctx, `SELECT customer_id, tenant_id, legal_name, email, phone, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_postal_code, billing_country, currency, tax_identifier, provider_code, profile_status, last_synced_at, last_sync_error, created_at, updated_at FROM customer_billing_profiles WHERE tenant_id = $1 AND customer_id = $2`, tenantID, customerID)
+	row := tx.QueryRowContext(ctx, `SELECT customer_id, tenant_id, legal_name, email, phone, billing_address_line1, billing_address_line2, billing_city, billing_state, billing_postal_code, billing_country, currency, tax_identifier, tax_codes, provider_code, profile_status, last_synced_at, last_sync_error, created_at, updated_at FROM customer_billing_profiles WHERE tenant_id = $1 AND customer_id = $2`, tenantID, customerID)
 	out, err := scanCustomerBillingProfile(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -2335,6 +2339,98 @@ func (s *PostgresStore) GetCustomerBillingProfile(tenantID, customerID string) (
 	}
 	if err := tx.Commit(); err != nil {
 		return domain.CustomerBillingProfile{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) CreateTax(input domain.Tax) (domain.Tax, error) {
+	if input.ID == "" {
+		input.ID = newID("tax")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.UpdatedAt = now
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.Tax{}, err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(ctx, `INSERT INTO taxes (id, tenant_id, tax_code, name, description, status, rate, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		input.ID, input.TenantID, input.Code, input.Name, input.Description, input.Status, input.Rate, input.CreatedAt, input.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.Tax{}, ErrDuplicateKey
+		}
+		return domain.Tax{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Tax{}, err
+	}
+	return input, nil
+}
+
+func (s *PostgresStore) ListTaxes(tenantID string) ([]domain.Tax, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, tax_code, name, description, status, rate, created_at, updated_at FROM taxes WHERE tenant_id = $1 ORDER BY created_at ASC, id ASC`, normalizeTenantID(tenantID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.Tax, 0)
+	for rows.Next() {
+		item, scanErr := scanTax(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetTax(tenantID, id string) (domain.Tax, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.Tax{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, tax_code, name, description, status, rate, created_at, updated_at FROM taxes WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), strings.TrimSpace(id))
+	out, err := scanTax(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Tax{}, ErrNotFound
+		}
+		return domain.Tax{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Tax{}, err
 	}
 	return out, nil
 }
@@ -7160,13 +7256,15 @@ func scanCustomer(s rowScanner) (domain.Customer, error) {
 func scanCustomerBillingProfile(s rowScanner) (domain.CustomerBillingProfile, error) {
 	var out domain.CustomerBillingProfile
 	var legalName, email, phone, line1, line2, city, state, postal, country, currency, taxID, providerCode, lastSyncError sql.NullString
+	var taxCodes pq.StringArray
 	var status string
 	var lastSyncedAt sql.NullTime
-	if err := s.Scan(&out.CustomerID, &out.TenantID, &legalName, &email, &phone, &line1, &line2, &city, &state, &postal, &country, &currency, &taxID, &providerCode, &status, &lastSyncedAt, &lastSyncError, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	if err := s.Scan(&out.CustomerID, &out.TenantID, &legalName, &email, &phone, &line1, &line2, &city, &state, &postal, &country, &currency, &taxID, &taxCodes, &providerCode, &status, &lastSyncedAt, &lastSyncError, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.CustomerBillingProfile{}, err
 	}
 	out.TenantID = normalizeTenantID(out.TenantID)
 	out.CustomerID = strings.TrimSpace(out.CustomerID)
+	out.TaxCodes = normalizeStringList([]string(taxCodes))
 	return finalizeCustomerBillingProfile(out, legalName, email, phone, line1, line2, city, state, postal, country, currency, taxID, providerCode, status, lastSyncedAt, lastSyncError), nil
 }
 
@@ -7426,12 +7524,14 @@ func scanWorkspaceBillingSettings(s rowScanner) (domain.WorkspaceBillingSettings
 	var out domain.WorkspaceBillingSettings
 	var billingEntityCode sql.NullString
 	var netPaymentTermDays sql.NullInt64
+	var taxCodes pq.StringArray
 	var invoiceMemo sql.NullString
 	var invoiceFooter sql.NullString
 	if err := s.Scan(
 		&out.WorkspaceID,
 		&billingEntityCode,
 		&netPaymentTermDays,
+		&taxCodes,
 		&invoiceMemo,
 		&invoiceFooter,
 		&out.CreatedAt,
@@ -7447,12 +7547,31 @@ func scanWorkspaceBillingSettings(s rowScanner) (domain.WorkspaceBillingSettings
 		value := int(netPaymentTermDays.Int64)
 		out.NetPaymentTermDays = &value
 	}
+	out.TaxCodes = normalizeStringList([]string(taxCodes))
 	if invoiceMemo.Valid {
 		out.InvoiceMemo = normalizeOptionalText(invoiceMemo.String)
 	}
 	if invoiceFooter.Valid {
 		out.InvoiceFooter = normalizeOptionalText(invoiceFooter.String)
 	}
+	return out, nil
+}
+
+func scanTax(s rowScanner) (domain.Tax, error) {
+	var out domain.Tax
+	var description sql.NullString
+	var status string
+	if err := s.Scan(&out.ID, &out.TenantID, &out.Code, &out.Name, &description, &status, &out.Rate, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.Tax{}, err
+	}
+	out.ID = strings.TrimSpace(out.ID)
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.Code = strings.TrimSpace(out.Code)
+	out.Name = strings.TrimSpace(out.Name)
+	if description.Valid {
+		out.Description = normalizeOptionalText(description.String)
+	}
+	out.Status = domain.TaxStatus(strings.ToLower(strings.TrimSpace(status)))
 	return out, nil
 }
 
@@ -8735,4 +8854,25 @@ func isUniqueViolation(err error) bool {
 
 func normalizeOptionalText(v string) string {
 	return strings.TrimSpace(v)
+}
+
+func normalizeStringList(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, item := range values {
+		normalized := strings.TrimSpace(item)
+		if normalized == "" {
+			continue
+		}
+		normalized = strings.ToUpper(normalized)
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }

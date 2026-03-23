@@ -70,6 +70,10 @@ type BillingEntitySettingsSyncAdapter interface {
 	SyncBillingEntitySettings(ctx context.Context, settings domain.WorkspaceBillingSettings) error
 }
 
+type TaxSyncAdapter interface {
+	SyncTax(ctx context.Context, tax domain.Tax) error
+}
+
 type LagoHTTPTransport struct {
 	baseURL    string
 	apiKey     string
@@ -418,6 +422,7 @@ func (a *LagoCustomerBillingAdapter) SyncBillingEntitySettings(ctx context.Conte
 	if settings.NetPaymentTermDays != nil {
 		billingEntity["net_payment_term"] = *settings.NetPaymentTermDays
 	}
+	billingEntity["tax_codes"] = normalizeTaxCodes(settings.TaxCodes)
 	billingEntity["billing_configuration"] = map[string]any{
 		"invoice_footer": settings.InvoiceFooter,
 	}
@@ -429,6 +434,46 @@ func (a *LagoCustomerBillingAdapter) SyncBillingEntitySettings(ctx context.Conte
 		return nil
 	}
 	return fmt.Errorf("%w: lago billing entity sync failed (status=%d body=%s)", ErrDependency, status, abbrevForLog(body))
+}
+
+type LagoTaxSyncAdapter struct {
+	transport *LagoHTTPTransport
+}
+
+func NewLagoTaxSyncAdapter(transport *LagoHTTPTransport) *LagoTaxSyncAdapter {
+	return &LagoTaxSyncAdapter{transport: transport}
+}
+
+func (a *LagoTaxSyncAdapter) SyncTax(ctx context.Context, tax domain.Tax) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago tax sync adapter is required", ErrValidation)
+	}
+	payload := map[string]any{
+		"tax": map[string]any{
+			"code":        tax.Code,
+			"name":        tax.Name,
+			"description": tax.Description,
+			"rate":        tax.Rate,
+		},
+	}
+	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/taxes", payload)
+	if err == nil {
+		return nil
+	}
+
+	updatePath := "/api/v1/taxes/" + url.PathEscape(strings.TrimSpace(tax.Code))
+	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+	if updateErr == nil {
+		return nil
+	}
+
+	return fmt.Errorf("%w: lago tax sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)",
+		ErrDependency,
+		createStatus,
+		abbrevForLog(createBody),
+		updateStatus,
+		abbrevForLog(updateBody),
+	)
 }
 
 type LagoPlanSyncAdapter struct {

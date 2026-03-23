@@ -65,10 +65,22 @@ type Coupon = {
   updated_at: string;
 };
 
+type Tax = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  status: "draft" | "active" | "archived";
+  rate: number;
+  created_at: string;
+  updated_at: string;
+};
+
 async function installPricingMock(context: BrowserContext, session: TenantSessionPayload) {
   let metrics: PricingMetric[] = [];
   let addOns: AddOn[] = [];
   let coupons: Coupon[] = [];
+  let taxes: Tax[] = [];
   let plans: Plan[] = [];
 
   await context.route("**/runtime-config", async (route) => {
@@ -281,9 +293,55 @@ async function installPricingMock(context: BrowserContext, session: TenantSessio
       body: JSON.stringify(coupons[0]),
     });
   });
+
+  await context.route("**/v1/taxes", async (route) => {
+    const request = route.request();
+    const method = request.method().toUpperCase();
+
+    if (method === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(taxes),
+      });
+      return;
+    }
+
+    if (method === "POST") {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      const now = new Date().toISOString();
+      const tax: Tax = {
+        id: "tax_gst_in_18",
+        code: String(body.code || "gst_in_18"),
+        name: String(body.name || "India GST 18"),
+        description: String(body.description || ""),
+        status: (body.status as "draft" | "active" | "archived") || "active",
+        rate: Number(body.rate || 18),
+        created_at: now,
+        updated_at: now,
+      };
+      taxes = [tax];
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(tax),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+
+  await context.route("**/v1/taxes/tax_gst_in_18", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(taxes[0]),
+    });
+  });
 }
 
-test("tenant writer can create pricing metric add-on and plan", async ({ page, context }) => {
+test("tenant writer can create pricing metric tax add-on coupon and plan", async ({ page, context }) => {
   await installPricingMock(context, {
     authenticated: true,
     subject_type: "user",
@@ -324,6 +382,17 @@ test("tenant writer can create pricing metric add-on and plan", async ({ page, c
   await expect(page).toHaveURL(/\/pricing\/coupons\/cpn_launch_20$/);
   await expect(page.getByRole("heading", { name: "Launch 20" })).toBeVisible();
   await expect(page.getByText("20% off")).toBeVisible();
+
+  await page.goto("/pricing/taxes/new");
+  await page.getByTestId("pricing-tax-name").fill("India GST 18");
+  await page.getByTestId("pricing-tax-code").fill("gst_in_18");
+  await page.getByTestId("pricing-tax-rate").fill("18");
+  await expect(page.getByTestId("pricing-tax-submit")).toBeEnabled();
+  await page.getByTestId("pricing-tax-submit").click();
+
+  await expect(page).toHaveURL(/\/pricing\/taxes\/tax_gst_in_18$/);
+  await expect(page.getByRole("heading", { name: "India GST 18" })).toBeVisible();
+  await expect(page.getByText("18.00%", { exact: false })).toBeVisible();
 
   await page.goto("/pricing/plans/new");
   await page.getByTestId("pricing-plan-name").fill("Growth");

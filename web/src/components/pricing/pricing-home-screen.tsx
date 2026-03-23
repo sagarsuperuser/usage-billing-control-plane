@@ -8,7 +8,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchAddOns, fetchCoupons, fetchPlans, fetchPricingMetrics } from "@/lib/api";
+import { fetchAddOns, fetchCoupons, fetchPlans, fetchPricingMetrics, fetchTaxes } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingHomeScreen() {
@@ -35,12 +35,18 @@ export function PricingHomeScreen() {
     queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
+  const taxesQuery = useQuery({
+    queryKey: ["pricing-taxes", apiBaseURL],
+    queryFn: () => fetchTaxes({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
 
-  const loading = metricsQuery.isLoading || plansQuery.isLoading || addOnsQuery.isLoading || couponsQuery.isLoading;
+  const loading = metricsQuery.isLoading || plansQuery.isLoading || addOnsQuery.isLoading || couponsQuery.isLoading || taxesQuery.isLoading;
   const metricCount = metricsQuery.data?.length ?? 0;
   const planCount = plansQuery.data?.length ?? 0;
   const addOnCount = addOnsQuery.data?.length ?? 0;
   const couponCount = couponsQuery.data?.length ?? 0;
+  const taxCount = taxesQuery.data?.length ?? 0;
   const draftPlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
   const activePlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "active").length;
 
@@ -68,8 +74,9 @@ export function PricingHomeScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           <MetricCard label="Metrics" value={metricCount} />
+          <MetricCard label="Taxes" value={taxCount} />
           <MetricCard label="Add-ons" value={addOnCount} />
           <MetricCard label="Coupons" value={couponCount} />
           <MetricCard label="Plans" value={planCount} />
@@ -85,7 +92,7 @@ export function PricingHomeScreen() {
             </div>
           </section>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-4">
+          <div className="grid gap-5 xl:grid-cols-5">
             <DomainPanel
               eyebrow="Metrics"
               title="What gets measured"
@@ -97,6 +104,19 @@ export function PricingHomeScreen() {
               stats={[
                 { label: "Total", value: String(metricCount) },
                 { label: "Next step", value: metricCount > 0 ? "Review inventory" : "Create first metric" },
+              ]}
+            />
+            <DomainPanel
+              eyebrow="Taxes"
+              title="Tax catalog and application"
+              body="Define reusable tax codes and rates, then attach them to customer billing profiles and workspace billing entities so Alpha can execute them in Lago."
+              href="/pricing/taxes"
+              cta="Open taxes"
+              secondaryHref="/pricing/taxes/new"
+              secondaryLabel="New tax"
+              stats={[
+                { label: "Total", value: String(taxCount) },
+                { label: "Use", value: taxCount > 0 ? "Assign to profiles" : "Create first tax" },
               ]}
             />
             <DomainPanel

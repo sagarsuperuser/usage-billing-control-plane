@@ -28,6 +28,12 @@ func (stubPlanSyncAdapter) SyncPlan(_ context.Context, _ domain.Plan, _ []servic
 	return nil
 }
 
+type stubTaxSyncAdapter struct{}
+
+func (stubTaxSyncAdapter) SyncTax(_ context.Context, _ domain.Tax) error {
+	return nil
+}
+
 func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -56,6 +62,7 @@ func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithMeterSyncAdapter(stubMeterSyncAdapter{}),
+		api.WithTaxSyncAdapter(stubTaxSyncAdapter{}),
 		api.WithPlanSyncAdapter(stubPlanSyncAdapter{}),
 	).Handler())
 	defer ts.Close()
@@ -107,6 +114,24 @@ func TestPricingMetricAndPlanEndpoints(t *testing.T) {
 	coupons := getJSONArray(t, ts.URL+"/v1/coupons", "pricing-reader-key", http.StatusOK)
 	if len(coupons) != 1 {
 		t.Fatalf("expected 1 coupon, got %d", len(coupons))
+	}
+
+	tax := postJSON(t, ts.URL+"/v1/taxes", map[string]any{
+		"code":        "gst_in",
+		"name":        "GST India",
+		"status":      "active",
+		"rate":        18,
+		"description": "India GST",
+	}, "pricing-writer-key", http.StatusCreated)
+	taxID := tax["id"].(string)
+
+	taxes := getJSONArray(t, ts.URL+"/v1/taxes", "pricing-reader-key", http.StatusOK)
+	if len(taxes) != 1 {
+		t.Fatalf("expected 1 tax, got %d", len(taxes))
+	}
+	gotTax := getJSON(t, ts.URL+"/v1/taxes/"+taxID, "pricing-reader-key", http.StatusOK)
+	if gotTax["code"] != "gst_in" {
+		t.Fatalf("expected gst_in code, got %#v", gotTax["code"])
 	}
 
 	plan := postJSON(t, ts.URL+"/v1/plans", map[string]any{

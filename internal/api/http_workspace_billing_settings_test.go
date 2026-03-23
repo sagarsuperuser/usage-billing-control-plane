@@ -65,6 +65,7 @@ func TestTenantWorkspaceBillingSettingsSubresourcePersistsAndReturnsSettings(t *
 	result := patchJSON(t, ts.URL+"/internal/tenants/tenant_workspace_settings/workspace-billing-settings", map[string]any{
 		"billing_entity_code":   "be_us_primary",
 		"net_payment_term_days": 14,
+		"tax_codes":             []string{"GST_IN", "VAT_DE"},
 		"invoice_memo":          "Thank you for your business.",
 		"invoice_footer":        "Wire details available on request.",
 	}, "platform-admin", http.StatusOK)
@@ -84,6 +85,9 @@ func TestTenantWorkspaceBillingSettingsSubresourcePersistsAndReturnsSettings(t *
 	}
 	if got, ok := settings["net_payment_term_days"].(float64); !ok || int(got) != 14 {
 		t.Fatalf("expected net_payment_term_days 14, got %#v", settings["net_payment_term_days"])
+	}
+	if got, ok := settings["tax_codes"].([]any); !ok || len(got) != 2 {
+		t.Fatalf("expected tax_codes to round-trip, got %#v", settings["tax_codes"])
 	}
 	if hasOverrides, _ := settings["has_overrides"].(bool); !hasOverrides {
 		t.Fatalf("expected has_overrides=true after patch")

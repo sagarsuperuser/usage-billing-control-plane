@@ -29,6 +29,14 @@ type createPlanRequest struct {
 	CouponIDs       []string `json:"coupon_ids"`
 }
 
+type createTaxRequest struct {
+	Code        string  `json:"code"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Status      string  `json:"status"`
+	Rate        float64 `json:"rate"`
+}
+
 type createAddOnRequest struct {
 	Code            string `json:"code"`
 	Name            string `json:"name"`
@@ -160,6 +168,66 @@ func (s *Server) handlePlans(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeMethodNotAllowed(w)
 	}
+}
+
+func (s *Server) handleTaxes(w http.ResponseWriter, r *http.Request) {
+	if s.taxService == nil {
+		writeError(w, http.StatusServiceUnavailable, "tax service is required")
+		return
+	}
+	tenantID := requestTenantID(r)
+	switch r.Method {
+	case http.MethodGet:
+		items, err := s.taxService.ListTaxes(tenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+	case http.MethodPost:
+		var req createTaxRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		item, err := s.taxService.CreateTax(r.Context(), domain.Tax{
+			TenantID:    tenantID,
+			Code:        req.Code,
+			Name:        req.Name,
+			Description: req.Description,
+			Status:      domain.TaxStatus(req.Status),
+			Rate:        req.Rate,
+		})
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, item)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleTaxByID(w http.ResponseWriter, r *http.Request) {
+	if s.taxService == nil {
+		writeError(w, http.StatusServiceUnavailable, "tax service is required")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/v1/taxes/")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	item, err := s.taxService.GetTax(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (s *Server) handlePlanByID(w http.ResponseWriter, r *http.Request) {

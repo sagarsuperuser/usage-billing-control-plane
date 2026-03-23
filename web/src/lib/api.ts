@@ -5,6 +5,7 @@ import {
   BillingProviderConnection,
   AddOn,
   Coupon,
+  Tax,
   BeginCustomerPaymentSetupResult,
   CustomerPaymentSetupRequestResult,
   CustomerBillingProfile,
@@ -414,6 +415,50 @@ export async function fetchCoupons(input: {
   return payload;
 }
 
+export async function fetchTaxes(input: {
+  runtimeBaseURL?: string;
+}): Promise<Tax[]> {
+  const payload = await apiRequest<Tax[]>("/v1/taxes", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createTax(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<Tax> {
+  const payload = await apiRequest<Tax>("/v1/taxes", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchTax(input: {
+  runtimeBaseURL?: string;
+  taxID: string;
+}): Promise<Tax> {
+  const payload = await apiRequest<Tax>("/v1/taxes/" + encodeURIComponent(input.taxID), {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
 export async function createCoupon(input: {
   runtimeBaseURL?: string;
   csrfToken: string;
@@ -751,6 +796,7 @@ export async function updateTenantWorkspaceBillingSettings(input: {
   body: {
     billing_entity_code?: string;
     net_payment_term_days?: number;
+    tax_codes?: string[];
     invoice_memo?: string;
     invoice_footer?: string;
   };

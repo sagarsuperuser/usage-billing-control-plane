@@ -144,6 +144,7 @@ type WorkspaceBillingSettings struct {
 	WorkspaceID        string    `json:"workspace_id"`
 	BillingEntityCode  string    `json:"billing_entity_code,omitempty"`
 	NetPaymentTermDays *int      `json:"net_payment_term_days,omitempty"`
+	TaxCodes           []string  `json:"tax_codes,omitempty"`
 	InvoiceMemo        string    `json:"invoice_memo,omitempty"`
 	InvoiceFooter      string    `json:"invoice_footer,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
@@ -359,6 +360,7 @@ type CustomerBillingProfile struct {
 	Country       string               `json:"billing_country,omitempty"`
 	Currency      string               `json:"currency,omitempty"`
 	TaxIdentifier string               `json:"tax_identifier,omitempty"`
+	TaxCodes      []string             `json:"tax_codes,omitempty"`
 	ProviderCode  string               `json:"provider_code,omitempty"`
 	ProfileStatus BillingProfileStatus `json:"profile_status"`
 	LastSyncedAt  *time.Time           `json:"last_synced_at,omitempty"`
@@ -576,6 +578,26 @@ type Coupon struct {
 	PercentOff     int                `json:"percent_off"`
 	CreatedAt      time.Time          `json:"created_at"`
 	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
+type TaxStatus string
+
+const (
+	TaxStatusDraft    TaxStatus = "draft"
+	TaxStatusActive   TaxStatus = "active"
+	TaxStatusArchived TaxStatus = "archived"
+)
+
+type Tax struct {
+	ID          string    `json:"id"`
+	TenantID    string    `json:"tenant_id,omitempty"`
+	Code        string    `json:"code"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Status      TaxStatus `json:"status"`
+	Rate        float64   `json:"rate"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type Plan struct {

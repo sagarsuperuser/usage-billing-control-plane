@@ -16,10 +16,11 @@ type WorkspaceBillingSettingsService struct {
 }
 
 type UpdateWorkspaceBillingSettingsRequest struct {
-	BillingEntityCode  string `json:"billing_entity_code,omitempty"`
-	NetPaymentTermDays *int   `json:"net_payment_term_days,omitempty"`
-	InvoiceMemo        string `json:"invoice_memo,omitempty"`
-	InvoiceFooter      string `json:"invoice_footer,omitempty"`
+	BillingEntityCode  string   `json:"billing_entity_code,omitempty"`
+	NetPaymentTermDays *int     `json:"net_payment_term_days,omitempty"`
+	TaxCodes           []string `json:"tax_codes,omitempty"`
+	InvoiceMemo        string   `json:"invoice_memo,omitempty"`
+	InvoiceFooter      string   `json:"invoice_footer,omitempty"`
 }
 
 func NewWorkspaceBillingSettingsService(s store.Repository) *WorkspaceBillingSettingsService {
@@ -69,6 +70,7 @@ func (s *WorkspaceBillingSettingsService) UpsertWorkspaceBillingSettings(workspa
 	}
 	current.BillingEntityCode = strings.TrimSpace(req.BillingEntityCode)
 	current.NetPaymentTermDays = req.NetPaymentTermDays
+	current.TaxCodes = normalizeTaxCodes(req.TaxCodes)
 	current.InvoiceMemo = strings.TrimSpace(req.InvoiceMemo)
 	current.InvoiceFooter = strings.TrimSpace(req.InvoiceFooter)
 	current.UpdatedAt = time.Now().UTC()

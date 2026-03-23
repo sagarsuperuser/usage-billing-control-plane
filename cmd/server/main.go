@@ -221,6 +221,7 @@ func main() {
 	serverOpts = append(
 		serverOpts,
 		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
+		api.WithTaxSyncAdapter(service.NewLagoTaxSyncAdapter(lagoTransport)),
 		api.WithPlanSyncAdapter(service.NewLagoPlanSyncAdapter(lagoTransport, repo)),
 		api.WithSubscriptionSyncAdapter(service.NewLagoSubscriptionSyncAdapter(lagoTransport, repo)),
 		api.WithUsageSyncAdapter(service.NewLagoUsageSyncAdapter(lagoTransport)),
