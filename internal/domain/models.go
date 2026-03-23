@@ -140,6 +140,16 @@ type WorkspaceBillingBinding struct {
 	UpdatedAt                   time.Time                     `json:"updated_at"`
 }
 
+type WorkspaceBillingSettings struct {
+	WorkspaceID        string    `json:"workspace_id"`
+	BillingEntityCode  string    `json:"billing_entity_code,omitempty"`
+	NetPaymentTermDays *int      `json:"net_payment_term_days,omitempty"`
+	InvoiceMemo        string    `json:"invoice_memo,omitempty"`
+	InvoiceFooter      string    `json:"invoice_footer,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
 type User struct {
 	ID           string           `json:"id"`
 	Email        string           `json:"email"`

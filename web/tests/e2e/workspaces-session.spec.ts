@@ -21,6 +21,15 @@ type TenantRecord = {
     source?: string;
     isolation_mode?: "shared" | "dedicated";
   };
+  workspace_billing_settings: {
+    workspace_id: string;
+    billing_entity_code?: string;
+    net_payment_term_days?: number;
+    invoice_memo?: string;
+    invoice_footer?: string;
+    has_overrides: boolean;
+    updated_at?: string;
+  };
   created_at: string;
   updated_at: string;
 };
@@ -153,6 +162,10 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
         source: "binding",
         isolation_mode: "shared",
       },
+      workspace_billing_settings: {
+        workspace_id: "tenant_alpha",
+        has_overrides: false,
+      },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -168,6 +181,15 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
         status: "connected",
         source: "binding",
         isolation_mode: "shared",
+      },
+      workspace_billing_settings: {
+        workspace_id: "tenant_beta",
+        billing_entity_code: "be_default",
+        net_payment_term_days: 14,
+        invoice_memo: "Thank you for your business.",
+        invoice_footer: "Wire details available on request.",
+        has_overrides: true,
+        updated_at: new Date().toISOString(),
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -265,6 +287,30 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       readiness.billing_integration.isolation_mode = connectionID ? "shared" : undefined;
       return json(200, { tenant });
     }
+    if (path.startsWith("/internal/tenants/") && path.endsWith("/workspace-billing-settings") && method === "PATCH") {
+      const segments = path.split("/");
+      const tenantID = decodeURIComponent(segments[3] || "");
+      const tenant = tenants.find((item) => item.id === tenantID);
+      if (!tenant) {
+        return json(404, { error: "not found" });
+      }
+      const body = request.postDataJSON() as {
+        billing_entity_code?: string;
+        net_payment_term_days?: number;
+        invoice_memo?: string;
+        invoice_footer?: string;
+      };
+      tenant.workspace_billing_settings = {
+        workspace_id: tenantID,
+        billing_entity_code: body.billing_entity_code,
+        net_payment_term_days: body.net_payment_term_days,
+        invoice_memo: body.invoice_memo,
+        invoice_footer: body.invoice_footer,
+        has_overrides: Boolean(body.billing_entity_code || body.net_payment_term_days !== undefined || body.invoice_memo || body.invoice_footer),
+        updated_at: new Date().toISOString(),
+      };
+      return json(200, { workspace_billing_settings: tenant.workspace_billing_settings });
+    }
     if (path.startsWith("/internal/tenants/") && path.endsWith("/members") && method === "GET") {
       const segments = path.split("/");
       const tenantID = decodeURIComponent(segments[3] || "");
@@ -335,7 +381,7 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
-  await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace handoff and readiness" })).toBeVisible();
   await expect(page.getByRole("link", { name: "New workspace" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Tenant Alpha/i })).toBeVisible();
   await expect(page.getByText("Next action: pricing")).toBeVisible();
@@ -347,7 +393,7 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await expect(page.getByText("No billing-ready customer has been created yet").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();
   await expect(page.getByText("Workspace access")).toBeVisible();
-  await expect(page.getByText("Tenant Alpha Owner")).toBeVisible();
+  await expect(page.getByText("Current members")).toBeVisible();
   await page.getByPlaceholder("tenant-admin@example.com").fill("new-admin@tenant-alpha.test");
   await page.getByLabel("Workspace role").selectOption("admin");
   await page.getByRole("button", { name: "Send invite" }).click();
@@ -355,4 +401,30 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await page.getByLabel("Active billing connection").selectOption("bpc_beta");
   await page.getByRole("button", { name: "Save active connection" }).click();
   await expect(page.getByText("bpc_beta")).toBeVisible();
+});
+
+test("platform admin can edit workspace billing settings", async ({ page }) => {
+  await installWorkspaceMock(page, {
+    authenticated: true,
+    scope: "platform",
+    platform_role: "platform_admin",
+    api_key_id: "platform_ui_1",
+    csrf_token: "csrf-platform-123",
+  });
+
+  await page.goto("/workspaces/tenant_alpha");
+  await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
+  await page.getByTestId("session-login-submit").click();
+
+  await expect(page.getByRole("heading", { name: "Tenant Alpha" })).toBeVisible();
+  await page.getByLabel("Billing entity code").fill("be_us_primary");
+  await page.getByLabel("Net payment term (days)").fill("21");
+  await page.getByLabel("Invoice memo").fill("Please reference the PO on remittance.");
+  await page.getByLabel("Invoice footer").fill("Banking instructions available on request.");
+  await page.getByRole("button", { name: "Save billing settings" }).click();
+
+  await expect(page.getByText("be_us_primary")).toBeVisible();
+  await expect(page.getByText("21 days")).toBeVisible();
+  await expect(page.getByText("Custom overrides")).toBeVisible();
 });

@@ -281,6 +281,7 @@ export interface Tenant {
   status: "active" | "suspended" | "deleted";
   billing_provider_connection_id?: string;
   workspace_billing: WorkspaceBilling;
+  workspace_billing_settings: WorkspaceBillingSettings;
   created_at: string;
   updated_at: string;
 }
@@ -292,6 +293,16 @@ export interface WorkspaceBilling {
   status: string;
   source?: string;
   isolation_mode?: "shared" | "dedicated";
+}
+
+export interface WorkspaceBillingSettings {
+  workspace_id: string;
+  billing_entity_code?: string;
+  net_payment_term_days?: number;
+  invoice_memo?: string;
+  invoice_footer?: string;
+  has_overrides: boolean;
+  updated_at?: string;
 }
 
 export interface WorkspaceMember {

@@ -49,6 +49,7 @@ import {
   WorkspaceInvitationIssueResult,
   WorkspaceInvitationPreview,
   WorkspaceInvitation,
+  WorkspaceBillingSettings,
   WorkspaceMember,
   WorkspaceSelectionState,
   ServiceAccount,
@@ -651,6 +652,32 @@ export async function updateTenantWorkspaceBilling(input: {
     throw new Error("unauthorized");
   }
   return payload.tenant;
+}
+
+export async function updateTenantWorkspaceBillingSettings(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  tenantID: string;
+  body: {
+    billing_entity_code?: string;
+    net_payment_term_days?: number;
+    invoice_memo?: string;
+    invoice_footer?: string;
+  };
+}): Promise<WorkspaceBillingSettings> {
+  const payload = await apiRequest<{ workspace_billing_settings: WorkspaceBillingSettings }>(
+    `/internal/tenants/${encodeURIComponent(input.tenantID)}/workspace-billing-settings`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "PATCH",
+      csrfToken: input.csrfToken,
+      body: input.body,
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.workspace_billing_settings;
 }
 
 export async function fetchWorkspaceMembers(input: {

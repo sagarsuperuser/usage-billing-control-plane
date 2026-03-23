@@ -20,9 +20,11 @@ import {
   revokeWorkspaceInvitation,
   updateWorkspaceMember,
   updateTenantWorkspaceBilling,
+  updateTenantWorkspaceBillingSettings,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
+import type { WorkspaceBillingSettings } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function readinessTone(status?: string): string {
@@ -41,6 +43,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const [overrideReason, setOverrideReason] = useState("");
   const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
   const [confirmingMemberAction, setConfirmingMemberAction] = useState<{ userID: string; action: "suspend" } | null>(null);
+  const [billingSettingsDraft, setBillingSettingsDraft] = useState<WorkspaceBillingSettingsDraft>(emptyWorkspaceBillingSettingsDraft());
+  const [billingSettingsSourceKey, setBillingSettingsSourceKey] = useState("");
 
   const tenantStatusQuery = useQuery({
     queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID],
@@ -51,6 +55,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const selectedTenant = tenantStatusQuery.data?.tenant ?? null;
   const selectedReadiness = tenantStatusQuery.data?.readiness ?? null;
   const workspaceBilling = selectedTenant?.workspace_billing ?? null;
+  const workspaceBillingSettings = selectedTenant?.workspace_billing_settings ?? null;
   const activeBillingConnectionID = workspaceBilling?.active_billing_connection_id || selectedTenant?.billing_provider_connection_id || "";
 
   const billingConnectionQuery = useQuery({
@@ -81,6 +86,24 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     setSelectedConnectionID(activeBillingConnectionID);
   }, [activeBillingConnectionID]);
 
+  const billingSettingsBaseline = workspaceBillingSettingsDraftFromSettings(workspaceBillingSettings);
+  const billingSettingsKey = [
+    tenantID,
+    workspaceBillingSettings?.updated_at || "",
+    workspaceBillingSettings?.billing_entity_code || "",
+    String(workspaceBillingSettings?.net_payment_term_days ?? ""),
+    workspaceBillingSettings?.invoice_memo || "",
+    workspaceBillingSettings?.invoice_footer || "",
+  ].join(":");
+
+  useEffect(() => {
+    if (!billingSettingsKey || billingSettingsKey === billingSettingsSourceKey) {
+      return;
+    }
+    setBillingSettingsDraft(billingSettingsBaseline);
+    setBillingSettingsSourceKey(billingSettingsKey);
+  }, [billingSettingsBaseline, billingSettingsKey, billingSettingsSourceKey]);
+
   const updateWorkspaceBillingMutation = useMutation({
     mutationFn: () =>
       updateTenantWorkspaceBilling({
@@ -95,6 +118,21 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
         queryClient.invalidateQueries({ queryKey: ["tenants"] }),
         queryClient.invalidateQueries({ queryKey: ["overview-tenants"] }),
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connection"] }),
+      ]);
+    },
+  });
+  const updateWorkspaceBillingSettingsMutation = useMutation({
+    mutationFn: () =>
+      updateTenantWorkspaceBillingSettings({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        tenantID,
+        body: workspaceBillingSettingsPayloadFromDraft(billingSettingsDraft),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tenant-onboarding-status", apiBaseURL, tenantID] }),
+        queryClient.invalidateQueries({ queryKey: ["tenants"] }),
       ]);
     },
   });
@@ -186,6 +224,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     selectedConnectionID !== activeBillingConnectionID;
   const canCreateInvitation = Boolean(csrfToken) && !createInvitationMutation.isPending && inviteEmail.trim().length > 0;
   const canRunOverrideAction = Boolean(csrfToken) && overrideReason.trim().length > 0;
+  const billingSettingsDirty = serializeWorkspaceBillingSettingsDraft(billingSettingsDraft) !== serializeWorkspaceBillingSettingsDraft(billingSettingsBaseline);
+  const canSaveBillingSettings = Boolean(csrfToken) && !updateWorkspaceBillingSettingsMutation.isPending && billingSettingsDirty;
 
   useEffect(() => {
     if (createInvitationMutation.data?.accept_url) {
@@ -636,6 +676,74 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                       </button>
                     </div>
                   </div>
+
+                  <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">Invoice defaults and billing entity</p>
+                        <p className="mt-1 text-xs text-slate-600">Alpha-owned workspace settings for billing entity routing, payment terms, and default invoice copy.</p>
+                      </div>
+                      <SidebarInput
+                        label="Billing entity code"
+                        value={billingSettingsDraft.billing_entity_code}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, billing_entity_code: value }))}
+                        placeholder="be_us_primary"
+                      />
+                      <SidebarInput
+                        label="Net payment term (days)"
+                        value={billingSettingsDraft.net_payment_term_days}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, net_payment_term_days: value }))}
+                        placeholder="14"
+                        inputMode="numeric"
+                      />
+                      <SidebarTextarea
+                        label="Invoice memo"
+                        value={billingSettingsDraft.invoice_memo}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, invoice_memo: value }))}
+                        placeholder="Thank you for your business."
+                      />
+                      <SidebarTextarea
+                        label="Invoice footer"
+                        value={billingSettingsDraft.invoice_footer}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, invoice_footer: value }))}
+                        placeholder="Wire details available on request."
+                      />
+                      <div className="grid gap-3">
+                        <button
+                          type="button"
+                          onClick={() => updateWorkspaceBillingSettingsMutation.mutate()}
+                          disabled={!canSaveBillingSettings}
+                          className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {updateWorkspaceBillingSettingsMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                          Save billing settings
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBillingSettingsDraft(billingSettingsBaseline)}
+                          disabled={!billingSettingsDirty || updateWorkspaceBillingSettingsMutation.isPending}
+                          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Reset billing settings
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      <MetaItem label="Billing entity code" value={workspaceBillingSettings?.billing_entity_code || "Default"} />
+                      <MetaItem label="Net payment term" value={formatPaymentTerm(workspaceBillingSettings?.net_payment_term_days)} />
+                      <MetaItem label="Settings status" value={workspaceBillingSettings?.has_overrides ? "Custom overrides" : "Default values"} />
+                    </div>
+                    {updateWorkspaceBillingSettingsMutation.isError ? (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                        <p className="font-semibold text-amber-900">Workspace billing settings could not be saved</p>
+                        <p className="mt-2">
+                          {updateWorkspaceBillingSettingsMutation.error instanceof Error
+                            ? updateWorkspaceBillingSettingsMutation.error.message
+                            : "Saving workspace billing settings failed."}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -726,4 +834,122 @@ function InlineStat({ label, value }: { label: string; value: string }) {
 
 function EmptyPanel({ message }: { message: string }) {
   return <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-600">{message}</p>;
+}
+
+type WorkspaceBillingSettingsDraft = {
+  billing_entity_code: string;
+  net_payment_term_days: string;
+  invoice_memo: string;
+  invoice_footer: string;
+};
+
+function emptyWorkspaceBillingSettingsDraft(): WorkspaceBillingSettingsDraft {
+  return {
+    billing_entity_code: "",
+    net_payment_term_days: "",
+    invoice_memo: "",
+    invoice_footer: "",
+  };
+}
+
+function workspaceBillingSettingsDraftFromSettings(settings: WorkspaceBillingSettings | null): WorkspaceBillingSettingsDraft {
+  if (!settings) {
+    return emptyWorkspaceBillingSettingsDraft();
+  }
+  return {
+    billing_entity_code: settings.billing_entity_code || "",
+    net_payment_term_days: settings.net_payment_term_days === undefined ? "" : String(settings.net_payment_term_days),
+    invoice_memo: settings.invoice_memo || "",
+    invoice_footer: settings.invoice_footer || "",
+  };
+}
+
+function normalizeWorkspaceBillingSettingsDraft(draft: WorkspaceBillingSettingsDraft): WorkspaceBillingSettingsDraft {
+  return {
+    billing_entity_code: draft.billing_entity_code.trim(),
+    net_payment_term_days: draft.net_payment_term_days.trim(),
+    invoice_memo: draft.invoice_memo.trim(),
+    invoice_footer: draft.invoice_footer.trim(),
+  };
+}
+
+function serializeWorkspaceBillingSettingsDraft(draft: WorkspaceBillingSettingsDraft): string {
+  return JSON.stringify(normalizeWorkspaceBillingSettingsDraft(draft));
+}
+
+function workspaceBillingSettingsPayloadFromDraft(draft: WorkspaceBillingSettingsDraft): {
+  billing_entity_code?: string;
+  net_payment_term_days?: number;
+  invoice_memo?: string;
+  invoice_footer?: string;
+} {
+  const normalized = normalizeWorkspaceBillingSettingsDraft(draft);
+  return {
+    billing_entity_code: normalized.billing_entity_code || undefined,
+    net_payment_term_days: normalized.net_payment_term_days === "" ? undefined : Number(normalized.net_payment_term_days),
+    invoice_memo: normalized.invoice_memo || undefined,
+    invoice_footer: normalized.invoice_footer || undefined,
+  };
+}
+
+function formatPaymentTerm(days?: number): string {
+  if (days === undefined) {
+    return "Default";
+  }
+  if (days === 0) {
+    return "Due immediately";
+  }
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+function SidebarInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  inputMode?: "text" | "numeric";
+}) {
+  return (
+    <label className="grid gap-2 text-sm text-slate-700">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <input
+        value={value}
+        inputMode={inputMode}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-10 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+      />
+    </label>
+  );
+}
+
+function SidebarTextarea({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="grid gap-2 text-sm text-slate-700">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        className="w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+      />
+    </label>
+  );
 }

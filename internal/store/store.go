@@ -285,6 +285,8 @@ type Repository interface {
 	GetWorkspaceBillingBinding(workspaceID string) (domain.WorkspaceBillingBinding, error)
 	ListWorkspaceBillingBindings(filter WorkspaceBillingBindingListFilter) ([]domain.WorkspaceBillingBinding, error)
 	UpdateWorkspaceBillingBinding(input domain.WorkspaceBillingBinding) (domain.WorkspaceBillingBinding, error)
+	GetWorkspaceBillingSettings(workspaceID string) (domain.WorkspaceBillingSettings, error)
+	UpsertWorkspaceBillingSettings(input domain.WorkspaceBillingSettings) (domain.WorkspaceBillingSettings, error)
 	CreateUser(input domain.User) (domain.User, error)
 	GetUser(id string) (domain.User, error)
 	GetUserByEmail(email string) (domain.User, error)

@@ -1112,6 +1112,102 @@ func (s *PostgresStore) UpdateWorkspaceBillingBinding(input domain.WorkspaceBill
 	return out, nil
 }
 
+func (s *PostgresStore) GetWorkspaceBillingSettings(workspaceID string) (domain.WorkspaceBillingSettings, error) {
+	workspaceID = normalizeTenantID(workspaceID)
+	if workspaceID == "" {
+		return domain.WorkspaceBillingSettings{}, ErrNotFound
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceBillingSettings{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT workspace_id, billing_entity_code, net_payment_term_days, invoice_memo, invoice_footer, created_at, updated_at
+		FROM workspace_billing_settings
+		WHERE workspace_id = $1`,
+		workspaceID,
+	)
+	out, err := scanWorkspaceBillingSettings(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.WorkspaceBillingSettings{}, ErrNotFound
+		}
+		return domain.WorkspaceBillingSettings{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceBillingSettings{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpsertWorkspaceBillingSettings(input domain.WorkspaceBillingSettings) (domain.WorkspaceBillingSettings, error) {
+	input.WorkspaceID = normalizeTenantID(input.WorkspaceID)
+	input.BillingEntityCode = normalizeOptionalText(input.BillingEntityCode)
+	input.InvoiceMemo = normalizeOptionalText(input.InvoiceMemo)
+	input.InvoiceFooter = normalizeOptionalText(input.InvoiceFooter)
+	if input.WorkspaceID == "" {
+		return domain.WorkspaceBillingSettings{}, fmt.Errorf("validation failed: workspace_id is required")
+	}
+	if input.NetPaymentTermDays != nil && *input.NetPaymentTermDays < 0 {
+		return domain.WorkspaceBillingSettings{}, fmt.Errorf("validation failed: net_payment_term_days must be non-negative")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	if input.UpdatedAt.IsZero() {
+		input.UpdatedAt = now
+	}
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
+	if err != nil {
+		return domain.WorkspaceBillingSettings{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(
+		ctx,
+		`INSERT INTO workspace_billing_settings (
+			workspace_id, billing_entity_code, net_payment_term_days, invoice_memo, invoice_footer, created_at, updated_at
+		) VALUES ($1,NULLIF($2,''),$3,NULLIF($4,''),NULLIF($5,''),$6,$7)
+		ON CONFLICT (workspace_id) DO UPDATE SET
+			billing_entity_code = EXCLUDED.billing_entity_code,
+			net_payment_term_days = EXCLUDED.net_payment_term_days,
+			invoice_memo = EXCLUDED.invoice_memo,
+			invoice_footer = EXCLUDED.invoice_footer,
+			updated_at = EXCLUDED.updated_at
+		RETURNING workspace_id, billing_entity_code, net_payment_term_days, invoice_memo, invoice_footer, created_at, updated_at`,
+		input.WorkspaceID,
+		input.BillingEntityCode,
+		input.NetPaymentTermDays,
+		input.InvoiceMemo,
+		input.InvoiceFooter,
+		input.CreatedAt,
+		input.UpdatedAt,
+	)
+	out, err := scanWorkspaceBillingSettings(row)
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return domain.WorkspaceBillingSettings{}, ErrNotFound
+		}
+		return domain.WorkspaceBillingSettings{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.WorkspaceBillingSettings{}, err
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) CreateUser(input domain.User) (domain.User, error) {
 	input.ID = strings.TrimSpace(input.ID)
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
@@ -7004,6 +7100,40 @@ func scanWorkspaceBillingBinding(s rowScanner) (domain.WorkspaceBillingBinding, 
 	if disabledAt.Valid {
 		t := disabledAt.Time.UTC()
 		out.DisabledAt = &t
+	}
+	return out, nil
+}
+
+func scanWorkspaceBillingSettings(s rowScanner) (domain.WorkspaceBillingSettings, error) {
+	var out domain.WorkspaceBillingSettings
+	var billingEntityCode sql.NullString
+	var netPaymentTermDays sql.NullInt64
+	var invoiceMemo sql.NullString
+	var invoiceFooter sql.NullString
+	if err := s.Scan(
+		&out.WorkspaceID,
+		&billingEntityCode,
+		&netPaymentTermDays,
+		&invoiceMemo,
+		&invoiceFooter,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	); err != nil {
+		return domain.WorkspaceBillingSettings{}, err
+	}
+	out.WorkspaceID = normalizeTenantID(out.WorkspaceID)
+	if billingEntityCode.Valid {
+		out.BillingEntityCode = normalizeOptionalText(billingEntityCode.String)
+	}
+	if netPaymentTermDays.Valid {
+		value := int(netPaymentTermDays.Int64)
+		out.NetPaymentTermDays = &value
+	}
+	if invoiceMemo.Valid {
+		out.InvoiceMemo = normalizeOptionalText(invoiceMemo.String)
+	}
+	if invoiceFooter.Valid {
+		out.InvoiceFooter = normalizeOptionalText(invoiceFooter.String)
 	}
 	return out, nil
 }

@@ -39,6 +39,7 @@ type Server struct {
 	customerOnboardingService          *service.CustomerOnboardingService
 	billingProviderConnectionService   *service.BillingProviderConnectionService
 	workspaceBillingBindingService     *service.WorkspaceBillingBindingService
+	workspaceBillingSettingsService    *service.WorkspaceBillingSettingsService
 	workspaceAccessService             *service.WorkspaceAccessService
 	serviceAccountService              *service.ServiceAccountService
 	notificationService                *service.NotificationService
@@ -89,14 +90,25 @@ type workspaceBillingResponse struct {
 	IsolationMode             string `json:"isolation_mode,omitempty"`
 }
 
+type workspaceBillingSettingsResponse struct {
+	WorkspaceID        string     `json:"workspace_id"`
+	BillingEntityCode  string     `json:"billing_entity_code,omitempty"`
+	NetPaymentTermDays *int       `json:"net_payment_term_days,omitempty"`
+	InvoiceMemo        string     `json:"invoice_memo,omitempty"`
+	InvoiceFooter      string     `json:"invoice_footer,omitempty"`
+	HasOverrides       bool       `json:"has_overrides"`
+	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
+}
+
 type tenantResponse struct {
-	ID                          string                   `json:"id"`
-	Name                        string                   `json:"name"`
-	Status                      domain.TenantStatus      `json:"status"`
-	BillingProviderConnectionID string                   `json:"billing_provider_connection_id,omitempty"`
-	WorkspaceBilling            workspaceBillingResponse `json:"workspace_billing"`
-	CreatedAt                   time.Time                `json:"created_at"`
-	UpdatedAt                   time.Time                `json:"updated_at"`
+	ID                          string                           `json:"id"`
+	Name                        string                           `json:"name"`
+	Status                      domain.TenantStatus              `json:"status"`
+	BillingProviderConnectionID string                           `json:"billing_provider_connection_id,omitempty"`
+	WorkspaceBilling            workspaceBillingResponse         `json:"workspace_billing"`
+	WorkspaceBillingSettings    workspaceBillingSettingsResponse `json:"workspace_billing_settings"`
+	CreatedAt                   time.Time                        `json:"created_at"`
+	UpdatedAt                   time.Time                        `json:"updated_at"`
 }
 
 type workspaceServiceAccountResponse struct {
@@ -268,6 +280,7 @@ func (s *Server) newTenantResponse(tenant domain.Tenant) tenantResponse {
 		Status:                      tenant.Status,
 		BillingProviderConnectionID: tenant.BillingProviderConnectionID,
 		WorkspaceBilling:            s.buildWorkspaceBillingResponse(tenant),
+		WorkspaceBillingSettings:    s.buildWorkspaceBillingSettingsResponse(tenant.ID),
 		CreatedAt:                   tenant.CreatedAt,
 		UpdatedAt:                   tenant.UpdatedAt,
 	}
@@ -309,6 +322,30 @@ func (s *Server) buildWorkspaceBillingResponse(tenant domain.Tenant) workspaceBi
 		resp.Source = "binding"
 		resp.IsolationMode = string(binding.IsolationMode)
 		resp.Connected = binding.Status == domain.WorkspaceBillingBindingStatusConnected
+	}
+	return resp
+}
+
+func (s *Server) buildWorkspaceBillingSettingsResponse(workspaceID string) workspaceBillingSettingsResponse {
+	resp := workspaceBillingSettingsResponse{
+		WorkspaceID: workspaceID,
+	}
+	if s == nil || s.workspaceBillingSettingsService == nil {
+		return resp
+	}
+	settings, err := s.workspaceBillingSettingsService.GetWorkspaceBillingSettings(workspaceID)
+	if err != nil {
+		return resp
+	}
+	resp.WorkspaceID = settings.WorkspaceID
+	resp.BillingEntityCode = settings.BillingEntityCode
+	resp.NetPaymentTermDays = settings.NetPaymentTermDays
+	resp.InvoiceMemo = settings.InvoiceMemo
+	resp.InvoiceFooter = settings.InvoiceFooter
+	resp.HasOverrides = settings.BillingEntityCode != "" || settings.NetPaymentTermDays != nil || settings.InvoiceMemo != "" || settings.InvoiceFooter != ""
+	if !settings.UpdatedAt.IsZero() {
+		updatedAt := settings.UpdatedAt.UTC()
+		resp.UpdatedAt = &updatedAt
 	}
 	return resp
 }
@@ -697,6 +734,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	}
 	s.ratingService = service.NewRatingService(repo)
 	s.workspaceBillingBindingService = service.NewWorkspaceBillingBindingService(repo)
+	s.workspaceBillingSettingsService = service.NewWorkspaceBillingSettingsService(repo)
 	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
 	s.tenantService = service.NewTenantService(repo).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
@@ -2164,7 +2202,7 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "tenant id is required")
 		return
 	}
-	if action != "" && action != "bootstrap-admin-key" && action != "workspace-billing" && action != "members" && action != "invitations" {
+	if action != "" && action != "bootstrap-admin-key" && action != "workspace-billing" && action != "workspace-billing-settings" && action != "members" && action != "invitations" {
 		writeError(w, http.StatusBadRequest, "unsupported tenant subresource")
 		return
 	}
@@ -2174,6 +2212,10 @@ func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request
 	}
 	if action == "workspace-billing" {
 		s.handleInternalTenantWorkspaceBilling(w, r, id)
+		return
+	}
+	if action == "workspace-billing-settings" {
+		s.handleInternalTenantWorkspaceBillingSettings(w, r, id)
 		return
 	}
 	if action == "members" {
@@ -2259,6 +2301,44 @@ func (s *Server) handleInternalTenantWorkspaceBilling(w http.ResponseWriter, r *
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"tenant": s.newTenantResponse(tenant),
+		})
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleInternalTenantWorkspaceBillingSettings(w http.ResponseWriter, r *http.Request, tenantID string) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceBillingSettingsService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace billing settings are not configured")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		settings, err := s.workspaceBillingSettingsService.GetWorkspaceBillingSettings(tenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"workspace_billing_settings": s.buildWorkspaceBillingSettingsResponse(settings.WorkspaceID),
+		})
+	case http.MethodPatch:
+		var req service.UpdateWorkspaceBillingSettingsRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		settings, err := s.workspaceBillingSettingsService.UpsertWorkspaceBillingSettings(tenantID, req)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"workspace_billing_settings": s.buildWorkspaceBillingSettingsResponse(settings.WorkspaceID),
 		})
 	default:
 		writeMethodNotAllowed(w)
