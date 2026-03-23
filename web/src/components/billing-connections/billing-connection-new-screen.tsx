@@ -85,10 +85,10 @@ export function BillingConnectionNewScreen() {
 
         {flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Connect Stripe</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">
@@ -166,7 +166,7 @@ export function BillingConnectionNewScreen() {
             </div>
           </section>
 
-          <aside className="grid gap-5 self-start">
+          <aside className="min-w-0 grid gap-5 self-start">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What Alpha owns</p>
               <div className="mt-4 grid gap-2">

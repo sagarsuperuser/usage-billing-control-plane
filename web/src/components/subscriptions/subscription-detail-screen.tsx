@@ -11,7 +11,7 @@ import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchPlans, fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup, updateSubscription } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
-import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
+import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function tone(status?: string): string {
@@ -85,7 +85,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
   });
 
   const subscription = detailQuery.data ?? null;
-  const nextActions = subscription?.missing_steps.map(describeCustomerMissingStep) ?? [];
+  const nextActions = normalizeMissingSteps(subscription?.missing_steps).map(describeCustomerMissingStep);
   const canRequestSetup = subscription?.payment_setup_status !== "ready" && subscription?.status !== "archived";
   const showResend = Boolean(subscription?.payment_setup_requested_at || subscription?.payment_setup_status === "error");
   const setupActionLabel = showResend ? "Resend payment setup" : "Request payment setup";
@@ -166,15 +166,15 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
               <SummaryStat label="Billing" value={`${(subscription.base_amount_cents / 100).toFixed(2)} ${subscription.currency}`} helper={subscription.billing_interval} raw />
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-              <div className="grid gap-5">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lifecycle</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">What still needs action</h2>
                     </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(subscription.status)}`}>
+                    <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${tone(subscription.status)}`}>
                       {formatReadinessStatus(subscription.status)}
                     </span>
                   </div>
@@ -275,7 +275,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                 </section>
               </div>
 
-              <aside className="grid gap-5 self-start">
+              <aside className="min-w-0 grid gap-5 self-start">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial context</p>
                   <div className="mt-4 grid gap-3">

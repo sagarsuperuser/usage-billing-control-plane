@@ -201,8 +201,8 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
               <MetricCard label="Overdue signals" value={String(payment.lifecycle.overdue_signal_count)} />
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-              <div className="grid gap-5">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lifecycle summary</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
@@ -266,7 +266,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 </section>
               </div>
 
-              <aside className="grid gap-5 self-start">
+              <aside className="min-w-0 grid gap-5 self-start">
                 <DunningSummaryPanel
                   summary={payment.dunning}
                   canWrite={canWrite && Boolean(csrfToken)}

@@ -196,16 +196,16 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
               <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Secret material stays outside the database" />
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-              <div className="grid gap-5">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Provider sync</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Connection health</h2>
                       <p className="mt-2 text-sm text-slate-600">Track whether Alpha can safely attach this connection to workspaces.</p>
                     </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(connection.sync_state)}`}>
+                    <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${readinessTone(connection.sync_state)}`}>
                       {formatReadinessStatus(connection.sync_state)}
                     </span>
                   </div>
@@ -219,8 +219,8 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Configuration</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Metadata and overrides</h2>
                     </div>
@@ -305,7 +305,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                 </section>
               </div>
 
-              <aside className="grid gap-5 self-start">
+              <aside className="min-w-0 grid gap-5 self-start">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</p>
                   <div className="mt-4 grid gap-3">

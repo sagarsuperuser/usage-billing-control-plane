@@ -159,8 +159,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               <SummaryStat label="Open actions" value={String(readinessMissingSteps.length)} helper="Remaining checklist items" />
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-              <div className="grid gap-5">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -329,7 +329,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 </section>
               </div>
 
-              <aside className="grid gap-5 self-start">
+              <aside className="min-w-0 grid gap-5 self-start">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing state</p>
                   <div className="mt-4 grid gap-3">

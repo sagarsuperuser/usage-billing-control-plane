@@ -10,7 +10,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchBillingProviderConnections, onboardTenant } from "@/lib/api";
-import { formatReadinessStatus } from "@/lib/readiness";
+import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type BillingProviderConnection, type TenantOnboardingResult } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -108,10 +108,10 @@ export function TenantOnboardingScreen() {
 
         {flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Workspace provisioning</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">This flow only creates or reconciles the workspace. Ongoing readiness review happens on the workspace detail page.</p>
@@ -263,7 +263,7 @@ export function TenantOnboardingScreen() {
             ) : null}
           </section>
 
-          <aside className="grid gap-5 self-start">
+          <aside className="min-w-0 grid gap-5 self-start">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">After setup</p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">Use dedicated workspace pages</h2>
@@ -281,7 +281,7 @@ export function TenantOnboardingScreen() {
                 <p className="mt-1 break-all font-mono text-xs text-slate-500">{result.tenant.id}</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <SummaryStat label="Workspace" value={result.readiness.tenant.status} helper={result.readiness.tenant.tenant_active ? "Active" : "Needs activation"} />
-                  <SummaryStat label="Overall" value={result.readiness.status} helper={`${result.readiness.missing_steps.length} checklist items remain`} />
+                  <SummaryStat label="Overall" value={result.readiness.status} helper={`${normalizeMissingSteps(result.readiness.missing_steps).length} checklist items remain`} />
                 </div>
                 {result.tenant.billing_provider_connection_id ? (
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">

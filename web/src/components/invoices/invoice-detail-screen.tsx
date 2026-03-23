@@ -153,8 +153,8 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
               <MetricCard label="Currency" value={invoice.currency || "-"} />
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-              <div className="grid gap-5">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Financial state</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
@@ -274,7 +274,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 </section>
               </div>
 
-              <aside className="grid gap-5 self-start">
+              <aside className="min-w-0 grid gap-5 self-start">
                 <DunningSummaryPanel
                   summary={invoice.dunning}
                   canWrite={canWrite && Boolean(csrfToken)}
