@@ -69,19 +69,27 @@ func (s *PlanService) CreatePlan(ctx context.Context, input domain.Plan) (domain
 		})
 	}
 	for _, addOnID := range input.AddOnIDs {
-		if _, err := s.store.GetAddOn(input.TenantID, addOnID); err != nil {
+		addOn, err := s.store.GetAddOn(input.TenantID, addOnID)
+		if err != nil {
 			if err == store.ErrNotFound {
 				return domain.Plan{}, fmt.Errorf("%w: add_on_id %s not found", ErrValidation, addOnID)
 			}
 			return domain.Plan{}, err
 		}
+		if addOn.Status != domain.AddOnStatusActive {
+			return domain.Plan{}, fmt.Errorf("%w: add_on_id %s must be active", ErrValidation, addOnID)
+		}
 	}
 	for _, couponID := range input.CouponIDs {
-		if _, err := s.store.GetCoupon(input.TenantID, couponID); err != nil {
+		coupon, err := s.store.GetCoupon(input.TenantID, couponID)
+		if err != nil {
 			if err == store.ErrNotFound {
 				return domain.Plan{}, fmt.Errorf("%w: coupon_id %s not found", ErrValidation, couponID)
 			}
 			return domain.Plan{}, err
+		}
+		if coupon.Status != domain.CouponStatusActive {
+			return domain.Plan{}, fmt.Errorf("%w: coupon_id %s must be active", ErrValidation, couponID)
 		}
 	}
 

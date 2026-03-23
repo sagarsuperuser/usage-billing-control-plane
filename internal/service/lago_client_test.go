@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,10 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/store"
 )
 
 func TestNewLagoHTTPTransportRequiresConfig(t *testing.T) {
@@ -224,7 +228,7 @@ func TestLagoPlanSyncAdapter(t *testing.T) {
 		t.Fatalf("new lago transport: %v", err)
 	}
 
-	err = NewLagoPlanSyncAdapter(transport).SyncPlan(context.Background(), domain.Plan{
+	err = NewLagoPlanSyncAdapter(transport, nil).SyncPlan(context.Background(), domain.Plan{
 		Code:            "growth",
 		Name:            "Growth",
 		Currency:        "USD",
@@ -293,7 +297,7 @@ func TestLagoSubscriptionSyncAdapter(t *testing.T) {
 		t.Fatalf("new lago transport: %v", err)
 	}
 
-	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
+	err = NewLagoSubscriptionSyncAdapter(transport, nil).SyncSubscription(context.Background(),
 		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth", BillingTime: domain.SubscriptionBillingTimeAnniversary, StartedAt: &startedAt},
 		domain.Customer{ExternalID: "cust_123"},
 		domain.Plan{Code: "growth"},
@@ -351,7 +355,7 @@ func TestLagoSubscriptionSyncAdapterFallsBackToUpdateForRename(t *testing.T) {
 		t.Fatalf("new lago transport: %v", err)
 	}
 
-	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
+	err = NewLagoSubscriptionSyncAdapter(transport, nil).SyncSubscription(context.Background(),
 		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth Renamed", BillingTime: domain.SubscriptionBillingTimeAnniversary, StartedAt: &startedAt},
 		domain.Customer{ExternalID: "cust_123"},
 		domain.Plan{Code: "growth_v2"},
@@ -390,7 +394,7 @@ func TestLagoSubscriptionSyncAdapterArchivesSubscription(t *testing.T) {
 		t.Fatalf("new lago transport: %v", err)
 	}
 
-	err = NewLagoSubscriptionSyncAdapter(transport).SyncSubscription(context.Background(),
+	err = NewLagoSubscriptionSyncAdapter(transport, nil).SyncSubscription(context.Background(),
 		domain.Subscription{Code: "cust_123_growth", DisplayName: "Customer Growth", Status: domain.SubscriptionStatusArchived},
 		domain.Customer{ExternalID: "cust_123"},
 		domain.Plan{Code: "growth"},
@@ -400,6 +404,311 @@ func TestLagoSubscriptionSyncAdapterArchivesSubscription(t *testing.T) {
 	}
 	if !sawDelete {
 		t.Fatalf("expected delete request to lago terminate endpoint")
+	}
+}
+
+func TestLagoPlanSyncAdapterSyncsCommercialArtifacts(t *testing.T) {
+	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	tenantID := "tenant_lago_plan_sync_commercials"
+	rule, err := repo.CreateRatingRuleVersion(domain.RatingRuleVersion{
+		TenantID:        tenantID,
+		RuleKey:         "rule_growth_api_calls",
+		Name:            "Growth API Calls",
+		Version:         1,
+		LifecycleState:  domain.RatingRuleLifecycleActive,
+		Mode:            domain.PricingModeFlat,
+		Currency:        "USD",
+		FlatAmountCents: 22,
+	})
+	if err != nil {
+		t.Fatalf("create rule version: %v", err)
+	}
+	meter, err := repo.CreateMeter(domain.Meter{
+		TenantID:            tenantID,
+		Key:                 "api_calls_growth",
+		Name:                "API Calls",
+		Unit:                "request",
+		Aggregation:         "sum",
+		RatingRuleVersionID: rule.ID,
+	})
+	if err != nil {
+		t.Fatalf("create meter: %v", err)
+	}
+	addOn, err := repo.CreateAddOn(domain.AddOn{
+		TenantID:        tenantID,
+		Code:            "priority_support",
+		Name:            "Priority support",
+		Currency:        "USD",
+		BillingInterval: domain.BillingIntervalMonthly,
+		Status:          domain.AddOnStatusActive,
+		AmountCents:     1500,
+	})
+	if err != nil {
+		t.Fatalf("create add-on: %v", err)
+	}
+	coupon, err := repo.CreateCoupon(domain.Coupon{
+		TenantID:     tenantID,
+		Code:         "launch_20",
+		Name:         "Launch 20",
+		Status:       domain.CouponStatusActive,
+		DiscountType: domain.CouponDiscountTypePercentOff,
+		PercentOff:   20,
+	})
+	if err != nil {
+		t.Fatalf("create coupon: %v", err)
+	}
+	plan, err := repo.CreatePlan(domain.Plan{
+		TenantID:        tenantID,
+		Code:            "growth",
+		Name:            "Growth",
+		Currency:        "USD",
+		BillingInterval: domain.BillingIntervalMonthly,
+		Status:          domain.PlanStatusActive,
+		BaseAmountCents: 4900,
+		MeterIDs:        []string{meter.ID},
+		AddOnIDs:        []string{addOn.ID},
+		CouponIDs:       []string{coupon.ID},
+	})
+	if err != nil {
+		t.Fatalf("create plan: %v", err)
+	}
+
+	var sawAddOn, sawFixedCharge, sawCoupon bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/billable_metrics/api_calls_growth":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"billable_metric":{"lago_id":"bm_123","code":"api_calls_growth"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/plans":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"plan":{"code":"growth"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/add_ons":
+			sawAddOn = true
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"code":"priority_support"`) || !strings.Contains(payload, `"amount_cents":1500`) {
+				t.Fatalf("unexpected add-on payload: %s", payload)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"add_on":{"code":"priority_support"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/plans/growth/fixed_charges":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"fixed_charges":[]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/plans/growth/fixed_charges":
+			sawFixedCharge = true
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"add_on_code":"priority_support"`) || !strings.Contains(payload, `"amount":"15.00"`) {
+				t.Fatalf("unexpected fixed charge payload: %s", payload)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"fixed_charge":{"code":"alpha_fc_growth_priority_support"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/coupons":
+			sawCoupon = true
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"code":"launch_20"`) || !strings.Contains(payload, `"coupon_type":"percentage"`) || !strings.Contains(payload, `"plan_codes":["growth"]`) {
+				t.Fatalf("unexpected coupon payload: %s", payload)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"coupon":{"code":"launch_20"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{BaseURL: lago.URL, APIKey: "test", Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoPlanSyncAdapter(transport, repo).SyncPlan(context.Background(), plan, []PlanSyncComponent{{
+		Meter: meter,
+		RatingRuleVersion: domain.RatingRuleVersion{
+			Mode:            domain.PricingModeFlat,
+			Currency:        "USD",
+			FlatAmountCents: 22,
+		},
+	}})
+	if err != nil {
+		t.Fatalf("sync plan commercials: %v", err)
+	}
+	if !sawAddOn || !sawFixedCharge || !sawCoupon {
+		t.Fatalf("expected add-on, fixed charge, and coupon sync to run")
+	}
+}
+
+func TestLagoSubscriptionSyncAdapterReconcilesAppliedCoupons(t *testing.T) {
+	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	tenantID := "tenant_lago_subscription_coupon_reconcile"
+	customer, err := repo.CreateCustomer(domain.Customer{
+		TenantID:    tenantID,
+		ExternalID:  "cust_reconcile_123",
+		DisplayName: "Coupon Customer",
+		Status:      domain.CustomerStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	rule, err := repo.CreateRatingRuleVersion(domain.RatingRuleVersion{
+		TenantID:        tenantID,
+		RuleKey:         "rule_growth_coupon",
+		Name:            "Growth Rule",
+		Version:         1,
+		LifecycleState:  domain.RatingRuleLifecycleActive,
+		Mode:            domain.PricingModeFlat,
+		Currency:        "USD",
+		FlatAmountCents: 100,
+	})
+	if err != nil {
+		t.Fatalf("create rule version: %v", err)
+	}
+	meter, err := repo.CreateMeter(domain.Meter{
+		TenantID:            tenantID,
+		Key:                 "coupon_meter",
+		Name:                "Coupon Meter",
+		Unit:                "event",
+		Aggregation:         "sum",
+		RatingRuleVersionID: rule.ID,
+	})
+	if err != nil {
+		t.Fatalf("create meter: %v", err)
+	}
+	desiredCoupon, err := repo.CreateCoupon(domain.Coupon{
+		TenantID:     tenantID,
+		Code:         "launch_20_runtime",
+		Name:         "Launch 20 Runtime",
+		Status:       domain.CouponStatusActive,
+		DiscountType: domain.CouponDiscountTypePercentOff,
+		PercentOff:   20,
+	})
+	if err != nil {
+		t.Fatalf("create desired coupon: %v", err)
+	}
+	staleCoupon, err := repo.CreateCoupon(domain.Coupon{
+		TenantID:       tenantID,
+		Code:           "stale_10_runtime",
+		Name:           "Stale 10 Runtime",
+		Status:         domain.CouponStatusActive,
+		DiscountType:   domain.CouponDiscountTypeAmountOff,
+		Currency:       "USD",
+		AmountOffCents: 1000,
+	})
+	if err != nil {
+		t.Fatalf("create stale coupon: %v", err)
+	}
+	plan, err := repo.CreatePlan(domain.Plan{
+		TenantID:        tenantID,
+		Code:            "growth_coupon_runtime",
+		Name:            "Growth Coupon Runtime",
+		Currency:        "USD",
+		BillingInterval: domain.BillingIntervalMonthly,
+		Status:          domain.PlanStatusActive,
+		BaseAmountCents: 4900,
+		MeterIDs:        []string{meter.ID},
+		CouponIDs:       []string{desiredCoupon.ID},
+	})
+	if err != nil {
+		t.Fatalf("create plan: %v", err)
+	}
+	subscription, err := repo.CreateSubscription(domain.Subscription{
+		TenantID:    tenantID,
+		Code:        "cust_reconcile_123_growth",
+		DisplayName: "Coupon Subscription",
+		CustomerID:  customer.ID,
+		PlanID:      plan.ID,
+		Status:      domain.SubscriptionStatusActive,
+		BillingTime: domain.SubscriptionBillingTimeAnniversary,
+	})
+	if err != nil {
+		t.Fatalf("create subscription: %v", err)
+	}
+
+	var sawCouponCreate, sawAppliedCouponCreate, sawAppliedCouponDelete bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/subscriptions":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"subscription":{"external_id":"cust_reconcile_123_growth"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/coupons":
+			sawCouponCreate = true
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"code":"launch_20_runtime"`) {
+				t.Fatalf("unexpected coupon sync payload: %s", payload)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"coupon":{"code":"launch_20_runtime"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/applied_coupons":
+			if got := r.URL.Query().Get("external_customer_id"); got != "cust_reconcile_123" {
+				t.Fatalf("expected external_customer_id filter, got %q", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"applied_coupons":[{"lago_id":"ac_stale","coupon_code":"stale_10_runtime","external_customer_id":"cust_reconcile_123","status":"active"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/applied_coupons":
+			sawAppliedCouponCreate = true
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"coupon_code":"launch_20_runtime"`) {
+				t.Fatalf("unexpected applied coupon payload: %s", payload)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"applied_coupon":{"lago_id":"ac_launch"}}`))
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/customers/cust_reconcile_123/applied_coupons/ac_stale":
+			sawAppliedCouponDelete = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"applied_coupon":{"lago_id":"ac_stale","status":"terminated"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{BaseURL: lago.URL, APIKey: "test", Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	err = NewLagoSubscriptionSyncAdapter(transport, repo).SyncSubscription(context.Background(), subscription, customer, plan)
+	if err != nil {
+		t.Fatalf("sync subscription coupons: %v", err)
+	}
+	if !sawCouponCreate || !sawAppliedCouponCreate || !sawAppliedCouponDelete {
+		t.Fatalf("expected coupon create=%t apply=%t delete=%t", sawCouponCreate, sawAppliedCouponCreate, sawAppliedCouponDelete)
+	}
+	if staleCoupon.Code != "stale_10_runtime" {
+		t.Fatalf("expected stale coupon fixture to exist")
 	}
 }
 

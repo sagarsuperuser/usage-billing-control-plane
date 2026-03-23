@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/store"
 )
 
 const (
@@ -402,10 +403,11 @@ func (a *LagoCustomerBillingAdapter) GenerateCustomerCheckoutURL(ctx context.Con
 
 type LagoPlanSyncAdapter struct {
 	transport *LagoHTTPTransport
+	store     store.Repository
 }
 
-func NewLagoPlanSyncAdapter(transport *LagoHTTPTransport) *LagoPlanSyncAdapter {
-	return &LagoPlanSyncAdapter{transport: transport}
+func NewLagoPlanSyncAdapter(transport *LagoHTTPTransport, repo store.Repository) *LagoPlanSyncAdapter {
+	return &LagoPlanSyncAdapter{transport: transport, store: repo}
 }
 
 func (a *LagoPlanSyncAdapter) SyncPlan(ctx context.Context, plan domain.Plan, components []PlanSyncComponent) error {
@@ -452,15 +454,14 @@ func (a *LagoPlanSyncAdapter) SyncPlan(ctx context.Context, plan domain.Plan, co
 
 	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/plans", payload)
 	if err == nil {
-		return nil
+		return a.syncPlanCommercials(ctx, plan)
 	}
 
 	updatePath := "/api/v1/plans/" + url.PathEscape(strings.TrimSpace(plan.Code))
 	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
 	if updateErr == nil {
-		return nil
+		return a.syncPlanCommercials(ctx, plan)
 	}
-
 	return fmt.Errorf("%w: lago plan sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)",
 		ErrDependency,
 		createStatus,
@@ -468,6 +469,36 @@ func (a *LagoPlanSyncAdapter) SyncPlan(ctx context.Context, plan domain.Plan, co
 		updateStatus,
 		abbrevForLog(updateBody),
 	)
+}
+
+func (a *LagoPlanSyncAdapter) syncPlanCommercials(ctx context.Context, plan domain.Plan) error {
+	if a == nil || a.transport == nil || a.store == nil {
+		return nil
+	}
+
+	addOns, err := a.loadPlanAddOns(plan)
+	if err != nil {
+		return err
+	}
+	for _, addOn := range addOns {
+		if err := a.upsertAddOn(ctx, addOn); err != nil {
+			return err
+		}
+	}
+	if err := a.reconcilePlanFixedCharges(ctx, plan, addOns); err != nil {
+		return err
+	}
+
+	coupons, err := a.loadPlanCoupons(plan)
+	if err != nil {
+		return err
+	}
+	for _, coupon := range coupons {
+		if err := a.upsertCoupon(ctx, plan.TenantID, coupon); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *LagoPlanSyncAdapter) lookupBillableMetricID(ctx context.Context, code string) (string, error) {
@@ -492,10 +523,11 @@ func (a *LagoPlanSyncAdapter) lookupBillableMetricID(ctx context.Context, code s
 
 type LagoSubscriptionSyncAdapter struct {
 	transport *LagoHTTPTransport
+	store     store.Repository
 }
 
-func NewLagoSubscriptionSyncAdapter(transport *LagoHTTPTransport) *LagoSubscriptionSyncAdapter {
-	return &LagoSubscriptionSyncAdapter{transport: transport}
+func NewLagoSubscriptionSyncAdapter(transport *LagoHTTPTransport, repo store.Repository) *LagoSubscriptionSyncAdapter {
+	return &LagoSubscriptionSyncAdapter{transport: transport, store: repo}
 }
 
 func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subscription domain.Subscription, customer domain.Customer, plan domain.Plan) error {
@@ -512,7 +544,7 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 		terminatePath := "/api/v1/subscriptions/" + url.PathEscape(externalID)
 		terminateStatus, terminateBody, terminateErr := a.transport.doRawRequest(ctx, http.MethodDelete, terminatePath, nil)
 		if terminateErr == nil || terminateStatus == http.StatusNotFound {
-			return nil
+			return a.syncAppliedCoupons(ctx, subscription, customer)
 		}
 		return fmt.Errorf("%w: lago subscription terminate failed (status=%d body=%s)", ErrDependency, terminateStatus, abbrevForLog(terminateBody))
 	}
@@ -531,7 +563,7 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 	}
 	createStatus, createBody, createErr := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/subscriptions", createPayload)
 	if createErr == nil {
-		return nil
+		return a.syncAppliedCoupons(ctx, subscription, customer)
 	}
 
 	updatePayload := map[string]any{
@@ -545,7 +577,7 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 	updatePath := "/api/v1/subscriptions/" + url.PathEscape(externalID)
 	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, updatePayload)
 	if updateErr == nil {
-		return nil
+		return a.syncAppliedCoupons(ctx, subscription, customer)
 	}
 
 	return fmt.Errorf("%w: lago subscription sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)",
@@ -555,6 +587,327 @@ func (a *LagoSubscriptionSyncAdapter) SyncSubscription(ctx context.Context, subs
 		updateStatus,
 		abbrevForLog(updateBody),
 	)
+}
+
+type lagoFixedChargesResponse struct {
+	FixedCharges []lagoFixedCharge `json:"fixed_charges"`
+}
+
+type lagoFixedCharge struct {
+	LagoID    string `json:"lago_id"`
+	Code      string `json:"code"`
+	AddOnCode string `json:"add_on_code"`
+}
+
+type lagoAppliedCouponsResponse struct {
+	AppliedCoupons []lagoAppliedCoupon `json:"applied_coupons"`
+}
+
+type lagoAppliedCoupon struct {
+	LagoID             string `json:"lago_id"`
+	CouponCode         string `json:"coupon_code"`
+	ExternalCustomerID string `json:"external_customer_id"`
+	Status             string `json:"status"`
+}
+
+func (a *LagoPlanSyncAdapter) loadPlanAddOns(plan domain.Plan) ([]domain.AddOn, error) {
+	out := make([]domain.AddOn, 0, len(plan.AddOnIDs))
+	for _, addOnID := range plan.AddOnIDs {
+		addOn, err := a.store.GetAddOn(plan.TenantID, addOnID)
+		if err != nil {
+			return nil, err
+		}
+		if addOn.Status != domain.AddOnStatusActive {
+			continue
+		}
+		out = append(out, addOn)
+	}
+	return out, nil
+}
+
+func (a *LagoPlanSyncAdapter) loadPlanCoupons(plan domain.Plan) ([]domain.Coupon, error) {
+	out := make([]domain.Coupon, 0, len(plan.CouponIDs))
+	for _, couponID := range plan.CouponIDs {
+		coupon, err := a.store.GetCoupon(plan.TenantID, couponID)
+		if err != nil {
+			return nil, err
+		}
+		if coupon.Status != domain.CouponStatusActive {
+			continue
+		}
+		out = append(out, coupon)
+	}
+	return out, nil
+}
+
+func (a *LagoPlanSyncAdapter) upsertAddOn(ctx context.Context, addOn domain.AddOn) error {
+	payload := map[string]any{
+		"add_on": map[string]any{
+			"name":                 addOn.Name,
+			"invoice_display_name": addOn.Name,
+			"code":                 addOn.Code,
+			"amount_cents":         addOn.AmountCents,
+			"amount_currency":      addOn.Currency,
+			"description":          addOn.Description,
+		},
+	}
+	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/add_ons", payload)
+	if err == nil {
+		return nil
+	}
+	updatePath := "/api/v1/add_ons/" + url.PathEscape(strings.TrimSpace(addOn.Code))
+	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+	if updateErr == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: lago add-on sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)", ErrDependency, createStatus, abbrevForLog(createBody), updateStatus, abbrevForLog(updateBody))
+}
+
+func (a *LagoPlanSyncAdapter) upsertCoupon(ctx context.Context, tenantID string, coupon domain.Coupon) error {
+	planCodes, err := a.couponPlanCodes(tenantID, coupon.ID)
+	if err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"coupon": map[string]any{
+			"name":        coupon.Name,
+			"code":        coupon.Code,
+			"description": coupon.Description,
+			"frequency":   "forever",
+			"reusable":    true,
+			"applies_to": map[string]any{
+				"plan_codes": planCodes,
+			},
+		},
+	}
+	if coupon.DiscountType == domain.CouponDiscountTypePercentOff {
+		payload["coupon"].(map[string]any)["coupon_type"] = "percentage"
+		payload["coupon"].(map[string]any)["percentage_rate"] = coupon.PercentOff
+	} else {
+		payload["coupon"].(map[string]any)["coupon_type"] = "fixed_amount"
+		payload["coupon"].(map[string]any)["amount_cents"] = coupon.AmountOffCents
+		payload["coupon"].(map[string]any)["amount_currency"] = coupon.Currency
+	}
+	createStatus, createBody, err := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/coupons", payload)
+	if err == nil {
+		return nil
+	}
+	updatePath := "/api/v1/coupons/" + url.PathEscape(strings.TrimSpace(coupon.Code))
+	updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+	if updateErr == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: lago coupon sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)", ErrDependency, createStatus, abbrevForLog(createBody), updateStatus, abbrevForLog(updateBody))
+}
+
+func (a *LagoPlanSyncAdapter) couponPlanCodes(tenantID, couponID string) ([]string, error) {
+	plans, err := a.store.ListPlans(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, 4)
+	for _, plan := range plans {
+		for _, attachedCouponID := range plan.CouponIDs {
+			if attachedCouponID == couponID {
+				out = append(out, plan.Code)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (a *LagoPlanSyncAdapter) reconcilePlanFixedCharges(ctx context.Context, plan domain.Plan, addOns []domain.AddOn) error {
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, "/api/v1/plans/"+url.PathEscape(strings.TrimSpace(plan.Code))+"/fixed_charges", nil)
+	if err != nil {
+		return err
+	}
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("%w: list lago fixed charges failed (status=%d body=%s)", ErrDependency, status, abbrevForLog(body))
+	}
+	var response lagoFixedChargesResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("%w: decode lago fixed charges response", ErrDependency)
+	}
+
+	desiredCodes := make(map[string]domain.AddOn, len(addOns))
+	for _, addOn := range addOns {
+		code := lagoFixedChargeCode(plan.Code, addOn.Code)
+		desiredCodes[code] = addOn
+		payload := map[string]any{
+			"fixed_charge": map[string]any{
+				"add_on_code":          addOn.Code,
+				"code":                 code,
+				"invoice_display_name": addOn.Name,
+				"charge_model":         "standard",
+				"pay_in_advance":       false,
+				"prorated":             false,
+				"units":                "1",
+				"properties": map[string]any{
+					"amount": formatLagoDecimal(addOn.AmountCents),
+				},
+			},
+		}
+		createPath := "/api/v1/plans/" + url.PathEscape(strings.TrimSpace(plan.Code)) + "/fixed_charges"
+		createStatus, createBody, createErr := a.transport.doJSONRequest(ctx, http.MethodPost, createPath, payload)
+		if createErr == nil {
+			continue
+		}
+		updatePath := createPath + "/" + url.PathEscape(code)
+		updateStatus, updateBody, updateErr := a.transport.doJSONRequest(ctx, http.MethodPut, updatePath, payload)
+		if updateErr != nil {
+			return fmt.Errorf("%w: lago fixed charge sync failed (create_status=%d create_body=%s update_status=%d update_body=%s)", ErrDependency, createStatus, abbrevForLog(createBody), updateStatus, abbrevForLog(updateBody))
+		}
+	}
+
+	for _, existing := range response.FixedCharges {
+		if !strings.HasPrefix(existing.Code, lagoFixedChargeCodePrefix(plan.Code)) {
+			continue
+		}
+		if _, ok := desiredCodes[existing.Code]; ok {
+			continue
+		}
+		deletePath := "/api/v1/plans/" + url.PathEscape(strings.TrimSpace(plan.Code)) + "/fixed_charges/" + url.PathEscape(existing.Code)
+		deleteStatus, deleteBody, deleteErr := a.transport.doRawRequest(ctx, http.MethodDelete, deletePath, nil)
+		if deleteErr != nil {
+			return deleteErr
+		}
+		if deleteStatus < 200 || deleteStatus >= 300 {
+			return fmt.Errorf("%w: delete lago fixed charge failed (status=%d body=%s)", ErrDependency, deleteStatus, abbrevForLog(deleteBody))
+		}
+	}
+	return nil
+}
+
+func (a *LagoSubscriptionSyncAdapter) syncAppliedCoupons(ctx context.Context, subscription domain.Subscription, customer domain.Customer) error {
+	if a == nil || a.transport == nil || a.store == nil {
+		return nil
+	}
+	desiredCoupons, err := a.desiredCustomerCoupons(subscription)
+	if err != nil {
+		return err
+	}
+	for _, coupon := range desiredCoupons {
+		if err := (&LagoPlanSyncAdapter{transport: a.transport, store: a.store}).upsertCoupon(ctx, subscription.TenantID, coupon); err != nil {
+			return err
+		}
+	}
+
+	appliedCoupons, err := a.listAppliedCoupons(ctx, customer.ExternalID)
+	if err != nil {
+		return err
+	}
+	desiredByCode := make(map[string]domain.Coupon, len(desiredCoupons))
+	for _, coupon := range desiredCoupons {
+		desiredByCode[coupon.Code] = coupon
+	}
+
+	alphaCouponCodes, err := a.allAlphaCouponCodes(subscription.TenantID)
+	if err != nil {
+		return err
+	}
+
+	existingActive := map[string]lagoAppliedCoupon{}
+	for _, item := range appliedCoupons {
+		if strings.EqualFold(strings.TrimSpace(item.Status), "active") {
+			existingActive[item.CouponCode] = item
+		}
+	}
+	for code := range desiredByCode {
+		if _, ok := existingActive[code]; ok {
+			continue
+		}
+		payload := map[string]any{
+			"applied_coupon": map[string]any{
+				"external_customer_id": customer.ExternalID,
+				"coupon_code":          code,
+			},
+		}
+		status, body, reqErr := a.transport.doJSONRequest(ctx, http.MethodPost, "/api/v1/applied_coupons", payload)
+		if reqErr != nil {
+			return fmt.Errorf("%w: apply lago coupon failed (status=%d body=%s)", ErrDependency, status, abbrevForLog(body))
+		}
+	}
+
+	for code, item := range existingActive {
+		if _, isAlpha := alphaCouponCodes[code]; !isAlpha {
+			continue
+		}
+		if _, keep := desiredByCode[code]; keep {
+			continue
+		}
+		deletePath := "/api/v1/customers/" + url.PathEscape(customer.ExternalID) + "/applied_coupons/" + url.PathEscape(item.LagoID)
+		deleteStatus, deleteBody, deleteErr := a.transport.doRawRequest(ctx, http.MethodDelete, deletePath, nil)
+		if deleteErr != nil {
+			return deleteErr
+		}
+		if deleteStatus < 200 || deleteStatus >= 300 {
+			return fmt.Errorf("%w: delete lago applied coupon failed (status=%d body=%s)", ErrDependency, deleteStatus, abbrevForLog(deleteBody))
+		}
+	}
+	return nil
+}
+
+func (a *LagoSubscriptionSyncAdapter) desiredCustomerCoupons(subscription domain.Subscription) ([]domain.Coupon, error) {
+	items, err := a.store.ListSubscriptions(subscription.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]domain.Coupon{}
+	for _, item := range items {
+		if item.CustomerID != subscription.CustomerID || item.Status == domain.SubscriptionStatusArchived {
+			continue
+		}
+		plan, err := a.store.GetPlan(subscription.TenantID, item.PlanID)
+		if err != nil {
+			return nil, err
+		}
+		for _, couponID := range plan.CouponIDs {
+			coupon, err := a.store.GetCoupon(subscription.TenantID, couponID)
+			if err != nil {
+				return nil, err
+			}
+			if coupon.Status != domain.CouponStatusActive {
+				continue
+			}
+			seen[coupon.Code] = coupon
+		}
+	}
+	out := make([]domain.Coupon, 0, len(seen))
+	for _, coupon := range seen {
+		out = append(out, coupon)
+	}
+	return out, nil
+}
+
+func (a *LagoSubscriptionSyncAdapter) listAppliedCoupons(ctx context.Context, externalCustomerID string) ([]lagoAppliedCoupon, error) {
+	query := url.Values{}
+	query.Set("external_customer_id", externalCustomerID)
+	path := "/api/v1/applied_coupons?" + query.Encode()
+	status, body, err := a.transport.doRawRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("%w: list lago applied coupons failed (status=%d body=%s)", ErrDependency, status, abbrevForLog(body))
+	}
+	var response lagoAppliedCouponsResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("%w: decode lago applied coupons response", ErrDependency)
+	}
+	return response.AppliedCoupons, nil
+}
+
+func (a *LagoSubscriptionSyncAdapter) allAlphaCouponCodes(tenantID string) (map[string]struct{}, error) {
+	items, err := a.store.ListCoupons(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		out[item.Code] = struct{}{}
+	}
+	return out, nil
 }
 
 type LagoUsageSyncAdapter struct {
@@ -740,6 +1093,14 @@ func mapAggregationToLago(v string) (string, error) {
 	default:
 		return "", fmt.Errorf("%w: unsupported aggregation %q for lago sync", ErrValidation, v)
 	}
+}
+
+func lagoFixedChargeCode(planCode, addOnCode string) string {
+	return lagoFixedChargeCodePrefix(planCode) + strings.TrimSpace(addOnCode)
+}
+
+func lagoFixedChargeCodePrefix(planCode string) string {
+	return "alpha_fc_" + strings.TrimSpace(planCode) + "_"
 }
 
 func mapPricingRuleToLago(rule domain.RatingRuleVersion) (string, map[string]any, error) {
