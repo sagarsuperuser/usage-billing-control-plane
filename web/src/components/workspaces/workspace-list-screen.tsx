@@ -33,11 +33,12 @@ function workspaceBillingInventoryLabel(tenant: Tenant): string {
   if (!billing.configured) {
     return "Missing";
   }
-  switch ((billing.status || "").toLowerCase()) {
+  switch ((billing.diagnosis_code || billing.status || "").toLowerCase()) {
     case "connected":
       return "Attached";
     case "pending":
     case "provisioning":
+    case "pending_verification":
       return "Pending";
     case "verification_failed":
       return "Failed";
@@ -53,11 +54,12 @@ function workspaceAccessLabel(tenant: Tenant): string {
   if (!billing.configured) {
     return "Platform setup";
   }
-  switch ((billing.status || "").toLowerCase()) {
+  switch ((billing.diagnosis_code || billing.status || "").toLowerCase()) {
     case "connected":
       return "Handoff ready";
     case "pending":
     case "provisioning":
+    case "pending_verification":
       return "Verification pending";
     case "verification_failed":
       return "Platform repair";
@@ -111,7 +113,7 @@ export function WorkspaceListScreen() {
       total: filteredTenants.length,
       ready: readiness.filter((item) => item.status === "ready").length,
       needsAttention: readiness.filter((item) => item.status !== "ready").length,
-      billingNotReady: filteredTenants.filter((tenant) => (tenant.workspace_billing.status || "").toLowerCase() !== "connected").length,
+      billingNotReady: filteredTenants.filter((tenant) => !tenant.workspace_billing.connected).length,
     };
   }, [filteredTenants, readinessByTenant]);
 

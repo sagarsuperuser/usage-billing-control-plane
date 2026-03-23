@@ -294,6 +294,12 @@ func TestTenantResponseDoesNotMarkVerificationFailedWorkspaceBillingConnected(t 
 	if status, _ := workspaceBilling["status"].(string); status != string(domain.WorkspaceBillingBindingStatusVerificationFailed) {
 		t.Fatalf("expected workspace billing status %q, got %q", domain.WorkspaceBillingBindingStatusVerificationFailed, status)
 	}
+	if code, _ := workspaceBilling["diagnosis_code"].(string); code != "verification_failed" {
+		t.Fatalf("expected diagnosis_code verification_failed, got %q", code)
+	}
+	if summary, _ := workspaceBilling["diagnosis_summary"].(string); summary == "" {
+		t.Fatalf("expected diagnosis_summary in workspace billing response")
+	}
 }
 
 func TestTenantOnboardingStatusMarksVerificationFailedBillingPending(t *testing.T) {
@@ -393,6 +399,12 @@ func TestTenantOnboardingStatusMarksVerificationFailedBillingPending(t *testing.
 	}
 	if workspaceStatus, _ := billingReadiness["workspace_billing_status"].(string); workspaceStatus != string(domain.WorkspaceBillingBindingStatusVerificationFailed) {
 		t.Fatalf("expected workspace_billing_status %q, got %q", domain.WorkspaceBillingBindingStatusVerificationFailed, workspaceStatus)
+	}
+	if code, _ := billingReadiness["diagnosis_code"].(string); code != "verification_failed" {
+		t.Fatalf("expected diagnosis_code verification_failed, got %q", code)
+	}
+	if nextAction, _ := billingReadiness["next_action"].(string); nextAction == "" {
+		t.Fatalf("expected next_action in billing readiness")
 	}
 	missingSteps, ok := billingReadiness["missing_steps"].([]any)
 	if !ok {

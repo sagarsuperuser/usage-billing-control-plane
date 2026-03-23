@@ -55,6 +55,22 @@ type EffectiveWorkspaceBillingContext struct {
 	Source                      string                               `json:"source"`
 }
 
+type WorkspaceBillingDiagnosis struct {
+	Configured                bool                                   `json:"configured"`
+	Connected                 bool                                   `json:"connected"`
+	ActiveBillingConnectionID string                                 `json:"active_billing_connection_id,omitempty"`
+	Status                    string                                 `json:"status"`
+	Source                    string                                 `json:"source,omitempty"`
+	IsolationMode             domain.WorkspaceBillingIsolationMode   `json:"isolation_mode,omitempty"`
+	ConnectionStatus          domain.BillingProviderConnectionStatus `json:"connection_status,omitempty"`
+	ConnectionSyncState       string                                 `json:"connection_sync_state,omitempty"`
+	ProvisioningError         string                                 `json:"provisioning_error,omitempty"`
+	LastSyncError             string                                 `json:"last_sync_error,omitempty"`
+	DiagnosisCode             string                                 `json:"diagnosis_code"`
+	DiagnosisSummary          string                                 `json:"diagnosis_summary"`
+	NextAction                string                                 `json:"next_action"`
+}
+
 func NewWorkspaceBillingBindingService(repo workspaceBillingBindingStore) *WorkspaceBillingBindingService {
 	return &WorkspaceBillingBindingService{store: repo}
 }
@@ -222,6 +238,107 @@ func (s *WorkspaceBillingBindingService) ResolveEffectiveWorkspaceBillingContext
 	return effectiveWorkspaceBillingContextFromBinding(binding)
 }
 
+func (s *WorkspaceBillingBindingService) DescribeWorkspaceBilling(workspaceID string) (WorkspaceBillingDiagnosis, error) {
+	if s == nil || s.store == nil {
+		return WorkspaceBillingDiagnosis{}, fmt.Errorf("%w: workspace billing binding repository is required", ErrValidation)
+	}
+	workspaceID = normalizeTenantID(workspaceID)
+	if workspaceID == "" {
+		return WorkspaceBillingDiagnosis{}, fmt.Errorf("%w: workspace_id is required", ErrValidation)
+	}
+
+	tenant, err := s.store.GetTenant(workspaceID)
+	if err != nil {
+		return WorkspaceBillingDiagnosis{}, err
+	}
+
+	diagnosis := WorkspaceBillingDiagnosis{
+		Status:           "missing",
+		DiagnosisCode:    "missing",
+		DiagnosisSummary: "No billing connection is assigned to this workspace.",
+		NextAction:       "Select an active billing connection and save the workspace binding before handoff.",
+	}
+
+	var binding *domain.WorkspaceBillingBinding
+	if current, err := s.store.GetWorkspaceBillingBinding(workspaceID); err == nil {
+		binding = &current
+		diagnosis.Configured = true
+		diagnosis.ActiveBillingConnectionID = current.BillingProviderConnectionID
+		diagnosis.Status = string(current.Status)
+		diagnosis.Source = "binding"
+		diagnosis.IsolationMode = current.IsolationMode
+		diagnosis.ProvisioningError = strings.TrimSpace(current.ProvisioningError)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return WorkspaceBillingDiagnosis{}, err
+	} else if connectionID := strings.TrimSpace(tenant.BillingProviderConnectionID); connectionID != "" {
+		diagnosis.Configured = true
+		diagnosis.ActiveBillingConnectionID = connectionID
+		diagnosis.Status = "pending"
+		diagnosis.Source = "tenant_fields"
+		diagnosis.IsolationMode = domain.WorkspaceBillingIsolationModeShared
+	}
+
+	var connection *domain.BillingProviderConnection
+	if diagnosis.ActiveBillingConnectionID != "" {
+		item, err := s.store.GetBillingProviderConnection(diagnosis.ActiveBillingConnectionID)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return WorkspaceBillingDiagnosis{}, err
+		}
+		if err == nil {
+			connection = &item
+			diagnosis.ConnectionStatus = item.Status
+			diagnosis.ConnectionSyncState = billingConnectionSyncState(item)
+			diagnosis.LastSyncError = strings.TrimSpace(item.LastSyncError)
+		}
+	}
+
+	switch {
+	case !diagnosis.Configured:
+		return diagnosis, nil
+	case diagnosis.Status == string(domain.WorkspaceBillingBindingStatusDisabled) ||
+		(connection != nil && connection.Status == domain.BillingProviderConnectionStatusDisabled):
+		diagnosis.Status = string(domain.WorkspaceBillingBindingStatusDisabled)
+		diagnosis.Connected = false
+		diagnosis.DiagnosisCode = "disabled"
+		diagnosis.DiagnosisSummary = "Workspace billing points at a disabled connection."
+		diagnosis.NextAction = "Rebind this workspace to an active billing connection before using it for billing traffic."
+	case diagnosis.Status == string(domain.WorkspaceBillingBindingStatusVerificationFailed) ||
+		strings.TrimSpace(diagnosis.ProvisioningError) != "" ||
+		diagnosis.ConnectionSyncState == "failed":
+		diagnosis.Status = string(domain.WorkspaceBillingBindingStatusVerificationFailed)
+		diagnosis.Connected = false
+		diagnosis.DiagnosisCode = "verification_failed"
+		diagnosis.DiagnosisSummary = firstNonEmptyWorkspaceBillingString(diagnosis.ProvisioningError, diagnosis.LastSyncError, "Workspace billing verification failed.")
+		diagnosis.NextAction = "Correct the billing connection or override values, rerun sync, then verify the workspace binding again."
+	case diagnosis.Status == string(domain.WorkspaceBillingBindingStatusPending) ||
+		diagnosis.Status == string(domain.WorkspaceBillingBindingStatusProvisioning) ||
+		diagnosis.ConnectionSyncState == "pending" ||
+		diagnosis.ConnectionSyncState == "never_synced":
+		diagnosis.Status = string(domain.WorkspaceBillingBindingStatusPending)
+		diagnosis.Connected = false
+		diagnosis.DiagnosisCode = "pending_verification"
+		diagnosis.DiagnosisSummary = "A billing connection is attached, but verification is still pending."
+		diagnosis.NextAction = "Run or wait for a successful connection sync before treating this workspace as billing-ready."
+	case diagnosis.Status == string(domain.WorkspaceBillingBindingStatusConnected):
+		diagnosis.Status = string(domain.WorkspaceBillingBindingStatusConnected)
+		diagnosis.Connected = true
+		diagnosis.DiagnosisCode = "connected"
+		diagnosis.DiagnosisSummary = "Workspace billing is connected and verified for normal billing traffic."
+		diagnosis.NextAction = "No billing repair is needed."
+	default:
+		diagnosis.Status = string(domain.WorkspaceBillingBindingStatusPending)
+		diagnosis.Connected = false
+		diagnosis.DiagnosisCode = "pending_verification"
+		diagnosis.DiagnosisSummary = "Workspace billing exists, but it is not yet ready for normal billing traffic."
+		diagnosis.NextAction = "Verify the billing connection and workspace binding before handoff."
+	}
+
+	if diagnosis.IsolationMode == "" && binding == nil && diagnosis.Configured {
+		diagnosis.IsolationMode = domain.WorkspaceBillingIsolationModeShared
+	}
+	return diagnosis, nil
+}
+
 func (s *WorkspaceBillingBindingService) ensureBindingFromTenantLegacy(tenant domain.Tenant) (domain.WorkspaceBillingBinding, bool, error) {
 	if s == nil || s.store == nil {
 		return domain.WorkspaceBillingBinding{}, false, fmt.Errorf("%w: workspace billing binding repository is required", ErrValidation)
@@ -352,4 +469,34 @@ func normalizeWorkspaceBillingBindingStatusFilter(value string) (string, error) 
 	default:
 		return "", fmt.Errorf("%w: unsupported workspace billing binding status %q", ErrValidation, value)
 	}
+}
+
+func billingConnectionSyncState(item domain.BillingProviderConnection) string {
+	switch item.Status {
+	case domain.BillingProviderConnectionStatusDisabled:
+		return "disabled"
+	case domain.BillingProviderConnectionStatusConnected:
+		return "healthy"
+	case domain.BillingProviderConnectionStatusSyncError:
+		return "failed"
+	case domain.BillingProviderConnectionStatusPending:
+		if item.ConnectedAt != nil || item.LastSyncedAt != nil {
+			return "pending"
+		}
+		return "never_synced"
+	default:
+		if item.LastSyncedAt == nil {
+			return "never_synced"
+		}
+		return "pending"
+	}
+}
+
+func firstNonEmptyWorkspaceBillingString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

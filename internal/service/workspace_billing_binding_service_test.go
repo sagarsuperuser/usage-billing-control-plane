@@ -124,6 +124,49 @@ func TestWorkspaceBillingBindingService_BindingPreemptsLegacyBackfillUntilReady(
 	}
 }
 
+func TestWorkspaceBillingBindingService_DescribeWorkspaceBillingDetectsConnectionDrift(t *testing.T) {
+	repo := newTestBillingProviderRepo(t)
+	tenant := createWorkspaceBillingBindingTestTenant(t, repo, "tenant_binding_drift")
+	connection := createWorkspaceBillingBindingTestConnection(t, repo, "bpc_binding_drift")
+
+	svc := NewWorkspaceBillingBindingService(repo)
+	if _, _, err := svc.EnsureWorkspaceBillingBinding(EnsureWorkspaceBillingBindingRequest{
+		WorkspaceID:                 tenant.ID,
+		BillingProviderConnectionID: connection.ID,
+		BackendOrganizationID:       "org_binding_drift",
+		BackendProviderCode:         "provider_binding_drift",
+		IsolationMode:               "shared",
+		CreatedByType:               "platform_user",
+		CreatedByID:                 "usr_platform",
+	}); err != nil {
+		t.Fatalf("ensure workspace billing binding: %v", err)
+	}
+
+	connection.Status = domain.BillingProviderConnectionStatusSyncError
+	connection.LastSyncError = "stripe verification failed"
+	connection.UpdatedAt = time.Now().UTC()
+	if _, err := repo.UpdateBillingProviderConnection(connection); err != nil {
+		t.Fatalf("update billing provider connection: %v", err)
+	}
+
+	diagnosis, err := svc.DescribeWorkspaceBilling(tenant.ID)
+	if err != nil {
+		t.Fatalf("describe workspace billing: %v", err)
+	}
+	if diagnosis.Connected {
+		t.Fatalf("expected connected=false when connection drifted into sync_error")
+	}
+	if diagnosis.Status != string(domain.WorkspaceBillingBindingStatusVerificationFailed) {
+		t.Fatalf("expected status verification_failed, got %q", diagnosis.Status)
+	}
+	if diagnosis.DiagnosisCode != "verification_failed" {
+		t.Fatalf("expected diagnosis_code verification_failed, got %q", diagnosis.DiagnosisCode)
+	}
+	if !strings.Contains(diagnosis.DiagnosisSummary, "stripe verification failed") {
+		t.Fatalf("expected diagnosis summary to include sync error, got %q", diagnosis.DiagnosisSummary)
+	}
+}
+
 func createWorkspaceBillingBindingTestTenant(t *testing.T, repo interface {
 	CreateTenant(input domain.Tenant) (domain.Tenant, error)
 }, id string) domain.Tenant {

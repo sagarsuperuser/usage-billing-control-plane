@@ -92,6 +92,13 @@ type workspaceBillingResponse struct {
 	Status                    string `json:"status"`
 	Source                    string `json:"source,omitempty"`
 	IsolationMode             string `json:"isolation_mode,omitempty"`
+	ConnectionStatus          string `json:"connection_status,omitempty"`
+	ConnectionSyncState       string `json:"connection_sync_state,omitempty"`
+	ProvisioningError         string `json:"provisioning_error,omitempty"`
+	LastSyncError             string `json:"last_sync_error,omitempty"`
+	DiagnosisCode             string `json:"diagnosis_code,omitempty"`
+	DiagnosisSummary          string `json:"diagnosis_summary,omitempty"`
+	NextAction                string `json:"next_action,omitempty"`
 }
 
 type workspaceBillingSettingsResponse struct {
@@ -305,23 +312,36 @@ func (s *Server) newTenantResponses(items []domain.Tenant) []tenantResponse {
 
 func (s *Server) buildWorkspaceBillingResponse(tenant domain.Tenant) workspaceBillingResponse {
 	resp := workspaceBillingResponse{
-		Status: "missing",
+		Status:           "missing",
+		DiagnosisCode:    "missing",
+		DiagnosisSummary: "No billing connection is assigned to this workspace.",
+		NextAction:       "Select an active billing connection and save the workspace binding before handoff.",
 	}
 	if connectionID := strings.TrimSpace(tenant.BillingProviderConnectionID); connectionID != "" {
 		resp.Configured = true
 		resp.ActiveBillingConnectionID = connectionID
 		resp.Status = "pending"
+		resp.DiagnosisCode = "pending_verification"
+		resp.DiagnosisSummary = "A billing connection is attached, but verification is still pending."
+		resp.NextAction = "Run or wait for a successful connection sync before treating this workspace as billing-ready."
 	}
 	if s == nil || s.workspaceBillingBindingService == nil {
 		return resp
 	}
-	if effective, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID); err == nil {
-		resp.Configured = true
-		resp.ActiveBillingConnectionID = effective.BillingProviderConnectionID
-		resp.Status = effective.Status
-		resp.Source = effective.Source
-		resp.IsolationMode = string(effective.IsolationMode)
-		resp.Connected = effective.Status == string(domain.WorkspaceBillingBindingStatusConnected)
+	if diagnosis, err := s.workspaceBillingBindingService.DescribeWorkspaceBilling(tenant.ID); err == nil {
+		resp.Configured = diagnosis.Configured
+		resp.Connected = diagnosis.Connected
+		resp.ActiveBillingConnectionID = diagnosis.ActiveBillingConnectionID
+		resp.Status = diagnosis.Status
+		resp.Source = diagnosis.Source
+		resp.IsolationMode = string(diagnosis.IsolationMode)
+		resp.ConnectionStatus = string(diagnosis.ConnectionStatus)
+		resp.ConnectionSyncState = diagnosis.ConnectionSyncState
+		resp.ProvisioningError = diagnosis.ProvisioningError
+		resp.LastSyncError = diagnosis.LastSyncError
+		resp.DiagnosisCode = diagnosis.DiagnosisCode
+		resp.DiagnosisSummary = diagnosis.DiagnosisSummary
+		resp.NextAction = diagnosis.NextAction
 		return resp
 	}
 	if binding, err := s.workspaceBillingBindingService.GetWorkspaceBillingBinding(tenant.ID); err == nil {
@@ -331,6 +351,12 @@ func (s *Server) buildWorkspaceBillingResponse(tenant domain.Tenant) workspaceBi
 		resp.Source = "binding"
 		resp.IsolationMode = string(binding.IsolationMode)
 		resp.Connected = binding.Status == domain.WorkspaceBillingBindingStatusConnected
+		resp.ProvisioningError = strings.TrimSpace(binding.ProvisioningError)
+		if resp.ProvisioningError != "" {
+			resp.DiagnosisCode = "verification_failed"
+			resp.DiagnosisSummary = resp.ProvisioningError
+			resp.NextAction = "Correct the billing connection or override values, rerun sync, then verify the workspace binding again."
+		}
 	}
 	return resp
 }

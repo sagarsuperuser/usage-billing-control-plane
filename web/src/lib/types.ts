@@ -313,6 +313,13 @@ export interface WorkspaceBilling {
   status: string;
   source?: string;
   isolation_mode?: "shared" | "dedicated";
+  connection_status?: "pending" | "connected" | "sync_error" | "disabled";
+  connection_sync_state?: "healthy" | "failed" | "never_synced" | "pending" | "disabled";
+  provisioning_error?: string;
+  last_sync_error?: string;
+  diagnosis_code?: string;
+  diagnosis_summary?: string;
+  next_action?: string;
 }
 
 export interface WorkspaceBillingSettings {
@@ -624,6 +631,9 @@ export interface BillingIntegrationReadiness {
   workspace_billing_source?: string;
   active_billing_connection_id?: string;
   isolation_mode?: "shared" | "dedicated";
+  diagnosis_code?: string;
+  diagnosis_summary?: string;
+  next_action?: string;
   pricing_ready: boolean;
   missing_steps: string[];
 }

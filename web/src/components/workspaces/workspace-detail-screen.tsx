@@ -28,17 +28,30 @@ import type { WorkspaceBillingSettings } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function readinessTone(status?: string): string {
-  return status === "ready"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-    : "border-amber-200 bg-amber-50 text-amber-700";
+  switch ((status || "").toLowerCase()) {
+    case "ready":
+    case "connected":
+    case "active":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "verification_failed":
+    case "disabled":
+    case "suspended":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    default:
+      return "border-amber-200 bg-amber-50 text-amber-700";
+  }
 }
 
 function describeWorkspaceBillingHelper(readiness: {
   billing_connected?: boolean;
   workspace_billing_status?: string;
+  diagnosis_summary?: string;
   isolation_mode?: string;
   pricing_ready: boolean;
 }): string {
+  if (readiness.diagnosis_summary) {
+    return readiness.diagnosis_summary;
+  }
   if (readiness.billing_connected) {
     return `Active connection linked${readiness.isolation_mode ? ` · ${readiness.isolation_mode}` : ""}`;
   }
@@ -52,6 +65,21 @@ function describeWorkspaceBillingHelper(readiness: {
       return "Billing connection is disabled";
     default:
       return readiness.pricing_ready ? "Pricing ready, billing not attached" : "Billing and pricing still need setup";
+  }
+}
+
+function formatWorkspaceBillingDiagnosisCode(code?: string): string {
+  switch ((code || "").toLowerCase()) {
+    case "connected":
+      return "Connected";
+    case "pending_verification":
+      return "Pending verification";
+    case "verification_failed":
+      return "Verification failed";
+    case "disabled":
+      return "Disabled";
+    default:
+      return "Missing";
   }
 }
 
@@ -656,8 +684,43 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <MetaItem label="Active connection" value={activeBillingConnectionID || "Not assigned"} mono={Boolean(activeBillingConnectionID)} />
                     <MetaItem label="Connection name" value={billingConnectionQuery.data?.display_name || (billingConnectionQuery.isLoading ? "Loading" : "Unavailable")} />
                     <MetaItem label="Connection status" value={billingConnectionQuery.data ? formatReadinessStatus(billingConnectionQuery.data.status) : billingConnectionQuery.isLoading ? "Loading" : "Unavailable"} />
+                    <MetaItem
+                      label="Connection sync state"
+                      value={
+                        workspaceBilling?.connection_sync_state
+                          ? formatReadinessStatus(workspaceBilling.connection_sync_state)
+                          : billingConnectionQuery.data?.sync_state
+                            ? formatReadinessStatus(billingConnectionQuery.data.sync_state)
+                            : billingConnectionQuery.isLoading
+                              ? "Loading"
+                              : "Unavailable"
+                      }
+                    />
                     <MetaItem label="Isolation mode" value={workspaceBilling?.isolation_mode ? formatReadinessStatus(workspaceBilling.isolation_mode) : selectedReadiness.billing_integration.isolation_mode ? formatReadinessStatus(selectedReadiness.billing_integration.isolation_mode) : "Shared"} />
                     <MetaItem label="Binding source" value={workspaceBilling?.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-950">Billing diagnosis</p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {workspaceBilling?.diagnosis_summary || selectedReadiness.billing_integration.diagnosis_summary || "Billing diagnosis is not available yet."}
+                        </p>
+                      </div>
+                      <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(workspaceBilling?.diagnosis_code || selectedReadiness.billing_integration.diagnosis_code || workspaceBilling?.status)}`}>
+                        {formatWorkspaceBillingDiagnosisCode(workspaceBilling?.diagnosis_code || selectedReadiness.billing_integration.diagnosis_code)}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      <MetaItem label="Operator next step" value={workspaceBilling?.next_action || selectedReadiness.billing_integration.next_action || "No billing repair is needed."} />
+                      {workspaceBilling?.provisioning_error || workspaceBilling?.last_sync_error ? (
+                        <MetaItem
+                          label="Latest failure detail"
+                          value={workspaceBilling?.provisioning_error || workspaceBilling?.last_sync_error || "-"}
+                        />
+                      ) : null}
+                    </div>
                   </div>
 
                   {activeBillingConnectionID ? (

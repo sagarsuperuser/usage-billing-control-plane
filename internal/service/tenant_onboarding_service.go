@@ -73,6 +73,9 @@ type BillingIntegrationReadiness struct {
 	WorkspaceBillingSource    string   `json:"workspace_billing_source,omitempty"`
 	ActiveBillingConnectionID string   `json:"active_billing_connection_id,omitempty"`
 	IsolationMode             string   `json:"isolation_mode,omitempty"`
+	DiagnosisCode             string   `json:"diagnosis_code,omitempty"`
+	DiagnosisSummary          string   `json:"diagnosis_summary,omitempty"`
+	NextAction                string   `json:"next_action,omitempty"`
 	PricingReady              bool     `json:"pricing_ready"`
 	MissingSteps              []string `json:"missing_steps"`
 }
@@ -249,15 +252,21 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 		MissingSteps:              make([]string, 0, 2),
 	}
 	if s.workspaceBillingBindingService != nil {
-		if billingContext, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID); err == nil {
-			billingIntegrationReadiness.BillingMappingReady = true
-			billingIntegrationReadiness.BillingConnected = billingContext.Status == string(domain.WorkspaceBillingBindingStatusConnected)
-			billingIntegrationReadiness.WorkspaceBillingStatus = billingContext.Status
-			billingIntegrationReadiness.WorkspaceBillingSource = billingContext.Source
-			billingIntegrationReadiness.ActiveBillingConnectionID = billingContext.BillingProviderConnectionID
-			billingIntegrationReadiness.IsolationMode = string(billingContext.IsolationMode)
+		if diagnosis, err := s.workspaceBillingBindingService.DescribeWorkspaceBilling(tenant.ID); err == nil {
+			billingIntegrationReadiness.BillingMappingReady = diagnosis.Configured
+			billingIntegrationReadiness.BillingConnected = diagnosis.Connected
+			billingIntegrationReadiness.WorkspaceBillingStatus = diagnosis.Status
+			billingIntegrationReadiness.WorkspaceBillingSource = diagnosis.Source
+			billingIntegrationReadiness.ActiveBillingConnectionID = diagnosis.ActiveBillingConnectionID
+			billingIntegrationReadiness.IsolationMode = string(diagnosis.IsolationMode)
+			billingIntegrationReadiness.DiagnosisCode = diagnosis.DiagnosisCode
+			billingIntegrationReadiness.DiagnosisSummary = diagnosis.DiagnosisSummary
+			billingIntegrationReadiness.NextAction = diagnosis.NextAction
 		} else {
 			billingIntegrationReadiness.BillingMappingReady = false
+			billingIntegrationReadiness.DiagnosisCode = "missing"
+			billingIntegrationReadiness.DiagnosisSummary = "Workspace billing has not been configured yet."
+			billingIntegrationReadiness.NextAction = "Select a billing connection and verify it before handing off the workspace."
 		}
 	} else {
 		billingIntegrationReadiness.BillingMappingReady = strings.TrimSpace(tenant.LagoOrganizationID) != "" && strings.TrimSpace(tenant.LagoBillingProviderCode) != ""
@@ -266,6 +275,13 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 			billingIntegrationReadiness.WorkspaceBillingStatus = "connected"
 			billingIntegrationReadiness.WorkspaceBillingSource = "tenant_fields"
 			billingIntegrationReadiness.IsolationMode = string(domain.WorkspaceBillingIsolationModeShared)
+			billingIntegrationReadiness.DiagnosisCode = "connected"
+			billingIntegrationReadiness.DiagnosisSummary = "Workspace billing is connected through legacy tenant billing fields."
+			billingIntegrationReadiness.NextAction = "No billing repair is needed."
+		} else {
+			billingIntegrationReadiness.DiagnosisCode = "missing"
+			billingIntegrationReadiness.DiagnosisSummary = "Workspace billing has not been configured yet."
+			billingIntegrationReadiness.NextAction = "Configure billing mapping and pricing before handoff."
 		}
 	}
 	if !billingIntegrationReadiness.BillingMappingReady {
