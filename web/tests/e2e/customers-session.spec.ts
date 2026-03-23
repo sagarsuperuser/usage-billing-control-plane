@@ -41,6 +41,28 @@ type CustomerReadiness = {
   };
 };
 
+type CustomerBillingProfile = {
+  customer_id: string;
+  tenant_id?: string;
+  legal_name?: string;
+  email?: string;
+  phone?: string;
+  billing_address_line1?: string;
+  billing_address_line2?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_postal_code?: string;
+  billing_country?: string;
+  currency?: string;
+  tax_identifier?: string;
+  provider_code?: string;
+  profile_status: string;
+  last_synced_at?: string;
+  last_sync_error?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 function buildReadiness(paymentReady: boolean, syncError: boolean): CustomerReadiness {
   const now = new Date().toISOString();
   return {
@@ -95,6 +117,41 @@ async function installCustomersMock(page: Page, session: TenantSessionPayload) {
     cust_alpha: buildReadiness(false, false),
     cust_beta: buildReadiness(true, true),
   };
+  const billingProfilesByCustomer: Record<string, CustomerBillingProfile> = {
+    cust_alpha: {
+      customer_id: "cust_row_1",
+      tenant_id: "tenant_a",
+      legal_name: "Customer Alpha LLC",
+      email: "billing@alpha.test",
+      billing_address_line1: "1 Billing Street",
+      billing_city: "Bengaluru",
+      billing_postal_code: "560001",
+      billing_country: "IN",
+      currency: "USD",
+      provider_code: "stripe_default",
+      profile_status: "ready",
+      last_synced_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    cust_beta: {
+      customer_id: "cust_row_2",
+      tenant_id: "tenant_a",
+      legal_name: "Customer Beta LLC",
+      email: "billing@beta.test",
+      billing_address_line1: "2 Billing Street",
+      billing_city: "Mumbai",
+      billing_postal_code: "400001",
+      billing_country: "IN",
+      currency: "USD",
+      provider_code: "stripe_default",
+      profile_status: "sync_error",
+      last_synced_at: new Date().toISOString(),
+      last_sync_error: "provider timeout",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  };
 
   await page.route("**/*", async (route) => {
     const request = route.request();
@@ -119,6 +176,36 @@ async function installCustomersMock(page: Page, session: TenantSessionPayload) {
     }
     if (path === "/v1/customers" && method === "GET") {
       return json(200, customers);
+    }
+    if (path.startsWith("/v1/customers/") && path.endsWith("/billing-profile")) {
+      const externalID = decodeURIComponent(path.split("/")[3] || "");
+      const profile = billingProfilesByCustomer[externalID];
+      if (!profile) return json(404, { error: "not found" });
+      if (method === "GET") {
+        return json(200, profile);
+      }
+      if (method === "PUT") {
+        const body = (request.postDataJSON() as Record<string, string | undefined>) || {};
+        const updatedAt = new Date().toISOString();
+        billingProfilesByCustomer[externalID] = {
+          ...profile,
+          ...body,
+          profile_status: "ready",
+          last_sync_error: "",
+          last_synced_at: updatedAt,
+          updated_at: updatedAt,
+        };
+        readinessByCustomer[externalID] = {
+          ...readinessByCustomer[externalID],
+          billing_profile_status: "ready",
+          billing_profile: {
+            profile_status: "ready",
+            last_synced_at: updatedAt,
+            last_sync_error: "",
+          },
+        };
+        return json(200, billingProfilesByCustomer[externalID]);
+      }
     }
     if (path.startsWith("/v1/customers/") && path.endsWith("/readiness") && method === "GET") {
       const externalID = decodeURIComponent(path.split("/")[3] || "");
@@ -146,7 +233,7 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
-  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Customer directory" })).toBeVisible();
   await expect(page.getByRole("link", { name: "New customer" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Customer Alpha/i })).toBeVisible();
   await expect(page.getByText("Next action: Customer has not completed payment setup")).toBeVisible();
@@ -155,4 +242,32 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await expect(page).toHaveURL(/\/customers\/cust_alpha$/);
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
   await expect(page.getByText("Customer has not completed payment setup").first()).toBeVisible();
+});
+
+test("tenant writer can edit the customer billing profile", async ({ page }) => {
+  await installCustomersMock(page, {
+    authenticated: true,
+    scope: "tenant",
+    role: "writer",
+    tenant_id: "tenant_a",
+    api_key_id: "tenant_writer_1",
+    csrf_token: "csrf-tenant-123",
+  });
+
+  await page.goto("/customers/cust_alpha");
+  await page.getByTestId("session-login-email").fill("tenant-writer@alpha.test");
+  await page.getByTestId("session-login-password").fill("correct horse battery");
+  await page.getByTestId("session-login-submit").click();
+
+  await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Commercial and tax settings" })).toBeVisible();
+  await expect(page.getByLabel("Tax identifier")).toHaveValue("");
+
+  await page.getByLabel("Tax identifier").fill("GSTIN-29ABCDE1234F2Z5");
+  await page.getByLabel("Phone").fill("+91 80 5555 0100");
+  await page.getByRole("button", { name: "Save billing profile" }).click();
+
+  await expect(page.getByText("Billing profile saved.")).toBeVisible();
+  await expect(page.getByLabel("Tax identifier")).toHaveValue("GSTIN-29ABCDE1234F2Z5");
+  await expect(page.getByLabel("Phone")).toHaveValue("+91 80 5555 0100");
 });

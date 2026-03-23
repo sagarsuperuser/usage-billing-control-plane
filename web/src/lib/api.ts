@@ -5,6 +5,8 @@ import {
   BillingProviderConnection,
   BeginCustomerPaymentSetupResult,
   CustomerPaymentSetupRequestResult,
+  CustomerBillingProfile,
+  CustomerBillingProfileInput,
   CreateSubscriptionResult,
   Customer,
   Plan,
@@ -1272,6 +1274,44 @@ export async function fetchCustomerReadiness(input: {
     {
       runtimeBaseURL: input.runtimeBaseURL,
       method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchCustomerBillingProfile(input: {
+  runtimeBaseURL?: string;
+  externalID: string;
+}): Promise<CustomerBillingProfile> {
+  const payload = await apiRequest<CustomerBillingProfile>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/billing-profile`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "GET",
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function updateCustomerBillingProfile(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  externalID: string;
+  body: CustomerBillingProfileInput;
+}): Promise<CustomerBillingProfile> {
+  const payload = await apiRequest<CustomerBillingProfile>(
+    `/v1/customers/${encodeURIComponent(input.externalID)}/billing-profile`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "PUT",
+      csrfToken: input.csrfToken,
+      body: input.body,
     }
   );
   if (!payload) {

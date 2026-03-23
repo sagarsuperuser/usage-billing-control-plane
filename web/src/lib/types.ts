@@ -611,6 +611,21 @@ export interface CustomerBillingProfile {
   updated_at: string;
 }
 
+export interface CustomerBillingProfileInput {
+  legal_name?: string;
+  email?: string;
+  phone?: string;
+  billing_address_line1?: string;
+  billing_address_line2?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_postal_code?: string;
+  billing_country?: string;
+  currency?: string;
+  tax_identifier?: string;
+  provider_code?: string;
+}
+
 export interface CustomerPaymentSetup {
   customer_id: string;
   tenant_id?: string;

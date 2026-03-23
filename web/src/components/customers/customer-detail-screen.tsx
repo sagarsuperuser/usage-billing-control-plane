@@ -3,14 +3,26 @@
 import Link from "next/link";
 import { ArrowLeft, CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { beginCustomerPaymentSetup, fetchCustomerReadiness, fetchCustomers, refreshCustomerPaymentSetup, requestCustomerPaymentSetup, resendCustomerPaymentSetup, retryCustomerBillingSync } from "@/lib/api";
+import {
+  beginCustomerPaymentSetup,
+  fetchCustomerBillingProfile,
+  fetchCustomerReadiness,
+  fetchCustomers,
+  refreshCustomerPaymentSetup,
+  requestCustomerPaymentSetup,
+  resendCustomerPaymentSetup,
+  retryCustomerBillingSync,
+  updateCustomerBillingProfile,
+} from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
+import { type CustomerBillingProfile, type CustomerBillingProfileInput } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function tone(status?: string): string {
@@ -30,6 +42,9 @@ function tone(status?: string): string {
 
 export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const [profileDraft, setProfileDraft] = useState<CustomerBillingProfileInput>(emptyBillingProfileDraft());
+  const [profileDraftSourceKey, setProfileDraftSourceKey] = useState("");
+  const [profileFlash, setProfileFlash] = useState<string | null>(null);
 
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, externalID],
@@ -40,6 +55,11 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const readinessQuery = useQuery({
     queryKey: ["customer-readiness", apiBaseURL, externalID],
     queryFn: () => fetchCustomerReadiness({ runtimeBaseURL: apiBaseURL, externalID }),
+    enabled: isAuthenticated && scope === "tenant" && externalID.trim().length > 0,
+  });
+  const billingProfileQuery = useQuery({
+    queryKey: ["customer-billing-profile", apiBaseURL, externalID],
+    queryFn: () => fetchCustomerBillingProfile({ runtimeBaseURL: apiBaseURL, externalID }),
     enabled: isAuthenticated && scope === "tenant" && externalID.trim().length > 0,
   });
 
@@ -74,9 +94,23 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
     },
   });
+  const billingProfileMutation = useMutation({
+    mutationFn: () =>
+      updateCustomerBillingProfile({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        externalID,
+        body: profileDraft,
+      }),
+    onSuccess: async () => {
+      setProfileFlash("Billing profile saved.");
+      await Promise.all([customersQuery.refetch(), readinessQuery.refetch(), billingProfileQuery.refetch()]);
+    },
+  });
 
   const customer = customersQuery.data?.[0] ?? null;
   const readiness = readinessQuery.data ?? null;
+  const billingProfile = billingProfileQuery.data ?? readiness?.billing_profile ?? null;
   const readinessMissingSteps = normalizeMissingSteps(readiness?.missing_steps);
   const nextActions = readinessMissingSteps.map(describeCustomerMissingStep);
   const canBeginPaymentSetup = Boolean(
@@ -90,6 +124,19 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const setupRequestActionLabel = showResendRequest ? "Resend payment setup request" : "Send payment setup request";
   const latestCheckoutURL = beginSetupMutation.data?.checkout_url;
   const latestRequestedCheckoutURL = requestSetupMutation.data?.checkout_url || resendSetupMutation.data?.checkout_url;
+  const profileBaseline = billingProfileDraftFromProfile(billingProfile, customer?.email);
+  const profileSourceKey = [externalID, billingProfile?.updated_at || "", billingProfile?.last_synced_at || "", customer?.email || ""].join(":");
+  const billingProfileDirty = serializeBillingProfileDraft(profileDraft) !== serializeBillingProfileDraft(profileBaseline);
+  const billingProfileReady = requiredBillingProfileFields(profileDraft).every(Boolean);
+
+  useEffect(() => {
+    if (!profileSourceKey || profileSourceKey === profileDraftSourceKey) {
+      return;
+    }
+    setProfileDraft(profileBaseline);
+    setProfileDraftSourceKey(profileSourceKey);
+    setProfileFlash(null);
+  }, [profileBaseline, profileDraftSourceKey, profileSourceKey]);
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -109,7 +156,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
         {customersQuery.isLoading || readinessQuery.isLoading ? (
           <LoadingPanel label="Loading customer detail" />
-        ) : customersQuery.isError || readinessQuery.isError || !customer || !readiness ? (
+        ) : customersQuery.isError || readinessQuery.isError || billingProfileQuery.isError || !customer || !readiness ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-950">Customer not available</h1>
@@ -179,6 +226,119 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <StatusCard title="Payment setup" value={readiness.payment_setup_status} />
                     <StatusCard title="Overall readiness" value={readiness.status} />
                   </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing profile</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial and tax settings</h2>
+                      <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                        Keep the customer&apos;s legal billing identity, address, tax identifier, currency, and billing connection code current here. Payment setup and invoice sync depend on this profile being complete.
+                      </p>
+                    </div>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(readiness.billing_profile_status)}`}>
+                      {formatReadinessStatus(readiness.billing_profile_status)}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    <InputField label="Legal name" value={profileDraft.legal_name || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, legal_name: value }))} placeholder="Acme Billing LLC" />
+                    <InputField label="Billing email" value={profileDraft.email || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, email: value }))} placeholder="billing@acme.test" />
+                    <InputField label="Phone" value={profileDraft.phone || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, phone: value }))} placeholder="+1 415 555 0100" />
+                    <InputField label="Tax identifier" value={profileDraft.tax_identifier || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, tax_identifier: value }))} placeholder="VAT / GST / EIN" />
+                    <InputField
+                      label="Billing address line 1"
+                      value={profileDraft.billing_address_line1 || ""}
+                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_address_line1: value }))}
+                      placeholder="1 Billing Street"
+                    />
+                    <InputField
+                      label="Billing address line 2"
+                      value={profileDraft.billing_address_line2 || ""}
+                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_address_line2: value }))}
+                      placeholder="Suite 200"
+                    />
+                    <InputField label="Billing city" value={profileDraft.billing_city || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, billing_city: value }))} placeholder="Bengaluru" />
+                    <InputField label="Billing state" value={profileDraft.billing_state || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, billing_state: value }))} placeholder="Karnataka" />
+                    <InputField
+                      label="Billing postal code"
+                      value={profileDraft.billing_postal_code || ""}
+                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_postal_code: value }))}
+                      placeholder="560001"
+                    />
+                    <InputField
+                      label="Billing country"
+                      value={profileDraft.billing_country || ""}
+                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_country: value }))}
+                      placeholder="IN"
+                    />
+                    <InputField label="Currency" value={profileDraft.currency || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, currency: value }))} placeholder="USD" />
+                    <InputField
+                      label="Billing connection code"
+                      value={profileDraft.provider_code || ""}
+                      onChange={(value) => setProfileDraft((current) => ({ ...current, provider_code: value }))}
+                      placeholder="stripe_default"
+                    />
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Profile completeness</p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      <ChecklistLine done={Boolean((profileDraft.legal_name || "").trim())} text="Legal name is set" />
+                      <ChecklistLine done={Boolean((profileDraft.email || "").trim())} text="Billing email is set" />
+                      <ChecklistLine done={Boolean((profileDraft.billing_address_line1 || "").trim())} text="Billing address is set" />
+                      <ChecklistLine done={Boolean((profileDraft.billing_city || "").trim())} text="Billing city is set" />
+                      <ChecklistLine done={Boolean((profileDraft.billing_postal_code || "").trim())} text="Billing postal code is set" />
+                      <ChecklistLine done={Boolean((profileDraft.billing_country || "").trim())} text="Billing country is set" />
+                      <ChecklistLine done={Boolean((profileDraft.currency || "").trim())} text="Currency is set" />
+                      <ChecklistLine done={Boolean((profileDraft.tax_identifier || "").trim())} text="Tax identifier is optional but ready when present" />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileFlash(null);
+                        billingProfileMutation.mutate();
+                      }}
+                      disabled={!canWrite || !csrfToken || billingProfileMutation.isPending || !billingProfileDirty}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {billingProfileMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                      Save billing profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileDraft(profileBaseline);
+                        setProfileFlash(null);
+                      }}
+                      disabled={!billingProfileDirty || billingProfileMutation.isPending}
+                      className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Reset changes
+                    </button>
+                  </div>
+
+                  {profileFlash ? (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                      <p className="font-semibold text-emerald-900">{profileFlash}</p>
+                      <p className="mt-2">{billingProfileReady ? "Required billing fields are complete for payment setup and invoice sync." : "Save succeeded, but the profile still needs the required readiness fields listed above."}</p>
+                    </div>
+                  ) : null}
+                  {billingProfileMutation.isError ? (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                      <p className="font-semibold text-amber-900">Billing profile could not be saved</p>
+                      <p className="mt-2">{billingProfileMutation.error instanceof Error ? billingProfileMutation.error.message : "Saving the billing profile failed."}</p>
+                    </div>
+                  ) : null}
+                  {!billingProfileReady ? (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                      Payment setup stays blocked until the required billing fields are complete.
+                    </div>
+                  ) : null}
                 </section>
 
                 <section id="payment-collection" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -408,4 +568,92 @@ function MetaItem({ label, value, mono }: { label: string; value: string; mono?:
       <dd className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
     </div>
   );
+}
+
+function InputField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <label className="grid gap-2 text-sm text-slate-700">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+      />
+    </label>
+  );
+}
+
+function emptyBillingProfileDraft(): CustomerBillingProfileInput {
+  return {
+    legal_name: "",
+    email: "",
+    phone: "",
+    billing_address_line1: "",
+    billing_address_line2: "",
+    billing_city: "",
+    billing_state: "",
+    billing_postal_code: "",
+    billing_country: "",
+    currency: "",
+    tax_identifier: "",
+    provider_code: "",
+  };
+}
+
+function billingProfileDraftFromProfile(profile: CustomerBillingProfile | null, fallbackEmail?: string): CustomerBillingProfileInput {
+  if (!profile) {
+    return {
+      ...emptyBillingProfileDraft(),
+      email: fallbackEmail || "",
+    };
+  }
+  return {
+    legal_name: profile.legal_name || "",
+    email: profile.email || fallbackEmail || "",
+    phone: profile.phone || "",
+    billing_address_line1: profile.billing_address_line1 || "",
+    billing_address_line2: profile.billing_address_line2 || "",
+    billing_city: profile.billing_city || "",
+    billing_state: profile.billing_state || "",
+    billing_postal_code: profile.billing_postal_code || "",
+    billing_country: profile.billing_country || "",
+    currency: profile.currency || "",
+    tax_identifier: profile.tax_identifier || "",
+    provider_code: profile.provider_code || "",
+  };
+}
+
+function normalizeBillingProfileDraft(input: CustomerBillingProfileInput): CustomerBillingProfileInput {
+  return {
+    legal_name: (input.legal_name || "").trim(),
+    email: (input.email || "").trim(),
+    phone: (input.phone || "").trim(),
+    billing_address_line1: (input.billing_address_line1 || "").trim(),
+    billing_address_line2: (input.billing_address_line2 || "").trim(),
+    billing_city: (input.billing_city || "").trim(),
+    billing_state: (input.billing_state || "").trim(),
+    billing_postal_code: (input.billing_postal_code || "").trim(),
+    billing_country: (input.billing_country || "").trim(),
+    currency: (input.currency || "").trim(),
+    tax_identifier: (input.tax_identifier || "").trim(),
+    provider_code: (input.provider_code || "").trim(),
+  };
+}
+
+function serializeBillingProfileDraft(input: CustomerBillingProfileInput): string {
+  return JSON.stringify(normalizeBillingProfileDraft(input));
+}
+
+function requiredBillingProfileFields(input: CustomerBillingProfileInput): boolean[] {
+  const normalized = normalizeBillingProfileDraft(input);
+  return [
+    normalized.legal_name !== "",
+    normalized.email !== "",
+    normalized.billing_address_line1 !== "",
+    normalized.billing_city !== "",
+    normalized.billing_postal_code !== "",
+    normalized.billing_country !== "",
+    normalized.currency !== "",
+  ];
 }
