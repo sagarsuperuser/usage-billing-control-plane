@@ -11,6 +11,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchInvoices } from "@/lib/api";
+import { billingFailureDiagnosis } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { type InvoiceSummary, type InvoiceStatusFilters } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -30,6 +31,17 @@ const orderOptions = [
 function formatInvoiceState(value?: string): string {
   if (!value) return "-";
   return value.replaceAll("_", " ");
+}
+
+function diagnosisToneClass(tone: "healthy" | "warning" | "danger"): string {
+  switch (tone) {
+    case "healthy":
+      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    case "warning":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    default:
+      return "border-rose-200 bg-rose-50 text-rose-800";
+  }
 }
 
 export function InvoiceListScreen() {
@@ -186,6 +198,8 @@ export function InvoiceListScreen() {
 }
 
 function InvoiceRow({ item }: { item: InvoiceSummary }) {
+  const diagnosis = billingFailureDiagnosis(item);
+
   return (
     <Link
       href={`/invoices/${encodeURIComponent(item.invoice_id)}`}
@@ -197,6 +211,14 @@ function InvoiceRow({ item }: { item: InvoiceSummary }) {
         <p className="mt-2 text-sm text-slate-600">
           {item.customer_display_name || item.customer_external_id || "Unlinked customer"} · {formatMoney(item.total_amount_cents, item.currency || "USD")}
         </p>
+        <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${diagnosisToneClass(diagnosis.tone)}`}>
+              {diagnosis.title}
+            </span>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.nextStep}</p>
+        </div>
       </div>
       <StatusCell label="Invoice" value={formatInvoiceState(item.invoice_status)} />
       <StatusCell label="Payment" value={formatInvoiceState(item.payment_status)} />
