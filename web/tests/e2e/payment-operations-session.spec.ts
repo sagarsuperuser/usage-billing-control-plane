@@ -10,6 +10,7 @@ type BillingMockWindow = Window & typeof globalThis & {
 
 type TenantSessionPayload = {
   authenticated: boolean;
+  scope: "tenant";
   role: "reader" | "writer" | "admin";
   tenant_id: string;
   api_key_id: string;
@@ -34,6 +35,7 @@ type InitPayload = {
 
 const sessionPayload: SessionPayload = {
   authenticated: true,
+  scope: "tenant",
   role: "writer",
   tenant_id: "tenant_a",
   api_key_id: "api_key_writer_1",
@@ -132,6 +134,51 @@ async function installPaymentOpsMock(page: Page, session: SessionPayload) {
         return loggedIn ? json(200, summary) : json(401, { error: "unauthorized" });
       }
 
+      if (path === "/v1/invoice-payment-statuses/inv_123/lifecycle" && method === "GET") {
+        return json(200, {
+          tenant_id: "tenant_a",
+          organization_id: "org_test_1",
+          invoice_id: "inv_123",
+          invoice_status: "finalized",
+          payment_status: "failed",
+          payment_overdue: true,
+          last_payment_error: "card_declined",
+          last_event_type: "invoice.payment_failure",
+          last_event_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          events_analyzed: 4,
+          event_window_limit: 50,
+          event_window_truncated: false,
+          distinct_webhook_types: ["invoice.payment_failure"],
+          failure_event_count: 1,
+          success_event_count: 0,
+          pending_event_count: 0,
+          overdue_signal_count: 1,
+          requires_action: true,
+          retry_recommended: false,
+          recommended_action: "collect_payment",
+          recommended_action_note: "Customer payment setup is not ready. Send or refresh payment setup before retrying collection.",
+        });
+      }
+
+      if (path === "/v1/invoice-payment-statuses/inv_123/events" && method === "GET") {
+        return json(200, {
+          items: [
+            {
+              id: "evt_1",
+              webhook_key: "invoice.payment_failure:inv_123",
+              webhook_type: "invoice.payment_failure",
+              object_type: "invoice",
+              invoice_id: "inv_123",
+              payment_status: "failed",
+              received_at: new Date().toISOString(),
+              occurred_at: new Date().toISOString(),
+              payload: {},
+            },
+          ],
+        });
+      }
+
       if (path === "/v1/invoices/inv_123/retry-payment" && method === "POST") {
         retryCSRF = headers.get("X-CSRF-Token") || "";
         w.__billingMock.retryCSRF = retryCSRF;
@@ -183,6 +230,18 @@ test("disables retry for reader sessions", async ({ page }) => {
   const retryButton = page.getByRole("button", { name: "Retry" }).first();
   await expect(retryButton).toBeDisabled();
   await expect(page.getByText("Current session role reader is read-only for payment retry operations.")).toBeVisible();
+});
+
+test("shows normalized failure diagnosis in the payment timeline drawer", async ({ page }) => {
+  await installPaymentOpsMock(page, sessionPayload);
+  await page.goto("/payment-operations");
+
+  await page.getByRole("button", { name: "Timeline" }).click();
+
+  const drawer = page.getByRole("complementary");
+  await expect(page.getByRole("heading", { name: "Invoice Timeline" })).toBeVisible();
+  await expect(drawer.getByText("Payment collection is blocked")).toBeVisible();
+  await expect(drawer.getByText("Send or refresh payment setup, confirm the customer can complete it, then retry collection only after setup is ready.")).toBeVisible();
 });
 
 test("platform session is blocked from tenant payment operations without hitting tenant APIs", async ({ page }) => {

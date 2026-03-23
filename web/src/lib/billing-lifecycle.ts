@@ -1,4 +1,4 @@
-import type { InvoicePaymentLifecycle } from "@/lib/types";
+import type { DunningSummary, InvoicePaymentLifecycle } from "@/lib/types";
 
 export function formatBillingState(value?: string): string {
   if (!value) return "-";
@@ -6,8 +6,116 @@ export function formatBillingState(value?: string): string {
 }
 
 type BillingLifecycleInput = {
+  payment_status?: string;
+  invoice_status?: string;
+  payment_overdue?: boolean;
+  last_payment_error?: string;
   lifecycle?: Pick<InvoicePaymentLifecycle, "recommended_action" | "recommended_action_note">;
+  dunning?: Pick<DunningSummary, "state" | "next_action_type" | "paused" | "attempt_count" | "last_notification_error">;
 };
+
+export type BillingDiagnosis = {
+  code: string;
+  tone: "healthy" | "warning" | "danger";
+  title: string;
+  summary: string;
+  nextStep: string;
+};
+
+export function billingFailureDiagnosis(subject: BillingLifecycleInput): BillingDiagnosis {
+  const action = subject.lifecycle?.recommended_action;
+
+  if (subject.dunning?.paused) {
+    return {
+      code: "dunning_paused",
+      tone: "warning",
+      title: "Collections workflow is paused",
+      summary: "Automatic collection is not currently advancing because the dunning run is paused.",
+      nextStep: "Resume or resolve the dunning run before expecting retries or reminders to continue.",
+    };
+  }
+
+  if (subject.dunning?.last_notification_error) {
+    return {
+      code: "reminder_delivery_failed",
+      tone: "warning",
+      title: "Reminder delivery is failing",
+      summary: "The collections workflow is active, but the most recent reminder dispatch failed.",
+      nextStep: "Inspect the dunning run, fix the delivery issue, then resend the reminder if collection still depends on customer action.",
+    };
+  }
+
+  switch (action) {
+    case "collect_payment":
+      return {
+        code: "payment_collection_required",
+        tone: "danger",
+        title: "Payment collection is blocked",
+        summary:
+          subject.lifecycle?.recommended_action_note ||
+          "The payment method or setup path is not ready enough for a clean retry.",
+        nextStep: "Send or refresh payment setup, confirm the customer can complete it, then retry collection only after setup is ready.",
+      };
+    case "retry_payment":
+      return {
+        code: "retryable_failure",
+        tone: "warning",
+        title: "Failure looks retryable",
+        summary:
+          subject.lifecycle?.recommended_action_note ||
+          "Recent failures look transient enough for a safe retry.",
+        nextStep: "Retry payment first. Escalate to replay or explainability only if the state does not move afterward.",
+      };
+    case "investigate":
+      return {
+        code: "investigate_projection_or_state",
+        tone: "danger",
+        title: "State needs investigation",
+        summary:
+          subject.lifecycle?.recommended_action_note ||
+          "The signal points to a projection, integration, or billing-state issue rather than a simple retryable failure.",
+        nextStep: "Use the event timeline, explainability, and recovery tools before issuing another retry.",
+      };
+    case "monitor_processing":
+      return {
+        code: "processing_in_flight",
+        tone: "warning",
+        title: "Processing is still in flight",
+        summary:
+          subject.lifecycle?.recommended_action_note ||
+          "Payment status is still moving and does not warrant manual intervention yet.",
+        nextStep: "Monitor the event timeline and avoid manual retry until processing settles or becomes stale.",
+      };
+    default:
+      if ((subject.payment_status || "").toLowerCase() === "failed" || subject.last_payment_error) {
+        return {
+          code: "payment_failed_no_guidance",
+          tone: "danger",
+          title: "Payment failed",
+          summary: subject.last_payment_error || "A payment failure was recorded, but no stronger lifecycle recommendation is available yet.",
+          nextStep: "Inspect the billing timeline for the last failure event, then decide whether to retry, collect payment, or escalate.",
+        };
+      }
+      if (subject.payment_overdue) {
+        return {
+          code: "payment_overdue",
+          tone: "warning",
+          title: "Payment is overdue",
+          summary: "The invoice is still unpaid past its due threshold.",
+          nextStep: "Review recent events and dunning state before deciding between payment collection, reminder, or manual follow-up.",
+        };
+      }
+      return {
+        code: "healthy",
+        tone: "healthy",
+        title: "Billing state looks healthy",
+        summary:
+          subject.lifecycle?.recommended_action_note ||
+          "No active payment failure or recovery signal currently requires operator action.",
+        nextStep: "Use linked documents and timelines for normal inspection only.",
+      };
+  }
+}
 
 export function billingActionConfig(subject: BillingLifecycleInput) {
   switch (subject.lifecycle?.recommended_action) {

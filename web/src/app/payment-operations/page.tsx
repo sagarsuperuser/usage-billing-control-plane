@@ -1,5 +1,11 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
+
+import { PaymentOperationsScreen } from "@/components/payment-ops/payment-operations-screen";
 
 export default function PaymentOperationsPage() {
-  redirect("/payments");
+  return (
+    <Suspense fallback={null}>
+      <PaymentOperationsScreen />
+    </Suspense>
+  );
 }

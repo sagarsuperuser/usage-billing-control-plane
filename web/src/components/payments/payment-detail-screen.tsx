@@ -7,12 +7,13 @@ import { useState } from "react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
+import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchDunningRunDetail, fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
-import { billingActionConfig, formatBillingState } from "@/lib/billing-lifecycle";
+import { billingActionConfig, billingFailureDiagnosis, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -56,6 +57,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
   const payment = paymentQuery.data;
   const actionConfig = payment ? billingActionConfig(payment) : null;
+  const diagnosis = payment ? billingFailureDiagnosis(payment) : null;
   const dunningRunID = payment?.dunning?.run_id;
   const dunningDetailQuery = useQuery({
     queryKey: ["payment-dunning-run-detail", apiBaseURL, dunningRunID],
@@ -180,6 +182,8 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     </div>
                   ) : null}
                 </section>
+
+                {diagnosis ? <BillingFailureDiagnosisCard diagnosis={diagnosis} /> : null}
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between gap-3">

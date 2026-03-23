@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
+import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchInvoiceEvents, fetchInvoiceLifecycle, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
@@ -21,6 +22,7 @@ import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/li
 import { useUISession } from "@/hooks/use-ui-session";
 import { type InvoiceStatusFilters } from "@/lib/types";
 import { useSessionStore } from "@/store/use-session-store";
+import { billingFailureDiagnosis, formatBillingState } from "@/lib/billing-lifecycle";
 
 const statusSortOptions = [
   { value: "last_event_at", label: "Last event" },
@@ -62,6 +64,17 @@ function invoiceBadgeClass(status?: string): string {
       return "bg-indigo-500/20 text-indigo-100 border border-indigo-400/40";
     default:
       return "bg-zinc-600/20 text-zinc-100 border border-zinc-500/40";
+  }
+}
+
+function diagnosisBadgeClass(tone: "healthy" | "warning" | "danger"): string {
+  switch (tone) {
+    case "healthy":
+      return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+    case "warning":
+      return "bg-amber-100 text-amber-800 border border-amber-200";
+    default:
+      return "bg-rose-100 text-rose-800 border border-rose-200";
   }
 }
 
@@ -390,6 +403,7 @@ export function PaymentOperationsScreen() {
                 {items.map((item) => {
                   const selected = item.invoice_id === selectedInvoiceID;
                   const retrying = retryMutation.isPending && retryMutation.variables === item.invoice_id;
+                  const diagnosis = billingFailureDiagnosis(item);
                   return (
                     <tr
                       key={item.invoice_id}
@@ -432,6 +446,9 @@ export function PaymentOperationsScreen() {
                         <p className="text-xs text-slate-500" title={formatExactTimestamp(item.last_event_at)}>
                           {formatRelativeTimestamp(item.last_event_at)}
                         </p>
+                        <span className={`mt-2 inline-flex rounded-lg px-2 py-1 text-[11px] font-medium ${diagnosisBadgeClass(diagnosis.tone)}`}>
+                          {diagnosis.title}
+                        </span>
                       </td>
                       <td className="rounded-r-xl px-3 py-3 text-right align-top">
                         <div className="flex justify-end gap-2">
@@ -630,6 +647,16 @@ export function PaymentOperationsScreen() {
 
               {lifecycleQuery.data ? (
                 <div className="space-y-3">
+                  <BillingFailureDiagnosisCard
+                    diagnosis={billingFailureDiagnosis({
+                      payment_status: selectedItem?.payment_status,
+                      invoice_status: selectedItem?.invoice_status,
+                      payment_overdue: selectedItem?.payment_overdue,
+                      last_payment_error: selectedItem?.last_payment_error,
+                      lifecycle: lifecycleQuery.data,
+                    })}
+                    label="Failure diagnosis"
+                  />
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                     <MetricCard label="Failure signals" value={lifecycleQuery.data.failure_event_count} tone="danger" />
                     <MetricCard label="Pending signals" value={lifecycleQuery.data.pending_event_count} />
@@ -638,7 +665,7 @@ export function PaymentOperationsScreen() {
                   </div>
                   <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs text-slate-700">
                     <p className="font-semibold uppercase tracking-wider text-slate-600">Recommended Action</p>
-                    <p className="mt-1 text-sm text-slate-900">{lifecycleQuery.data.recommended_action}</p>
+                    <p className="mt-1 text-sm text-slate-900">{formatBillingState(lifecycleQuery.data.recommended_action)}</p>
                     <p className="mt-1 text-slate-600">{lifecycleQuery.data.recommended_action_note}</p>
                     <p className="mt-2 text-[11px] text-slate-500">
                       Last failure: {lifecycleQuery.data.last_failure_at ? formatExactTimestamp(lifecycleQuery.data.last_failure_at) : "-"} | Last success:{" "}
