@@ -151,3 +151,49 @@ func TestLagoBillingProviderAdapterRejectsUnexpectedProviderType(t *testing.T) {
 		t.Fatalf("expected provider type conflict error, got %v", err)
 	}
 }
+
+func TestLagoBillingProviderAdapterFallsBackWhenGraphQLOrganizationContextIsMissing(t *testing.T) {
+	t.Parallel()
+
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/graphql" && r.Method == http.MethodPost:
+			_, _ = w.Write([]byte(`{"errors":[{"message":"Missing organization id"}]}`))
+		case r.URL.Path == "/api/v1/payment_providers/stripe/alpha_stripe_test_bpc_test" && r.Method == http.MethodGet:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"status":404,"error":"Not Found","code":"payment_provider_not_found"}`))
+		case r.URL.Path == "/api/v1/payment_providers/stripe" && r.Method == http.MethodPost:
+			_, _ = w.Write([]byte(`{"payment_provider":{"lago_id":"pp_123","lago_organization_id":"org_test","code":"alpha_stripe_test_bpc_test","name":"Stripe Test","provider_type":"stripe"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{BaseURL: lago.URL, APIKey: "test", Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	adapter := NewLagoBillingProviderAdapter(transport, "https://alpha.example.test/return")
+	result, err := adapter.EnsureStripeProvider(context.Background(), EnsureStripeProviderInput{
+		ConnectionID:       "bpc_test",
+		DisplayName:        "Stripe Test",
+		Environment:        "test",
+		SecretKey:          "sk_test_123",
+		LagoOrganizationID: "org_test",
+	})
+	if err != nil {
+		t.Fatalf("ensure stripe provider with graphql org fallback: %v", err)
+	}
+	if result.LagoOrganizationID != "org_test" {
+		t.Fatalf("expected requested organization id to be preserved, got %q", result.LagoOrganizationID)
+	}
+	if result.LagoWebhookHMACKey != "" {
+		t.Fatalf("expected empty hmac key when graphql organization context is missing, got %q", result.LagoWebhookHMACKey)
+	}
+	if result.LagoProviderCode != "alpha_stripe_test_bpc_test" {
+		t.Fatalf("expected provider code to be returned, got %q", result.LagoProviderCode)
+	}
+}
