@@ -3,6 +3,7 @@ import {
   APIKeyAuditEvent,
   APIKeyAuditExportJobResponse,
   BillingProviderConnection,
+  AddOn,
   BeginCustomerPaymentSetupResult,
   CustomerPaymentSetupRequestResult,
   CustomerBillingProfile,
@@ -346,6 +347,50 @@ export async function fetchPlans(input: {
   runtimeBaseURL?: string;
 }): Promise<Plan[]> {
   const payload = await apiRequest<Plan[]>("/v1/plans", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchAddOns(input: {
+  runtimeBaseURL?: string;
+}): Promise<AddOn[]> {
+  const payload = await apiRequest<AddOn[]>("/v1/add-ons", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function createAddOn(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<AddOn> {
+  const payload = await apiRequest<AddOn>("/v1/add-ons", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchAddOn(input: {
+  runtimeBaseURL?: string;
+  addOnID: string;
+}): Promise<AddOn> {
+  const payload = await apiRequest<AddOn>(`/v1/add-ons/${encodeURIComponent(input.addOnID)}`, {
     runtimeBaseURL: input.runtimeBaseURL,
     method: "GET",
   });

@@ -25,6 +25,17 @@ type createPlanRequest struct {
 	Status          string   `json:"status"`
 	BaseAmountCents int64    `json:"base_amount_cents"`
 	MeterIDs        []string `json:"meter_ids"`
+	AddOnIDs        []string `json:"add_on_ids"`
+}
+
+type createAddOnRequest struct {
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	Currency        string `json:"currency"`
+	BillingInterval string `json:"billing_interval"`
+	Status          string `json:"status"`
+	AmountCents     int64  `json:"amount_cents"`
 }
 
 func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +137,7 @@ func (s *Server) handlePlans(w http.ResponseWriter, r *http.Request) {
 			Status:          domain.PlanStatus(req.Status),
 			BaseAmountCents: req.BaseAmountCents,
 			MeterIDs:        req.MeterIDs,
+			AddOnIDs:        req.AddOnIDs,
 		})
 		if err != nil {
 			writeDomainError(w, err)
@@ -157,4 +169,66 @@ func (s *Server) handlePlanByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, plan)
+}
+
+func (s *Server) handleAddOns(w http.ResponseWriter, r *http.Request) {
+	if s.addOnService == nil {
+		writeError(w, http.StatusServiceUnavailable, "add-on service is required")
+		return
+	}
+	tenantID := requestTenantID(r)
+	switch r.Method {
+	case http.MethodGet:
+		items, err := s.addOnService.ListAddOns(tenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+	case http.MethodPost:
+		var req createAddOnRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		item, err := s.addOnService.CreateAddOn(domain.AddOn{
+			TenantID:        tenantID,
+			Code:            req.Code,
+			Name:            req.Name,
+			Description:     req.Description,
+			Currency:        req.Currency,
+			BillingInterval: domain.BillingInterval(req.BillingInterval),
+			Status:          domain.AddOnStatus(req.Status),
+			AmountCents:     req.AmountCents,
+		})
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, item)
+	default:
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleAddOnByID(w http.ResponseWriter, r *http.Request) {
+	if s.addOnService == nil {
+		writeError(w, http.StatusServiceUnavailable, "add-on service is required")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/v1/add-ons/")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	item, err := s.addOnService.GetAddOn(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
 }

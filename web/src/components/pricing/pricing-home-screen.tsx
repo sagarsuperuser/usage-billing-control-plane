@@ -8,7 +8,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchPlans, fetchPricingMetrics } from "@/lib/api";
+import { fetchAddOns, fetchPlans, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingHomeScreen() {
@@ -25,10 +25,16 @@ export function PricingHomeScreen() {
     queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
+  const addOnsQuery = useQuery({
+    queryKey: ["pricing-add-ons", apiBaseURL],
+    queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
 
-  const loading = metricsQuery.isLoading || plansQuery.isLoading;
+  const loading = metricsQuery.isLoading || plansQuery.isLoading || addOnsQuery.isLoading;
   const metricCount = metricsQuery.data?.length ?? 0;
   const planCount = plansQuery.data?.length ?? 0;
+  const addOnCount = addOnsQuery.data?.length ?? 0;
   const draftPlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
   const activePlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "active").length;
 
@@ -56,8 +62,9 @@ export function PricingHomeScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="Metrics" value={metricCount} />
+          <MetricCard label="Add-ons" value={addOnCount} />
           <MetricCard label="Plans" value={planCount} />
           <MetricCard label="Draft plans" value={draftPlanCount} />
           <MetricCard label="Active plans" value={activePlanCount} />
@@ -71,7 +78,7 @@ export function PricingHomeScreen() {
             </div>
           </section>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-5 xl:grid-cols-3">
             <DomainPanel
               eyebrow="Metrics"
               title="What gets measured"
@@ -83,6 +90,19 @@ export function PricingHomeScreen() {
               stats={[
                 { label: "Total", value: String(metricCount) },
                 { label: "Next step", value: metricCount > 0 ? "Review inventory" : "Create first metric" },
+              ]}
+            />
+            <DomainPanel
+              eyebrow="Add-ons"
+              title="Package recurring extras"
+              body="Define reusable fixed-price add-ons such as premium support, onboarding, or compliance bundles, then attach them to plans."
+              href="/pricing/add-ons"
+              cta="Open add-ons"
+              secondaryHref="/pricing/add-ons/new"
+              secondaryLabel="New add-on"
+              stats={[
+                { label: "Total", value: String(addOnCount) },
+                { label: "Use", value: addOnCount > 0 ? "Attach to plans" : "Create first add-on" },
               ]}
             />
             <DomainPanel

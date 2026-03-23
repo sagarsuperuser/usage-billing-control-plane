@@ -3414,10 +3414,110 @@ func (s *PostgresStore) CreatePlan(input domain.Plan) (domain.Plan, error) {
 			return domain.Plan{}, err
 		}
 	}
+	for idx, addOnID := range input.AddOnIDs {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO plan_add_ons (tenant_id, plan_id, add_on_id, position, created_at) VALUES ($1,$2,$3,$4,$5)`, input.TenantID, input.ID, addOnID, idx, now); err != nil {
+			if isUniqueViolation(err) {
+				return domain.Plan{}, ErrDuplicateKey
+			}
+			return domain.Plan{}, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return domain.Plan{}, err
 	}
 	return input, nil
+}
+
+func (s *PostgresStore) CreateAddOn(input domain.AddOn) (domain.AddOn, error) {
+	if input.ID == "" {
+		input.ID = newID("aon")
+	}
+	now := time.Now().UTC()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	input.TenantID = normalizeTenantID(input.TenantID)
+	input.UpdatedAt = now
+
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, input.TenantID)
+	if err != nil {
+		return domain.AddOn{}, err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(ctx, `INSERT INTO add_ons (id, tenant_id, add_on_code, name, description, currency, billing_interval, status, amount_cents, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		input.ID, input.TenantID, input.Code, input.Name, input.Description, input.Currency, input.BillingInterval, input.Status, input.AmountCents, input.CreatedAt, input.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.AddOn{}, ErrDuplicateKey
+		}
+		return domain.AddOn{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.AddOn{}, err
+	}
+	return input, nil
+}
+
+func (s *PostgresStore) ListAddOns(tenantID string) ([]domain.AddOn, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackSilently(tx)
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, tenant_id, add_on_code, name, description, currency, billing_interval, status, amount_cents, created_at, updated_at FROM add_ons WHERE tenant_id = $1 ORDER BY created_at ASC, id ASC`, normalizeTenantID(tenantID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.AddOn, 0)
+	for rows.Next() {
+		addOn, scanErr := scanAddOn(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, addOn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetAddOn(tenantID, id string) (domain.AddOn, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.AddOn{}, err
+	}
+	defer rollbackSilently(tx)
+
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, add_on_code, name, description, currency, billing_interval, status, amount_cents, created_at, updated_at FROM add_ons WHERE tenant_id = $1 AND id = $2`, normalizeTenantID(tenantID), id)
+	addOn, err := scanAddOn(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.AddOn{}, ErrNotFound
+		}
+		return domain.AddOn{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.AddOn{}, err
+	}
+	return addOn, nil
 }
 
 func (s *PostgresStore) ListPlans(tenantID string) ([]domain.Plan, error) {
@@ -3453,10 +3553,18 @@ func (s *PostgresStore) ListPlans(tenantID string) ([]domain.Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	addOnIDsByPlan, err := loadPlanAddOnIDs(ctx, tx, normalizeTenantID(tenantID), ids)
+	if err != nil {
+		return nil, err
+	}
 	for i := range out {
 		out[i].MeterIDs = metricIDsByPlan[out[i].ID]
 		if out[i].MeterIDs == nil {
 			out[i].MeterIDs = []string{}
+		}
+		out[i].AddOnIDs = addOnIDsByPlan[out[i].ID]
+		if out[i].AddOnIDs == nil {
+			out[i].AddOnIDs = []string{}
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -3490,6 +3598,14 @@ func (s *PostgresStore) GetPlan(tenantID, id string) (domain.Plan, error) {
 	plan.MeterIDs = metricIDsByPlan[id]
 	if plan.MeterIDs == nil {
 		plan.MeterIDs = []string{}
+	}
+	addOnIDsByPlan, err := loadPlanAddOnIDs(ctx, tx, normalizeTenantID(tenantID), []string{id})
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	plan.AddOnIDs = addOnIDsByPlan[id]
+	if plan.AddOnIDs == nil {
+		plan.AddOnIDs = []string{}
 	}
 	if err := tx.Commit(); err != nil {
 		return domain.Plan{}, err
@@ -3644,6 +3760,30 @@ func loadPlanMetricIDs(ctx context.Context, tx *sql.Tx, tenantID string, planIDs
 			return nil, err
 		}
 		out[planID] = append(out[planID], meterID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func loadPlanAddOnIDs(ctx context.Context, tx *sql.Tx, tenantID string, planIDs []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(planIDs))
+	if len(planIDs) == 0 {
+		return out, nil
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT plan_id, add_on_id FROM plan_add_ons WHERE tenant_id = $1 AND plan_id = ANY($2) ORDER BY position ASC, add_on_id ASC`, tenantID, pq.Array(planIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var planID string
+		var addOnID string
+		if err := rows.Scan(&planID, &addOnID); err != nil {
+			return nil, err
+		}
+		out[planID] = append(out[planID], addOnID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -6746,6 +6886,23 @@ func scanPlan(s rowScanner) (domain.Plan, error) {
 	out.TenantID = normalizeTenantID(out.TenantID)
 	out.BillingInterval = domain.BillingInterval(strings.TrimSpace(billingInterval))
 	out.Status = domain.PlanStatus(strings.TrimSpace(status))
+	if description.Valid {
+		out.Description = normalizeOptionalText(description.String)
+	}
+	return out, nil
+}
+
+func scanAddOn(s rowScanner) (domain.AddOn, error) {
+	var out domain.AddOn
+	var description sql.NullString
+	var billingInterval string
+	var status string
+	if err := s.Scan(&out.ID, &out.TenantID, &out.Code, &out.Name, &description, &out.Currency, &billingInterval, &status, &out.AmountCents, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		return domain.AddOn{}, err
+	}
+	out.TenantID = normalizeTenantID(out.TenantID)
+	out.BillingInterval = domain.BillingInterval(strings.TrimSpace(billingInterval))
+	out.Status = domain.AddOnStatus(strings.TrimSpace(status))
 	if description.Valid {
 		out.Description = normalizeOptionalText(description.String)
 	}

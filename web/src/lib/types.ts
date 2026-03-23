@@ -451,6 +451,20 @@ export interface PricingMetric {
   updated_at: string;
 }
 
+export interface AddOn {
+  id: string;
+  tenant_id?: string;
+  code: string;
+  name: string;
+  description?: string;
+  currency: string;
+  billing_interval: "monthly" | "yearly";
+  status: "draft" | "active" | "archived";
+  amount_cents: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Plan {
   id: string;
   tenant_id?: string;
@@ -462,6 +476,7 @@ export interface Plan {
   status: "draft" | "active" | "archived";
   base_amount_cents: number;
   meter_ids: string[];
+  add_on_ids: string[];
   created_at: string;
   updated_at: string;
 }

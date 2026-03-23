@@ -526,6 +526,28 @@ const (
 	PlanStatusArchived PlanStatus = "archived"
 )
 
+type AddOnStatus string
+
+const (
+	AddOnStatusDraft    AddOnStatus = "draft"
+	AddOnStatusActive   AddOnStatus = "active"
+	AddOnStatusArchived AddOnStatus = "archived"
+)
+
+type AddOn struct {
+	ID              string          `json:"id"`
+	TenantID        string          `json:"tenant_id,omitempty"`
+	Code            string          `json:"code"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description,omitempty"`
+	Currency        string          `json:"currency"`
+	BillingInterval BillingInterval `json:"billing_interval"`
+	Status          AddOnStatus     `json:"status"`
+	AmountCents     int64           `json:"amount_cents"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
 type Plan struct {
 	ID              string          `json:"id"`
 	TenantID        string          `json:"tenant_id,omitempty"`
@@ -537,6 +559,7 @@ type Plan struct {
 	Status          PlanStatus      `json:"status"`
 	BaseAmountCents int64           `json:"base_amount_cents"`
 	MeterIDs        []string        `json:"meter_ids"`
+	AddOnIDs        []string        `json:"add_on_ids"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }

@@ -9,8 +9,8 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { fetchPlans, fetchPricingMetrics } from "@/lib/api";
-import { type Plan, type PricingMetric } from "@/lib/types";
+import { fetchAddOns, fetchPlans, fetchPricingMetrics } from "@/lib/api";
+import { type AddOn, type Plan, type PricingMetric } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanListScreen() {
@@ -28,6 +28,11 @@ export function PricingPlanListScreen() {
     queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
+  const addOnsQuery = useQuery({
+    queryKey: ["pricing-add-ons", apiBaseURL],
+    queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
 
   const filtered = useMemo(() => {
     const items = plansQuery.data ?? [];
@@ -37,6 +42,7 @@ export function PricingPlanListScreen() {
   }, [plansQuery.data, search]);
 
   const metricsByID = useMemo(() => new Map((metricsQuery.data ?? []).map((metric) => [metric.id, metric])), [metricsQuery.data]);
+  const addOnsByID = useMemo(() => new Map((addOnsQuery.data ?? []).map((item) => [item.id, item])), [addOnsQuery.data]);
   const draftCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
 
   return (
@@ -86,7 +92,7 @@ export function PricingPlanListScreen() {
             />
           </div>
           <div className="mt-5 grid gap-3">
-            {plansQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((plan) => <PlanRow key={plan.id} plan={plan} metricsByID={metricsByID} />)}
+            {plansQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((plan) => <PlanRow key={plan.id} plan={plan} metricsByID={metricsByID} addOnsByID={addOnsByID} />)}
           </div>
         </section>
       </main>
@@ -94,23 +100,27 @@ export function PricingPlanListScreen() {
   );
 }
 
-function PlanRow({ plan, metricsByID }: { plan: Plan; metricsByID: Map<string, PricingMetric> }) {
+function PlanRow({ plan, metricsByID, addOnsByID }: { plan: Plan; metricsByID: Map<string, PricingMetric>; addOnsByID: Map<string, AddOn> }) {
   const metricLabel = plan.meter_ids.map((id) => metricsByID.get(id)?.name || id).slice(0, 2).join(", ");
+  const addOnIDs = plan.add_on_ids ?? [];
+  const addOnLabel = addOnIDs.map((id) => addOnsByID.get(id)?.name || id).slice(0, 2).join(", ");
 
   return (
     <Link
       href={`/pricing/plans/${encodeURIComponent(plan.id)}`}
-      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.55fr))_auto] lg:items-center"
+      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(5,minmax(0,0.55fr))_auto] lg:items-center"
     >
       <div className="min-w-0">
         <h3 className="truncate text-base font-semibold text-slate-950">{plan.name}</h3>
         <p className="mt-1 break-all font-mono text-xs text-slate-500">{plan.code}</p>
         <p className="mt-2 text-sm text-slate-600">{metricLabel ? `Includes ${metricLabel}` : "No metrics linked yet."}</p>
+        <p className="mt-1 text-sm text-slate-500">{addOnLabel ? `Add-ons: ${addOnLabel}` : "No add-ons attached."}</p>
       </div>
       <StatusCell label="Status" value={plan.status} />
       <StatusCell label="Interval" value={plan.billing_interval} />
       <StatusCell label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} />
       <StatusCell label="Metrics" value={String(plan.meter_ids.length)} />
+      <StatusCell label="Add-ons" value={String(addOnIDs.length)} />
       <StatusCell label="Currency" value={plan.currency.toUpperCase()} />
       <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
         Open

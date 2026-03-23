@@ -10,7 +10,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { createPlan, fetchPricingMetrics } from "@/lib/api";
+import { createPlan, fetchAddOns, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanNewScreen() {
@@ -24,11 +24,17 @@ export function PricingPlanNewScreen() {
   const [status, setStatus] = useState("draft");
   const [baseAmount, setBaseAmount] = useState("49");
   const [selectedMetricIDs, setSelectedMetricIDs] = useState<string[]>([]);
+  const [selectedAddOnIDs, setSelectedAddOnIDs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const metricsQuery = useQuery({
     queryKey: ["pricing-metrics", apiBaseURL],
     queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
+    enabled: isAuthenticated && scope === "tenant",
+  });
+  const addOnsQuery = useQuery({
+    queryKey: ["pricing-add-ons", apiBaseURL],
+    queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
 
@@ -46,6 +52,7 @@ export function PricingPlanNewScreen() {
           status,
           base_amount_cents: Math.round(Number(baseAmount || 0) * 100),
           meter_ids: selectedMetricIDs,
+          add_on_ids: selectedAddOnIDs,
         },
       }),
     onSuccess: (plan) => router.push(`/pricing/plans/${encodeURIComponent(plan.id)}`),
@@ -54,6 +61,9 @@ export function PricingPlanNewScreen() {
 
   const toggleMetric = (metricID: string) => {
     setSelectedMetricIDs((current) => (current.includes(metricID) ? current.filter((id) => id !== metricID) : [...current, metricID]));
+  };
+  const toggleAddOn = (addOnID: string) => {
+    setSelectedAddOnIDs((current) => (current.includes(addOnID) ? current.filter((id) => id !== addOnID) : [...current, addOnID]));
   };
 
   return (
@@ -112,6 +122,24 @@ export function PricingPlanNewScreen() {
                 </div>
               </section>
 
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Attached add-ons</p>
+                <div className="mt-3 grid gap-3">
+                  {(addOnsQuery.data ?? []).length === 0 ? (
+                    <p className="text-sm text-slate-600">No add-ons created yet. This plan can still be created without them.</p>
+                  ) : (
+                    addOnsQuery.data?.map((addOn) => (
+                      <label key={addOn.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        <input data-testid={`pricing-plan-addon-${addOn.id}`} type="checkbox" checked={selectedAddOnIDs.includes(addOn.id)} onChange={() => toggleAddOn(addOn.id)} className="h-4 w-4 rounded border-slate-300" />
+                        <span className="font-semibold text-slate-950">{addOn.name}</span>
+                        <span className="font-mono text-xs text-slate-500">{addOn.code}</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{(addOn.amount_cents / 100).toFixed(2)} {addOn.currency}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </section>
+
               {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
 
               <div className="flex flex-wrap gap-3">
@@ -127,7 +155,7 @@ export function PricingPlanNewScreen() {
           <aside className="grid gap-5 self-start">
             <InfoCard title="Before you start" body="You need at least one metric before a plan can be created." />
             <InfoCard title="Design rule" body="Keep the first version simple: stable naming, one base price, and explicit linked metrics." />
-            <InfoCard title="Current selection" body={`${selectedMetricIDs.length} metric(s) selected`} />
+            <InfoCard title="Current selection" body={`${selectedMetricIDs.length} metric(s), ${selectedAddOnIDs.length} add-on(s)`} />
           </aside>
         </div>
       </main>
