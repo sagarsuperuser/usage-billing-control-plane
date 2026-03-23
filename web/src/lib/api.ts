@@ -2,6 +2,8 @@ import {
   APIKey,
   APIKeyAuditEvent,
   APIKeyAuditExportJobResponse,
+  TenantAuditEvent,
+  TenantAuditResult,
   BillingProviderConnection,
   AddOn,
   Coupon,
@@ -635,6 +637,31 @@ export async function fetchTenants(input: {
     status: input.status,
   });
   const payload = await apiRequest<Tenant[]>(`/internal/tenants${query}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload;
+}
+
+export async function fetchTenantAuditEvents(input: {
+  runtimeBaseURL?: string;
+  tenantID?: string;
+  actorAPIKeyID?: string;
+  action?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<TenantAuditResult> {
+  const query = toQuery({
+    tenant_id: input.tenantID,
+    actor_api_key_id: input.actorAPIKeyID,
+    action: input.action,
+    limit: input.limit,
+    offset: input.offset,
+  });
+  const payload = await apiRequest<TenantAuditResult>(`/internal/tenants/audit${query}`, {
     runtimeBaseURL: input.runtimeBaseURL,
     method: "GET",
   });

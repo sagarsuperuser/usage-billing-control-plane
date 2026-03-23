@@ -396,6 +396,22 @@ export interface APIKeyAuditEvent {
   created_at: string;
 }
 
+export interface TenantAuditEvent {
+  id: string;
+  tenant_id: string;
+  actor_api_key_id?: string;
+  action: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface TenantAuditResult {
+  items: TenantAuditEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface APIKeyAuditExportJobFilters {
   api_key_id?: string;
   actor_api_key_id?: string;

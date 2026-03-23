@@ -10,6 +10,7 @@ import {
   Building2,
   CircleDollarSign,
   CreditCard,
+  FileSearch,
   Home,
   Layers3,
   ReceiptText,
@@ -34,6 +35,7 @@ const platformItems: NavItem[] = [
   { href: "/control-plane", label: "Overview", scope: "platform", icon: Home },
   { href: "/billing-connections", label: "Billing Connections", scope: "platform", icon: CreditCard },
   { href: "/workspaces", label: "Workspaces", scope: "platform", icon: Building2 },
+  { href: "/tenant-audit", label: "Audit", scope: "platform", icon: FileSearch },
   { href: "/workspaces/new", label: "Workspace Setup", scope: "platform", icon: Layers3 },
 ];
 
@@ -56,6 +58,9 @@ function isActivePath(pathname: string, href: string): boolean {
   }
   if (href === "/workspaces") {
     return pathname === "/workspaces" || (pathname.startsWith("/workspaces/") && pathname !== "/workspaces/new");
+  }
+  if (href === "/tenant-audit") {
+    return pathname === "/tenant-audit";
   }
   if (href === "/customers") {
     return pathname === "/customers" || (pathname.startsWith("/customers/") && pathname !== "/customers/new");
