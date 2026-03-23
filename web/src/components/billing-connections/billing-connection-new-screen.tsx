@@ -177,8 +177,8 @@ export function BillingConnectionNewScreen() {
               </div>
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-600">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current limitation</p>
-              <p className="mt-3">Secret rotation is not exposed here yet because the current provider update contract cannot cleanly rotate Stripe secrets through the same public update path.</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">After connect</p>
+              <p className="mt-3">Rotate secrets, resync providers, and disable stale connections from the billing connection detail page after the initial sync succeeds.</p>
             </section>
           </aside>
         </div>

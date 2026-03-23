@@ -51,9 +51,9 @@ Use these terms consistently:
 | Access and invite membership journey | prove invite, acceptance, membership activation, and role safeguards end to end | implemented |
 | Customer onboarding journey | prove customer creation, billing profile sync, and readiness progression end to end | implemented |
 | Subscription change and cancellation journey | prove plan changes and subscription end-of-life remain commercially coherent | implemented |
-| Usage-to-issued-invoice journey | prove usage becomes an issued invoice that Alpha can inspect and explain | planned |
-| Dunning and collections journey | prove policy-driven collections and reminders behave correctly end to end | planned |
-| Billing connection lifecycle journey | prove billing connection create, rotate, verify, and tenant mapping lifecycle end to end | planned |
+| Usage-to-issued-invoice journey | prove usage becomes an issued invoice that Alpha can inspect and explain | implemented |
+| Dunning and collections journey | prove policy-driven collections and reminders behave correctly end to end | implemented |
+| Billing connection lifecycle journey | prove billing connection create, rotate, verify, and tenant mapping lifecycle end to end | implemented |
 
 ---
 
@@ -536,7 +536,7 @@ Prove that staged usage becomes a real issued invoice that Alpha can inspect, ex
 
 ### Current automation state
 
-- `planned`
+- `implemented`
 
 ---
 
@@ -548,7 +548,7 @@ Prove Alpha-owned collections policy, reminders, and retries rather than only ma
 
 ### Current automation state
 
-- `planned`
+- `implemented`
 
 ---
 
@@ -560,7 +560,7 @@ Prove billing connection create, rotate, verify, and tenant-mapping lifecycle wi
 
 ### Current automation state
 
-- `planned`
+- `implemented`
 
 ---
 

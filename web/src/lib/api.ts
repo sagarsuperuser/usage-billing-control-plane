@@ -1200,6 +1200,29 @@ export async function disableBillingProviderConnection(input: {
   return payload.connection;
 }
 
+export async function rotateBillingProviderConnectionSecret(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  connectionID: string;
+  stripeSecretKey: string;
+}): Promise<BillingProviderConnection> {
+  const payload = await apiRequest<{ connection: BillingProviderConnection }>(
+    `/internal/billing-provider-connections/${encodeURIComponent(input.connectionID)}/rotate-secret`,
+    {
+      runtimeBaseURL: input.runtimeBaseURL,
+      method: "POST",
+      csrfToken: input.csrfToken,
+      body: {
+        stripe_secret_key: input.stripeSecretKey,
+      },
+    }
+  );
+  if (!payload) {
+    throw new Error("unauthorized");
+  }
+  return payload.connection;
+}
+
 export async function onboardCustomer(input: {
   runtimeBaseURL?: string;
   csrfToken: string;

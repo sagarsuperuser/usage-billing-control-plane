@@ -12,6 +12,7 @@ import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import {
   disableBillingProviderConnection,
   fetchBillingProviderConnection,
+  rotateBillingProviderConnectionSecret,
   syncBillingProviderConnection,
   updateBillingProviderConnection,
 } from "@/lib/api";
@@ -40,6 +41,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   const [environment, setEnvironment] = useState<"test" | "live">("test");
   const [lagoOrganizationID, setLagoOrganizationID] = useState("");
   const [lagoProviderCode, setLagoProviderCode] = useState("");
+  const [rotatedStripeSecretKey, setRotatedStripeSecretKey] = useState("");
 
   const connectionQuery = useQuery({
     queryKey: ["billing-provider-connection", apiBaseURL, connectionID],
@@ -82,6 +84,23 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   const disableMutation = useMutation({
     mutationFn: () => disableBillingProviderConnection({ runtimeBaseURL: apiBaseURL, csrfToken, connectionID }),
     onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["billing-provider-connection", apiBaseURL, connectionID] }),
+        queryClient.invalidateQueries({ queryKey: ["billing-provider-connections"] }),
+      ]);
+    },
+  });
+
+  const rotateSecretMutation = useMutation({
+    mutationFn: () =>
+      rotateBillingProviderConnectionSecret({
+        runtimeBaseURL: apiBaseURL,
+        csrfToken,
+        connectionID,
+        stripeSecretKey: rotatedStripeSecretKey.trim(),
+      }),
+    onSuccess: async () => {
+      setRotatedStripeSecretKey("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connection", apiBaseURL, connectionID] }),
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connections"] }),
@@ -290,21 +309,45 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</p>
                   <div className="mt-4 grid gap-3">
-                    <button
-                      type="button"
-                      onClick={() => syncMutation.mutate()}
-                      disabled={!csrfToken || syncMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {syncMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                      Sync now
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => disableMutation.mutate()}
-                      disabled={!csrfToken || disableMutation.isPending || syncMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
+                      <button
+                        type="button"
+                        onClick={() => syncMutation.mutate()}
+                        disabled={!csrfToken || syncMutation.isPending || rotateSecretMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {syncMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                        Sync now
+                      </button>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-950">Rotate Stripe secret</p>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                          Rotation marks the connection pending until the next successful sync. Use this when the backing Stripe key changes or you want to re-store it cleanly.
+                        </p>
+                        <div className="mt-3 grid gap-3">
+                          <InputField
+                            label="New Stripe secret key"
+                            value={rotatedStripeSecretKey}
+                            onChange={setRotatedStripeSecretKey}
+                            placeholder="sk_test_..."
+                            type="password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => rotateSecretMutation.mutate()}
+                            disabled={!csrfToken || rotateSecretMutation.isPending || syncMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled" || !rotatedStripeSecretKey.trim()}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {rotateSecretMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                            Rotate secret
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => disableMutation.mutate()}
+                        disabled={!csrfToken || disableMutation.isPending || rotateSecretMutation.isPending || syncMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
                       {disableMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
                       Disable connection
                     </button>
@@ -365,11 +408,25 @@ function MetaItem({ label, value, mono }: { label: string; value: string; mono?:
   );
 }
 
-function InputField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (next: string) => void; placeholder?: string }) {
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
       <input
+        aria-label={label}
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}

@@ -181,3 +181,69 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 		t.Fatalf("expected disabled status, got %#v", disabledConnection["status"])
 	}
 }
+
+func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	adapter := &stubBillingProviderAdapterAPI{result: service.EnsureStripeProviderResult{
+		LagoOrganizationID: "org_synced",
+		LagoProviderCode:   "stripe_synced",
+	}}
+	secretStore := service.NewMemoryBillingSecretStore()
+	svc := service.NewBillingProviderConnectionService(repo, secretStore, adapter)
+
+	ts := httptest.NewServer(api.NewServer(repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithBillingProviderConnectionService(svc),
+	).Handler())
+	defer ts.Close()
+
+	created := postJSON(t, ts.URL+"/internal/billing-provider-connections", map[string]any{
+		"provider_type":        "stripe",
+		"environment":          "test",
+		"display_name":         "Stripe Rotate Test",
+		"scope":                "platform",
+		"stripe_secret_key":    "sk_test_http",
+		"lago_organization_id": "org_seed",
+	}, "platform-admin", http.StatusCreated)
+
+	connection := created["connection"].(map[string]any)
+	connectionID := connection["id"].(string)
+	synced := postJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID+"/sync", map[string]any{}, "platform-admin", http.StatusOK)
+	syncedConnection := synced["connection"].(map[string]any)
+	if syncedConnection["status"] != "connected" {
+		t.Fatalf("expected connected status after sync, got %#v", syncedConnection["status"])
+	}
+
+	rotated := postJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID+"/rotate-secret", map[string]any{
+		"stripe_secret_key": "sk_test_rotated_http",
+	}, "platform-admin", http.StatusOK)
+	rotatedConnection := rotated["connection"].(map[string]any)
+	if rotatedConnection["status"] != "pending" {
+		t.Fatalf("expected pending status after rotate, got %#v", rotatedConnection["status"])
+	}
+	if rotatedConnection["workspace_ready"] != false {
+		t.Fatalf("expected workspace_ready=false after rotate")
+	}
+}

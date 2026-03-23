@@ -34,6 +34,10 @@ type billingProviderConnectionResponse struct {
 	UpdatedAt            string                                 `json:"updated_at"`
 }
 
+type rotateBillingProviderConnectionSecretRequest struct {
+	StripeSecretKey string `json:"stripe_secret_key"`
+}
+
 func billingConnectionSyncState(item domain.BillingProviderConnection) string {
 	switch item.Status {
 	case domain.BillingProviderConnectionStatusDisabled:
@@ -187,7 +191,7 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 		return
 	}
 	switch action {
-	case "", "sync", "disable":
+	case "", "sync", "disable", "rotate-secret":
 	default:
 		writeError(w, http.StatusBadRequest, "unsupported billing provider connection subresource")
 		return
@@ -224,6 +228,26 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 			return
 		}
 		item, err := s.billingProviderConnectionService.DisableBillingProviderConnection(id)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		counts, ok := loadCounts()
+		if !ok {
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
+	case action == "rotate-secret":
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+		var req rotateBillingProviderConnectionSecretRequest
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		item, err := s.billingProviderConnectionService.RotateBillingProviderConnectionSecret(r.Context(), id, req.StripeSecretKey)
 		if err != nil {
 			writeDomainError(w, err)
 			return

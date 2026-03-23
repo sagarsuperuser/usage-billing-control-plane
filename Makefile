@@ -211,6 +211,9 @@ test-staging-usage-to-issued-invoice-journey: ## Run live staging usage-to-issue
 test-staging-dunning-journey: ## Run live staging dunning and collections journey with minted platform/writer/reader keys (requires LAGO_API_KEY)
 	@bash ./scripts/run_staging_dunning_journey_with_minted_keys.sh
 
+test-staging-billing-connection-lifecycle-journey: ## Run live staging billing connection lifecycle journey through the platform UI
+	@bash ./scripts/run_staging_billing_connection_lifecycle_journey.sh
+
 verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh
 
