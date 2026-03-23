@@ -56,7 +56,76 @@ function FieldLabel({ children }: { children: string }) {
   return <label className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">{children}</label>;
 }
 
+type DunningRunDiagnosis = {
+  title: string;
+  nextStep: string;
+  tone: "healthy" | "warning" | "danger";
+};
+
+function diagnosisToneClass(tone: DunningRunDiagnosis["tone"]): string {
+  switch (tone) {
+    case "healthy":
+      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    case "warning":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    default:
+      return "border-rose-200 bg-rose-50 text-rose-800";
+  }
+}
+
+function diagnoseDunningRun(run: DunningRun): DunningRunDiagnosis {
+  if (run.paused) {
+    return {
+      title: "Run is paused",
+      nextStep: "Resume or resolve this run before expecting retries or reminders to continue.",
+      tone: "warning",
+    };
+  }
+  if (run.resolved_at) {
+    return {
+      title: "Run resolved",
+      nextStep: "Monitor only. Open run detail if you need the exact resolution trail.",
+      tone: "healthy",
+    };
+  }
+  switch (run.state) {
+    case "awaiting_payment_setup":
+      return {
+        title: "Awaiting payment setup",
+        nextStep: "Collect or refresh customer payment setup before expecting retry success.",
+        tone: "danger",
+      };
+    case "retry_due":
+      return {
+        title: "Retry is due",
+        nextStep: "Open the run and invoice timeline before manually retrying or overriding schedule.",
+        tone: "warning",
+      };
+    case "escalated":
+      return {
+        title: "Manual review required",
+        nextStep: "Open run detail and decide whether to pause, resolve, or move the invoice into deeper recovery.",
+        tone: "danger",
+      };
+    default:
+      if (run.next_action_type === "collect_payment_reminder") {
+        return {
+          title: "Reminder path active",
+          nextStep: "Confirm the reminder goes out and that the customer can complete payment setup.",
+          tone: "warning",
+        };
+      }
+      return {
+        title: "Collections active",
+        nextStep: "Monitor the next action timing and open the run if the state stops progressing.",
+        tone: "healthy",
+      };
+  }
+}
+
 function RunRow({ run }: { run: DunningRun }) {
+  const diagnosis = diagnoseDunningRun(run);
+
   return (
     <tr className="border-t border-stone-200 text-sm text-slate-700">
       <td className="px-4 py-3 font-mono text-xs text-slate-500">{run.invoice_id}</td>
@@ -65,6 +134,14 @@ function RunRow({ run }: { run: DunningRun }) {
       <td className="px-4 py-3 capitalize">{formatState(run.next_action_type)}</td>
       <td className="px-4 py-3">{formatExactTimestamp(run.next_action_at)}</td>
       <td className="px-4 py-3">{run.attempt_count}</td>
+      <td className="px-4 py-3">
+        <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+          <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${diagnosisToneClass(diagnosis.tone)}`}>
+            {diagnosis.title}
+          </span>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.nextStep}</p>
+        </div>
+      </td>
       <td className="px-4 py-3">
         <Link
           href={`/dunning/${encodeURIComponent(run.id)}`}
@@ -389,13 +466,14 @@ export function DunningConsoleScreen() {
                     <th className="px-4 py-3 font-medium">Next action</th>
                     <th className="px-4 py-3 font-medium">Due</th>
                     <th className="px-4 py-3 font-medium">Attempts</th>
+                    <th className="px-4 py-3 font-medium">Diagnosis</th>
                     <th className="px-4 py-3 font-medium">Open</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200 bg-white">
                   {runs.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-500">
                         No dunning runs matched the current filter.
                       </td>
                     </tr>
