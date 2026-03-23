@@ -376,6 +376,10 @@ test("platform admin sees explicit verification checks for a failed billing conn
   await page.goto("/billing-connections/bpc_alpha");
 
   await expect(page.getByRole("heading", { name: "Health checks" })).toBeVisible();
+  await expect(page.getByText("Verification diagnosis")).toBeVisible();
+  await expect(page.getByText("Provider verification failed")).toBeVisible();
+  await expect(page.getByText("Assignment risk High")).toBeVisible();
+  await expect(page.getByText("2 linked workspaces depend on this path.")).toBeVisible();
   await expect(page.getByText("Last sync error", { exact: true })).toBeVisible();
   await expect(page.locator("div").filter({ hasText: /^provider timeout$/ }).first()).toBeVisible();
   await expect(page.getByText("Workspace assignment")).toBeVisible();

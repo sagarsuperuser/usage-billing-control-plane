@@ -29,6 +29,16 @@ type ConnectionHealthCheck = {
   tone: HealthCheckTone;
 };
 
+type ConnectionVerificationDiagnosis = {
+  code: string;
+  title: string;
+  summary: string;
+  nextStep: string;
+  assignmentRisk: string;
+  workspaceImpact: string;
+  tone: HealthCheckTone;
+};
+
 function readinessTone(status?: string): string {
   switch ((status || "").toLowerCase()) {
     case "connected":
@@ -93,6 +103,99 @@ function nextActionLabel(connection: {
     return "Healthy. Safe for current assignments and additional workspace handoff.";
   }
   return "Healthy. Safe to assign to the next workspace.";
+}
+
+function buildVerificationDiagnosis(connection: {
+  status: string;
+  sync_state: string;
+  sync_summary: string;
+  linked_workspace_count: number;
+  workspace_ready: boolean;
+  secret_configured: boolean;
+  lago_organization_id?: string;
+  lago_provider_code?: string;
+  last_synced_at?: string;
+  last_sync_error?: string;
+}): ConnectionVerificationDiagnosis {
+  const workspaceImpact =
+    connection.linked_workspace_count > 0
+      ? `${connection.linked_workspace_count} linked workspace${connection.linked_workspace_count === 1 ? "" : "s"} depend on this path.`
+      : "No workspaces depend on this connection yet.";
+
+  if (connection.status === "disabled") {
+    return {
+      code: "disabled",
+      title: "Connection is disabled",
+      summary: "This billing path is intentionally out of service and should not receive new workspace assignments.",
+      nextStep: "Keep existing workspaces on another active connection before disabling or replacing this path.",
+      assignmentRisk: "Blocked",
+      workspaceImpact,
+      tone: "bad",
+    };
+  }
+
+  if (!connection.secret_configured) {
+    return {
+      code: "missing_secret",
+      title: "Verification cannot run",
+      summary: "Alpha has no stored provider secret, so provider verification cannot succeed.",
+      nextStep: "Store the Stripe secret first, then run sync to verify the provider and workspace route.",
+      assignmentRisk: "Blocked",
+      workspaceImpact,
+      tone: "bad",
+    };
+  }
+
+  if (connection.sync_state === "failed") {
+    return {
+      code: "verification_failed",
+      title: "Provider verification failed",
+      summary: connection.last_sync_error || connection.sync_summary || "The latest verification attempt did not complete cleanly.",
+      nextStep: "Correct the provider secret or override mismatch, then rerun sync before trusting this connection.",
+      assignmentRisk: connection.linked_workspace_count > 0 ? "High" : "Blocked",
+      workspaceImpact,
+      tone: "bad",
+    };
+  }
+
+  if (connection.sync_state === "pending") {
+    return {
+      code: "verification_pending",
+      title: "Verification is pending",
+      summary: "A change was made, but Alpha has not yet completed a successful verification after it.",
+      nextStep: "Run sync and wait for a healthy result before assigning additional workspaces.",
+      assignmentRisk: connection.linked_workspace_count > 0 ? "Elevated" : "Blocked",
+      workspaceImpact,
+      tone: "warn",
+    };
+  }
+
+  if (connection.sync_state === "never_synced") {
+    return {
+      code: "never_synced",
+      title: "Connection has never been verified",
+      summary: "The secret is stored, but Alpha has never verified this provider path against Lago and Stripe.",
+      nextStep: "Run the first sync before assigning this connection to any workspace.",
+      assignmentRisk: "Blocked",
+      workspaceImpact,
+      tone: "warn",
+    };
+  }
+
+  return {
+    code: "verified",
+    title: "Connection is verified",
+    summary: connection.last_synced_at
+      ? `Last successful verification was ${formatExactTimestamp(connection.last_synced_at)}.`
+      : "The provider path is healthy and ready for workspace billing traffic.",
+    nextStep:
+      connection.linked_workspace_count > 0
+        ? "Healthy. Safe to keep current workspaces here and use this connection for additional handoff."
+        : "Healthy. Safe to assign this connection to the next workspace.",
+    assignmentRisk: "Low",
+    workspaceImpact,
+    tone: "good",
+  };
 }
 
 function buildConnectionHealthChecks(connection: {
@@ -290,6 +393,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
 
   const connection = connectionQuery.data ?? null;
   const healthChecks = connection ? buildConnectionHealthChecks(connection) : [];
+  const verificationDiagnosis = connection ? buildVerificationDiagnosis(connection) : null;
 
   const startEditing = () => {
     if (!connection) return;
@@ -417,6 +521,30 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                       <p className="mt-2 leading-relaxed">{nextActionLabel(connection)}</p>
                     </div>
                   </div>
+                  {verificationDiagnosis ? (
+                    <div className={`mt-5 rounded-2xl border p-5 ${healthCheckTone(verificationDiagnosis.tone)}`}>
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">Verification diagnosis</p>
+                          <h3 className="mt-2 text-lg font-semibold">{verificationDiagnosis.title}</h3>
+                          <p className="mt-2 text-sm leading-relaxed opacity-90">{verificationDiagnosis.summary}</p>
+                        </div>
+                        <span className="self-start rounded-full border border-current/20 bg-white/60 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                          Assignment risk {verificationDiagnosis.assignmentRisk}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                        <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-75">Workspace impact</p>
+                          <p className="mt-2">{verificationDiagnosis.workspaceImpact}</p>
+                        </div>
+                        <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-75">Next step</p>
+                          <p className="mt-2">{verificationDiagnosis.nextStep}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="mt-5 grid gap-3">
                     {healthChecks.map((check) => (
                       <div key={check.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
