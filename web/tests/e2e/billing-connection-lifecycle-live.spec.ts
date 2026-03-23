@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 import { loginWithPassword } from "./live-browser-auth";
 
-const livePlatformAdminEmail = process.env.PLAYWRIGHT_LIVE_PLATFORM_ADMIN_EMAIL || "";
-const livePlatformAdminPassword = process.env.PLAYWRIGHT_LIVE_PLATFORM_ADMIN_PASSWORD || "";
+const livePlatformAdminEmail = process.env.PLAYWRIGHT_LIVE_PLATFORM_ADMIN_EMAIL || process.env.PLAYWRIGHT_LIVE_PLATFORM_EMAIL || "";
+const livePlatformAdminPassword = process.env.PLAYWRIGHT_LIVE_PLATFORM_ADMIN_PASSWORD || process.env.PLAYWRIGHT_LIVE_PLATFORM_PASSWORD || "";
 const workspaceID = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_WORKSPACE_ID || "";
 const workspaceName = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_WORKSPACE_NAME || "";
 const primaryConnectionName = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_PRIMARY_NAME || "";
@@ -30,7 +30,7 @@ async function createConnection(page: import("@playwright/test").Page, name: str
 
 test.describe("billing connection lifecycle live staging", () => {
   test.skip(!process.env.PLAYWRIGHT_LIVE_BASE_URL, "PLAYWRIGHT_LIVE_BASE_URL is required for live billing connection lifecycle journey");
-  test.skip(!livePlatformAdminEmail || !livePlatformAdminPassword, "PLAYWRIGHT_LIVE_PLATFORM_ADMIN_EMAIL and PLAYWRIGHT_LIVE_PLATFORM_ADMIN_PASSWORD are required");
+  test.skip(!livePlatformAdminEmail || !livePlatformAdminPassword, "PLAYWRIGHT_LIVE_PLATFORM_EMAIL and PLAYWRIGHT_LIVE_PLATFORM_PASSWORD are required");
 
   test("platform admin can create, rotate, switch, and disable billing connections without backend repair", async ({ page }) => {
     test.setTimeout(300000);
