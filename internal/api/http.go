@@ -285,16 +285,16 @@ func (s *Server) buildWorkspaceBillingResponse(tenant domain.Tenant) workspaceBi
 	resp := workspaceBillingResponse{
 		Status: "missing",
 	}
-	if strings.TrimSpace(tenant.BillingProviderConnectionID) == "" {
-		return resp
+	if connectionID := strings.TrimSpace(tenant.BillingProviderConnectionID); connectionID != "" {
+		resp.Configured = true
+		resp.ActiveBillingConnectionID = connectionID
+		resp.Status = "pending"
 	}
-	resp.Configured = true
-	resp.ActiveBillingConnectionID = tenant.BillingProviderConnectionID
-	resp.Status = "pending"
 	if s == nil || s.workspaceBillingBindingService == nil {
 		return resp
 	}
 	if effective, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenant.ID); err == nil {
+		resp.Configured = true
 		resp.Connected = true
 		resp.ActiveBillingConnectionID = effective.BillingProviderConnectionID
 		resp.Status = effective.Status
@@ -303,6 +303,7 @@ func (s *Server) buildWorkspaceBillingResponse(tenant domain.Tenant) workspaceBi
 		return resp
 	}
 	if binding, err := s.workspaceBillingBindingService.GetWorkspaceBillingBinding(tenant.ID); err == nil {
+		resp.Configured = true
 		resp.ActiveBillingConnectionID = binding.BillingProviderConnectionID
 		resp.Status = string(binding.Status)
 		resp.Source = "binding"
