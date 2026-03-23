@@ -109,12 +109,12 @@ test.describe("billing connection lifecycle live staging", () => {
     await expect(rotatedSecretInput).toHaveValue(rotatedStripeSecretKey);
     await expect(rotateSecretButton).toBeEnabled();
     await rotateSecretButton.click();
-    await expect(page.getByText("Connection is waiting for a successful provider sync.")).toBeVisible({ timeout: 30000 });
-    await expect(page.getByText(/^Pending$/)).toBeVisible();
+    await expect(page.locator("div").filter({ hasText: /^Connection is waiting for a successful provider sync\.$/ }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(/^pending$/i).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Sync now" }).click();
     await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ }).first()).toBeVisible({ timeout: 60000 });
-    await expect(page.getByText(/^Connected$/)).toBeVisible();
+    await expect(page.getByText(/^connected$/i).first()).toBeVisible();
 
     await page.goto(`/workspaces/${encodeURIComponent(workspaceID)}`);
     await expect(page.getByRole("heading", { name: workspaceName })).toBeVisible();
@@ -126,8 +126,8 @@ test.describe("billing connection lifecycle live staging", () => {
     await page.goto(`/billing-connections/${encodeURIComponent(primaryConnectionID)}`);
     await expect(page.getByRole("heading", { name: primaryConnectionName })).toBeVisible();
     await page.getByRole("button", { name: "Disable connection" }).click();
-    await expect(page.getByText("Connection is disabled and cannot be assigned to new workspaces.")).toBeVisible({ timeout: 30000 });
-    await expect(page.getByText(/^Disabled$/)).toBeVisible();
+    await expect(page.locator("div").filter({ hasText: /^Connection is disabled and cannot be assigned to new workspaces\.$/ }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(/^disabled$/i).first()).toBeVisible();
 
     await page.goto(`/workspaces/${encodeURIComponent(workspaceID)}`);
     await expect(page.getByRole("heading", { name: workspaceName })).toBeVisible();
