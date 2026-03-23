@@ -28,7 +28,7 @@ test.describe("payment operations live staging", () => {
     const visibleActions = await Promise.all([
       page.getByRole("button", { name: "Retry collection" }).count(),
       page.getByRole("link", { name: "Open recovery tools" }).count(),
-      page.getByRole("link", { name: "Open customer payment setup" }).count(),
+      page.getByRole("link", { name: "Open customer collection path" }).count(),
       page.getByRole("link", { name: "Open explainability" }).count(),
       page.getByRole("link", { name: "Open customer payment context" }).count(),
     ]);
@@ -48,7 +48,7 @@ test.describe("payment operations live staging", () => {
 
     const recoveryLink = page.getByRole("link", { name: "Open recovery tools" });
     const explainabilityLink = page.getByRole("link", { name: "Open explainability" });
-    const customerSetupLink = page.getByRole("link", { name: "Open customer payment setup" });
+    const customerSetupLink = page.getByRole("link", { name: "Open customer collection path" });
     const customerContextLink = page.getByRole("link", { name: "Open customer payment context" });
 
     if (await recoveryLink.count()) {
@@ -95,7 +95,7 @@ test.describe("payment operations live staging", () => {
 
     const visibleActions = await Promise.all([
       page.getByRole("link", { name: "Open recovery tools" }).count(),
-      page.getByRole("link", { name: "Open customer payment setup" }).count(),
+      page.getByRole("link", { name: "Open customer collection path" }).count(),
       page.getByRole("link", { name: "Open explainability" }).count(),
       page.getByRole("link", { name: "Open customer payment context" }).count(),
     ]);

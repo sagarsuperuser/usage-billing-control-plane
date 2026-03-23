@@ -147,7 +147,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                       href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
                       className="inline-flex h-10 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
                     >
-                      Open payment setup
+                      Open customer collection path
                     </Link>
                   ) : null}
                 </div>
@@ -263,7 +263,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                         href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
                         className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                       >
-                        Open customer payment setup
+                        Open customer collection path
                       </Link>
                     ) : null}
                     {!actionConfig?.emphasizeRetry &&

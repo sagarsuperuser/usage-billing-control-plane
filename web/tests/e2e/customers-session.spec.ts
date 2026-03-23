@@ -242,6 +242,8 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await expect(page).toHaveURL(/\/customers\/cust_alpha$/);
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
   await expect(page.getByText("Customer has not completed payment setup").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Awaiting customer payment setup" })).toBeVisible();
+  await expect(page.getByText("Use one clear setup path, then refresh verification here before retrying collection elsewhere.")).toBeVisible();
 });
 
 test("tenant writer can edit the customer billing profile", async ({ page }) => {

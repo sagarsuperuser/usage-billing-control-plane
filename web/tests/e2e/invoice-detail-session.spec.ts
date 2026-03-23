@@ -186,7 +186,7 @@ test("invoice detail follows lifecycle guidance instead of exposing retry premat
   await page.goto("/invoices/inv_123");
 
   await expect(page.getByText("Collect payment before retrying")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open payment setup" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open customer collection path" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry payment" })).toHaveCount(0);
   await expect(page.getByText("invoice payment failure")).toBeVisible();
   const timeline = page.locator("section").filter({ has: page.getByRole("heading", { name: "Correlated events" }) });

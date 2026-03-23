@@ -20,6 +20,7 @@ import {
   retryCustomerBillingSync,
   updateCustomerBillingProfile,
 } from "@/lib/api";
+import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type CustomerBillingProfile, type CustomerBillingProfileInput } from "@/lib/types";
@@ -113,6 +114,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const billingProfile = billingProfileQuery.data ?? readiness?.billing_profile ?? null;
   const readinessMissingSteps = normalizeMissingSteps(readiness?.missing_steps);
   const nextActions = readinessMissingSteps.map(describeCustomerMissingStep);
+  const collectionDiagnosis = readiness ? diagnoseCustomerCollection(readiness) : null;
   const canBeginPaymentSetup = Boolean(
     canWrite &&
       csrfToken &&
@@ -351,8 +353,30 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 <section id="payment-collection" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment collection</p>
                   <p className="mt-3 text-sm text-slate-600">
-                    Use this customer page as the primary collection path when payment setup is missing or incomplete. Generate the hosted payer setup link here, then refresh verification before retrying collection elsewhere.
+                    Use this customer page as the primary collection path whenever invoice or payment detail says collection is blocked. Generate or resend the setup path here, then refresh verification before retrying collection elsewhere.
                   </p>
+                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Collection diagnosis</p>
+                        <h3 className="mt-2 text-lg font-semibold text-slate-950">{collectionDiagnosis?.title || "Collection diagnosis unavailable"}</h3>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                          {collectionDiagnosis?.summary || "Collection readiness could not be derived from the current customer state."}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${customerCollectionDiagnosisToneClass(
+                          collectionDiagnosis?.tone || "warning",
+                        )}`}
+                      >
+                        {collectionDiagnosis?.title || "Collection diagnosis unavailable"}
+                      </span>
+                    </div>
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
+                      <p className="font-semibold text-slate-950">Operator next step</p>
+                      <p className="mt-2">{collectionDiagnosis?.nextStep || "Reload the customer detail and retry if the collection diagnosis still does not render."}</p>
+                    </div>
+                  </div>
                   <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer-directed setup</p>

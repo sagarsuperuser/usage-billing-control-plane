@@ -112,7 +112,7 @@ test.describe("browser payment setup live staging", () => {
 
     await expect(page).toHaveURL(new RegExp(`/payments/${livePaymentSetupInvoiceID}(?:\\?.*)?$`));
     await expect(page.getByText("Retry and recovery")).toBeVisible();
-    const customerSetupLink = page.getByRole("link", { name: "Open customer payment setup" });
+    const customerSetupLink = page.getByRole("link", { name: "Open customer collection path" });
     await expect(customerSetupLink).toBeVisible();
     await customerSetupLink.click();
 
