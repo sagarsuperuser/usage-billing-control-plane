@@ -46,6 +46,11 @@ func billingConnectionSyncState(item domain.BillingProviderConnection) string {
 		return "healthy"
 	case domain.BillingProviderConnectionStatusSyncError:
 		return "failed"
+	case domain.BillingProviderConnectionStatusPending:
+		if item.ConnectedAt != nil || item.LastSyncedAt != nil {
+			return "pending"
+		}
+		return "never_synced"
 	default:
 		if item.LastSyncedAt == nil {
 			return "never_synced"

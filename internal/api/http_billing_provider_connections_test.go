@@ -243,6 +243,12 @@ func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
 	if rotatedConnection["status"] != "pending" {
 		t.Fatalf("expected pending status after rotate, got %#v", rotatedConnection["status"])
 	}
+	if rotatedConnection["sync_state"] != "pending" {
+		t.Fatalf("expected pending sync_state after rotate, got %#v", rotatedConnection["sync_state"])
+	}
+	if rotatedConnection["sync_summary"] != "Connection is waiting for a successful provider sync." {
+		t.Fatalf("expected pending sync_summary after rotate, got %#v", rotatedConnection["sync_summary"])
+	}
 	if rotatedConnection["workspace_ready"] != false {
 		t.Fatalf("expected workspace_ready=false after rotate")
 	}

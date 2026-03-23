@@ -42,7 +42,8 @@ async function createConnection(page: import("@playwright/test").Page, name: str
 
   await expect(page).toHaveURL(/\/billing-connections\/[^/?]+(?:\?.*)?$/);
   await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 60000 });
-  await expect(page.getByText("Connected and ready for workspace assignment.")).toBeVisible({ timeout: 60000 });
+  await expect(page.getByText(/^connected$/i).first()).toBeVisible({ timeout: 60000 });
+  await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ }).first()).toBeVisible({ timeout: 60000 });
 
   const id = decodeURIComponent(page.url().split("/").pop()?.split("?")[0] || "");
   expect(id).not.toBe("");
@@ -69,37 +70,58 @@ test.describe("billing connection lifecycle live staging", () => {
 
     await page.goto("/workspaces/new");
     await expect(page.getByRole("heading", { name: "Create workspace" })).toBeVisible();
-    await page.getByLabel("Workspace ID").fill(workspaceID);
-    await page.getByLabel("Workspace name").fill(workspaceName);
-    await page.getByLabel("Billing connection").selectOption(primaryConnectionID);
-    await page.getByRole("button", { name: "Run workspace setup" }).click();
+    await page.waitForLoadState("networkidle");
+    const workspaceIDInput = page.getByLabel("Workspace ID");
+    const workspaceNameInput = page.getByLabel("Workspace name");
+    const billingConnectionSelect = page.getByLabel("Billing connection");
+    const runWorkspaceSetupButton = page.getByRole("button", { name: "Run workspace setup" });
+    const workspaceIDChecklist = page.locator("div").filter({ hasText: /Workspace ID is set/ }).first();
+    const workspaceNameChecklist = page.locator("div").filter({ hasText: /Workspace name is set/ }).first();
+    await expect(workspaceIDInput).toBeEditable();
+    await workspaceIDInput.click();
+    await workspaceIDInput.pressSequentially(workspaceID);
+    await expect(workspaceIDInput).toHaveValue(workspaceID);
+    await workspaceNameInput.click();
+    await workspaceNameInput.pressSequentially(workspaceName);
+    await expect(workspaceNameInput).toHaveValue(workspaceName);
+    await billingConnectionSelect.selectOption(primaryConnectionID);
+    await expect(workspaceIDChecklist).toContainText("OK");
+    await expect(workspaceNameChecklist).toContainText("OK");
+    await expect(runWorkspaceSetupButton).toBeEnabled();
+    await runWorkspaceSetupButton.click();
 
     await expect(page.getByText(new RegExp(`Workspace ${workspaceID} created successfully\\.|Workspace ${workspaceID} updated and readiness refreshed\\.`))).toBeVisible({ timeout: 60000 });
-    await expect(page.getByText(primaryConnectionID)).toBeVisible();
+    await expect(page.getByText(primaryConnectionID).first()).toBeVisible();
     await page.getByRole("link", { name: "View workspace detail" }).click();
 
     await expect(page).toHaveURL(new RegExp(`/workspaces/${workspaceID}(?:\\?.*)?$`));
     await expect(page.getByRole("heading", { name: workspaceName })).toBeVisible();
-    await expect(page.getByText(primaryConnectionID)).toBeVisible();
-    await expect(page.getByText(primaryConnectionName)).toBeVisible();
+    await expect(page.getByText(primaryConnectionID).first()).toBeVisible();
+    await expect(page.getByText(primaryConnectionName).first()).toBeVisible();
 
     const secondaryConnectionID = await createConnection(page, secondaryConnectionName, stripeSecretKey);
 
-    await page.getByLabel("New Stripe secret key").fill(rotatedStripeSecretKey);
-    await page.getByRole("button", { name: "Rotate secret" }).click();
+    const rotatedSecretInput = page.getByLabel("New Stripe secret key");
+    const rotateSecretButton = page.getByRole("button", { name: "Rotate secret" });
+    await expect(rotatedSecretInput).toBeEditable();
+    await rotatedSecretInput.click();
+    await rotatedSecretInput.pressSequentially(rotatedStripeSecretKey);
+    await expect(rotatedSecretInput).toHaveValue(rotatedStripeSecretKey);
+    await expect(rotateSecretButton).toBeEnabled();
+    await rotateSecretButton.click();
     await expect(page.getByText("Connection is waiting for a successful provider sync.")).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/^Pending$/)).toBeVisible();
 
     await page.getByRole("button", { name: "Sync now" }).click();
-    await expect(page.getByText("Connected and ready for workspace assignment.")).toBeVisible({ timeout: 60000 });
+    await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ }).first()).toBeVisible({ timeout: 60000 });
     await expect(page.getByText(/^Connected$/)).toBeVisible();
 
     await page.goto(`/workspaces/${encodeURIComponent(workspaceID)}`);
     await expect(page.getByRole("heading", { name: workspaceName })).toBeVisible();
     await page.getByLabel("Active billing connection").selectOption(secondaryConnectionID);
     await page.getByRole("button", { name: "Save active connection" }).click();
-    await expect(page.getByText(secondaryConnectionID)).toBeVisible({ timeout: 30000 });
-    await expect(page.getByText(secondaryConnectionName)).toBeVisible();
+    await expect(page.getByText(secondaryConnectionID).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(secondaryConnectionName).first()).toBeVisible();
 
     await page.goto(`/billing-connections/${encodeURIComponent(primaryConnectionID)}`);
     await expect(page.getByRole("heading", { name: primaryConnectionName })).toBeVisible();
@@ -109,7 +131,7 @@ test.describe("billing connection lifecycle live staging", () => {
 
     await page.goto(`/workspaces/${encodeURIComponent(workspaceID)}`);
     await expect(page.getByRole("heading", { name: workspaceName })).toBeVisible();
-    await expect(page.getByText(secondaryConnectionID)).toBeVisible();
-    await expect(page.getByText(secondaryConnectionName)).toBeVisible();
+    await expect(page.getByText(secondaryConnectionID).first()).toBeVisible();
+    await expect(page.getByText(secondaryConnectionName).first()).toBeVisible();
   });
 });
