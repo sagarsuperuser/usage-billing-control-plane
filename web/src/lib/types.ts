@@ -302,6 +302,10 @@ export interface WorkspaceBillingSettings {
   tax_codes?: string[];
   invoice_memo?: string;
   invoice_footer?: string;
+  document_locale?: string;
+  invoice_grace_period_days?: number;
+  document_numbering?: string;
+  document_number_prefix?: string;
   has_overrides: boolean;
   updated_at?: string;
 }

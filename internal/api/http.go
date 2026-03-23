@@ -95,14 +95,18 @@ type workspaceBillingResponse struct {
 }
 
 type workspaceBillingSettingsResponse struct {
-	WorkspaceID        string     `json:"workspace_id"`
-	BillingEntityCode  string     `json:"billing_entity_code,omitempty"`
-	NetPaymentTermDays *int       `json:"net_payment_term_days,omitempty"`
-	TaxCodes           []string   `json:"tax_codes,omitempty"`
-	InvoiceMemo        string     `json:"invoice_memo,omitempty"`
-	InvoiceFooter      string     `json:"invoice_footer,omitempty"`
-	HasOverrides       bool       `json:"has_overrides"`
-	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
+	WorkspaceID            string     `json:"workspace_id"`
+	BillingEntityCode      string     `json:"billing_entity_code,omitempty"`
+	NetPaymentTermDays     *int       `json:"net_payment_term_days,omitempty"`
+	TaxCodes               []string   `json:"tax_codes,omitempty"`
+	InvoiceMemo            string     `json:"invoice_memo,omitempty"`
+	InvoiceFooter          string     `json:"invoice_footer,omitempty"`
+	DocumentLocale         string     `json:"document_locale,omitempty"`
+	InvoiceGracePeriodDays *int       `json:"invoice_grace_period_days,omitempty"`
+	DocumentNumbering      string     `json:"document_numbering,omitempty"`
+	DocumentNumberPrefix   string     `json:"document_number_prefix,omitempty"`
+	HasOverrides           bool       `json:"has_overrides"`
+	UpdatedAt              *time.Time `json:"updated_at,omitempty"`
 }
 
 type tenantResponse struct {
@@ -348,7 +352,11 @@ func (s *Server) buildWorkspaceBillingSettingsResponse(workspaceID string) works
 	resp.TaxCodes = settings.TaxCodes
 	resp.InvoiceMemo = settings.InvoiceMemo
 	resp.InvoiceFooter = settings.InvoiceFooter
-	resp.HasOverrides = settings.BillingEntityCode != "" || settings.NetPaymentTermDays != nil || len(settings.TaxCodes) > 0 || settings.InvoiceMemo != "" || settings.InvoiceFooter != ""
+	resp.DocumentLocale = settings.DocumentLocale
+	resp.InvoiceGracePeriodDays = settings.InvoiceGracePeriodDays
+	resp.DocumentNumbering = settings.DocumentNumbering
+	resp.DocumentNumberPrefix = settings.DocumentNumberPrefix
+	resp.HasOverrides = settings.BillingEntityCode != "" || settings.NetPaymentTermDays != nil || len(settings.TaxCodes) > 0 || settings.InvoiceMemo != "" || settings.InvoiceFooter != "" || settings.DocumentLocale != "" || settings.InvoiceGracePeriodDays != nil || settings.DocumentNumbering != "" || settings.DocumentNumberPrefix != ""
 	if !settings.UpdatedAt.IsZero() {
 		updatedAt := settings.UpdatedAt.UTC()
 		resp.UpdatedAt = &updatedAt

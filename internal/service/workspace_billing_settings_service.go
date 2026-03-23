@@ -16,11 +16,15 @@ type WorkspaceBillingSettingsService struct {
 }
 
 type UpdateWorkspaceBillingSettingsRequest struct {
-	BillingEntityCode  string   `json:"billing_entity_code,omitempty"`
-	NetPaymentTermDays *int     `json:"net_payment_term_days,omitempty"`
-	TaxCodes           []string `json:"tax_codes,omitempty"`
-	InvoiceMemo        string   `json:"invoice_memo,omitempty"`
-	InvoiceFooter      string   `json:"invoice_footer,omitempty"`
+	BillingEntityCode      string   `json:"billing_entity_code,omitempty"`
+	NetPaymentTermDays     *int     `json:"net_payment_term_days,omitempty"`
+	TaxCodes               []string `json:"tax_codes,omitempty"`
+	InvoiceMemo            string   `json:"invoice_memo,omitempty"`
+	InvoiceFooter          string   `json:"invoice_footer,omitempty"`
+	DocumentLocale         string   `json:"document_locale,omitempty"`
+	InvoiceGracePeriodDays *int     `json:"invoice_grace_period_days,omitempty"`
+	DocumentNumbering      string   `json:"document_numbering,omitempty"`
+	DocumentNumberPrefix   string   `json:"document_number_prefix,omitempty"`
 }
 
 func NewWorkspaceBillingSettingsService(s store.Repository) *WorkspaceBillingSettingsService {
@@ -68,11 +72,22 @@ func (s *WorkspaceBillingSettingsService) UpsertWorkspaceBillingSettings(workspa
 	if req.NetPaymentTermDays != nil && *req.NetPaymentTermDays < 0 {
 		return domain.WorkspaceBillingSettings{}, fmt.Errorf("%w: net_payment_term_days must be non-negative", ErrValidation)
 	}
+	if req.InvoiceGracePeriodDays != nil && *req.InvoiceGracePeriodDays < 0 {
+		return domain.WorkspaceBillingSettings{}, fmt.Errorf("%w: invoice_grace_period_days must be non-negative", ErrValidation)
+	}
+	documentNumbering := strings.TrimSpace(req.DocumentNumbering)
+	if documentNumbering != "" && documentNumbering != "per_customer" && documentNumbering != "per_billing_entity" {
+		return domain.WorkspaceBillingSettings{}, fmt.Errorf("%w: document_numbering must be per_customer or per_billing_entity", ErrValidation)
+	}
 	current.BillingEntityCode = strings.TrimSpace(req.BillingEntityCode)
 	current.NetPaymentTermDays = req.NetPaymentTermDays
 	current.TaxCodes = normalizeTaxCodes(req.TaxCodes)
 	current.InvoiceMemo = strings.TrimSpace(req.InvoiceMemo)
 	current.InvoiceFooter = strings.TrimSpace(req.InvoiceFooter)
+	current.DocumentLocale = strings.TrimSpace(req.DocumentLocale)
+	current.InvoiceGracePeriodDays = req.InvoiceGracePeriodDays
+	current.DocumentNumbering = documentNumbering
+	current.DocumentNumberPrefix = strings.TrimSpace(req.DocumentNumberPrefix)
 	current.UpdatedAt = time.Now().UTC()
 	if err := s.syncWorkspaceBillingSettings(current); err != nil {
 		return domain.WorkspaceBillingSettings{}, err

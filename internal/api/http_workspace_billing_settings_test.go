@@ -63,11 +63,15 @@ func TestTenantWorkspaceBillingSettingsSubresourcePersistsAndReturnsSettings(t *
 	}
 
 	result := patchJSON(t, ts.URL+"/internal/tenants/tenant_workspace_settings/workspace-billing-settings", map[string]any{
-		"billing_entity_code":   "be_us_primary",
-		"net_payment_term_days": 14,
-		"tax_codes":             []string{"GST_IN", "VAT_DE"},
-		"invoice_memo":          "Thank you for your business.",
-		"invoice_footer":        "Wire details available on request.",
+		"billing_entity_code":       "be_us_primary",
+		"net_payment_term_days":     14,
+		"tax_codes":                 []string{"GST_IN", "VAT_DE"},
+		"invoice_memo":              "Thank you for your business.",
+		"invoice_footer":            "Wire details available on request.",
+		"document_locale":           "fr",
+		"invoice_grace_period_days": 5,
+		"document_numbering":        "per_billing_entity",
+		"document_number_prefix":    "ALPHA-",
 	}, "platform-admin", http.StatusOK)
 
 	settings, ok := result["workspace_billing_settings"].(map[string]any)
@@ -88,6 +92,18 @@ func TestTenantWorkspaceBillingSettingsSubresourcePersistsAndReturnsSettings(t *
 	}
 	if got, ok := settings["tax_codes"].([]any); !ok || len(got) != 2 {
 		t.Fatalf("expected tax_codes to round-trip, got %#v", settings["tax_codes"])
+	}
+	if got, _ := settings["document_locale"].(string); got != "fr" {
+		t.Fatalf("expected document_locale fr, got %q", got)
+	}
+	if got, ok := settings["invoice_grace_period_days"].(float64); !ok || int(got) != 5 {
+		t.Fatalf("expected invoice_grace_period_days 5, got %#v", settings["invoice_grace_period_days"])
+	}
+	if got, _ := settings["document_numbering"].(string); got != "per_billing_entity" {
+		t.Fatalf("expected document_numbering per_billing_entity, got %q", got)
+	}
+	if got, _ := settings["document_number_prefix"].(string); got != "ALPHA-" {
+		t.Fatalf("expected document_number_prefix ALPHA-, got %q", got)
 	}
 	if hasOverrides, _ := settings["has_overrides"].(bool); !hasOverrides {
 		t.Fatalf("expected has_overrides=true after patch")

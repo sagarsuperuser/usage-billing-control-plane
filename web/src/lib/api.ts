@@ -799,6 +799,10 @@ export async function updateTenantWorkspaceBillingSettings(input: {
     tax_codes?: string[];
     invoice_memo?: string;
     invoice_footer?: string;
+    document_locale?: string;
+    invoice_grace_period_days?: number;
+    document_numbering?: string;
+    document_number_prefix?: string;
   };
 }): Promise<WorkspaceBillingSettings> {
   const payload = await apiRequest<{ workspace_billing_settings: WorkspaceBillingSettings }>(

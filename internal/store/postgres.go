@@ -1129,7 +1129,7 @@ func (s *PostgresStore) GetWorkspaceBillingSettings(workspaceID string) (domain.
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, created_at, updated_at
+		`SELECT workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, document_locale, invoice_grace_period_days, document_numbering, document_number_prefix, created_at, updated_at
 		FROM workspace_billing_settings
 		WHERE workspace_id = $1`,
 		workspaceID,
@@ -1152,11 +1152,17 @@ func (s *PostgresStore) UpsertWorkspaceBillingSettings(input domain.WorkspaceBil
 	input.BillingEntityCode = normalizeOptionalText(input.BillingEntityCode)
 	input.InvoiceMemo = normalizeOptionalText(input.InvoiceMemo)
 	input.InvoiceFooter = normalizeOptionalText(input.InvoiceFooter)
+	input.DocumentLocale = normalizeOptionalText(input.DocumentLocale)
+	input.DocumentNumbering = normalizeOptionalText(input.DocumentNumbering)
+	input.DocumentNumberPrefix = normalizeOptionalText(input.DocumentNumberPrefix)
 	if input.WorkspaceID == "" {
 		return domain.WorkspaceBillingSettings{}, fmt.Errorf("validation failed: workspace_id is required")
 	}
 	if input.NetPaymentTermDays != nil && *input.NetPaymentTermDays < 0 {
 		return domain.WorkspaceBillingSettings{}, fmt.Errorf("validation failed: net_payment_term_days must be non-negative")
+	}
+	if input.InvoiceGracePeriodDays != nil && *input.InvoiceGracePeriodDays < 0 {
+		return domain.WorkspaceBillingSettings{}, fmt.Errorf("validation failed: invoice_grace_period_days must be non-negative")
 	}
 	now := time.Now().UTC()
 	if input.CreatedAt.IsZero() {
@@ -1178,22 +1184,30 @@ func (s *PostgresStore) UpsertWorkspaceBillingSettings(input domain.WorkspaceBil
 	row := tx.QueryRowContext(
 		ctx,
 		`INSERT INTO workspace_billing_settings (
-			workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, created_at, updated_at
-		) VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),NULLIF($6,''),$7,$8)
+			workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, document_locale, invoice_grace_period_days, document_numbering, document_number_prefix, created_at, updated_at
+		) VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,NULLIF($9,''),NULLIF($10,''),$11,$12)
 		ON CONFLICT (workspace_id) DO UPDATE SET
 			billing_entity_code = EXCLUDED.billing_entity_code,
 			net_payment_term_days = EXCLUDED.net_payment_term_days,
 			tax_codes = EXCLUDED.tax_codes,
 			invoice_memo = EXCLUDED.invoice_memo,
 			invoice_footer = EXCLUDED.invoice_footer,
+			document_locale = EXCLUDED.document_locale,
+			invoice_grace_period_days = EXCLUDED.invoice_grace_period_days,
+			document_numbering = EXCLUDED.document_numbering,
+			document_number_prefix = EXCLUDED.document_number_prefix,
 			updated_at = EXCLUDED.updated_at
-		RETURNING workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, created_at, updated_at`,
+		RETURNING workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, document_locale, invoice_grace_period_days, document_numbering, document_number_prefix, created_at, updated_at`,
 		input.WorkspaceID,
 		input.BillingEntityCode,
 		input.NetPaymentTermDays,
 		pq.Array(normalizeStringList(input.TaxCodes)),
 		input.InvoiceMemo,
 		input.InvoiceFooter,
+		input.DocumentLocale,
+		input.InvoiceGracePeriodDays,
+		input.DocumentNumbering,
+		input.DocumentNumberPrefix,
 		input.CreatedAt,
 		input.UpdatedAt,
 	)
@@ -7527,6 +7541,10 @@ func scanWorkspaceBillingSettings(s rowScanner) (domain.WorkspaceBillingSettings
 	var taxCodes pq.StringArray
 	var invoiceMemo sql.NullString
 	var invoiceFooter sql.NullString
+	var documentLocale sql.NullString
+	var invoiceGracePeriodDays sql.NullInt64
+	var documentNumbering sql.NullString
+	var documentNumberPrefix sql.NullString
 	if err := s.Scan(
 		&out.WorkspaceID,
 		&billingEntityCode,
@@ -7534,6 +7552,10 @@ func scanWorkspaceBillingSettings(s rowScanner) (domain.WorkspaceBillingSettings
 		&taxCodes,
 		&invoiceMemo,
 		&invoiceFooter,
+		&documentLocale,
+		&invoiceGracePeriodDays,
+		&documentNumbering,
+		&documentNumberPrefix,
 		&out.CreatedAt,
 		&out.UpdatedAt,
 	); err != nil {
@@ -7553,6 +7575,19 @@ func scanWorkspaceBillingSettings(s rowScanner) (domain.WorkspaceBillingSettings
 	}
 	if invoiceFooter.Valid {
 		out.InvoiceFooter = normalizeOptionalText(invoiceFooter.String)
+	}
+	if documentLocale.Valid {
+		out.DocumentLocale = normalizeOptionalText(documentLocale.String)
+	}
+	if invoiceGracePeriodDays.Valid {
+		value := int(invoiceGracePeriodDays.Int64)
+		out.InvoiceGracePeriodDays = &value
+	}
+	if documentNumbering.Valid {
+		out.DocumentNumbering = normalizeOptionalText(documentNumbering.String)
+	}
+	if documentNumberPrefix.Valid {
+		out.DocumentNumberPrefix = normalizeOptionalText(documentNumberPrefix.String)
 	}
 	return out, nil
 }

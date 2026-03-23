@@ -23,13 +23,18 @@ func TestWorkspaceBillingSettingsServiceSyncWorkspaceBillingSettings(t *testing.
 	adapter := &testBillingEntitySyncAdapter{}
 	svc := NewWorkspaceBillingSettingsService(nil).WithBillingEntitySyncAdapter(adapter)
 	netTerms := 30
+	invoiceGracePeriodDays := 7
 
 	err := svc.syncWorkspaceBillingSettings(domain.WorkspaceBillingSettings{
-		WorkspaceID:        "tenant_sync",
-		BillingEntityCode:  "be_primary",
-		NetPaymentTermDays: &netTerms,
-		TaxCodes:           []string{"GST_IN"},
-		InvoiceFooter:      "Wire details available on request.",
+		WorkspaceID:            "tenant_sync",
+		BillingEntityCode:      "be_primary",
+		NetPaymentTermDays:     &netTerms,
+		TaxCodes:               []string{"GST_IN"},
+		InvoiceFooter:          "Wire details available on request.",
+		DocumentLocale:         "fr",
+		InvoiceGracePeriodDays: &invoiceGracePeriodDays,
+		DocumentNumbering:      "per_billing_entity",
+		DocumentNumberPrefix:   "ALPHA-",
 	})
 	if err != nil {
 		t.Fatalf("sync workspace billing settings: %v", err)
@@ -42,6 +47,12 @@ func TestWorkspaceBillingSettingsServiceSyncWorkspaceBillingSettings(t *testing.
 	}
 	if len(adapter.settings.TaxCodes) != 1 || adapter.settings.TaxCodes[0] != "GST_IN" {
 		t.Fatalf("expected tax codes to round-trip, got %#v", adapter.settings.TaxCodes)
+	}
+	if adapter.settings.DocumentLocale != "fr" {
+		t.Fatalf("expected document locale fr, got %q", adapter.settings.DocumentLocale)
+	}
+	if adapter.settings.InvoiceGracePeriodDays == nil || *adapter.settings.InvoiceGracePeriodDays != 7 {
+		t.Fatalf("expected invoice grace period 7, got %#v", adapter.settings.InvoiceGracePeriodDays)
 	}
 }
 

@@ -141,14 +141,18 @@ type WorkspaceBillingBinding struct {
 }
 
 type WorkspaceBillingSettings struct {
-	WorkspaceID        string    `json:"workspace_id"`
-	BillingEntityCode  string    `json:"billing_entity_code,omitempty"`
-	NetPaymentTermDays *int      `json:"net_payment_term_days,omitempty"`
-	TaxCodes           []string  `json:"tax_codes,omitempty"`
-	InvoiceMemo        string    `json:"invoice_memo,omitempty"`
-	InvoiceFooter      string    `json:"invoice_footer,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	WorkspaceID            string    `json:"workspace_id"`
+	BillingEntityCode      string    `json:"billing_entity_code,omitempty"`
+	NetPaymentTermDays     *int      `json:"net_payment_term_days,omitempty"`
+	TaxCodes               []string  `json:"tax_codes,omitempty"`
+	InvoiceMemo            string    `json:"invoice_memo,omitempty"`
+	InvoiceFooter          string    `json:"invoice_footer,omitempty"`
+	DocumentLocale         string    `json:"document_locale,omitempty"`
+	InvoiceGracePeriodDays *int      `json:"invoice_grace_period_days,omitempty"`
+	DocumentNumbering      string    `json:"document_numbering,omitempty"`
+	DocumentNumberPrefix   string    `json:"document_number_prefix,omitempty"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 type User struct {

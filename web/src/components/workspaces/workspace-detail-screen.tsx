@@ -95,6 +95,10 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     (workspaceBillingSettings?.tax_codes || []).join(","),
     workspaceBillingSettings?.invoice_memo || "",
     workspaceBillingSettings?.invoice_footer || "",
+    workspaceBillingSettings?.document_locale || "",
+    String(workspaceBillingSettings?.invoice_grace_period_days ?? ""),
+    workspaceBillingSettings?.document_numbering || "",
+    workspaceBillingSettings?.document_number_prefix || "",
   ].join(":");
 
   useEffect(() => {
@@ -704,7 +708,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         placeholder="GST_IN, VAT_DE"
                       />
                       <SidebarTextarea
-                        label="Invoice memo"
+                        label="Invoice memo (Alpha-only note)"
                         value={billingSettingsDraft.invoice_memo}
                         onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, invoice_memo: value }))}
                         placeholder="Thank you for your business."
@@ -714,6 +718,37 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         value={billingSettingsDraft.invoice_footer}
                         onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, invoice_footer: value }))}
                         placeholder="Wire details available on request."
+                      />
+                      <SidebarInput
+                        label="Document locale"
+                        value={billingSettingsDraft.document_locale}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, document_locale: value }))}
+                        placeholder="fr"
+                      />
+                      <SidebarInput
+                        label="Invoice grace period (days)"
+                        value={billingSettingsDraft.invoice_grace_period_days}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, invoice_grace_period_days: value }))}
+                        placeholder="5"
+                        inputMode="numeric"
+                      />
+                      <label className="grid gap-2 text-sm text-slate-700">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Document numbering</span>
+                        <select
+                          value={billingSettingsDraft.document_numbering}
+                          onChange={(event) => setBillingSettingsDraft((current) => ({ ...current, document_numbering: event.target.value }))}
+                          className="h-10 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                        >
+                          <option value="">Default numbering</option>
+                          <option value="per_customer">Per customer</option>
+                          <option value="per_billing_entity">Per billing entity</option>
+                        </select>
+                      </label>
+                      <SidebarInput
+                        label="Document number prefix"
+                        value={billingSettingsDraft.document_number_prefix}
+                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, document_number_prefix: value }))}
+                        placeholder="ALPHA-"
                       />
                       <div className="grid gap-3">
                         <button
@@ -739,6 +774,10 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                       <MetaItem label="Billing entity code" value={workspaceBillingSettings?.billing_entity_code || "Default"} />
                       <MetaItem label="Net payment term" value={formatPaymentTerm(workspaceBillingSettings?.net_payment_term_days)} />
                       <MetaItem label="Tax codes" value={workspaceBillingSettings?.tax_codes?.join(", ") || "None assigned"} />
+                      <MetaItem label="Document locale" value={workspaceBillingSettings?.document_locale || "Default"} />
+                      <MetaItem label="Invoice grace period" value={formatInvoiceGracePeriod(workspaceBillingSettings?.invoice_grace_period_days)} />
+                      <MetaItem label="Document numbering" value={formatDocumentNumbering(workspaceBillingSettings?.document_numbering)} />
+                      <MetaItem label="Document number prefix" value={workspaceBillingSettings?.document_number_prefix || "Default"} />
                       <MetaItem label="Settings status" value={workspaceBillingSettings?.has_overrides ? "Custom overrides" : "Default values"} />
                     </div>
                     {updateWorkspaceBillingSettingsMutation.isError ? (
@@ -850,6 +889,10 @@ type WorkspaceBillingSettingsDraft = {
   tax_codes: string;
   invoice_memo: string;
   invoice_footer: string;
+  document_locale: string;
+  invoice_grace_period_days: string;
+  document_numbering: string;
+  document_number_prefix: string;
 };
 
 function emptyWorkspaceBillingSettingsDraft(): WorkspaceBillingSettingsDraft {
@@ -859,6 +902,10 @@ function emptyWorkspaceBillingSettingsDraft(): WorkspaceBillingSettingsDraft {
     tax_codes: "",
     invoice_memo: "",
     invoice_footer: "",
+    document_locale: "",
+    invoice_grace_period_days: "",
+    document_numbering: "",
+    document_number_prefix: "",
   };
 }
 
@@ -872,6 +919,10 @@ function workspaceBillingSettingsDraftFromSettings(settings: WorkspaceBillingSet
     tax_codes: (settings.tax_codes || []).join(", "),
     invoice_memo: settings.invoice_memo || "",
     invoice_footer: settings.invoice_footer || "",
+    document_locale: settings.document_locale || "",
+    invoice_grace_period_days: settings.invoice_grace_period_days === undefined ? "" : String(settings.invoice_grace_period_days),
+    document_numbering: settings.document_numbering || "",
+    document_number_prefix: settings.document_number_prefix || "",
   };
 }
 
@@ -886,6 +937,10 @@ function normalizeWorkspaceBillingSettingsDraft(draft: WorkspaceBillingSettingsD
       .join(", "),
     invoice_memo: draft.invoice_memo.trim(),
     invoice_footer: draft.invoice_footer.trim(),
+    document_locale: draft.document_locale.trim(),
+    invoice_grace_period_days: draft.invoice_grace_period_days.trim(),
+    document_numbering: draft.document_numbering.trim(),
+    document_number_prefix: draft.document_number_prefix.trim(),
   };
 }
 
@@ -899,6 +954,10 @@ function workspaceBillingSettingsPayloadFromDraft(draft: WorkspaceBillingSetting
   tax_codes?: string[];
   invoice_memo?: string;
   invoice_footer?: string;
+  document_locale?: string;
+  invoice_grace_period_days?: number;
+  document_numbering?: string;
+  document_number_prefix?: string;
 } {
   const normalized = normalizeWorkspaceBillingSettingsDraft(draft);
   return {
@@ -907,6 +966,10 @@ function workspaceBillingSettingsPayloadFromDraft(draft: WorkspaceBillingSetting
     tax_codes: normalized.tax_codes === "" ? undefined : normalized.tax_codes.split(", "),
     invoice_memo: normalized.invoice_memo || undefined,
     invoice_footer: normalized.invoice_footer || undefined,
+    document_locale: normalized.document_locale || undefined,
+    invoice_grace_period_days: normalized.invoice_grace_period_days === "" ? undefined : Number(normalized.invoice_grace_period_days),
+    document_numbering: normalized.document_numbering || undefined,
+    document_number_prefix: normalized.document_number_prefix || undefined,
   };
 }
 
@@ -918,6 +981,29 @@ function formatPaymentTerm(days?: number): string {
     return "Due immediately";
   }
   return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+function formatInvoiceGracePeriod(days?: number): string {
+  if (days === undefined) {
+    return "Default";
+  }
+  if (days === 0) {
+    return "No delay";
+  }
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+function formatDocumentNumbering(value?: string): string {
+  if (!value) {
+    return "Default";
+  }
+  if (value === "per_customer") {
+    return "Per customer";
+  }
+  if (value === "per_billing_entity") {
+    return "Per billing entity";
+  }
+  return value;
 }
 
 function SidebarInput({

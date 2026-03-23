@@ -422,10 +422,23 @@ func (a *LagoCustomerBillingAdapter) SyncBillingEntitySettings(ctx context.Conte
 	if settings.NetPaymentTermDays != nil {
 		billingEntity["net_payment_term"] = *settings.NetPaymentTermDays
 	}
+	if settings.DocumentNumbering != "" {
+		billingEntity["document_numbering"] = settings.DocumentNumbering
+	}
+	if settings.DocumentNumberPrefix != "" {
+		billingEntity["document_number_prefix"] = settings.DocumentNumberPrefix
+	}
 	billingEntity["tax_codes"] = normalizeTaxCodes(settings.TaxCodes)
-	billingEntity["billing_configuration"] = map[string]any{
+	billingConfiguration := map[string]any{
 		"invoice_footer": settings.InvoiceFooter,
 	}
+	if settings.DocumentLocale != "" {
+		billingConfiguration["document_locale"] = settings.DocumentLocale
+	}
+	if settings.InvoiceGracePeriodDays != nil {
+		billingConfiguration["invoice_grace_period"] = *settings.InvoiceGracePeriodDays
+	}
+	billingEntity["billing_configuration"] = billingConfiguration
 
 	payload := map[string]any{"billing_entity": billingEntity}
 	path := "/api/v1/billing_entities/" + url.PathEscape(code)

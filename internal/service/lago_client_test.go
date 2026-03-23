@@ -200,6 +200,18 @@ func TestLagoCustomerBillingAdapterSyncBillingEntitySettings(t *testing.T) {
 			if !strings.Contains(payload, `"invoice_footer":"Wire details available on request."`) {
 				t.Fatalf("expected invoice_footer in payload, got %s", payload)
 			}
+			if !strings.Contains(payload, `"document_locale":"fr"`) {
+				t.Fatalf("expected document_locale in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"invoice_grace_period":5`) {
+				t.Fatalf("expected invoice_grace_period in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"document_numbering":"per_billing_entity"`) {
+				t.Fatalf("expected document_numbering in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"document_number_prefix":"ALPHA-"`) {
+				t.Fatalf("expected document_number_prefix in payload, got %s", payload)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"billing_entity":{"code":"be_us_primary"}}`))
 			return
@@ -219,12 +231,17 @@ func TestLagoCustomerBillingAdapterSyncBillingEntitySettings(t *testing.T) {
 	}
 
 	netTerms := 21
+	invoiceGracePeriodDays := 5
 	err = NewLagoCustomerBillingAdapter(transport).SyncBillingEntitySettings(context.Background(), domain.WorkspaceBillingSettings{
-		WorkspaceID:        "tenant_demo",
-		BillingEntityCode:  "be_us_primary",
-		NetPaymentTermDays: &netTerms,
-		TaxCodes:           []string{"gst_in"},
-		InvoiceFooter:      "Wire details available on request.",
+		WorkspaceID:            "tenant_demo",
+		BillingEntityCode:      "be_us_primary",
+		NetPaymentTermDays:     &netTerms,
+		TaxCodes:               []string{"gst_in"},
+		InvoiceFooter:          "Wire details available on request.",
+		DocumentLocale:         "fr",
+		InvoiceGracePeriodDays: &invoiceGracePeriodDays,
+		DocumentNumbering:      "per_billing_entity",
+		DocumentNumberPrefix:   "ALPHA-",
 	})
 	if err != nil {
 		t.Fatalf("sync billing entity settings: %v", err)

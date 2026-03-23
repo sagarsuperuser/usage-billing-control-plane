@@ -27,6 +27,10 @@ type TenantRecord = {
     net_payment_term_days?: number;
     invoice_memo?: string;
     invoice_footer?: string;
+    document_locale?: string;
+    invoice_grace_period_days?: number;
+    document_numbering?: string;
+    document_number_prefix?: string;
     has_overrides: boolean;
     updated_at?: string;
   };
@@ -188,6 +192,10 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
         net_payment_term_days: 14,
         invoice_memo: "Thank you for your business.",
         invoice_footer: "Wire details available on request.",
+        document_locale: "fr",
+        invoice_grace_period_days: 5,
+        document_numbering: "per_billing_entity",
+        document_number_prefix: "ALPHA-",
         has_overrides: true,
         updated_at: new Date().toISOString(),
       },
@@ -299,6 +307,10 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
         net_payment_term_days?: number;
         invoice_memo?: string;
         invoice_footer?: string;
+        document_locale?: string;
+        invoice_grace_period_days?: number;
+        document_numbering?: string;
+        document_number_prefix?: string;
       };
       tenant.workspace_billing_settings = {
         workspace_id: tenantID,
@@ -306,7 +318,11 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
         net_payment_term_days: body.net_payment_term_days,
         invoice_memo: body.invoice_memo,
         invoice_footer: body.invoice_footer,
-        has_overrides: Boolean(body.billing_entity_code || body.net_payment_term_days !== undefined || body.invoice_memo || body.invoice_footer),
+        document_locale: body.document_locale,
+        invoice_grace_period_days: body.invoice_grace_period_days,
+        document_numbering: body.document_numbering,
+        document_number_prefix: body.document_number_prefix,
+        has_overrides: Boolean(body.billing_entity_code || body.net_payment_term_days !== undefined || body.invoice_memo || body.invoice_footer || body.document_locale || body.invoice_grace_period_days !== undefined || body.document_numbering || body.document_number_prefix),
         updated_at: new Date().toISOString(),
       };
       return json(200, { workspace_billing_settings: tenant.workspace_billing_settings });
