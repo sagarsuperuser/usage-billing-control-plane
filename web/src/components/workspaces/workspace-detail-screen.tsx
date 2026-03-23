@@ -22,7 +22,7 @@ import {
   updateTenantWorkspaceBilling,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
-import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus } from "@/lib/readiness";
+import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function readinessTone(status?: string): string {
@@ -50,7 +50,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
 
   const selectedTenant = tenantStatusQuery.data?.tenant ?? null;
   const selectedReadiness = tenantStatusQuery.data?.readiness ?? null;
-  const activeBillingConnectionID = selectedTenant?.workspace_billing.active_billing_connection_id || selectedTenant?.billing_provider_connection_id || "";
+  const workspaceBilling = selectedTenant?.workspace_billing ?? null;
+  const activeBillingConnectionID = workspaceBilling?.active_billing_connection_id || selectedTenant?.billing_provider_connection_id || "";
 
   const billingConnectionQuery = useQuery({
     queryKey: ["billing-provider-connection", apiBaseURL, activeBillingConnectionID],
@@ -167,7 +168,11 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     },
   });
 
-  const nextActions = selectedReadiness?.missing_steps.map(describeTenantMissingStep) ?? [];
+  const readinessMissingSteps = normalizeMissingSteps(selectedReadiness?.missing_steps);
+  const tenantMissingSteps = normalizeMissingSteps(selectedReadiness?.tenant?.missing_steps);
+  const billingMissingSteps = normalizeMissingSteps(selectedReadiness?.billing_integration?.missing_steps);
+  const firstCustomerMissingSteps = normalizeMissingSteps(selectedReadiness?.first_customer?.missing_steps);
+  const nextActions = readinessMissingSteps.map(describeTenantMissingStep);
   const availableConnections = billingConnectionsQuery.data ?? [];
   const workspaceMembers = workspaceMembersQuery.data ?? [];
   const workspaceInvitations = workspaceInvitationsQuery.data ?? [];
@@ -277,7 +282,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                 value={selectedReadiness.first_customer.status}
                 helper={selectedReadiness.first_customer.customer_exists ? "Customer exists" : "No customer yet"}
               />
-              <SummaryStat label="Open actions" value={String(selectedReadiness.missing_steps.length)} helper="Remaining checklist items" />
+              <SummaryStat label="Open actions" value={String(readinessMissingSteps.length)} helper="Remaining checklist items" />
             </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
@@ -297,9 +302,9 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Workspace is ready for the next operational handoff." />}
                   </div>
                   <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                    <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={selectedReadiness.tenant.missing_steps} />
-                    <ReadinessCard title="Billing integration" readiness={selectedReadiness.billing_integration.status} missing={selectedReadiness.billing_integration.missing_steps} />
-                    <ReadinessCard title="First customer" readiness={selectedReadiness.first_customer.status} missing={selectedReadiness.first_customer.missing_steps} />
+                    <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={tenantMissingSteps} />
+                    <ReadinessCard title="Billing integration" readiness={selectedReadiness.billing_integration.status} missing={billingMissingSteps} />
+                    <ReadinessCard title="First customer" readiness={selectedReadiness.first_customer.status} missing={firstCustomerMissingSteps} />
                   </div>
                 </section>
 
@@ -581,8 +586,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace billing</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Active billing path</h2>
                     </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedTenant.workspace_billing.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}`}>
-                      {formatReadinessStatus(selectedTenant.workspace_billing.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(workspaceBilling?.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}`}>
+                      {formatReadinessStatus(workspaceBilling?.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}
                     </span>
                   </div>
 
@@ -590,8 +595,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <MetaItem label="Active connection" value={activeBillingConnectionID || "Not assigned"} mono={Boolean(activeBillingConnectionID)} />
                     <MetaItem label="Connection name" value={billingConnectionQuery.data?.display_name || (billingConnectionQuery.isLoading ? "Loading" : "Unavailable")} />
                     <MetaItem label="Connection status" value={billingConnectionQuery.data ? formatReadinessStatus(billingConnectionQuery.data.status) : billingConnectionQuery.isLoading ? "Loading" : "Unavailable"} />
-                    <MetaItem label="Isolation mode" value={selectedTenant.workspace_billing.isolation_mode ? formatReadinessStatus(selectedTenant.workspace_billing.isolation_mode) : selectedReadiness.billing_integration.isolation_mode ? formatReadinessStatus(selectedReadiness.billing_integration.isolation_mode) : "Shared"} />
-                    <MetaItem label="Binding source" value={selectedTenant.workspace_billing.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
+                    <MetaItem label="Isolation mode" value={workspaceBilling?.isolation_mode ? formatReadinessStatus(workspaceBilling.isolation_mode) : selectedReadiness.billing_integration.isolation_mode ? formatReadinessStatus(selectedReadiness.billing_integration.isolation_mode) : "Shared"} />
+                    <MetaItem label="Binding source" value={workspaceBilling?.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
                   </div>
 
                   {activeBillingConnectionID ? (
@@ -671,8 +676,9 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
   );
 }
 
-function ReadinessCard({ title, readiness, missing }: { title: string; readiness: string; missing: string[] }) {
-  const lead = missing[0] ? describeTenantSectionStep(missing[0]) : "No action needed";
+function ReadinessCard({ title, readiness, missing }: { title: string; readiness: string; missing?: string[] | null }) {
+  const missingSteps = normalizeMissingSteps(missing);
+  const lead = missingSteps[0] ? describeTenantSectionStep(missingSteps[0]) : "No action needed";
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -682,7 +688,7 @@ function ReadinessCard({ title, readiness, missing }: { title: string; readiness
         </span>
       </div>
       <p className="mt-3 text-xs text-slate-700">{lead}</p>
-      <p className="mt-2 text-xs text-slate-500">{missing.length === 0 ? "All set" : `${missing.length} action item(s) remaining`}</p>
+      <p className="mt-2 text-xs text-slate-500">{missingSteps.length === 0 ? "All set" : `${missingSteps.length} action item(s) remaining`}</p>
     </div>
   );
 }

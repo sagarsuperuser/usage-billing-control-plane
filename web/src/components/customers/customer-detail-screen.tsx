@@ -10,7 +10,7 @@ import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { beginCustomerPaymentSetup, fetchCustomerReadiness, fetchCustomers, refreshCustomerPaymentSetup, requestCustomerPaymentSetup, resendCustomerPaymentSetup, retryCustomerBillingSync } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
-import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
+import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function tone(status?: string): string {
@@ -77,7 +77,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
   const customer = customersQuery.data?.[0] ?? null;
   const readiness = readinessQuery.data ?? null;
-  const nextActions = readiness?.missing_steps.map(describeCustomerMissingStep) ?? [];
+  const readinessMissingSteps = normalizeMissingSteps(readiness?.missing_steps);
+  const nextActions = readinessMissingSteps.map(describeCustomerMissingStep);
   const canBeginPaymentSetup = Boolean(
     canWrite &&
       csrfToken &&
@@ -155,7 +156,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               <SummaryStat label="Customer" value={readiness.customer_active ? "ready" : "pending"} helper={readiness.customer_active ? "Active" : "Needs attention"} />
               <SummaryStat label="Billing profile" value={readiness.billing_profile_status} helper={readiness.lago_customer_synced ? "Synced to billing" : "Needs sync"} />
               <SummaryStat label="Payment setup" value={readiness.payment_setup_status} helper={readiness.default_payment_method_verified ? "Verified" : "Awaiting setup"} />
-              <SummaryStat label="Open actions" value={String(readiness.missing_steps.length)} helper="Remaining checklist items" />
+              <SummaryStat label="Open actions" value={String(readinessMissingSteps.length)} helper="Remaining checklist items" />
             </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">

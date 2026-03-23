@@ -10,7 +10,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
-import { formatReadinessStatus } from "@/lib/readiness";
+import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type Tenant, type TenantOnboardingReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -168,7 +168,7 @@ export function WorkspaceListScreen() {
 }
 
 function WorkspaceRow({ tenant, readiness }: { tenant: Tenant; readiness?: TenantOnboardingReadiness }) {
-  const nextStep = readiness?.missing_steps[0];
+  const nextStep = normalizeMissingSteps(readiness?.missing_steps)[0];
 
   return (
     <Link

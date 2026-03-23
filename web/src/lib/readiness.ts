@@ -71,3 +71,9 @@ export function describeTenantSectionStep(step: string): string {
 export function describeCustomerMissingStep(step: string): string {
   return customerStepLabels[step] || step.replaceAll("_", " ");
 }
+
+export function normalizeMissingSteps(steps?: string[] | null): string[] {
+  return Array.isArray(steps)
+    ? steps.filter((step): step is string => typeof step === "string" && step.trim().length > 0)
+    : [];
+}

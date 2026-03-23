@@ -10,7 +10,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
-import { describeCustomerMissingStep, formatReadinessStatus } from "@/lib/readiness";
+import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type Customer, type CustomerReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -161,7 +161,7 @@ export function CustomerListScreen() {
 }
 
 function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: CustomerReadiness }) {
-  const nextStep = readiness?.missing_steps[0];
+  const nextStep = normalizeMissingSteps(readiness?.missing_steps)[0];
   return (
     <Link
       href={`/customers/${encodeURIComponent(customer.external_id)}`}
