@@ -335,7 +335,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                             type="button"
                             onClick={() => rotateSecretMutation.mutate()}
                             disabled={!csrfToken || rotateSecretMutation.isPending || syncMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled" || !rotatedStripeSecretKey.trim()}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {rotateSecretMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                             Rotate secret
@@ -346,14 +346,14 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                         type="button"
                         onClick={() => disableMutation.mutate()}
                         disabled={!csrfToken || disableMutation.isPending || rotateSecretMutation.isPending || syncMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                       {disableMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
                       Disable connection
                     </button>
                     <Link
                       href="/workspaces/new"
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
+                      className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
                     >
                       <CreditCard className="h-4 w-4" />
                       Use in workspace setup

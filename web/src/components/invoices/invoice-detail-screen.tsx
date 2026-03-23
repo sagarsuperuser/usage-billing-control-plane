@@ -290,7 +290,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     {invoice.customer_external_id ? (
                       <Link
                         href={`/customers/${encodeURIComponent(invoice.customer_external_id)}`}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
                       >
                         Open customer
                       </Link>

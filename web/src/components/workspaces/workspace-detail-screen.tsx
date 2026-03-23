@@ -338,7 +338,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                           aria-label="Workspace role"
                           value={inviteRole}
                           onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
-                          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                          className="h-10 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                         >
                           <option value="admin">Admin</option>
                           <option value="writer">Writer</option>
@@ -348,7 +348,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                           type="button"
                           onClick={() => createInvitationMutation.mutate()}
                           disabled={!canCreateInvitation}
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
                           Send invite
@@ -602,7 +602,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   {activeBillingConnectionID ? (
                     <Link
                       href={`/billing-connections/${encodeURIComponent(activeBillingConnectionID)}`}
-                      className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
+                      className="mt-4 inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
                     >
                       <CreditCard className="h-4 w-4" />
                       Open billing connection
@@ -616,7 +616,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         aria-label="Active billing connection"
                         value={selectedConnectionID}
                         onChange={(event) => setSelectedConnectionID(event.target.value)}
-                        className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                        className="h-10 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       >
                         <option value="">Select one active billing connection</option>
                         {availableConnections.map((connection) => (
@@ -629,7 +629,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         type="button"
                         onClick={() => updateWorkspaceBillingMutation.mutate()}
                         disabled={!canSaveWorkspaceBilling}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {updateWorkspaceBillingMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
                         Save active connection

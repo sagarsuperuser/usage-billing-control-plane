@@ -287,7 +287,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                         type="button"
                         onClick={() => retryMutation.mutate()}
                         disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                         Retry collection
@@ -296,7 +296,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     {payment.customer_external_id && actionConfig?.showRecovery ? (
                       <Link
                         href={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                       >
                         Open recovery tools
                       </Link>
@@ -304,7 +304,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     {actionConfig?.showExplainability ? (
                       <Link
                         href={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                       >
                         Open explainability
                       </Link>
@@ -312,7 +312,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
                       <Link
                         href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                       >
                         Open customer payment setup
                       </Link>
@@ -322,7 +322,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     payment.customer_external_id ? (
                       <Link
                         href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                       >
                         Open customer payment context
                       </Link>
@@ -338,7 +338,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     {payment.customer_external_id ? (
                       <Link
                         href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
                       >
                         Open customer
                       </Link>
@@ -354,7 +354,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     <MetaItem label="Updated" value={formatExactTimestamp(payment.updated_at)} />
                     <Link
                       href={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
-                      className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                     >
                       Open invoice
                     </Link>
