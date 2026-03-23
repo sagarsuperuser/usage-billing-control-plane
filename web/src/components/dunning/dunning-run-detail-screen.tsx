@@ -11,6 +11,7 @@ import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
+import { diagnoseDunningRun, dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
 import { formatExactTimestamp } from "@/lib/format";
 
 function formatState(value?: string): string {
@@ -74,6 +75,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
 
   const detail = detailQuery.data;
   const run = detail?.run;
+  const diagnosis = useMemo(() => (run ? diagnoseDunningRun(run) : null), [run]);
   const latestIntent = useMemo(() => {
     const items = detail?.notification_intents ?? [];
     return items.length > 0 ? items[0] : undefined;
@@ -202,6 +204,42 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
               <StatCard label="Next action at" value={formatExactTimestamp(run.next_action_at)} />
               <StatCard label="Attempts" value={String(run.attempt_count)} />
             </section>
+
+            {diagnosis ? (
+              <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Run diagnosis</p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-900">{diagnosis.title}</h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{diagnosis.summary}</p>
+                  </div>
+                  <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] ${dunningDiagnosisToneClass(diagnosis.tone)}`}>
+                    {diagnosis.title}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Recommended next step</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{diagnosis.nextStep}</p>
+                  </div>
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current operator path</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      {run.paused
+                        ? "Resume or resolve this run before expecting automation to continue."
+                        : run.resolved_at
+                          ? "No immediate collection action is required unless you are auditing the resolution."
+                          : run.next_action_type === "collect_payment_reminder"
+                            ? "Use reminder dispatch only when the customer still needs a payment setup or nudge path."
+                            : run.next_action_type === "retry_payment"
+                              ? "Check invoice and payment detail before forcing retry, especially after repeated failures."
+                              : "Monitor this workflow and open linked billing surfaces if state progression stalls."}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
               <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
