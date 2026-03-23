@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, CreditCard, LoaderCircle, RefreshCcw, ShieldOff } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, CreditCard, LoaderCircle, RefreshCcw, ShieldOff, XCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -20,6 +20,15 @@ import { formatExactTimestamp } from "@/lib/format";
 import { formatReadinessStatus } from "@/lib/readiness";
 import { useUISession } from "@/hooks/use-ui-session";
 
+type HealthCheckTone = "good" | "warn" | "bad" | "neutral";
+
+type ConnectionHealthCheck = {
+  label: string;
+  status: string;
+  detail: string;
+  tone: HealthCheckTone;
+};
+
 function readinessTone(status?: string): string {
   switch ((status || "").toLowerCase()) {
     case "connected":
@@ -31,6 +40,177 @@ function readinessTone(status?: string): string {
     default:
       return "border-slate-200 bg-slate-50 text-slate-700";
   }
+}
+
+function healthCheckTone(tone: HealthCheckTone): string {
+  switch (tone) {
+    case "good":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "warn":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "bad":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-700";
+  }
+}
+
+function HealthCheckIcon({ tone }: { tone: HealthCheckTone }) {
+  switch (tone) {
+    case "good":
+      return <CheckCircle2 className="h-4 w-4" />;
+    case "warn":
+      return <Clock3 className="h-4 w-4" />;
+    case "bad":
+      return <XCircle className="h-4 w-4" />;
+    default:
+      return <AlertTriangle className="h-4 w-4" />;
+  }
+}
+
+function nextActionLabel(connection: {
+  status: string;
+  sync_state: string;
+  secret_configured: boolean;
+  linked_workspace_count: number;
+}): string {
+  if (connection.status === "disabled") {
+    return "Re-enable by creating or selecting another active connection before moving more workspaces here.";
+  }
+  if (!connection.secret_configured) {
+    return "Store the Stripe secret first, then run sync so Alpha can verify the provider path.";
+  }
+  if (connection.sync_state === "failed") {
+    return "Review the last sync error, correct the provider secret or override, then rerun sync.";
+  }
+  if (connection.sync_state === "never_synced") {
+    return "Run the first sync before attaching this connection to any workspace.";
+  }
+  if (connection.sync_state === "pending") {
+    return "Wait for or trigger a successful sync before treating this connection as ready.";
+  }
+  if (connection.linked_workspace_count > 0) {
+    return "Healthy. Safe for current assignments and additional workspace handoff.";
+  }
+  return "Healthy. Safe to assign to the next workspace.";
+}
+
+function buildConnectionHealthChecks(connection: {
+  status: string;
+  sync_state: string;
+  sync_summary: string;
+  linked_workspace_count: number;
+  workspace_ready: boolean;
+  secret_configured: boolean;
+  lago_organization_id?: string;
+  lago_provider_code?: string;
+  last_synced_at?: string;
+  last_sync_error?: string;
+}): ConnectionHealthCheck[] {
+  const checks: ConnectionHealthCheck[] = [];
+
+  checks.push(
+    connection.secret_configured
+      ? {
+          label: "Secret material",
+          status: "Stored",
+          detail: "Alpha has a provider secret reference and can attempt verification.",
+          tone: "good",
+        }
+      : {
+          label: "Secret material",
+          status: "Missing",
+          detail: "No provider secret is stored, so sync cannot verify or repair this connection.",
+          tone: "bad",
+        },
+  );
+
+  switch (connection.sync_state) {
+    case "healthy":
+      checks.push({
+        label: "Provider verification",
+        status: "Passed",
+        detail: connection.last_synced_at
+          ? `Last successful sync at ${formatExactTimestamp(connection.last_synced_at)}.`
+          : connection.sync_summary,
+        tone: "good",
+      });
+      break;
+    case "failed":
+      checks.push({
+        label: "Provider verification",
+        status: "Failed",
+        detail: connection.last_sync_error || connection.sync_summary,
+        tone: "bad",
+      });
+      break;
+    case "pending":
+      checks.push({
+        label: "Provider verification",
+        status: "Pending",
+        detail: "A change was made, but Alpha still needs a successful sync before this path is trusted.",
+        tone: "warn",
+      });
+      break;
+    case "never_synced":
+      checks.push({
+        label: "Provider verification",
+        status: "Not run",
+        detail: "This connection has never been verified against Lago and Stripe from Alpha.",
+        tone: "warn",
+      });
+      break;
+    default:
+      checks.push({
+        label: "Provider verification",
+        status: "Disabled",
+        detail: "Disabled connections are intentionally excluded from assignment and sync recovery.",
+        tone: "neutral",
+      });
+      break;
+  }
+
+  if (connection.status === "disabled") {
+    checks.push({
+      label: "Workspace assignment",
+      status: "Blocked",
+      detail: "Disabled connections cannot be used for new workspace handoff.",
+      tone: "bad",
+    });
+  } else if (connection.workspace_ready) {
+    checks.push({
+      label: "Workspace assignment",
+      status: "Ready",
+      detail:
+        connection.linked_workspace_count > 0
+          ? `Currently supporting ${connection.linked_workspace_count} workspace${connection.linked_workspace_count === 1 ? "" : "s"}.`
+          : "Ready for the first workspace assignment.",
+      tone: "good",
+    });
+  } else {
+    checks.push({
+      label: "Workspace assignment",
+      status: connection.linked_workspace_count > 0 ? "At risk" : "Blocked",
+      detail:
+        connection.linked_workspace_count > 0
+          ? `There are ${connection.linked_workspace_count} linked workspace${connection.linked_workspace_count === 1 ? "" : "s"}, but the connection is not currently ready.`
+          : "Do not attach new workspaces until provider verification is healthy.",
+      tone: connection.linked_workspace_count > 0 ? "bad" : "warn",
+    });
+  }
+
+  checks.push({
+    label: "Target routing",
+    status: connection.lago_organization_id ? "Override set" : "Platform default",
+    detail: connection.lago_provider_code
+      ? `Provider code override ${connection.lago_provider_code} will be used on sync.`
+      : connection.lago_organization_id
+        ? "Organization override is set. Provider code will resolve from the override or next sync."
+        : "Connection resolves the billing target from platform configuration on sync.",
+    tone: connection.lago_organization_id || connection.lago_provider_code ? "neutral" : "good",
+  });
+
+  return checks;
 }
 
 export function BillingConnectionDetailScreen({ connectionID }: { connectionID: string }) {
@@ -109,6 +289,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   });
 
   const connection = connectionQuery.data ?? null;
+  const healthChecks = connection ? buildConnectionHealthChecks(connection) : [];
 
   const startEditing = () => {
     if (!connection) return;
@@ -216,6 +397,42 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                     <MetaItem label="Last synced at" value={connection.last_synced_at ? formatExactTimestamp(connection.last_synced_at) : "-"} />
                   </div>
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{connection.sync_summary}</div>
+                  {connection.last_sync_error ? (
+                    <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-700">Last sync error</p>
+                      <p className="mt-2 text-sm leading-relaxed text-rose-800">{connection.last_sync_error}</p>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Verification</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Health checks</h2>
+                      <p className="mt-2 text-sm text-slate-600">Use the checks below to decide whether this connection is safe for workspace billing traffic.</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 sm:max-w-[18rem]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Operator next step</p>
+                      <p className="mt-2 leading-relaxed">{nextActionLabel(connection)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid gap-3">
+                    {healthChecks.map((check) => (
+                      <div key={check.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-950">{check.label}</p>
+                            <p className="mt-2 text-sm leading-relaxed text-slate-600">{check.detail}</p>
+                          </div>
+                          <span className={`inline-flex shrink-0 items-center gap-2 self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${healthCheckTone(check.tone)}`}>
+                            <HealthCheckIcon tone={check.tone} />
+                            {check.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -367,6 +584,10 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                     <MetaItem label="Provider" value={connection.provider_type} />
                     <MetaItem label="Linked workspaces" value={String(connection.linked_workspace_count)} />
                     <MetaItem label="Secret configured" value={connection.secret_configured ? "Yes" : "No"} />
+                    <MetaItem label="Created by" value={connection.created_by_id ? `${connection.created_by_type}:${connection.created_by_id}` : connection.created_by_type} mono={Boolean(connection.created_by_id)} />
+                    <MetaItem label="Created at" value={formatExactTimestamp(connection.created_at)} />
+                    <MetaItem label="Updated at" value={formatExactTimestamp(connection.updated_at)} />
+                    <MetaItem label="Disabled at" value={connection.disabled_at ? formatExactTimestamp(connection.disabled_at) : "-"} />
                   </div>
                 </section>
               </aside>

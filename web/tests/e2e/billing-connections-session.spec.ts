@@ -32,6 +32,7 @@ type BillingProviderConnection = {
   connected_at?: string;
   last_synced_at?: string;
   last_sync_error?: string;
+  disabled_at?: string;
 };
 
 async function installBillingConnectionMock(context: BrowserContext, session: PlatformSessionPayload, initialConnections: BillingProviderConnection[] = []) {
@@ -201,9 +202,11 @@ async function createConnectionFromNewScreen(page: Page) {
 
   await expect(page.getByRole("heading", { name: "New billing connection" })).toBeVisible();
   await expect(nameInput).toBeEditable();
-  await nameInput.fill("Stripe Sandbox");
+  await nameInput.click();
+  await nameInput.pressSequentially("Stripe Sandbox");
   await expect(nameInput).toHaveValue("Stripe Sandbox");
-  await secretInput.fill("sk_test_123");
+  await secretInput.click();
+  await secretInput.pressSequentially("sk_test_123");
   await expect(secretInput).toHaveValue("sk_test_123");
   await expect(submitButton).toBeEnabled();
   await submitButton.click();
@@ -265,16 +268,33 @@ test("platform admin can edit billing connection detail metadata", async ({ page
   ]);
 
   await page.goto("/billing-connections/bpc_alpha");
+  await expect(page.getByRole("heading", { name: "Stripe Sandbox" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Connection name").fill("Stripe Sandbox Updated");
-  await page.getByLabel("Billing organization override").fill("org_updated");
-  await page.getByLabel("Provider code override").fill("alpha_override");
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
+
+  const connectionNameInput = page.getByLabel("Connection name");
+  const orgOverrideInput = page.getByLabel("Billing organization override");
+  const providerCodeInput = page.getByLabel("Provider code override");
+
+  await expect(connectionNameInput).toBeEditable();
+  await connectionNameInput.click();
+  await connectionNameInput.press("Meta+A");
+  await connectionNameInput.pressSequentially("Stripe Sandbox Updated");
+  await orgOverrideInput.click();
+  await orgOverrideInput.press("Meta+A");
+  await orgOverrideInput.pressSequentially("org_updated");
+  await providerCodeInput.click();
+  await providerCodeInput.press("Meta+A");
+  await providerCodeInput.pressSequentially("alpha_override");
+  const saveButton = page.getByRole("button", { name: "Save changes" });
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click({ force: true });
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page.getByRole("heading", { name: "Stripe Sandbox Updated" })).toBeVisible();
-  await expect(page.getByText("org_updated")).toBeVisible();
-  await expect(page.getByText("alpha_override")).toBeVisible();
+  await expect(page.getByText("org_updated", { exact: true })).toBeVisible();
+  await expect(page.getByText("alpha_override", { exact: true })).toBeVisible();
 });
 
 test("platform admin can rotate a billing connection secret and see it return to pending", async ({ page, context }) => {
@@ -312,9 +332,53 @@ test("platform admin can rotate a billing connection secret and see it return to
   ]);
 
   await page.goto("/billing-connections/bpc_alpha");
-  await page.getByLabel("New Stripe secret key").fill("sk_test_rotated");
+  const rotatedSecretInput = page.getByLabel("New Stripe secret key");
+  await rotatedSecretInput.click();
+  await rotatedSecretInput.pressSequentially("sk_test_rotated");
   await page.getByRole("button", { name: "Rotate secret" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page.locator("div").filter({ hasText: /^Connection is waiting for a successful provider sync\.$/ })).toBeVisible();
+});
+
+test("platform admin sees explicit verification checks for a failed billing connection", async ({ page, context }) => {
+  const session: PlatformSessionPayload = {
+    authenticated: true,
+    subject_type: "user",
+    subject_id: "usr_platform_1",
+    user_email: "platform-admin@alpha.test",
+    scope: "platform",
+    platform_role: "platform_admin",
+    csrf_token: "csrf-platform-123",
+  };
+  const seededNow = new Date().toISOString();
+  await installBillingConnectionMock(context, session, [
+    {
+      id: "bpc_alpha",
+      provider_type: "stripe",
+      environment: "test",
+      display_name: "Stripe Sandbox",
+      scope: "platform",
+      status: "sync_error",
+      workspace_ready: false,
+      sync_state: "failed",
+      sync_summary: "provider timeout",
+      linked_workspace_count: 2,
+      lago_organization_id: "org_original",
+      secret_configured: true,
+      created_by_type: "platform_api_key",
+      created_at: seededNow,
+      updated_at: seededNow,
+      last_sync_error: "provider timeout",
+    },
+  ]);
+
+  await page.goto("/billing-connections/bpc_alpha");
+
+  await expect(page.getByRole("heading", { name: "Health checks" })).toBeVisible();
+  await expect(page.getByText("Last sync error", { exact: true })).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^provider timeout$/ }).first()).toBeVisible();
+  await expect(page.getByText("Workspace assignment")).toBeVisible();
+  await expect(page.getByText("There are 2 linked workspaces, but the connection is not currently ready.")).toBeVisible();
+  await expect(page.getByText("Review the last sync error, correct the provider secret or override, then rerun sync.")).toBeVisible();
 });
