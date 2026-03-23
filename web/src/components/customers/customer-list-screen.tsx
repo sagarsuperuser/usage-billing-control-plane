@@ -10,6 +10,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
+import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type Customer, type CustomerReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -73,8 +74,8 @@ export function CustomerListScreen() {
     return {
       total: filteredCustomers.length,
       ready: readiness.filter((item) => item.status === "ready").length,
-      pendingPayment: readiness.filter((item) => item.payment_setup_status !== "ready").length,
-      syncErrors: readiness.filter((item) => item.billing_profile_status === "sync_error").length,
+      pendingPayment: readiness.filter((item) => diagnoseCustomerCollection(item).code === "awaiting_customer_setup" || diagnoseCustomerCollection(item).code === "setup_request_failed" || diagnoseCustomerCollection(item).code === "collection_missing").length,
+      syncErrors: readiness.filter((item) => diagnoseCustomerCollection(item).code === "billing_sync_error").length,
     };
   }, [filteredCustomers, readinessByCustomer]);
 
@@ -113,8 +114,8 @@ export function CustomerListScreen() {
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Visible customers" value={summary.total} />
           <MetricCard label="Billing ready" value={summary.ready} />
-          <MetricCard label="Waiting on payment" value={summary.pendingPayment} />
-          <MetricCard label="Sync errors" value={summary.syncErrors} />
+          <MetricCard label="Collection blocked" value={summary.pendingPayment} />
+          <MetricCard label="Sync recovery" value={summary.syncErrors} />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -162,6 +163,7 @@ export function CustomerListScreen() {
 
 function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: CustomerReadiness }) {
   const nextStep = normalizeMissingSteps(readiness?.missing_steps)[0];
+  const diagnosis = readiness ? diagnoseCustomerCollection(readiness) : null;
   return (
     <Link
       href={`/customers/${encodeURIComponent(customer.external_id)}`}
@@ -173,9 +175,20 @@ function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: 
           <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(customer.status)}`}>
             {customer.status}
           </span>
+          {diagnosis ? (
+            <span
+              className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${customerCollectionDiagnosisToneClass(
+                diagnosis.tone,
+              )}`}
+            >
+              {diagnosis.title}
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 break-all font-mono text-xs text-slate-500">{customer.external_id}</p>
-        <p className="mt-2 text-sm text-slate-600">{nextStep ? `Next action: ${describeCustomerMissingStep(nextStep)}` : "Customer is ready for billing operations."}</p>
+        <p className="mt-2 text-sm text-slate-600">
+          {diagnosis?.summary || (nextStep ? `Next action: ${describeCustomerMissingStep(nextStep)}` : "Customer is ready for billing operations.")}
+        </p>
       </div>
       <StatusCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
       <StatusCell label="Profile" value={readiness ? formatReadinessStatus(readiness.billing_profile_status) : "Loading"} />

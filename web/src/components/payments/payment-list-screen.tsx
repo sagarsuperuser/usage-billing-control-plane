@@ -148,7 +148,7 @@ export function PaymentListScreen() {
           <MetricCard label="Visible payments" value={stats.total} />
           <MetricCard label="Failed" value={stats.failed} />
           <MetricCard label="Overdue" value={stats.overdue} />
-          <MetricCard label="Action required" value={stats.actionRequired} />
+          <MetricCard label="Need operator action" value={stats.actionRequired} />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -314,7 +314,7 @@ function PaymentRow({ item }: { item: PaymentSummary }) {
               {diagnosis.title}
             </span>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.nextStep}</p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.summary}</p>
         </div>
       </div>
       <StatusCell label="Payment" value={formatState(item.payment_status)} />

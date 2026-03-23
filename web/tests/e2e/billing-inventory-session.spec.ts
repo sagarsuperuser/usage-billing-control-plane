@@ -93,7 +93,7 @@ test("payment inventory surfaces compact failure diagnosis before detail drill-i
 
   await expect(page.getByText("INV-123")).toBeVisible();
   await expect(page.getByText("Payment failed")).toBeVisible();
-  await expect(page.getByText("Inspect the billing timeline for the last failure event, then decide whether to retry, collect payment, or escalate.")).toBeVisible();
+  await expect(page.getByText("card_declined")).toBeVisible();
 });
 
 test("invoice inventory surfaces compact failure diagnosis before detail drill-in", async ({ page }) => {
@@ -102,5 +102,5 @@ test("invoice inventory surfaces compact failure diagnosis before detail drill-i
 
   await expect(page.getByText("INV-456")).toBeVisible();
   await expect(page.getByText("Payment failed")).toBeVisible();
-  await expect(page.getByText("Inspect the billing timeline for the last failure event, then decide whether to retry, collect payment, or escalate.")).toBeVisible();
+  await expect(page.getByText("card_declined")).toBeVisible();
 });

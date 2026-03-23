@@ -118,7 +118,7 @@ export function InvoiceListScreen() {
           <MetricCard label="Visible invoices" value={stats.total} />
           <MetricCard label="Paid" value={stats.paid} />
           <MetricCard label="Overdue" value={stats.overdue} />
-          <MetricCard label="Action required" value={stats.actionRequired} />
+          <MetricCard label="Need operator action" value={stats.actionRequired} />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -217,7 +217,7 @@ function InvoiceRow({ item }: { item: InvoiceSummary }) {
               {diagnosis.title}
             </span>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.nextStep}</p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.summary}</p>
         </div>
       </div>
       <StatusCell label="Invoice" value={formatInvoiceState(item.invoice_status)} />

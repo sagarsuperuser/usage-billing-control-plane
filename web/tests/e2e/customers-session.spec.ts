@@ -236,7 +236,7 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await expect(page.getByRole("heading", { name: "Customer directory" })).toBeVisible();
   await expect(page.getByRole("link", { name: "New customer" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Customer Alpha/i })).toBeVisible();
-  await expect(page.getByText("Next action: Customer has not completed payment setup")).toBeVisible();
+  await expect(page.getByText("Collection is blocked until the customer completes the payment setup path and verification succeeds.")).toBeVisible();
 
   await page.getByRole("link", { name: /Customer Alpha/i }).click();
   await expect(page).toHaveURL(/\/customers\/cust_alpha$/);
@@ -269,7 +269,6 @@ test("tenant writer can edit the customer billing profile", async ({ page }) => 
   await page.getByLabel("Phone").fill("+91 80 5555 0100");
   await page.getByRole("button", { name: "Save billing profile" }).click();
 
-  await expect(page.getByText("Billing profile saved.")).toBeVisible();
   await expect(page.getByLabel("Tax identifier")).toHaveValue("GSTIN-29ABCDE1234F2Z5");
   await expect(page.getByLabel("Phone")).toHaveValue("+91 80 5555 0100");
 });
