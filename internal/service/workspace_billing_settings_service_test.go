@@ -1,0 +1,58 @@
+package service
+
+import (
+	"context"
+	"testing"
+
+	"usage-billing-control-plane/internal/domain"
+)
+
+type testBillingEntitySyncAdapter struct {
+	called   bool
+	settings domain.WorkspaceBillingSettings
+	err      error
+}
+
+func (a *testBillingEntitySyncAdapter) SyncBillingEntitySettings(_ context.Context, settings domain.WorkspaceBillingSettings) error {
+	a.called = true
+	a.settings = settings
+	return a.err
+}
+
+func TestWorkspaceBillingSettingsServiceSyncWorkspaceBillingSettings(t *testing.T) {
+	adapter := &testBillingEntitySyncAdapter{}
+	svc := NewWorkspaceBillingSettingsService(nil).WithBillingEntitySyncAdapter(adapter)
+	netTerms := 30
+
+	err := svc.syncWorkspaceBillingSettings(domain.WorkspaceBillingSettings{
+		WorkspaceID:        "tenant_sync",
+		BillingEntityCode:  "be_primary",
+		NetPaymentTermDays: &netTerms,
+		InvoiceFooter:      "Wire details available on request.",
+	})
+	if err != nil {
+		t.Fatalf("sync workspace billing settings: %v", err)
+	}
+	if !adapter.called {
+		t.Fatalf("expected billing entity sync adapter to be called")
+	}
+	if adapter.settings.BillingEntityCode != "be_primary" {
+		t.Fatalf("expected billing entity code be_primary, got %q", adapter.settings.BillingEntityCode)
+	}
+}
+
+func TestWorkspaceBillingSettingsServiceSyncWorkspaceBillingSettingsSkipsWithoutBillingEntity(t *testing.T) {
+	adapter := &testBillingEntitySyncAdapter{}
+	svc := NewWorkspaceBillingSettingsService(nil).WithBillingEntitySyncAdapter(adapter)
+
+	err := svc.syncWorkspaceBillingSettings(domain.WorkspaceBillingSettings{
+		WorkspaceID:   "tenant_sync",
+		InvoiceFooter: "ignored without billing entity",
+	})
+	if err != nil {
+		t.Fatalf("sync workspace billing settings without billing entity: %v", err)
+	}
+	if adapter.called {
+		t.Fatalf("expected billing entity sync adapter to be skipped")
+	}
+}

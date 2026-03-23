@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +11,8 @@ import (
 )
 
 type WorkspaceBillingSettingsService struct {
-	store store.Repository
+	store                    store.Repository
+	billingEntitySyncAdapter BillingEntitySettingsSyncAdapter
 }
 
 type UpdateWorkspaceBillingSettingsRequest struct {
@@ -22,6 +24,11 @@ type UpdateWorkspaceBillingSettingsRequest struct {
 
 func NewWorkspaceBillingSettingsService(s store.Repository) *WorkspaceBillingSettingsService {
 	return &WorkspaceBillingSettingsService{store: s}
+}
+
+func (s *WorkspaceBillingSettingsService) WithBillingEntitySyncAdapter(adapter BillingEntitySettingsSyncAdapter) *WorkspaceBillingSettingsService {
+	s.billingEntitySyncAdapter = adapter
+	return s
 }
 
 func (s *WorkspaceBillingSettingsService) GetWorkspaceBillingSettings(workspaceID string) (domain.WorkspaceBillingSettings, error) {
@@ -65,6 +72,9 @@ func (s *WorkspaceBillingSettingsService) UpsertWorkspaceBillingSettings(workspa
 	current.InvoiceMemo = strings.TrimSpace(req.InvoiceMemo)
 	current.InvoiceFooter = strings.TrimSpace(req.InvoiceFooter)
 	current.UpdatedAt = time.Now().UTC()
+	if err := s.syncWorkspaceBillingSettings(current); err != nil {
+		return domain.WorkspaceBillingSettings{}, err
+	}
 	return s.store.UpsertWorkspaceBillingSettings(current)
 }
 
@@ -72,4 +82,21 @@ func defaultWorkspaceBillingSettings(workspaceID string) domain.WorkspaceBilling
 	return domain.WorkspaceBillingSettings{
 		WorkspaceID: normalizeTenantID(workspaceID),
 	}
+}
+
+func (s *WorkspaceBillingSettingsService) syncWorkspaceBillingSettings(settings domain.WorkspaceBillingSettings) error {
+	if s == nil || s.billingEntitySyncAdapter == nil {
+		return nil
+	}
+	if strings.TrimSpace(settings.BillingEntityCode) == "" {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := s.billingEntitySyncAdapter.SyncBillingEntitySettings(ctx, settings); err != nil {
+		return fmt.Errorf("%w: sync workspace billing settings: %v", ErrDependency, err)
+	}
+	return nil
 }

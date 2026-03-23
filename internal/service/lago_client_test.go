@@ -181,6 +181,55 @@ func TestLagoCustomerBillingAdapter(t *testing.T) {
 	}
 }
 
+func TestLagoCustomerBillingAdapterSyncBillingEntitySettings(t *testing.T) {
+	t.Parallel()
+
+	var sawUpdate bool
+	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/billing_entities/be_us_primary":
+			sawUpdate = true
+			body, _ := io.ReadAll(r.Body)
+			payload := string(body)
+			if !strings.Contains(payload, `"net_payment_term":21`) {
+				t.Fatalf("expected net_payment_term in payload, got %s", payload)
+			}
+			if !strings.Contains(payload, `"invoice_footer":"Wire details available on request."`) {
+				t.Fatalf("expected invoice_footer in payload, got %s", payload)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"billing_entity":{"code":"be_us_primary"}}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer lago.Close()
+
+	transport, err := NewLagoHTTPTransport(LagoClientConfig{
+		BaseURL: lago.URL,
+		APIKey:  "test",
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new lago transport: %v", err)
+	}
+
+	netTerms := 21
+	err = NewLagoCustomerBillingAdapter(transport).SyncBillingEntitySettings(context.Background(), domain.WorkspaceBillingSettings{
+		WorkspaceID:        "tenant_demo",
+		BillingEntityCode:  "be_us_primary",
+		NetPaymentTermDays: &netTerms,
+		InvoiceFooter:      "Wire details available on request.",
+	})
+	if err != nil {
+		t.Fatalf("sync billing entity settings: %v", err)
+	}
+	if !sawUpdate {
+		t.Fatalf("expected update request to lago billing entities endpoint")
+	}
+}
+
 func TestLagoPlanSyncAdapter(t *testing.T) {
 	t.Parallel()
 

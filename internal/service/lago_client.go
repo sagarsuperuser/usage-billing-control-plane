@@ -66,6 +66,10 @@ type CustomerBillingAdapter interface {
 	GenerateCustomerCheckoutURL(ctx context.Context, externalID string) (int, []byte, error)
 }
 
+type BillingEntitySettingsSyncAdapter interface {
+	SyncBillingEntitySettings(ctx context.Context, settings domain.WorkspaceBillingSettings) error
+}
+
 type LagoHTTPTransport struct {
 	baseURL    string
 	apiKey     string
@@ -399,6 +403,32 @@ func (a *LagoCustomerBillingAdapter) GenerateCustomerCheckoutURL(ctx context.Con
 		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))
 	}
 	return status, body, nil
+}
+
+func (a *LagoCustomerBillingAdapter) SyncBillingEntitySettings(ctx context.Context, settings domain.WorkspaceBillingSettings) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("%w: lago customer billing adapter is required", ErrValidation)
+	}
+	code := strings.TrimSpace(settings.BillingEntityCode)
+	if code == "" {
+		return fmt.Errorf("%w: billing entity code is required", ErrValidation)
+	}
+
+	billingEntity := map[string]any{}
+	if settings.NetPaymentTermDays != nil {
+		billingEntity["net_payment_term"] = *settings.NetPaymentTermDays
+	}
+	billingEntity["billing_configuration"] = map[string]any{
+		"invoice_footer": settings.InvoiceFooter,
+	}
+
+	payload := map[string]any{"billing_entity": billingEntity}
+	path := "/api/v1/billing_entities/" + url.PathEscape(code)
+	status, body, err := a.transport.doJSONRequest(ctx, http.MethodPut, path, payload)
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: lago billing entity sync failed (status=%d body=%s)", ErrDependency, status, abbrevForLog(body))
 }
 
 type LagoPlanSyncAdapter struct {

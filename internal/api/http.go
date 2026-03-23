@@ -737,6 +737,9 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.ratingService = service.NewRatingService(repo)
 	s.workspaceBillingBindingService = service.NewWorkspaceBillingBindingService(repo)
 	s.workspaceBillingSettingsService = service.NewWorkspaceBillingSettingsService(repo)
+	if adapter, ok := any(s.customerBillingAdapter).(service.BillingEntitySettingsSyncAdapter); ok {
+		s.workspaceBillingSettingsService = s.workspaceBillingSettingsService.WithBillingEntitySyncAdapter(adapter)
+	}
 	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
 	s.tenantService = service.NewTenantService(repo).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)

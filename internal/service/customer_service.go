@@ -528,7 +528,15 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	payload, err := buildLagoCustomerPayload(providerCode, customer, profile, setup)
+	workspaceSettings, err := s.store.GetWorkspaceBillingSettings(customer.TenantID)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			return s.recordCustomerSyncFailure(customer, profile, setup, err.Error())
+		}
+		workspaceSettings = defaultWorkspaceBillingSettings(customer.TenantID)
+	}
+
+	payload, err := buildLagoCustomerPayload(providerCode, customer, profile, setup, workspaceSettings)
 	if err != nil {
 		return s.recordCustomerSyncFailure(customer, profile, setup, err.Error())
 	}
@@ -676,7 +684,7 @@ type lagoCustomerCheckoutResponse struct {
 	} `json:"customer"`
 }
 
-func buildLagoCustomerPayload(defaultProviderCode string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) ([]byte, error) {
+func buildLagoCustomerPayload(defaultProviderCode string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup, workspaceSettings domain.WorkspaceBillingSettings) ([]byte, error) {
 	providerCode := strings.TrimSpace(profile.ProviderCode)
 	if providerCode == "" {
 		providerCode = strings.TrimSpace(defaultProviderCode)
@@ -691,17 +699,18 @@ func buildLagoCustomerPayload(defaultProviderCode string, customer domain.Custom
 	}
 	payload := map[string]any{
 		"customer": map[string]any{
-			"external_id":   customer.ExternalID,
-			"name":          customer.DisplayName,
-			"legal_name":    profile.LegalName,
-			"email":         profile.Email,
-			"currency":      profile.Currency,
-			"country":       profile.Country,
-			"address_line1": profile.AddressLine1,
-			"address_line2": profile.AddressLine2,
-			"city":          profile.City,
-			"state":         profile.State,
-			"zipcode":       profile.PostalCode,
+			"external_id":               customer.ExternalID,
+			"name":                      customer.DisplayName,
+			"legal_name":                profile.LegalName,
+			"email":                     profile.Email,
+			"currency":                  profile.Currency,
+			"country":                   profile.Country,
+			"tax_identification_number": profile.TaxIdentifier,
+			"address_line1":             profile.AddressLine1,
+			"address_line2":             profile.AddressLine2,
+			"city":                      profile.City,
+			"state":                     profile.State,
+			"zipcode":                   profile.PostalCode,
 			"billing_configuration": map[string]any{
 				"payment_provider":         paymentProvider,
 				"payment_provider_code":    providerCode,
@@ -710,6 +719,12 @@ func buildLagoCustomerPayload(defaultProviderCode string, customer domain.Custom
 				"provider_payment_methods": []string{paymentMethodType},
 			},
 		},
+	}
+	if strings.TrimSpace(workspaceSettings.BillingEntityCode) != "" {
+		payload["customer"].(map[string]any)["billing_entity_code"] = workspaceSettings.BillingEntityCode
+	}
+	if workspaceSettings.NetPaymentTermDays != nil {
+		payload["customer"].(map[string]any)["net_payment_term"] = *workspaceSettings.NetPaymentTermDays
 	}
 	if setup.ProviderCustomerReference != "" {
 		payload["customer"].(map[string]any)["billing_configuration"].(map[string]any)["provider_customer_id"] = setup.ProviderCustomerReference
