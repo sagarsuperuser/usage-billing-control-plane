@@ -88,6 +88,8 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
   const nextActions = subscription?.missing_steps.map(describeCustomerMissingStep) ?? [];
   const canRequestSetup = subscription?.payment_setup_status !== "ready" && subscription?.status !== "archived";
   const showResend = Boolean(subscription?.payment_setup_requested_at || subscription?.payment_setup_status === "error");
+  const setupActionLabel = showResend ? "Resend payment setup" : "Request payment setup";
+  const latestSetupCheckoutURL = resendMutation.data?.checkout_url || requestMutation.data?.checkout_url;
 
   useEffect(() => {
     if (subscription?.plan_id) {
@@ -241,42 +243,35 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   <p className="mt-3 text-sm leading-relaxed text-slate-600">
                     Operators request the hosted setup link. The payer completes card or bank setup outside Alpha. Once the default payment method is verified, the subscription becomes active.
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {canRequestSetup ? (
-                      <button
-                        type="button"
-                        data-testid="subscription-request-setup"
-                        onClick={() => requestMutation.mutate()}
-                        disabled={!canWrite || !csrfToken || requestMutation.isPending}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {requestMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                        Request payment setup
-                      </button>
-                    ) : null}
-                    {canRequestSetup && showResend ? (
-                      <button
-                        type="button"
-                        data-testid="subscription-resend-setup"
-                        onClick={() => resendMutation.mutate()}
-                        disabled={!canWrite || !csrfToken || resendMutation.isPending}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {resendMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Resend link
-                      </button>
-                    ) : null}
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Operator action</p>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                          Use one setup request action here. If the payer already received a setup email, resend that path instead of showing a second competing button.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        {canRequestSetup ? (
+                          <button
+                            type="button"
+                            data-testid="subscription-request-setup"
+                            onClick={() => (showResend ? resendMutation.mutate() : requestMutation.mutate())}
+                            disabled={!canWrite || !csrfToken || requestMutation.isPending || resendMutation.isPending}
+                            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {requestMutation.isPending || resendMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : showResend ? <Send className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+                            {setupActionLabel}
+                          </button>
+                        ) : null}
+                        {latestSetupCheckoutURL ? (
+                          <a href={latestSetupCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                            Open latest setup link
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                  {requestMutation.data?.checkout_url ? (
-                    <a href={requestMutation.data.checkout_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                      Open latest setup link
-                    </a>
-                  ) : null}
-                  {resendMutation.data?.checkout_url ? (
-                    <a href={resendMutation.data.checkout_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                      Open resent setup link
-                    </a>
-                  ) : null}
                 </section>
               </div>
 

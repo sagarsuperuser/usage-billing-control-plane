@@ -86,6 +86,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
       readiness?.payment_setup_status !== "ready",
   );
   const showResendRequest = readiness?.payment_setup.last_request_status === "sent" || readiness?.payment_setup.last_request_status === "failed";
+  const setupRequestActionLabel = showResendRequest ? "Resend payment setup request" : "Send payment setup request";
   const latestCheckoutURL = beginSetupMutation.data?.checkout_url;
   const latestRequestedCheckoutURL = requestSetupMutation.data?.checkout_url || resendSetupMutation.data?.checkout_url;
 
@@ -184,87 +185,104 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   <p className="mt-3 text-sm text-slate-600">
                     Use this customer page as the primary collection path when payment setup is missing or incomplete. Generate the hosted payer setup link here, then refresh verification before retrying collection elsewhere.
                   </p>
-                  <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                    <StatusCard title="Customer active" value={readiness.customer_active ? "ready" : "pending"} />
-                    <StatusCard title="Billing profile" value={readiness.billing_profile_status} />
-                    <StatusCard title="Payment setup" value={readiness.payment_setup_status} />
+                  <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer-directed setup</p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-950">Send one clear setup path</h3>
+                      <p className="mt-2 text-sm text-slate-600">
+                        Use the email request as the default path. If a request already exists, resend that path instead of showing duplicate send actions.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => (showResendRequest ? resendSetupMutation.mutate() : requestSetupMutation.mutate())}
+                          disabled={!canBeginPaymentSetup || requestSetupMutation.isPending || resendSetupMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {requestSetupMutation.isPending || resendSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          {setupRequestActionLabel}
+                        </button>
+                        {latestRequestedCheckoutURL ? (
+                          <a
+                            href={latestRequestedCheckoutURL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Open latest sent link
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Manual fallback</p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-950">Hosted setup link</h3>
+                      <p className="mt-2 text-sm text-slate-600">
+                        Generate a direct hosted setup link only when you need to share it manually outside the normal request flow.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => beginSetupMutation.mutate()}
+                          disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {beginSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                          Generate hosted setup link
+                        </button>
+                        {latestCheckoutURL ? (
+                          <a
+                            href={latestCheckoutURL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Open latest setup link
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => requestSetupMutation.mutate()}
-                      disabled={!canBeginPaymentSetup || requestSetupMutation.isPending}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {requestSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Send payment setup request
-                    </button>
-                    {showResendRequest ? (
-                      <button
-                        type="button"
-                        onClick={() => resendSetupMutation.mutate()}
-                        disabled={!canBeginPaymentSetup || resendSetupMutation.isPending}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {resendSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Resend request
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => beginSetupMutation.mutate()}
-                      disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {beginSetupMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      Generate hosted setup link
-                    </button>
-                    {latestRequestedCheckoutURL ? (
-                      <a
-                        href={latestRequestedCheckoutURL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Open latest sent link
-                      </a>
-                    ) : null}
-                    {latestCheckoutURL ? (
-                      <a
-                        href={latestCheckoutURL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Open latest setup link
-                      </a>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => retryMutation.mutate()}
-                      disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                      Retry billing sync
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => refreshMutation.mutate()}
-                      disabled={!canWrite || !csrfToken || refreshMutation.isPending}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {refreshMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Refresh payment setup
-                    </button>
-                    <Link
-                      href={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Open subscriptions
-                    </Link>
+
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Verification and recovery</p>
+                        <h3 className="mt-2 text-lg font-semibold text-slate-950">Confirm setup before retrying elsewhere</h3>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                          Refresh payment verification after the payer completes setup. Use billing sync recovery only when the customer mapping or provider state is stale.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => refreshMutation.mutate()}
+                          disabled={!canWrite || !csrfToken || refreshMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {refreshMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                          Refresh payment setup
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => retryMutation.mutate()}
+                          disabled={!canWrite || !csrfToken || retryMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                          Retry billing sync
+                        </button>
+                        <Link
+                          href={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Open subscriptions
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                   {beginSetupMutation.isError ? (
                     <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
