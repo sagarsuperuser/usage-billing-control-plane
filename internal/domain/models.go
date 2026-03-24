@@ -96,7 +96,7 @@ type Tenant struct {
 	BillingProviderConnectionID string       `json:"billing_provider_connection_id,omitempty"`
 	LagoOrganizationID          string       `json:"lago_organization_id,omitempty"`
 	LagoBillingProviderCode     string       `json:"lago_billing_provider_code,omitempty"`
-	LagoAPIKeySecretRef         string       `json:"-"`
+	LagoAPIKey                  string       `json:"-"`
 	CreatedAt                   time.Time    `json:"created_at"`
 	UpdatedAt                   time.Time    `json:"updated_at"`
 }

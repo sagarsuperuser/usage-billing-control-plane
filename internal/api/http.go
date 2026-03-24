@@ -61,7 +61,6 @@ type Server struct {
 	onboardingService                  *service.TenantOnboardingService
 	auditExportSvc                     *service.AuditExportService
 	lagoOrganizationBootstrapper       service.LagoOrganizationBootstrapper
-	lagoTenantAPIKeySecretStore        service.LagoTenantAPIKeySecretStore
 	meterSyncAdapter                   service.MeterSyncAdapter
 	taxSyncAdapter                     service.TaxSyncAdapter
 	planSyncAdapter                    service.PlanSyncAdapter
@@ -637,12 +636,6 @@ func WithLagoOrganizationBootstrapper(bootstrapper service.LagoOrganizationBoots
 	}
 }
 
-func WithLagoTenantAPIKeySecretStore(secretStore service.LagoTenantAPIKeySecretStore) ServerOption {
-	return func(s *Server) {
-		s.lagoTenantAPIKeySecretStore = secretStore
-	}
-}
-
 func WithMeterSyncAdapter(adapter service.MeterSyncAdapter) ServerOption {
 	return func(s *Server) {
 		s.meterSyncAdapter = adapter
@@ -801,8 +794,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
 	s.tenantService = service.NewTenantService(repo).
 		WithWorkspaceBillingBindingService(s.workspaceBillingBindingService).
-		WithLagoOrganizationBootstrapper(s.lagoOrganizationBootstrapper).
-		WithLagoAPIKeySecretStore(s.lagoTenantAPIKeySecretStore)
+		WithLagoOrganizationBootstrapper(s.lagoOrganizationBootstrapper)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
 	if dunningSvc, err := service.NewDunningService(repo); err == nil {
