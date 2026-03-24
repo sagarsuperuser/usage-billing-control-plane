@@ -349,7 +349,7 @@ func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string,
 	if err != nil {
 		return BeginCustomerPaymentSetupResult{}, err
 	}
-	_, providerCode := s.resolveBillingProviderContext(tenant)
+	organizationID, providerCode := s.resolveBillingProviderContext(tenant)
 	if providerCode == "" {
 		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: tenant billing provider is not configured", ErrValidation)
 	}
@@ -373,6 +373,7 @@ func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string,
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	ctx = ContextWithLagoScope(ctx, customer.TenantID, organizationID)
 	statusCode, body, err := s.billingAdapter.GenerateCustomerCheckoutURL(ctx, customer.ExternalID)
 	if err != nil {
 		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: generate payment setup checkout url: %v", ErrValidation, err)
@@ -513,7 +514,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	if err != nil {
 		return customer, profile, setup, err
 	}
-	_, providerCode := s.resolveBillingProviderContext(tenant)
+	organizationID, providerCode := s.resolveBillingProviderContext(tenant)
 	if providerCode == "" {
 		return customer, profile, setup, nil
 	}
@@ -542,6 +543,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	if err != nil {
 		return s.recordCustomerSyncFailure(customer, profile, setup, err.Error())
 	}
+	ctx = ContextWithLagoScope(ctx, customer.TenantID, organizationID)
 	statusCode, body, err := s.billingAdapter.UpsertCustomer(ctx, payload)
 	if err != nil {
 		return s.recordCustomerSyncFailure(customer, profile, setup, err.Error())

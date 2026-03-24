@@ -101,6 +101,7 @@ type RateLimitConfig struct {
 type LagoConfig struct {
 	APIURL         string
 	APIKey         string
+	AdminAPIKey    string
 	HTTPTimeout    time.Duration
 	WebhookHMACKey string
 }
@@ -220,8 +221,9 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		return ServerConfig{}, fmt.Errorf("LAGO_API_URL is required")
 	}
 	lagoAPIKey := strings.TrimSpace(os.Getenv("LAGO_API_KEY"))
-	if lagoAPIKey == "" {
-		return ServerConfig{}, fmt.Errorf("LAGO_API_KEY is required")
+	lagoAdminAPIKey := strings.TrimSpace(os.Getenv("LAGO_ADMIN_API_KEY"))
+	if lagoAPIKey == "" && lagoAdminAPIKey == "" {
+		return ServerConfig{}, fmt.Errorf("at least one of LAGO_API_KEY or LAGO_ADMIN_API_KEY is required")
 	}
 	billingProviderSecretStoreBackend := strings.ToLower(strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_BACKEND")))
 	billingProviderSecretStoreAccessKeyID := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_ACCESS_KEY_ID"))
@@ -309,6 +311,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		Lago: LagoConfig{
 			APIURL:         lagoAPIURL,
 			APIKey:         lagoAPIKey,
+			AdminAPIKey:    lagoAdminAPIKey,
 			HTTPTimeout:    time.Duration(getIntEnv("LAGO_HTTP_TIMEOUT_MS", 10000)) * time.Millisecond,
 			WebhookHMACKey: strings.TrimSpace(os.Getenv("LAGO_WEBHOOK_HMAC_KEY")),
 		},

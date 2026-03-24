@@ -60,6 +60,7 @@ type Server struct {
 	apiKeyService                      *service.APIKeyService
 	onboardingService                  *service.TenantOnboardingService
 	auditExportSvc                     *service.AuditExportService
+	lagoOrganizationBootstrapper       service.LagoOrganizationBootstrapper
 	meterSyncAdapter                   service.MeterSyncAdapter
 	taxSyncAdapter                     service.TaxSyncAdapter
 	planSyncAdapter                    service.PlanSyncAdapter
@@ -629,6 +630,12 @@ func WithAuditExportService(auditExportSvc *service.AuditExportService) ServerOp
 	}
 }
 
+func WithLagoOrganizationBootstrapper(bootstrapper service.LagoOrganizationBootstrapper) ServerOption {
+	return func(s *Server) {
+		s.lagoOrganizationBootstrapper = bootstrapper
+	}
+}
+
 func WithMeterSyncAdapter(adapter service.MeterSyncAdapter) ServerOption {
 	return func(s *Server) {
 		s.meterSyncAdapter = adapter
@@ -785,7 +792,9 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 		s.workspaceBillingSettingsService = s.workspaceBillingSettingsService.WithBillingEntitySyncAdapter(adapter)
 	}
 	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
-	s.tenantService = service.NewTenantService(repo).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
+	s.tenantService = service.NewTenantService(repo).
+		WithWorkspaceBillingBindingService(s.workspaceBillingBindingService).
+		WithLagoOrganizationBootstrapper(s.lagoOrganizationBootstrapper)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
 	if dunningSvc, err := service.NewDunningService(repo); err == nil {
@@ -4934,7 +4943,8 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			rawBody = []byte("{}")
 		}
 
-		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(r.Context(), invoiceID, rawBody)
+		ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to proxy retry payment to lago: "+err.Error())
 			return
@@ -4981,7 +4991,8 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(r.Context(), invoiceID)
+		ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+		statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to fetch invoice from lago: "+err.Error())
 			return

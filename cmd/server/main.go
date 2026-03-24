@@ -208,27 +208,37 @@ func main() {
 		serverOpts = append(serverOpts, api.WithRateLimiter(rateLimiter, cfg.RateLimit.FailOpen, cfg.RateLimit.LoginFailOpen))
 	}
 
-	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
+	lagoResolver, err := service.NewTenantBackedLagoTransportResolver(repo, service.LagoClientConfig{
 		BaseURL: cfg.Lago.APIURL,
 		APIKey:  cfg.Lago.APIKey,
 		Timeout: cfg.Lago.HTTPTimeout,
 	})
 	if err != nil {
-		fatal(logger, "initialize lago client", "error", err)
+		fatal(logger, "initialize lago transport resolver", "error", err)
 	}
-	invoiceBillingAdapter := service.NewLagoInvoiceAdapter(lagoTransport)
-	customerBillingAdapter := service.NewLagoCustomerBillingAdapter(lagoTransport)
+	invoiceBillingAdapter := service.NewTenantAwareLagoInvoiceAdapter(lagoResolver)
+	customerBillingAdapter := service.NewTenantAwareLagoCustomerBillingAdapter(lagoResolver)
 	serverOpts = append(
 		serverOpts,
-		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)),
-		api.WithTaxSyncAdapter(service.NewLagoTaxSyncAdapter(lagoTransport)),
-		api.WithPlanSyncAdapter(service.NewLagoPlanSyncAdapter(lagoTransport, repo)),
-		api.WithSubscriptionSyncAdapter(service.NewLagoSubscriptionSyncAdapter(lagoTransport, repo)),
-		api.WithUsageSyncAdapter(service.NewLagoUsageSyncAdapter(lagoTransport)),
+		api.WithMeterSyncAdapter(service.NewTenantAwareLagoMeterSyncAdapter(lagoResolver)),
+		api.WithTaxSyncAdapter(service.NewTenantAwareLagoTaxSyncAdapter(lagoResolver)),
+		api.WithPlanSyncAdapter(service.NewTenantAwareLagoPlanSyncAdapter(lagoResolver, repo)),
+		api.WithSubscriptionSyncAdapter(service.NewTenantAwareLagoSubscriptionSyncAdapter(lagoResolver, repo)),
+		api.WithUsageSyncAdapter(service.NewTenantAwareLagoUsageSyncAdapter(lagoResolver)),
 		api.WithInvoiceBillingAdapter(invoiceBillingAdapter),
 		api.WithCustomerBillingAdapter(customerBillingAdapter),
 	)
-	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL)
+	if strings.TrimSpace(cfg.Lago.AdminAPIKey) != "" {
+		lagoOrgBootstrapper, bootstrapErr := service.NewLagoAdminOrganizationBootstrapper(service.LagoClientConfig{
+			BaseURL: cfg.Lago.APIURL,
+			Timeout: cfg.Lago.HTTPTimeout,
+		}, cfg.Lago.AdminAPIKey)
+		if bootstrapErr != nil {
+			fatal(logger, "initialize lago admin bootstrapper", "error", bootstrapErr)
+		}
+		serverOpts = append(serverOpts, api.WithLagoOrganizationBootstrapper(lagoOrgBootstrapper))
+	}
+	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL, "default_api_key_enabled", strings.TrimSpace(cfg.Lago.APIKey) != "", "admin_bootstrap_enabled", strings.TrimSpace(cfg.Lago.AdminAPIKey) != "")
 
 	var billingSecretStore service.BillingSecretStore
 	if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
@@ -239,7 +249,7 @@ func main() {
 		billingProviderSvc := service.NewBillingProviderConnectionService(
 			repo,
 			billingSecretStore,
-			service.NewLagoBillingProviderAdapter(lagoTransport, cfg.BillingProviders.StripeSuccessRedirectURL),
+			service.NewTenantAwareLagoBillingProviderAdapter(lagoResolver, cfg.BillingProviders.StripeSuccessRedirectURL),
 		).WithDefaultLagoOrganizationID(cfg.BillingProviders.DefaultLagoOrganizationID)
 		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
 		logger.Info(
@@ -260,7 +270,7 @@ func main() {
 
 		if cfg.Roles.RunPaymentReconcileWorker {
 			temporalPaymentWorker = temporalsdkworker.New(temporalClient, cfg.Payment.TaskQueue, temporalsdkworker.Options{})
-			if err := paymentsync.RegisterTemporalPaymentReconcileWorker(temporalPaymentWorker, repo, service.NewLagoInvoiceAdapter(lagoTransport)); err != nil {
+			if err := paymentsync.RegisterTemporalPaymentReconcileWorker(temporalPaymentWorker, repo, invoiceBillingAdapter); err != nil {
 				fatal(logger, "register payment reconcile worker", "error", err)
 			}
 			if err := temporalPaymentWorker.Start(); err != nil {

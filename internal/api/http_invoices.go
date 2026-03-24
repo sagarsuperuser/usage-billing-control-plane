@@ -112,6 +112,7 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 		return 0, nil, invoiceDetailResponse{}, fmt.Errorf("%w: invoice billing adapter is required", service.ErrValidation)
 	}
 
+	ctx = service.ContextWithLagoTenant(ctx, tenantID)
 	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
 	if err != nil {
 		return 0, nil, invoiceDetailResponse{}, err
@@ -197,7 +198,8 @@ func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	statusCode, body, err := s.invoiceBillingAdapter.ListPaymentReceipts(r.Context(), url.Values{
+	ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+	statusCode, body, err := s.invoiceBillingAdapter.ListPaymentReceipts(ctx, url.Values{
 		"invoice_id": []string{invoiceID},
 	})
 	if err != nil {
@@ -230,7 +232,9 @@ func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	customerExternalID, statusCode, body, err := s.loadInvoiceCustomerExternalID(r.Context(), invoiceID)
+	tenantID := requestTenantID(r)
+	ctx := service.ContextWithLagoTenant(r.Context(), tenantID)
+	customerExternalID, statusCode, body, err := s.loadInvoiceCustomerExternalID(ctx, invoiceID)
 	if err != nil {
 		writeDomainError(w, err)
 		return
@@ -244,7 +248,7 @@ func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	statusCode, body, err = s.invoiceBillingAdapter.ListCreditNotes(r.Context(), url.Values{
+	statusCode, body, err = s.invoiceBillingAdapter.ListCreditNotes(ctx, url.Values{
 		"external_customer_id": []string{customerExternalID},
 	})
 	if err != nil {

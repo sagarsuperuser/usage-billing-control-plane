@@ -161,7 +161,8 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 		if len(strings.TrimSpace(string(rawBody))) == 0 {
 			rawBody = []byte("{}")
 		}
-		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(r.Context(), invoiceID, rawBody)
+		ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to proxy payment retry to lago: "+err.Error())
 			return
@@ -303,6 +304,7 @@ func (s *Server) materializeRetryPaymentProjection(ctx context.Context, tenantID
 	if s == nil || s.repo == nil || s.invoiceBillingAdapter == nil {
 		return nil
 	}
+	ctx = service.ContextWithLagoTenant(ctx, tenantID)
 	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, strings.TrimSpace(invoiceID))
 	if err != nil {
 		return err

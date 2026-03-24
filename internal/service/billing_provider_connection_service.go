@@ -326,6 +326,15 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe secret is required before sync", ErrValidation)
 	}
 	resolvedLagoOrganizationID := strings.TrimSpace(current.LagoOrganizationID)
+	if resolvedLagoOrganizationID == "" && strings.TrimSpace(current.OwnerTenantID) != "" {
+		tenant, tenantErr := s.store.GetTenant(current.OwnerTenantID)
+		if tenantErr != nil && tenantErr != store.ErrNotFound {
+			return domain.BillingProviderConnection{}, tenantErr
+		}
+		if tenantErr == nil {
+			resolvedLagoOrganizationID = strings.TrimSpace(tenant.LagoOrganizationID)
+		}
+	}
 	if resolvedLagoOrganizationID == "" {
 		resolvedLagoOrganizationID = strings.TrimSpace(s.defaultLagoOrganizationID)
 	}

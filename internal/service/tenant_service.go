@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,6 +14,7 @@ import (
 type TenantService struct {
 	store                          store.Repository
 	workspaceBillingBindingService *WorkspaceBillingBindingService
+	organizationBootstrapper       LagoOrganizationBootstrapper
 }
 
 type EnsureTenantRequest struct {
@@ -62,6 +64,14 @@ func (s *TenantService) WithWorkspaceBillingBindingService(bindingSvc *Workspace
 	return s
 }
 
+func (s *TenantService) WithLagoOrganizationBootstrapper(bootstrapper LagoOrganizationBootstrapper) *TenantService {
+	if s == nil {
+		return nil
+	}
+	s.organizationBootstrapper = bootstrapper
+	return s
+}
+
 func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID string) (domain.Tenant, error) {
 	if s == nil || s.store == nil {
 		return domain.Tenant{}, fmt.Errorf("%w: tenant repository is required", ErrValidation)
@@ -77,6 +87,7 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 	initialConnectionID := strings.TrimSpace(req.BillingProviderConnectionID)
 	initialOrg := strings.TrimSpace(req.LagoOrganizationID)
 	initialCode := strings.TrimSpace(req.LagoBillingProviderCode)
+	initialAPIKey := ""
 	if s.workspaceBillingBindingService == nil || initialConnectionID == "" {
 		var err error
 		initialConnectionID, initialOrg, initialCode, err = s.resolveTenantBillingConfiguration(
@@ -88,6 +99,14 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 			return domain.Tenant{}, err
 		}
 	}
+	if initialConnectionID == "" && initialOrg == "" && s.organizationBootstrapper != nil {
+		bootstrapped, err := s.bootstrapTenantOrganization(name)
+		if err != nil {
+			return domain.Tenant{}, err
+		}
+		initialOrg = bootstrapped.OrganizationID
+		initialAPIKey = bootstrapped.APIKey
+	}
 	created, err := s.store.CreateTenant(domain.Tenant{
 		ID:                          id,
 		Name:                        name,
@@ -95,6 +114,7 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		BillingProviderConnectionID: initialConnectionID,
 		LagoOrganizationID:          initialOrg,
 		LagoBillingProviderCode:     initialCode,
+		LagoAPIKey:                  initialAPIKey,
 		CreatedAt:                   now,
 		UpdatedAt:                   now,
 	})
@@ -167,6 +187,19 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 	rawConnectionID := req.BillingProviderConnectionID
 	rawOrg := req.LagoOrganizationID
 	rawCode := req.LagoBillingProviderCode
+	if existing.BillingProviderConnectionID == "" && strings.TrimSpace(rawConnectionID) == "" && existing.LagoOrganizationID == "" && strings.TrimSpace(rawOrg) == "" && s.organizationBootstrapper != nil {
+		bootstrapped, bootstrapErr := s.bootstrapTenantOrganization(name)
+		if bootstrapErr != nil {
+			return domain.Tenant{}, false, bootstrapErr
+		}
+		rawOrg = bootstrapped.OrganizationID
+		if bootstrapped.APIKey != existing.LagoAPIKey {
+			updated.LagoAPIKey = bootstrapped.APIKey
+			metadata["lago_api_key_bootstrapped"] = true
+			changed = true
+		}
+		metadata["new_lago_organization_id"] = rawOrg
+	}
 	nextConnectionID, nextOrg, nextCode, err := s.resolveTenantWriteBillingConfiguration(existing, &rawConnectionID, &rawOrg, &rawCode, actorAPIKeyID)
 	if err != nil {
 		return domain.Tenant{}, false, err
@@ -187,6 +220,9 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		updated.LagoBillingProviderCode = nextCode
 		metadata["previous_lago_billing_provider_code"] = existing.LagoBillingProviderCode
 		metadata["new_lago_billing_provider_code"] = nextCode
+		changed = true
+	}
+	if updated.LagoAPIKey != existing.LagoAPIKey {
 		changed = true
 	}
 	if !changed {
@@ -319,6 +355,19 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 		return domain.Tenant{}, fmt.Errorf("create tenant audit event: %w", auditErr)
 	}
 	return out, nil
+}
+
+func (s *TenantService) bootstrapTenantOrganization(name string) (LagoOrganizationBootstrapResult, error) {
+	if s == nil || s.organizationBootstrapper == nil {
+		return LagoOrganizationBootstrapResult{}, fmt.Errorf("%w: lago organization bootstrapper is required", ErrValidation)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, err := s.organizationBootstrapper.BootstrapOrganization(ctx, name)
+	if err != nil {
+		return LagoOrganizationBootstrapResult{}, fmt.Errorf("bootstrap lago organization for tenant %q: %w", strings.TrimSpace(name), err)
+	}
+	return result, nil
 }
 
 func (s *TenantService) resolveTenantWriteBillingConfiguration(current domain.Tenant, connectionID, lagoOrganizationID, lagoBillingProviderCode *string, actorAPIKeyID string) (string, string, string, error) {

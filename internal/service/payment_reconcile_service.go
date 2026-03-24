@@ -85,7 +85,8 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 	for _, candidate := range candidates {
 		result.Scanned++
 
-		statusCode, body, err := s.invoiceAdapter.GetInvoice(ctx, candidate.InvoiceID)
+		lagoCtx := ContextWithLagoScope(ctx, candidate.TenantID, candidate.OrganizationID)
+		statusCode, body, err := s.invoiceAdapter.GetInvoice(lagoCtx, candidate.InvoiceID)
 		if err != nil {
 			result.Failures++
 			continue

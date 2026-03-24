@@ -33,7 +33,8 @@ func (s *Server) handleInvoiceResendEmail(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	dispatched, err := s.notificationService.ResendInvoiceEmail(r.Context(), invoiceID, service.BillingDocumentEmail{
+	ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+	dispatched, err := s.notificationService.ResendInvoiceEmail(ctx, invoiceID, service.BillingDocumentEmail{
 		To:  req.To,
 		Cc:  req.Cc,
 		Bcc: req.Bcc,
@@ -65,7 +66,7 @@ func (s *Server) handleInvoiceResendEmail(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handlePaymentReceiptByID(w http.ResponseWriter, r *http.Request) {
 	s.handleBillingDocumentNotificationByID(w, r, "/v1/payment-receipts/", "payment receipt", "payment_receipt", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
-		return s.notificationService.ResendPaymentReceiptEmail(r.Context(), id, service.BillingDocumentEmail{
+		return s.notificationService.ResendPaymentReceiptEmail(service.ContextWithLagoTenant(r.Context(), requestTenantID(r)), id, service.BillingDocumentEmail{
 			To:  req.To,
 			Cc:  req.Cc,
 			Bcc: req.Bcc,
@@ -75,7 +76,7 @@ func (s *Server) handlePaymentReceiptByID(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handleCreditNoteByID(w http.ResponseWriter, r *http.Request) {
 	s.handleBillingDocumentNotificationByID(w, r, "/v1/credit-notes/", "credit note", "credit_note", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
-		return s.notificationService.ResendCreditNoteEmail(r.Context(), id, service.BillingDocumentEmail{
+		return s.notificationService.ResendCreditNoteEmail(service.ContextWithLagoTenant(r.Context(), requestTenantID(r)), id, service.BillingDocumentEmail{
 			To:  req.To,
 			Cc:  req.Cc,
 			Bcc: req.Bcc,

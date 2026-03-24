@@ -295,3 +295,46 @@ func newTestBillingProviderRepo(t *testing.T) store.Repository {
 	}
 	return repo
 }
+
+func TestBillingProviderConnectionService_SyncUsesOwnerTenantOrganizationID(t *testing.T) {
+	repo := newTestBillingProviderRepo(t)
+	secretStore := NewMemoryBillingSecretStore()
+	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
+		LagoProviderCode: "stripe_owner_org",
+		ConnectedAt:      time.Now().UTC(),
+		LastSyncedAt:     time.Now().UTC(),
+	}}
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter)
+
+	if _, err := repo.CreateTenant(domain.Tenant{
+		ID:                 "tenant_owner_org",
+		Name:               "Owner Tenant",
+		Status:             domain.TenantStatusActive,
+		LagoOrganizationID: "org_owner",
+	}); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+
+	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:    "stripe",
+		Environment:     "test",
+		DisplayName:     "Stripe Owner Org",
+		Scope:           "tenant",
+		OwnerTenantID:   "tenant_owner_org",
+		StripeSecretKey: "sk_test_owner_org",
+	}, "platform_api_key", "pkey_owner_org")
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+
+	synced, err := svc.SyncBillingProviderConnection(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("sync connection with owner tenant org: %v", err)
+	}
+	if adapter.last.LagoOrganizationID != "org_owner" {
+		t.Fatalf("expected owner tenant org to be sent to adapter, got %q", adapter.last.LagoOrganizationID)
+	}
+	if synced.LagoOrganizationID != "org_owner" {
+		t.Fatalf("expected synced connection to persist owner tenant org, got %q", synced.LagoOrganizationID)
+	}
+}
