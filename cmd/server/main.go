@@ -193,6 +193,14 @@ func main() {
 	uiSessionManager.Cookie.Path = "/"
 	uiSessionManager.Cookie.SameSite = cfg.UISession.CookieSameSite
 
+	var billingSecretStore service.BillingSecretStore
+	if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
+		billingSecretStore, err = newBillingSecretStore(context.Background(), cfg.BillingProviders)
+		if err != nil {
+			fatal(logger, "initialize billing provider secret store", "error", err)
+		}
+	}
+
 	serverOpts := []api.ServerOption{
 		api.WithMetricsProvider(buildMetricsProvider(replayTemporalDispatcher, db)),
 		api.WithSessionManager(uiSessionManager),
@@ -208,7 +216,7 @@ func main() {
 		serverOpts = append(serverOpts, api.WithRateLimiter(rateLimiter, cfg.RateLimit.FailOpen, cfg.RateLimit.LoginFailOpen))
 	}
 
-	lagoResolver, err := service.NewTenantBackedLagoTransportResolver(repo, service.LagoClientConfig{
+	lagoResolver, err := service.NewTenantBackedLagoTransportResolver(repo, billingSecretStore, service.LagoClientConfig{
 		BaseURL: cfg.Lago.APIURL,
 		APIKey:  cfg.Lago.APIKey,
 		Timeout: cfg.Lago.HTTPTimeout,
@@ -220,6 +228,7 @@ func main() {
 	customerBillingAdapter := service.NewTenantAwareLagoCustomerBillingAdapter(lagoResolver)
 	serverOpts = append(
 		serverOpts,
+		api.WithLagoTenantAPIKeySecretStore(billingSecretStore),
 		api.WithMeterSyncAdapter(service.NewTenantAwareLagoMeterSyncAdapter(lagoResolver)),
 		api.WithTaxSyncAdapter(service.NewTenantAwareLagoTaxSyncAdapter(lagoResolver)),
 		api.WithPlanSyncAdapter(service.NewTenantAwareLagoPlanSyncAdapter(lagoResolver, repo)),
@@ -240,12 +249,7 @@ func main() {
 	}
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL, "default_api_key_enabled", strings.TrimSpace(cfg.Lago.APIKey) != "", "admin_bootstrap_enabled", strings.TrimSpace(cfg.Lago.AdminAPIKey) != "")
 
-	var billingSecretStore service.BillingSecretStore
 	if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
-		billingSecretStore, err = newBillingSecretStore(context.Background(), cfg.BillingProviders)
-		if err != nil {
-			fatal(logger, "initialize billing provider secret store", "error", err)
-		}
 		billingProviderSvc := service.NewBillingProviderConnectionService(
 			repo,
 			billingSecretStore,

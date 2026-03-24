@@ -17,6 +17,9 @@ type BillingSecretStore interface {
 	PutStripeSecret(ctx context.Context, connectionID, secret string) (string, error)
 	GetStripeSecret(ctx context.Context, secretRef string) (string, error)
 	RotateStripeSecret(ctx context.Context, secretRef, secret string) (string, error)
+	PutTenantLagoAPIKey(ctx context.Context, tenantID, apiKey string) (string, error)
+	GetTenantLagoAPIKey(ctx context.Context, secretRef string) (string, error)
+	RotateTenantLagoAPIKey(ctx context.Context, secretRef, tenantID, apiKey string) (string, error)
 	DeleteSecret(ctx context.Context, secretRef string) error
 }
 
@@ -126,6 +129,61 @@ func (s *MemoryBillingSecretStore) RotateStripeSecret(ctx context.Context, secre
 	return newRef, nil
 }
 
+func (s *MemoryBillingSecretStore) PutTenantLagoAPIKey(_ context.Context, tenantID, apiKey string) (string, error) {
+	tenantID = normalizeTenantID(tenantID)
+	apiKey = strings.TrimSpace(apiKey)
+	if tenantID == "" {
+		return "", fmt.Errorf("%w: tenant id is required", ErrValidation)
+	}
+	if apiKey == "" {
+		return "", fmt.Errorf("%w: lago api key is required", ErrValidation)
+	}
+	secretRef, err := newMemoryLagoAPIKeySecretRef(tenantID)
+	if err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.secrets[secretRef] = apiKey
+	return secretRef, nil
+}
+
+func (s *MemoryBillingSecretStore) GetTenantLagoAPIKey(_ context.Context, secretRef string) (string, error) {
+	secretRef = strings.TrimSpace(secretRef)
+	if secretRef == "" {
+		return "", fmt.Errorf("%w: secret ref is required", ErrValidation)
+	}
+	s.mu.RLock()
+	stored, ok := s.secrets[secretRef]
+	s.mu.RUnlock()
+	if !ok {
+		return "", storeErrNotFound("tenant lago api key")
+	}
+	stored = strings.TrimSpace(stored)
+	if stored == "" {
+		return "", storeErrNotFound("tenant lago api key")
+	}
+	return stored, nil
+}
+
+func (s *MemoryBillingSecretStore) RotateTenantLagoAPIKey(ctx context.Context, secretRef, tenantID, apiKey string) (string, error) {
+	secretRef = strings.TrimSpace(secretRef)
+	if secretRef == "" {
+		return s.PutTenantLagoAPIKey(ctx, tenantID, apiKey)
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return "", fmt.Errorf("%w: lago api key is required", ErrValidation)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.secrets[secretRef]; !ok {
+		return "", storeErrNotFound("tenant lago api key")
+	}
+	s.secrets[secretRef] = apiKey
+	return secretRef, nil
+}
+
 func (s *MemoryBillingSecretStore) DeleteSecret(_ context.Context, secretRef string) error {
 	secretRef = strings.TrimSpace(secretRef)
 	if secretRef == "" {
@@ -143,6 +201,14 @@ func newMemoryBillingSecretRef(connectionID string) (string, error) {
 		return "", fmt.Errorf("generate billing secret ref: %w", err)
 	}
 	return fmt.Sprintf("memory://billing-provider-connections/%s/%s", connectionID, hex.EncodeToString(buf)), nil
+}
+
+func newMemoryLagoAPIKeySecretRef(tenantID string) (string, error) {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate lago api key secret ref: %w", err)
+	}
+	return fmt.Sprintf("memory://lago-tenant-api-keys/%s/%s", normalizeTenantID(tenantID), hex.EncodeToString(buf)), nil
 }
 
 func connectionIDFromSecretRef(secretRef string) string {

@@ -72,21 +72,23 @@ func (r *staticLagoTransportResolver) Resolve(_ context.Context, _ string, _ str
 
 type TenantBackedLagoTransportResolver struct {
 	repo             LagoTenantCredentialRepository
+	secretStore      LagoTenantAPIKeySecretStore
 	baseURL          string
 	timeout          time.Duration
 	defaultTransport *LagoHTTPTransport
 	cache            sync.Map
 }
 
-func NewTenantBackedLagoTransportResolver(repo LagoTenantCredentialRepository, cfg LagoClientConfig) (*TenantBackedLagoTransportResolver, error) {
+func NewTenantBackedLagoTransportResolver(repo LagoTenantCredentialRepository, secretStore LagoTenantAPIKeySecretStore, cfg LagoClientConfig) (*TenantBackedLagoTransportResolver, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	if baseURL == "" {
 		return nil, fmt.Errorf("%w: lago base url is required", ErrValidation)
 	}
 	resolver := &TenantBackedLagoTransportResolver{
-		repo:    repo,
-		baseURL: baseURL,
-		timeout: cfg.Timeout,
+		repo:        repo,
+		secretStore: secretStore,
+		baseURL:     baseURL,
+		timeout:     cfg.Timeout,
 	}
 	if resolver.timeout <= 0 {
 		resolver.timeout = defaultLagoHTTPTimeout
@@ -123,7 +125,11 @@ func (r *TenantBackedLagoTransportResolver) Resolve(ctx context.Context, tenantI
 	if r.repo != nil && tenantID != "" {
 		tenant, err := r.repo.GetTenant(tenantID)
 		if err == nil {
-			if apiKey := strings.TrimSpace(tenant.LagoAPIKey); apiKey != "" {
+			apiKey, resolveErr := r.resolveTenantAPIKey(ctx, tenant)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			if apiKey != "" {
 				return r.transportForKey(apiKey)
 			}
 			if organizationID == "" {
@@ -137,7 +143,11 @@ func (r *TenantBackedLagoTransportResolver) Resolve(ctx context.Context, tenantI
 	if r.repo != nil && organizationID != "" {
 		tenant, err := r.repo.GetTenantByLagoOrganizationID(organizationID)
 		if err == nil {
-			if apiKey := strings.TrimSpace(tenant.LagoAPIKey); apiKey != "" {
+			apiKey, resolveErr := r.resolveTenantAPIKey(ctx, tenant)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			if apiKey != "" {
 				return r.transportForKey(apiKey)
 			}
 		} else if err != store.ErrNotFound {
@@ -149,6 +159,20 @@ func (r *TenantBackedLagoTransportResolver) Resolve(ctx context.Context, tenantI
 		return r.defaultTransport, nil
 	}
 	return nil, fmt.Errorf("%w: no lago api key configured for tenant=%q organization=%q", ErrDependency, tenantID, organizationID)
+}
+
+func (r *TenantBackedLagoTransportResolver) resolveTenantAPIKey(ctx context.Context, tenant domain.Tenant) (string, error) {
+	if secretRef := strings.TrimSpace(tenant.LagoAPIKeySecretRef); secretRef != "" {
+		if r.secretStore == nil {
+			return "", fmt.Errorf("%w: lago tenant api key secret store is required for tenant=%q", ErrDependency, normalizeTenantID(tenant.ID))
+		}
+		apiKey, err := r.secretStore.GetTenantLagoAPIKey(ctx, secretRef)
+		if err != nil {
+			return "", fmt.Errorf("resolve tenant lago api key for tenant=%q: %w", normalizeTenantID(tenant.ID), err)
+		}
+		return strings.TrimSpace(apiKey), nil
+	}
+	return strings.TrimSpace(tenant.LagoAPIKey), nil
 }
 
 func (r *TenantBackedLagoTransportResolver) transportForKey(apiKey string) (*LagoHTTPTransport, error) {

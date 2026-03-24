@@ -71,7 +71,7 @@ func TestTenantBackedLagoTransportResolver_UsesTenantAPIKey(t *testing.T) {
 		},
 		byOrg: map[string]domain.Tenant{},
 	}
-	resolver, err := NewTenantBackedLagoTransportResolver(repo, LagoClientConfig{BaseURL: "https://lago.example.test", APIKey: "default_key"})
+	resolver, err := NewTenantBackedLagoTransportResolver(repo, nil, LagoClientConfig{BaseURL: "https://lago.example.test", APIKey: "default_key"})
 	if err != nil {
 		t.Fatalf("new resolver: %v", err)
 	}
@@ -85,10 +85,39 @@ func TestTenantBackedLagoTransportResolver_UsesTenantAPIKey(t *testing.T) {
 	}
 }
 
+func TestTenantBackedLagoTransportResolver_UsesTenantAPIKeySecretRef(t *testing.T) {
+	t.Parallel()
+
+	secretStore := NewMemoryBillingSecretStore()
+	secretRef, err := secretStore.PutTenantLagoAPIKey(context.Background(), "tenant_secret_ref", "tenant_secret_key")
+	if err != nil {
+		t.Fatalf("put tenant lago api key: %v", err)
+	}
+
+	repo := &stubLagoTenantCredentialRepo{
+		byTenant: map[string]domain.Tenant{
+			"tenant_secret_ref": {ID: "tenant_secret_ref", LagoAPIKeySecretRef: secretRef},
+		},
+		byOrg: map[string]domain.Tenant{},
+	}
+	resolver, err := NewTenantBackedLagoTransportResolver(repo, secretStore, LagoClientConfig{BaseURL: "https://lago.example.test", APIKey: "default_key"})
+	if err != nil {
+		t.Fatalf("new resolver: %v", err)
+	}
+
+	transport, err := resolver.Resolve(context.Background(), "tenant_secret_ref", "")
+	if err != nil {
+		t.Fatalf("resolve transport: %v", err)
+	}
+	if transport.apiKey != "tenant_secret_key" {
+		t.Fatalf("expected tenant secret-store api key, got %q", transport.apiKey)
+	}
+}
+
 func TestTenantBackedLagoTransportResolver_FallsBackToDefault(t *testing.T) {
 	t.Parallel()
 
-	resolver, err := NewTenantBackedLagoTransportResolver(nil, LagoClientConfig{BaseURL: "https://lago.example.test", APIKey: "default_key"})
+	resolver, err := NewTenantBackedLagoTransportResolver(nil, nil, LagoClientConfig{BaseURL: "https://lago.example.test", APIKey: "default_key"})
 	if err != nil {
 		t.Fatalf("new resolver: %v", err)
 	}

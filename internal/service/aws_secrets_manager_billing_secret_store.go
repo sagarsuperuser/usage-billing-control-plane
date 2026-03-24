@@ -180,6 +180,74 @@ func (s *AWSSecretsManagerBillingSecretStore) RotateStripeSecret(ctx context.Con
 	return s.UpdateConnectionSecrets(ctx, secretRef, secrets)
 }
 
+func (s *AWSSecretsManagerBillingSecretStore) PutTenantLagoAPIKey(ctx context.Context, tenantID, apiKey string) (string, error) {
+	if s == nil || s.client == nil {
+		return "", fmt.Errorf("aws secrets manager client is not initialized")
+	}
+	tenantID = normalizeTenantID(tenantID)
+	apiKey = strings.TrimSpace(apiKey)
+	if tenantID == "" {
+		return "", fmt.Errorf("%w: tenant id is required", ErrValidation)
+	}
+	if apiKey == "" {
+		return "", fmt.Errorf("%w: lago api key is required", ErrValidation)
+	}
+	name := s.lagoAPIKeySecretName(tenantID)
+	out, err := s.client.CreateSecret(ctx, &secretsmanager.CreateSecretInput{
+		Name:         aws.String(name),
+		Description:  aws.String("Alpha tenant Lago organization API key"),
+		SecretString: aws.String(apiKey),
+	})
+	if err != nil {
+		return "", fmt.Errorf("create tenant lago api key secret %q: %w", name, err)
+	}
+	if arn := strings.TrimSpace(aws.ToString(out.ARN)); arn != "" {
+		return arn, nil
+	}
+	return name, nil
+}
+
+func (s *AWSSecretsManagerBillingSecretStore) GetTenantLagoAPIKey(ctx context.Context, secretRef string) (string, error) {
+	if s == nil || s.client == nil {
+		return "", fmt.Errorf("aws secrets manager client is not initialized")
+	}
+	secretRef = strings.TrimSpace(secretRef)
+	if secretRef == "" {
+		return "", fmt.Errorf("%w: secret ref is required", ErrValidation)
+	}
+	out, err := s.client.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{SecretId: aws.String(secretRef)})
+	if err != nil {
+		return "", fmt.Errorf("get tenant lago api key secret %q: %w", secretRef, err)
+	}
+	apiKey := strings.TrimSpace(aws.ToString(out.SecretString))
+	if apiKey == "" {
+		return "", fmt.Errorf("tenant lago api key secret %q is empty", secretRef)
+	}
+	return apiKey, nil
+}
+
+func (s *AWSSecretsManagerBillingSecretStore) RotateTenantLagoAPIKey(ctx context.Context, secretRef, tenantID, apiKey string) (string, error) {
+	if s == nil || s.client == nil {
+		return "", fmt.Errorf("aws secrets manager client is not initialized")
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return "", fmt.Errorf("%w: lago api key is required", ErrValidation)
+	}
+	secretRef = strings.TrimSpace(secretRef)
+	if secretRef == "" {
+		return s.PutTenantLagoAPIKey(ctx, tenantID, apiKey)
+	}
+	_, err := s.client.PutSecretValue(ctx, &secretsmanager.PutSecretValueInput{
+		SecretId:     aws.String(secretRef),
+		SecretString: aws.String(apiKey),
+	})
+	if err != nil {
+		return "", fmt.Errorf("update tenant lago api key secret %q: %w", secretRef, err)
+	}
+	return secretRef, nil
+}
+
 func (s *AWSSecretsManagerBillingSecretStore) DeleteSecret(ctx context.Context, secretRef string) error {
 	if s == nil || s.client == nil {
 		return fmt.Errorf("aws secrets manager client is not initialized")
@@ -200,4 +268,8 @@ func (s *AWSSecretsManagerBillingSecretStore) DeleteSecret(ctx context.Context, 
 
 func (s *AWSSecretsManagerBillingSecretStore) secretName(connectionID string) string {
 	return s.prefix + "/" + strings.TrimSpace(connectionID) + "/stripe"
+}
+
+func (s *AWSSecretsManagerBillingSecretStore) lagoAPIKeySecretName(tenantID string) string {
+	return s.prefix + "/lago-tenant-api-keys/" + normalizeTenantID(tenantID) + "/org-api-key"
 }
