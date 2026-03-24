@@ -434,13 +434,11 @@ test("platform admin can edit workspace billing settings", async ({ page }) => {
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Tenant Alpha" })).toBeVisible();
-  await page.getByLabel("Billing entity code").fill("be_us_primary");
   await page.getByLabel("Net payment term (days)").fill("21");
   await page.getByLabel("Invoice memo").fill("Please reference the PO on remittance.");
   await page.getByLabel("Invoice footer").fill("Banking instructions available on request.");
   await page.getByRole("button", { name: "Save billing settings" }).click();
 
-  await expect(page.getByText("be_us_primary")).toBeVisible();
   await expect(page.getByText("21 days")).toBeVisible();
   await expect(page.getByText("Custom overrides")).toBeVisible();
 });

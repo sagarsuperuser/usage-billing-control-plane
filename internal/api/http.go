@@ -4895,27 +4895,7 @@ func (s *Server) handleMeterByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-	if s.invoiceBillingAdapter == nil {
-		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
-		return
-	}
-
-	rawBody, err := io.ReadAll(r.Body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	statusCode, body, err := s.invoiceBillingAdapter.PreviewInvoice(r.Context(), rawBody)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "failed to proxy invoice preview to lago: "+err.Error())
-		return
-	}
-	writeJSONRaw(w, statusCode, body)
+	writeError(w, http.StatusNotFound, "invoice preview is not available in the current alpha release")
 }
 
 func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {

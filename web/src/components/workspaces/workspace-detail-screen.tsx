@@ -764,15 +764,9 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex flex-col gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-950">Invoice defaults and billing entity</p>
-                        <p className="mt-1 text-xs text-slate-600">Alpha-owned workspace settings for billing entity routing, payment terms, and default invoice copy.</p>
+                        <p className="text-sm font-semibold text-slate-950">Invoice defaults</p>
+                        <p className="mt-1 text-xs text-slate-600">Alpha-owned workspace settings for a single billing entity rollout: payment terms, taxes, invoice copy, and numbering.</p>
                       </div>
-                      <SidebarInput
-                        label="Billing entity code"
-                        value={billingSettingsDraft.billing_entity_code}
-                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, billing_entity_code: value }))}
-                        placeholder="be_us_primary"
-                      />
                       <SidebarInput
                         label="Net payment term (days)"
                         value={billingSettingsDraft.net_payment_term_days}
@@ -803,13 +797,6 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         value={billingSettingsDraft.document_locale}
                         onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, document_locale: value }))}
                         placeholder="fr"
-                      />
-                      <SidebarInput
-                        label="Invoice grace period (days)"
-                        value={billingSettingsDraft.invoice_grace_period_days}
-                        onChange={(value) => setBillingSettingsDraft((current) => ({ ...current, invoice_grace_period_days: value }))}
-                        placeholder="5"
-                        inputMode="numeric"
                       />
                       <label className="grid gap-2 text-sm text-slate-700">
                         <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Document numbering</span>
@@ -850,11 +837,9 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                       </div>
                     </div>
                     <div className="mt-4 grid gap-3">
-                      <MetaItem label="Billing entity code" value={workspaceBillingSettings?.billing_entity_code || "Default"} />
                       <MetaItem label="Net payment term" value={formatPaymentTerm(workspaceBillingSettings?.net_payment_term_days)} />
                       <MetaItem label="Tax codes" value={workspaceBillingSettings?.tax_codes?.join(", ") || "None assigned"} />
                       <MetaItem label="Document locale" value={workspaceBillingSettings?.document_locale || "Default"} />
-                      <MetaItem label="Invoice grace period" value={formatInvoiceGracePeriod(workspaceBillingSettings?.invoice_grace_period_days)} />
                       <MetaItem label="Document numbering" value={formatDocumentNumbering(workspaceBillingSettings?.document_numbering)} />
                       <MetaItem label="Document number prefix" value={workspaceBillingSettings?.document_number_prefix || "Default"} />
                       <MetaItem label="Settings status" value={workspaceBillingSettings?.has_overrides ? "Custom overrides" : "Default values"} />
@@ -1058,16 +1043,6 @@ function formatPaymentTerm(days?: number): string {
   }
   if (days === 0) {
     return "Due immediately";
-  }
-  return `${days} day${days === 1 ? "" : "s"}`;
-}
-
-function formatInvoiceGracePeriod(days?: number): string {
-  if (days === undefined) {
-    return "Default";
-  }
-  if (days === 0) {
-    return "No delay";
   }
   return `${days} day${days === 1 ? "" : "s"}`;
 }
