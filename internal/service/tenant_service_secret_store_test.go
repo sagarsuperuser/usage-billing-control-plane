@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -44,9 +45,6 @@ func TestTenantServiceCreateTenantStoresTenantLagoAPIKeyInSecretStore(t *testing
 	if created.LagoAPIKeySecretRef == "" {
 		t.Fatalf("expected lago api key secret ref to be persisted")
 	}
-	if created.LagoAPIKey != "" {
-		t.Fatalf("expected raw lago api key to be omitted when secret store is configured")
-	}
 
 	stored, err := repo.GetTenant(created.ID)
 	if err != nil {
@@ -55,9 +53,6 @@ func TestTenantServiceCreateTenantStoresTenantLagoAPIKeyInSecretStore(t *testing
 	if stored.LagoAPIKeySecretRef == "" {
 		t.Fatalf("expected stored tenant to include a lago api key secret ref")
 	}
-	if stored.LagoAPIKey != "" {
-		t.Fatalf("expected stored tenant row not to retain raw lago api key")
-	}
 
 	apiKey, err := secretStore.GetTenantLagoAPIKey(context.Background(), stored.LagoAPIKeySecretRef)
 	if err != nil {
@@ -65,5 +60,29 @@ func TestTenantServiceCreateTenantStoresTenantLagoAPIKeyInSecretStore(t *testing
 	}
 	if apiKey != "lago_key_secret_store_test" {
 		t.Fatalf("expected stored lago api key to match bootstrap result, got %q", apiKey)
+	}
+}
+
+func TestTenantServiceCreateTenantRequiresTenantLagoAPIKeySecretStore(t *testing.T) {
+	repo := newTestBillingProviderRepo(t)
+	bootstrapper := &stubTenantLagoOrganizationBootstrapper{
+		result: LagoOrganizationBootstrapResult{
+			OrganizationID: "org_secret_store_required_test",
+			APIKey:         "lago_key_secret_store_required_test",
+		},
+	}
+
+	svc := NewTenantService(repo).
+		WithLagoOrganizationBootstrapper(bootstrapper)
+
+	_, err := svc.CreateTenant(EnsureTenantRequest{
+		ID:   "tenant_secret_store_required_test",
+		Name: "Tenant Secret Store Required Test",
+	}, "pkey_platform_secret_store_required_test")
+	if err == nil {
+		t.Fatal("expected missing tenant lago api key secret store error")
+	}
+	if !strings.Contains(err.Error(), "lago tenant api key secret store is required") {
+		t.Fatalf("expected missing secret store error, got %q", err)
 	}
 }

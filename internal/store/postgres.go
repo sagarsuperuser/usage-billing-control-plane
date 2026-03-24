@@ -81,7 +81,6 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
 	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
 	input.LagoAPIKeySecretRef = normalizeOptionalText(input.LagoAPIKeySecretRef)
-	input.LagoAPIKey = strings.TrimSpace(input.LagoAPIKey)
 	if input.Name == "" {
 		input.Name = input.ID
 	}
@@ -104,9 +103,9 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 
 	row := tx.QueryRowContext(
 		ctx,
-		`INSERT INTO tenants (id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, lago_api_key, created_at, updated_at)
-		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,''), $9, $10)
-		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, lago_api_key, created_at, updated_at`,
+		`INSERT INTO tenants (id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8, $9)
+		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, created_at, updated_at`,
 		input.ID,
 		input.Name,
 		string(input.Status),
@@ -114,7 +113,6 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 		input.LagoOrganizationID,
 		input.LagoBillingProviderCode,
 		input.LagoAPIKeySecretRef,
-		input.LagoAPIKey,
 		input.CreatedAt,
 		input.UpdatedAt,
 	)
@@ -145,7 +143,7 @@ func (s *PostgresStore) GetTenant(id string) (domain.Tenant, error) {
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, lago_api_key, created_at, updated_at
+		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, created_at, updated_at
 		FROM tenants
 		WHERE id = $1`,
 		id,
@@ -180,7 +178,7 @@ func (s *PostgresStore) GetTenantByLagoOrganizationID(organizationID string) (do
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, lago_api_key, created_at, updated_at
+		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, created_at, updated_at
 		FROM tenants
 		WHERE lago_organization_id = $1`,
 		organizationID,
@@ -206,7 +204,6 @@ func (s *PostgresStore) UpdateTenant(input domain.Tenant) (domain.Tenant, error)
 	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
 	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
 	input.LagoAPIKeySecretRef = normalizeOptionalText(input.LagoAPIKeySecretRef)
-	input.LagoAPIKey = strings.TrimSpace(input.LagoAPIKey)
 	if input.Name == "" {
 		return domain.Tenant{}, fmt.Errorf("validation failed: tenant name is required")
 	}
@@ -232,17 +229,15 @@ func (s *PostgresStore) UpdateTenant(input domain.Tenant) (domain.Tenant, error)
 		    lago_organization_id = NULLIF($4,''),
 		    lago_billing_provider_code = NULLIF($5,''),
 		    lago_api_key_secret_ref = NULLIF($6,''),
-		    lago_api_key = NULLIF($7,''),
-		    updated_at = $8
-		WHERE id = $9
-		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, lago_api_key, created_at, updated_at`,
+		    updated_at = $7
+		WHERE id = $8
+		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, created_at, updated_at`,
 		input.Name,
 		string(input.Status),
 		input.BillingProviderConnectionID,
 		input.LagoOrganizationID,
 		input.LagoBillingProviderCode,
 		input.LagoAPIKeySecretRef,
-		input.LagoAPIKey,
 		input.UpdatedAt,
 		input.ID,
 	)
@@ -274,7 +269,7 @@ func (s *PostgresStore) ListTenants(status string) ([]domain.Tenant, error) {
 	}
 	defer rollbackSilently(tx)
 
-	query := `SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, lago_api_key, created_at, updated_at FROM tenants`
+	query := `SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, created_at, updated_at FROM tenants`
 	args := []any{}
 	if status != "" {
 		query += ` WHERE status = $1`
@@ -326,7 +321,7 @@ func (s *PostgresStore) UpdateTenantStatus(id string, status domain.TenantStatus
 		`UPDATE tenants
 		SET status = $1, updated_at = $2
 		WHERE id = $3
-		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, lago_api_key, created_at, updated_at`,
+		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key_secret_ref, created_at, updated_at`,
 		string(status),
 		updatedAt,
 		id,
@@ -7474,8 +7469,7 @@ func scanTenant(s rowScanner) (domain.Tenant, error) {
 	var lagoOrganizationID sql.NullString
 	var lagoBillingProviderCode sql.NullString
 	var lagoAPIKeySecretRef sql.NullString
-	var lagoAPIKey sql.NullString
-	if err := s.Scan(&out.ID, &out.Name, &status, &billingProviderConnectionID, &lagoOrganizationID, &lagoBillingProviderCode, &lagoAPIKeySecretRef, &lagoAPIKey, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	if err := s.Scan(&out.ID, &out.Name, &status, &billingProviderConnectionID, &lagoOrganizationID, &lagoBillingProviderCode, &lagoAPIKeySecretRef, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.Tenant{}, err
 	}
 	out.ID = normalizeTenantID(out.ID)
@@ -7491,9 +7485,6 @@ func scanTenant(s rowScanner) (domain.Tenant, error) {
 	}
 	if lagoAPIKeySecretRef.Valid {
 		out.LagoAPIKeySecretRef = normalizeOptionalText(lagoAPIKeySecretRef.String)
-	}
-	if lagoAPIKey.Valid {
-		out.LagoAPIKey = strings.TrimSpace(lagoAPIKey.String)
 	}
 	out.Status = normalizeTenantStatus(domain.TenantStatus(status))
 	return out, nil

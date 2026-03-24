@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"usage-billing-control-plane/internal/domain"
@@ -62,12 +63,12 @@ func (r *stubLagoTenantCredentialRepo) GetTenantByLagoOrganizationID(organizatio
 	return domain.Tenant{}, store.ErrNotFound
 }
 
-func TestTenantBackedLagoTransportResolver_UsesTenantAPIKey(t *testing.T) {
+func TestTenantBackedLagoTransportResolver_RejectsTenantWithoutSecretRef(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubLagoTenantCredentialRepo{
 		byTenant: map[string]domain.Tenant{
-			"tenant_test": {ID: "tenant_test", LagoAPIKey: "tenant_key"},
+			"tenant_test": {ID: "tenant_test"},
 		},
 		byOrg: map[string]domain.Tenant{},
 	}
@@ -76,12 +77,13 @@ func TestTenantBackedLagoTransportResolver_UsesTenantAPIKey(t *testing.T) {
 		t.Fatalf("new resolver: %v", err)
 	}
 
-	transport, err := resolver.Resolve(context.Background(), "tenant_test", "")
-	if err != nil {
-		t.Fatalf("resolve transport: %v", err)
+	_, err = resolver.Resolve(context.Background(), "tenant_test", "")
+	if err == nil {
+		t.Fatal("expected missing secret ref error")
 	}
-	if transport.apiKey != "tenant_key" {
-		t.Fatalf("expected tenant api key, got %q", transport.apiKey)
+	want := "no tenant lago api key secret ref configured"
+	if got := err.Error(); !strings.Contains(got, want) {
+		t.Fatalf("expected error starting with %q, got %q", want, got)
 	}
 }
 

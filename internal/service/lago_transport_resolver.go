@@ -172,7 +172,10 @@ func (r *TenantBackedLagoTransportResolver) resolveTenantAPIKey(ctx context.Cont
 		}
 		return strings.TrimSpace(apiKey), nil
 	}
-	return strings.TrimSpace(tenant.LagoAPIKey), nil
+	if strings.TrimSpace(tenant.ID) == "" {
+		return "", nil
+	}
+	return "", fmt.Errorf("%w: no tenant lago api key secret ref configured for tenant=%q", ErrDependency, normalizeTenantID(tenant.ID))
 }
 
 func (r *TenantBackedLagoTransportResolver) transportForKey(apiKey string) (*LagoHTTPTransport, error) {

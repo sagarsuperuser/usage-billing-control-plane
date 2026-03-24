@@ -96,7 +96,6 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 	initialConnectionID := strings.TrimSpace(req.BillingProviderConnectionID)
 	initialOrg := strings.TrimSpace(req.LagoOrganizationID)
 	initialCode := strings.TrimSpace(req.LagoBillingProviderCode)
-	initialAPIKey := ""
 	initialAPIKeySecretRef := ""
 	if s.workspaceBillingBindingService == nil || initialConnectionID == "" {
 		var err error
@@ -115,7 +114,7 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 			return domain.Tenant{}, err
 		}
 		initialOrg = bootstrapped.OrganizationID
-		initialAPIKeySecretRef, initialAPIKey, err = s.persistTenantLagoAPIKey("", id, bootstrapped.APIKey)
+		initialAPIKeySecretRef, err = s.persistTenantLagoAPIKey("", id, bootstrapped.APIKey)
 		if err != nil {
 			return domain.Tenant{}, err
 		}
@@ -128,7 +127,6 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		LagoOrganizationID:          initialOrg,
 		LagoBillingProviderCode:     initialCode,
 		LagoAPIKeySecretRef:         initialAPIKeySecretRef,
-		LagoAPIKey:                  initialAPIKey,
 		CreatedAt:                   now,
 		UpdatedAt:                   now,
 	})
@@ -210,13 +208,12 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 			return domain.Tenant{}, false, bootstrapErr
 		}
 		rawOrg = bootstrapped.OrganizationID
-		nextSecretRef, nextRawAPIKey, persistErr := s.persistTenantLagoAPIKey(existing.LagoAPIKeySecretRef, id, bootstrapped.APIKey)
+		nextSecretRef, persistErr := s.persistTenantLagoAPIKey(existing.LagoAPIKeySecretRef, id, bootstrapped.APIKey)
 		if persistErr != nil {
 			return domain.Tenant{}, false, persistErr
 		}
-		if nextSecretRef != existing.LagoAPIKeySecretRef || nextRawAPIKey != existing.LagoAPIKey {
+		if nextSecretRef != existing.LagoAPIKeySecretRef {
 			updated.LagoAPIKeySecretRef = nextSecretRef
-			updated.LagoAPIKey = nextRawAPIKey
 			metadata["lago_api_key_bootstrapped"] = true
 			changed = true
 		}
@@ -244,7 +241,7 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		metadata["new_lago_billing_provider_code"] = nextCode
 		changed = true
 	}
-	if updated.LagoAPIKeySecretRef != existing.LagoAPIKeySecretRef || updated.LagoAPIKey != existing.LagoAPIKey {
+	if updated.LagoAPIKeySecretRef != existing.LagoAPIKeySecretRef {
 		changed = true
 	}
 	if !changed {
@@ -392,13 +389,13 @@ func (s *TenantService) bootstrapTenantOrganization(name string) (LagoOrganizati
 	return result, nil
 }
 
-func (s *TenantService) persistTenantLagoAPIKey(currentSecretRef, tenantID, apiKey string) (string, string, error) {
+func (s *TenantService) persistTenantLagoAPIKey(currentSecretRef, tenantID, apiKey string) (string, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
-		return strings.TrimSpace(currentSecretRef), "", fmt.Errorf("%w: lago api key is required", ErrValidation)
+		return strings.TrimSpace(currentSecretRef), fmt.Errorf("%w: lago api key is required", ErrValidation)
 	}
 	if s == nil || s.lagoAPIKeySecretStore == nil {
-		return "", apiKey, nil
+		return "", fmt.Errorf("%w: lago tenant api key secret store is required", ErrDependency)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -406,15 +403,15 @@ func (s *TenantService) persistTenantLagoAPIKey(currentSecretRef, tenantID, apiK
 	if currentSecretRef != "" {
 		secretRef, err := s.lagoAPIKeySecretStore.RotateTenantLagoAPIKey(ctx, currentSecretRef, tenantID, apiKey)
 		if err != nil {
-			return "", "", fmt.Errorf("rotate tenant lago api key for tenant %q: %w", normalizeTenantID(tenantID), err)
+			return "", fmt.Errorf("rotate tenant lago api key for tenant %q: %w", normalizeTenantID(tenantID), err)
 		}
-		return secretRef, "", nil
+		return secretRef, nil
 	}
 	secretRef, err := s.lagoAPIKeySecretStore.PutTenantLagoAPIKey(ctx, tenantID, apiKey)
 	if err != nil {
-		return "", "", fmt.Errorf("store tenant lago api key for tenant %q: %w", normalizeTenantID(tenantID), err)
+		return "", fmt.Errorf("store tenant lago api key for tenant %q: %w", normalizeTenantID(tenantID), err)
 	}
-	return secretRef, "", nil
+	return secretRef, nil
 }
 
 func (s *TenantService) resolveTenantWriteBillingConfiguration(current domain.Tenant, connectionID, lagoOrganizationID, lagoBillingProviderCode *string, actorAPIKeyID string) (string, string, string, error) {
