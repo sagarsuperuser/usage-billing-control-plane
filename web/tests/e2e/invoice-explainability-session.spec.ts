@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 type SessionPayload = {
   authenticated: boolean;
+  scope: "tenant";
   role: "reader" | "writer" | "admin";
   tenant_id: string;
   api_key_id: string;
@@ -38,6 +39,7 @@ type ExplainabilityPayload = {
 
 const sessionPayload: SessionPayload = {
   authenticated: true,
+  scope: "tenant",
   role: "reader",
   tenant_id: "tenant_a",
   api_key_id: "api_key_reader_1",
@@ -162,6 +164,9 @@ test("reader session can load invoice explainability and inspect line items", as
   await expect(page.getByTestId("explainability-meta-digest")).toContainText("digest_abc123");
   await expect(page.getByTestId("explainability-line-item-fee_1")).toContainText("API Calls");
   await expect(page.getByTestId("explainability-line-item-fee_2")).toContainText("Base Plan");
+  await expect(page.getByText("api_calls:v3")).toHaveCount(0);
+
+  await page.getByTestId("explainability-view-line-item-fee_1").click();
   await expect(page.getByText("api_calls:v3")).toBeVisible();
 });
 
@@ -169,6 +174,7 @@ test("refresh keeps explainability data loaded", async ({ page }) => {
   await page.goto("/invoice-explainability");
 
   await page.getByTestId("explainability-invoice-id").fill("inv_explain_123");
+  await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
   await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();
 

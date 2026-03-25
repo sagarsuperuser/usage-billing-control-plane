@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -12,6 +12,7 @@ import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchInvoiceExplainability } from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
+import { type InvoiceExplainabilityLineItem } from "@/lib/types";
 
 const sortOptions = [
   "created_at_asc",
@@ -33,6 +34,7 @@ export function InvoiceExplainabilityScreen() {
   const [page, setPage] = useState("1");
   const [limit, setLimit] = useState("50");
   const [submittedInvoiceID, setSubmittedInvoiceID] = useState(initialInvoiceID);
+  const [selectedLineItemID, setSelectedLineItemID] = useState("");
 
   const normalizedFeeTypes = useMemo(
     () =>
@@ -78,6 +80,17 @@ export function InvoiceExplainabilityScreen() {
   });
 
   const lineItems = explainabilityQuery.data?.line_items ?? [];
+  const selectedLineItem = lineItems.find((item) => item.fee_id === selectedLineItemID) ?? null;
+
+  useEffect(() => {
+    if (lineItems.length === 0) {
+      setSelectedLineItemID("");
+      return;
+    }
+    if (selectedLineItemID && !lineItems.some((item) => item.fee_id === selectedLineItemID)) {
+      setSelectedLineItemID("");
+    }
+  }, [lineItems, selectedLineItemID]);
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -299,58 +312,61 @@ export function InvoiceExplainabilityScreen() {
               Review the billable item, rule reference, units, and raw properties together so debugging stays tied to the actual amount outcome.
             </p>
           </div>
-          <div className="mt-3 overflow-auto">
-            <table className="w-full min-w-[1180px] border-separate border-spacing-y-2 text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
-                  <th className="px-3 py-1">Item</th>
-                  <th className="px-3 py-1">Computation</th>
-                  <th className="px-3 py-1">Rule Ref</th>
-                  <th className="px-3 py-1">Units/Events</th>
-                  <th className="px-3 py-1">Amount</th>
-                  <th className="px-3 py-1">Period</th>
-                  <th className="px-3 py-1">Properties</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineItems.map((line) => (
-                  <tr key={line.fee_id} data-testid={`explainability-line-item-${line.fee_id}`} className="bg-stone-50/80">
-                    <td className="rounded-l-xl px-3 py-3 align-top">
-                      <p className="font-medium text-slate-900">{line.item_name}</p>
-                      <p className="text-xs text-slate-500">{line.item_code || "-"}</p>
-                      <p className="text-xs text-slate-500">{line.fee_id}</p>
-                    </td>
-                    <td className="px-3 py-3 align-top">
-                      <p>{line.computation_mode}</p>
-                      <p className="text-xs text-slate-500">{line.fee_type || "-"}</p>
-                    </td>
-                    <td className="px-3 py-3 align-top text-xs text-slate-600">{line.rule_reference}</td>
-                    <td className="px-3 py-3 align-top">
-                      <p>Units: {line.units ?? "-"}</p>
-                      <p className="text-xs text-slate-500">Events: {line.events_count ?? "-"}</p>
-                    </td>
-                    <td className="px-3 py-3 align-top">
-                      <p>{formatMoney(line.amount_cents, explainabilityQuery.data?.currency || "USD")}</p>
-                      <p className="text-xs text-slate-500">
-                        Tax {formatMoney(line.taxes_amount_cents, explainabilityQuery.data?.currency || "USD")}
-                      </p>
-                      <p className="text-xs text-emerald-700">
-                        Total {formatMoney(line.total_amount_cents, explainabilityQuery.data?.currency || "USD")}
-                      </p>
-                    </td>
-                    <td className="px-3 py-3 align-top text-xs text-slate-600">
-                      <p>{line.from_datetime ? formatExactTimestamp(line.from_datetime) : "-"}</p>
-                      <p>{line.to_datetime ? formatExactTimestamp(line.to_datetime) : "-"}</p>
-                    </td>
-                    <td className="rounded-r-xl px-3 py-3 align-top text-xs text-slate-600">
-                      <pre className="max-w-[360px] overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-stone-100 p-2 text-[11px] leading-4">
-                        {JSON.stringify(line.properties ?? {}, null, 2)}
-                      </pre>
-                    </td>
+          <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="overflow-auto">
+              <table className="w-full min-w-[920px] border-separate border-spacing-y-2 text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                    <th className="px-3 py-1">Item</th>
+                    <th className="px-3 py-1">Computation</th>
+                    <th className="px-3 py-1">Amount</th>
+                    <th className="px-3 py-1">Period</th>
+                    <th className="px-3 py-1">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {lineItems.map((line) => (
+                    <tr key={line.fee_id} data-testid={`explainability-line-item-${line.fee_id}`} className="bg-stone-50/80">
+                      <td className="rounded-l-xl px-3 py-3 align-top">
+                        <p className="font-medium text-slate-900">{line.item_name}</p>
+                        <p className="text-xs text-slate-500">{line.item_code || "-"}</p>
+                      </td>
+                      <td className="px-3 py-3 align-top">
+                        <p>{line.computation_mode}</p>
+                        <p className="text-xs text-slate-500">{line.fee_type || "-"}</p>
+                      </td>
+                      <td className="px-3 py-3 align-top">
+                        <p>{formatMoney(line.amount_cents, explainabilityQuery.data?.currency || "USD")}</p>
+                        <p className="text-xs text-slate-500">
+                          Tax {formatMoney(line.taxes_amount_cents, explainabilityQuery.data?.currency || "USD")}
+                        </p>
+                        <p className="text-xs text-emerald-700">
+                          Total {formatMoney(line.total_amount_cents, explainabilityQuery.data?.currency || "USD")}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-600">
+                        <p>{line.from_datetime ? formatExactTimestamp(line.from_datetime) : "-"}</p>
+                        <p>{line.to_datetime ? formatExactTimestamp(line.to_datetime) : "-"}</p>
+                      </td>
+                      <td className="rounded-r-xl px-3 py-3 align-top">
+                        <button
+                          type="button"
+                          data-testid={`explainability-view-line-item-${line.fee_id}`}
+                          onClick={() => setSelectedLineItemID(line.fee_id)}
+                          className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.14em] text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          View details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ExplainabilityLineItemDetail
+              line={selectedLineItem}
+              currency={explainabilityQuery.data?.currency || "USD"}
+            />
           </div>
           {lineItems.length === 0 && !explainabilityQuery.isFetching ? (
             <div data-testid="explainability-empty" className="px-4 py-8 text-center text-sm text-slate-600">
@@ -360,6 +376,46 @@ export function InvoiceExplainabilityScreen() {
         </section>
       </main>
     </div>
+  );
+}
+
+function ExplainabilityLineItemDetail({
+  line,
+  currency,
+}: {
+  line: InvoiceExplainabilityLineItem | null;
+  currency: string;
+}) {
+  if (!line) {
+    return (
+      <aside className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-sm text-slate-600">
+        Select a line item to inspect rule references, identifiers, and raw properties.
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Line item detail</p>
+      <div className="mt-3 grid gap-3">
+        <MetaRow label="Item" value={line.item_name} />
+        <MetaRow label="Fee ID" value={line.fee_id} mono />
+        <MetaRow label="Rule reference" value={line.rule_reference} mono />
+        <MetaRow label="Units" value={line.units !== undefined ? String(line.units) : "-"} />
+        <MetaRow label="Events" value={line.events_count !== undefined ? String(line.events_count) : "-"} />
+        <MetaRow label="Charge model" value={line.charge_model || "-"} />
+        <MetaRow label="Subscription" value={line.subscription_id || "-"} mono />
+        <MetaRow label="Charge ID" value={line.charge_id || "-"} mono />
+        <MetaRow label="Billable metric" value={line.billable_metric_code || "-"} mono />
+        <MetaRow label="Line total" value={formatMoney(line.total_amount_cents, currency)} />
+      </div>
+      <div className="mt-4 rounded-xl border border-stone-200 bg-white p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Properties</p>
+        <pre className="mt-2 max-h-[280px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-4 text-slate-700">
+          {JSON.stringify(line.properties ?? {}, null, 2)}
+        </pre>
+      </div>
+    </aside>
   );
 }
 

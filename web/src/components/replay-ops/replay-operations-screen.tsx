@@ -296,9 +296,7 @@ export function ReplayOperationsScreen() {
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
                     <th className="px-3 py-1">Job</th>
-                    <th className="px-3 py-1">Scope</th>
-                    <th className="px-3 py-1">Telemetry</th>
-                    <th className="px-3 py-1">Attempts</th>
+                    <th className="px-3 py-1">Summary</th>
                     <th className="px-3 py-1">Created</th>
                     <th className="px-3 py-1">Actions</th>
                   </tr>
@@ -311,23 +309,12 @@ export function ReplayOperationsScreen() {
                         <p className={`mt-1 inline-flex rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${replayBadgeClass(job.status)}`}>
                           {job.status}
                         </p>
-                        <p className="mt-2 text-xs text-slate-500">{job.idempotency_key}</p>
-                        {job.error ? <p className="mt-2 text-xs text-rose-700">{job.error}</p> : null}
                       </td>
                       <td className="px-3 py-3 align-top text-xs text-slate-600">
                         <p>Customer: {job.customer_id || "-"}</p>
                         <p className="mt-1">Meter: {job.meter_id || "-"}</p>
-                        <p className="mt-1">From: {job.from ? formatExactTimestamp(job.from) : "-"}</p>
-                        <p className="mt-1">To: {job.to ? formatExactTimestamp(job.to) : "-"}</p>
-                      </td>
-                      <td className="px-3 py-3 align-top text-xs text-slate-600">
-                        <p>Step: {job.workflow_telemetry?.current_step || job.status}</p>
-                        <p className="mt-1">Progress: {job.workflow_telemetry?.progress_percent ?? 0}%</p>
+                        <p className="mt-1">Step: {job.workflow_telemetry?.current_step || job.status}</p>
                         <p className="mt-1">Processed: {job.workflow_telemetry?.processed_records ?? job.processed_records}</p>
-                      </td>
-                      <td className="px-3 py-3 align-top text-xs text-slate-600">
-                        <p>Count: {job.attempt_count}</p>
-                        <p className="mt-1">Last attempt: {job.last_attempt_at ? formatRelativeTimestamp(job.last_attempt_at) : "-"}</p>
                       </td>
                       <td className="px-3 py-3 align-top text-xs text-slate-600">
                         <p>{formatRelativeTimestamp(job.created_at)}</p>

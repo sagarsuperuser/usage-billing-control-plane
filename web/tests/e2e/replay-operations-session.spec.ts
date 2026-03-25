@@ -10,6 +10,7 @@ type ReplayMockWindow = Window & typeof globalThis & {
 
 type SessionPayload = {
   authenticated: boolean;
+  scope: "tenant";
   role: "reader" | "writer" | "admin";
   tenant_id: string;
   api_key_id: string;
@@ -44,6 +45,7 @@ type ReplayJob = {
 
 const sessionPayload: SessionPayload = {
   authenticated: true,
+  scope: "tenant",
   role: "writer",
   tenant_id: "tenant_a",
   api_key_id: "api_key_writer_1",
@@ -239,6 +241,7 @@ test("writer session can queue replay jobs and inspect diagnostics", async ({ pa
   await page.getByTestId("replay-create-customer-id").fill("cust_new");
   await page.getByTestId("replay-create-meter-id").fill("meter_new");
   await page.getByTestId("replay-create-idempotency-key").fill("replay-new-1");
+  await expect(page.getByTestId("replay-create-submit")).toBeEnabled();
   await page.getByTestId("replay-create-submit").click();
 
   await expect.poll(async () => page.evaluate(() => (window as ReplayMockWindow).__replayMock.createCSRF)).toBe("csrf-replay-123");
