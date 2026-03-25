@@ -69,9 +69,9 @@ export function ControlPlaneOverviewScreen() {
     const connections = billingConnectionsQuery.data ?? [];
     return {
       total: tenants.length,
-      missingBilling: tenants.filter((tenant) => !tenant.workspace_billing.connected).length,
-      missingPricing: readiness.filter((item) => !item.billing_integration.pricing_ready).length,
-      missingFirstCustomer: readiness.filter((item) => !item.first_customer.customer_exists).length,
+      missingBilling: tenants.filter((tenant) => !tenant.workspace_billing?.connected).length,
+      missingPricing: readiness.filter((item) => !item.billing_integration?.pricing_ready).length,
+      missingFirstCustomer: readiness.filter((item) => !item.first_customer?.customer_exists).length,
       connectedProviders: connections.filter((item) => item.status === "connected").length,
       providerErrors: connections.filter((item) => item.status === "sync_error").length,
     };
@@ -122,19 +122,19 @@ export function ControlPlaneOverviewScreen() {
           {
             title: "Billing connection errors",
             value: platformMetrics.providerErrors,
-            body: "Resolve sync issues before attaching those credentials to additional workspaces.",
+            body: "Fix these before assigning more workspaces.",
             href: "/billing-connections",
           },
           {
             title: "Workspaces missing pricing",
             value: platformMetrics.missingPricing,
-            body: "Pricing remains a common blocker before a workspace can operate cleanly.",
+            body: "Pricing is still blocking these workspaces.",
             href: "/workspaces",
           },
           {
             title: "Workspaces missing first customer",
             value: platformMetrics.missingFirstCustomer,
-            body: "A workspace is not operational until its first billable customer exists.",
+            body: "These workspaces still need a first billable customer.",
             href: "/workspaces",
           },
         ]
@@ -142,19 +142,19 @@ export function ControlPlaneOverviewScreen() {
           {
             title: "Customers waiting on payment setup",
             value: tenantMetrics.pendingPayment,
-            body: "Finish payer-owned payment setup before marking those customers as live.",
+            body: "Finish payment setup before treating these customers as live.",
             href: "/subscriptions",
           },
           {
             title: "Customers with billing sync errors",
             value: tenantMetrics.syncErrors,
-            body: "Use diagnostics and recovery paths before retrying collection or invoice actions.",
+            body: "Fix sync before retrying collection or invoice actions.",
             href: "/payments",
           },
           {
             title: "Billing-ready customers",
             value: tenantMetrics.billingReady,
-            body: "These customers are clear for subscription and payment operations.",
+            body: "These customers are ready for subscription and payment operations.",
             href: "/customers",
           },
         ];
@@ -163,21 +163,21 @@ export function ControlPlaneOverviewScreen() {
     {
       href: "/billing-connections/new",
       title: "Create billing connection",
-      body: "Create a reusable provider credential and sync it into Lago under Alpha ownership.",
+      body: "Create a provider credential and sync it.",
       icon: <CreditCard className="h-4 w-4 text-emerald-700" />,
       scope: "platform" as const,
     },
     {
       href: "/workspaces/new",
       title: "Launch workspace",
-      body: "Create a workspace, attach one active billing path, and hand off access cleanly.",
+      body: "Create a workspace and hand off access cleanly.",
       icon: <Building2 className="h-4 w-4 text-emerald-700" />,
       scope: "platform" as const,
     },
     {
       href: "/customers/new",
       title: "Create first customer",
-      body: "Create the first billable customer and move directly into subscription and payment setup.",
+      body: "Create the first billable customer and start payment setup.",
       icon: <UserRoundPlus className="h-4 w-4 text-emerald-700" />,
       scope: "tenant" as const,
     },
@@ -187,49 +187,49 @@ export function ControlPlaneOverviewScreen() {
     {
       href: "/billing-connections",
       title: "Billing Connections",
-      body: "Provider credentials, sync health, and workspace reuse.",
+      body: "Provider credentials and sync health.",
       icon: <CreditCard className="h-4 w-4 text-emerald-700" />,
       scope: "platform" as const,
     },
     {
       href: "/workspaces",
       title: "Workspaces",
-      body: "Workspace readiness, billing attachment, and handoff.",
+      body: "Workspace readiness and billing attachment.",
       icon: <Building2 className="h-4 w-4 text-emerald-700" />,
       scope: "platform" as const,
     },
     {
       href: "/customers",
       title: "Customers",
-      body: "Readiness, billing state, and payment setup progression.",
+      body: "Billing readiness and payment setup.",
       icon: <UserRoundPlus className="h-4 w-4 text-emerald-700" />,
       scope: "tenant" as const,
     },
     {
       href: "/subscriptions",
       title: "Subscriptions",
-      body: "Activation state and payer-owned payment setup.",
+      body: "Activation state and payment setup.",
       icon: <ShieldCheck className="h-4 w-4 text-emerald-700" />,
       scope: "tenant" as const,
     },
     {
       href: "/payments",
       title: "Payments",
-      body: "Operational follow-up for payment failures and retries.",
+      body: "Payment failures and retries.",
       icon: <Activity className="h-4 w-4 text-emerald-700" />,
       scope: "tenant" as const,
     },
     {
       href: "/replay-operations",
       title: "Recovery",
-      body: "Repair failed processing runs and inspect replay state.",
+      body: "Repair failed processing runs.",
       icon: <Workflow className="h-4 w-4 text-emerald-700" />,
       scope: "tenant" as const,
     },
     {
       href: "/invoice-explainability",
       title: "Explainability",
-      body: "Trace invoice outcomes when support or finance needs evidence.",
+      body: "Trace invoice outcomes when support needs evidence.",
       icon: <ReceiptText className="h-4 w-4 text-emerald-700" />,
       scope: "tenant" as const,
     },
@@ -248,7 +248,7 @@ export function ControlPlaneOverviewScreen() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Overview</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{sessionTitle}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Alpha stays product-first while Lago remains the execution backend. Use this surface to see operational status, next actions, and module-level health without dropping into engine terminology.
+                Start here to see the current priorities and open the right operating surface.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {summaryCards.map((item) => (
@@ -290,8 +290,8 @@ export function ControlPlaneOverviewScreen() {
           <div className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Needs attention</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Operational focus</h2>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Priority queue</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">What needs action</h2>
               </div>
             </div>
             {isLoading || attentionLoading ? (
@@ -312,8 +312,8 @@ export function ControlPlaneOverviewScreen() {
             <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Primary actions</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Start with the right loop</h2>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Start here</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Primary actions</h2>
                 </div>
               </div>
               <div className="mt-5 divide-y divide-stone-200">

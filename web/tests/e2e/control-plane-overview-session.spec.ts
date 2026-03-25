@@ -161,11 +161,11 @@ async function fulfillJSON(route: Route, status: number, payload: unknown) {
 }
 
 function focusLine(page: Page, title: string) {
-  return page.locator("div.rounded-2xl").filter({ has: page.getByText(title, { exact: true }) }).first();
+  return page.locator("a").filter({ has: page.getByText(title, { exact: true }) }).first();
 }
 
 function focusValue(page: Page, title: string) {
-  return focusLine(page, title).locator("p.text-3xl");
+  return focusLine(page, title).locator("p.text-2xl");
 }
 
 async function installPlatformOverviewMock(page: Page, session: PlatformSessionPayload) {
@@ -334,22 +334,22 @@ test("platform overview shows live workspace attention counts", async ({ page })
   await page.getByTestId("session-login-submit").click();
 
   const nav = page.locator("nav");
-  await expect(page.getByRole("heading", { name: "Primary onboarding journeys" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What needs action" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Create a tenant workspace, attach a connected billing provider, and hand off the first admin credential.")).toBeVisible();
-  await expect(page.getByText("Create the first billable customer, sync the billing profile, and start payment setup.")).toHaveCount(0);
-  await expect(page.getByText("Monitor invoice payment failures, inspect webhook history, and trigger payment retries.")).toHaveCount(0);
-  await expect(page.getByText("Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.")).toHaveCount(0);
-  await expect(page.getByText("Show deterministic line-item computation trace and digest for financial correctness workflows.")).toHaveCount(0);
+  await expect(page.getByText("Create a workspace and hand off access cleanly.")).toBeVisible();
+  await expect(page.getByText("Create the first billable customer and start payment setup.")).toHaveCount(0);
+  await expect(page.getByText("Payment failures and retries.")).toHaveCount(0);
+  await expect(page.getByText("Repair failed processing runs.")).toHaveCount(0);
+  await expect(page.getByText("Trace invoice outcomes when support needs evidence.")).toHaveCount(0);
   await expect(page.getByText("Workspaces missing pricing")).toBeVisible();
   await expect(page.getByText("Workspaces missing first customer")).toBeVisible();
-  await expect(page.getByText("Billing connections in error")).toBeVisible();
+  await expect(page.getByText("Billing connection errors")).toBeVisible();
 
-  await expect(focusValue(page, "Billing connections in error")).toHaveText("1");
+  await expect(focusValue(page, "Billing connection errors")).toHaveText("1");
   await expect(focusValue(page, "Workspaces missing pricing")).toHaveText("1");
   await expect(focusValue(page, "Workspaces missing first customer")).toHaveText("2");
 });
@@ -371,20 +371,19 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   await page.getByTestId("session-login-submit").click();
 
   const nav = page.locator("nav");
-  await expect(page.getByRole("heading", { name: "Primary onboarding journeys" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What needs action" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Customer Setup", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Create the first billable customer, sync the billing profile, and start payment setup.")).toBeVisible();
-  await expect(page.getByText("Browse customer billing readiness, payment setup state, and recovery needs from one tenant directory.")).toBeVisible();
-  await expect(page.getByText("Monitor invoice payment failures, inspect webhook history, and trigger payment retries.")).toBeVisible();
-  await expect(page.getByText("Queue replay jobs, inspect diagnostics, and recover failed reprocessing runs.")).toBeVisible();
-  await expect(page.getByText("Show deterministic line-item computation trace and digest for financial correctness workflows.")).toBeVisible();
-  await expect(page.getByText("Create a tenant workspace, attach a connected billing provider, and hand off the first admin credential.")).toHaveCount(0);
+  await expect(page.getByText("Create the first billable customer and start payment setup.")).toBeVisible();
+  await expect(page.getByText("Billing readiness and payment setup.")).toBeVisible();
+  await expect(page.getByText("Payment failures and retries.")).toBeVisible();
+  await expect(page.getByText("Repair failed processing runs.")).toBeVisible();
+  await expect(page.getByText("Trace invoice outcomes when support needs evidence.")).toBeVisible();
+  await expect(page.getByText("Create a workspace and hand off access cleanly.")).toHaveCount(0);
   await expect(page.getByText("Customers waiting on payment setup")).toBeVisible();
   await expect(page.getByText("Customers with billing sync errors")).toBeVisible();
   await expect(page.getByText("Billing-ready customers")).toBeVisible();

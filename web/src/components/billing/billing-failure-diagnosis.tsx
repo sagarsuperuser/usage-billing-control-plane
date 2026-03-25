@@ -39,7 +39,7 @@ export function BillingFailureDiagnosisCard({
           <h2 className="mt-2 text-lg font-semibold">{diagnosis.title}</h2>
           <p className="mt-2 text-sm opacity-90">{diagnosis.summary}</p>
           <div className="mt-4 rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
-            <p className="font-semibold">Operator next step</p>
+            <p className="font-semibold">Next step</p>
             <p className="mt-2">{diagnosis.nextStep}</p>
           </div>
         </div>

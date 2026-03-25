@@ -166,15 +166,15 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lifecycle summary</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current action</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
-                    <StatusCard label="Recommended action" value={formatBillingState(payment.lifecycle.recommended_action)} />
+                    <StatusCard label="Action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <StatusCard label="Requires action" value={payment.lifecycle.requires_action ? "Yes" : "No"} />
                     <StatusCard label="Last event" value={formatBillingState(payment.last_event_type)} />
                     <StatusCard label="Last event at" value={formatExactTimestamp(payment.last_event_at)} />
                   </div>
                   <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    <p className="font-semibold text-slate-950">Operator guidance</p>
+                    <p className="font-semibold text-slate-950">Next step</p>
                     <p className="mt-2">{payment.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
                   </div>
                   {payment.last_payment_error ? (

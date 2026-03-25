@@ -184,10 +184,10 @@ export function DunningConsoleScreen() {
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Collections Console</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning Policy + Run Inventory</h1>
+              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Collections</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning runs</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Operate payment collection policy from Alpha, inspect active dunning runs, and open the exact invoice workflow before escalating into recovery.
+                Manage collection policy here and open the exact invoice run when you need to intervene.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -200,16 +200,16 @@ export function DunningConsoleScreen() {
 
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             <InfoCard
-              title="Product ownership"
-              body="Alpha owns the dunning policy and operator workflow. The billing backend is now an implementation detail, not the place operators need to configure collections."
+              title="Policy"
+              body="Alpha owns the collection policy and operator workflow."
             />
             <InfoCard
-              title="Run visibility"
-              body="Each row maps to one invoice-level dunning workflow, including state, next action, and the exact run detail timeline."
+              title="Run detail"
+              body="Each row maps to one invoice-level workflow."
             />
             <InfoCard
               title="Manual actions"
-              body="Operators can still trigger collect-payment reminders from payment, invoice, or run detail when they need to override the normal schedule."
+              body="Use reminders only when you need to override the normal schedule."
             />
           </div>
         </section>
@@ -229,8 +229,8 @@ export function DunningConsoleScreen() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Policy</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">Workspace dunning defaults</h2>
-                <p className="mt-2 text-sm text-slate-600">Control the retry cadence and final action from Alpha instead of pushing operators into the billing backend.</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Collection defaults</h2>
+                <p className="mt-2 text-sm text-slate-600">Control retry cadence and final action from Alpha.</p>
               </div>
               {policyQuery.isFetching ? <LoaderCircle className="h-5 w-5 animate-spin text-slate-400" /> : null}
             </div>

@@ -209,7 +209,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
               <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Run diagnosis</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Current blocker</p>
                     <h2 className="mt-1 text-lg font-semibold text-slate-900">{diagnosis.title}</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{diagnosis.summary}</p>
                   </div>
@@ -220,11 +220,11 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Recommended next step</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Next step</p>
                     <p className="mt-2 text-sm leading-6 text-slate-700">{diagnosis.nextStep}</p>
                   </div>
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current operator path</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Workflow state</p>
                     <p className="mt-2 text-sm leading-6 text-slate-700">
                       {run.paused
                         ? "Resume or resolve this run before expecting automation to continue."
