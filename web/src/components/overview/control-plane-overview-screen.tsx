@@ -248,7 +248,7 @@ export function ControlPlaneOverviewScreen() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Overview</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{sessionTitle}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Start here to see the current priorities and open the right operating surface.
+                Start with the highest-priority items, then open the matching area.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {summaryCards.map((item) => (
@@ -258,7 +258,7 @@ export function ControlPlaneOverviewScreen() {
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current context</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Session</p>
               <p className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
                 {scope === "platform" ? platformRole ?? "platform" : session?.role ?? "reader"}
               </p>
@@ -290,7 +290,7 @@ export function ControlPlaneOverviewScreen() {
           <div className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Priority queue</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Needs action</p>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">What needs action</h2>
               </div>
             </div>
@@ -312,7 +312,7 @@ export function ControlPlaneOverviewScreen() {
             <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Start here</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Primary actions</p>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Primary actions</h2>
                 </div>
               </div>
@@ -326,7 +326,7 @@ export function ControlPlaneOverviewScreen() {
             <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Modules</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">All areas</p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Open an operating surface</h2>
                 </div>
               </div>

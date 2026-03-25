@@ -154,10 +154,13 @@ test.beforeEach(async ({ page }) => {
 test("reader session can load invoice explainability and inspect line items", async ({ page }) => {
   await page.goto("/invoice-explainability");
 
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
+
   await expect(page.getByText("Line Item Computation Trace")).toBeVisible();
   await page.getByTestId("explainability-invoice-id").fill("inv_explain_123");
   await page.getByTestId("explainability-fee-types").fill("charge,subscription");
   await page.getByTestId("explainability-sort").selectOption("amount_cents_desc");
+  await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
 
   await expect(page.getByTestId("explainability-meta-invoice")).toContainText("INV-EX-123");
@@ -173,6 +176,8 @@ test("reader session can load invoice explainability and inspect line items", as
 test("refresh keeps explainability data loaded", async ({ page }) => {
   await page.goto("/invoice-explainability");
 
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
+
   await page.getByTestId("explainability-invoice-id").fill("inv_explain_123");
   await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
@@ -186,9 +191,15 @@ test("refresh keeps explainability data loaded", async ({ page }) => {
 test("reader sees empty state when explainability returns no line items", async ({ page }) => {
   await page.goto("/invoice-explainability");
 
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
+
   await page.getByTestId("explainability-invoice-id").fill("inv_explain_123");
-  await page.getByTestId("explainability-fee-types").fill("tax_only");
+  await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
+  await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();
+
+  await page.getByTestId("explainability-fee-types").fill("tax_only");
+  await page.getByTestId("explainability-refresh").click();
 
   await expect(page.getByTestId("explainability-empty")).toContainText("No line items yet");
 });

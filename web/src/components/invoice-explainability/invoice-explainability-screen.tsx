@@ -130,15 +130,15 @@ export function InvoiceExplainabilityScreen() {
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             <InfoCard
               title="Trace source"
-              body="Load one invoice and inspect the normalized fee, rule, and period data that produced the final line items."
+              body="Load one invoice and inspect how each line item was produced."
             />
             <InfoCard
               title="Operational use"
-              body="Use this surface to validate disputed amounts, confirm fee selection, and prepare a clean handoff into replay or billing support."
+              body="Use this before escalating billing questions or replay work."
             />
             <InfoCard
               title="Output shape"
-              body="Digest metadata stays separate from the raw line-item table so operators can verify scope before reading low-level properties."
+              body="The list stays compact. Full properties appear after selecting a line item."
             />
           </div>
         </section>
@@ -254,8 +254,8 @@ export function InvoiceExplainabilityScreen() {
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Operator Guidance</p>
-              <h3 className="mt-1 text-base font-semibold text-slate-900">Use explainability before replaying or escalating</h3>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Use this view</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-900">Check the invoice before escalating</h3>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
                 <li>Confirm the invoice scope and fee filters before reading the raw properties payload.</li>
                 <li>Use the digest and generated timestamp to verify the exact computation snapshot under review.</li>

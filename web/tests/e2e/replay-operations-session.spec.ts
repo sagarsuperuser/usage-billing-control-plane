@@ -237,6 +237,8 @@ test.beforeEach(async ({ page }) => {
 test("writer session can queue replay jobs and inspect diagnostics", async ({ page }) => {
   await page.goto("/replay-operations");
 
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
+
   await expect(page.getByText("Replay + Reprocess Operations")).toBeVisible();
   await page.getByTestId("replay-create-customer-id").fill("cust_new");
   await page.getByTestId("replay-create-meter-id").fill("meter_new");
@@ -253,6 +255,8 @@ test("writer session can queue replay jobs and inspect diagnostics", async ({ pa
 
 test("writer session can retry failed replay jobs with csrf", async ({ page }) => {
   await page.goto("/replay-operations");
+
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
   await expect(page.getByTestId("replay-job-row-job_failed")).toBeVisible();
   await page.getByTestId("replay-open-diagnostics-job_failed").click();
@@ -273,6 +277,8 @@ test("reader session is read-only for replay queue and retry actions", async ({ 
   });
 
   await page.goto("/replay-operations");
+
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
   await expect(page.getByTestId("replay-read-only-notice")).toContainText("read-only for replay queue and recovery actions");
   await expect(page.getByTestId("replay-create-submit")).toBeDisabled();

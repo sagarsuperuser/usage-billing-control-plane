@@ -211,11 +211,11 @@ export function ReplayOperationsScreen() {
             />
             <InfoCard
               title="Inspect telemetry"
-              body="Use diagnostics to compare workflow status, processed records, and usage-to-billing artifacts before retrying failed work."
+              body="Open diagnostics before retrying a failed job."
             />
             <InfoCard
               title="Operator posture"
-              body="This is a controlled recovery surface. Filter jobs first, inspect the diagnostics drawer, then retry only when the failure mode is understood."
+              body="Filter first, inspect second, retry last."
             />
           </div>
         </section>

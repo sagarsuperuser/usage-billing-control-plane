@@ -282,7 +282,7 @@ export function TenantWorkspaceAccessScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
-            body="Workspace access management belongs inside a tenant workspace. Switch to a tenant session to manage members, invitations, and machine credentials."
+            body="Switch to a tenant session to manage members, invites, and service accounts."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
@@ -301,9 +301,7 @@ export function TenantWorkspaceAccessScreen() {
             <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
               <h1 className="mt-2 text-3xl font-semibold text-slate-950">Members, invitations, and machine credentials</h1>
-              <p className="mt-3 text-sm text-slate-600">
-                Tenant admins own workspace access after platform handoff. Human access stays on membership; machine access should move through named service accounts.
-              </p>
+              <p className="mt-3 text-sm text-slate-600">Manage people through membership and automation through service accounts.</p>
             </section>
 
             <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -344,7 +342,7 @@ export function TenantWorkspaceAccessScreen() {
                   <textarea
                     value={serviceAccountDescription}
                     onChange={(event) => setServiceAccountDescription(event.target.value)}
-                    placeholder="Describe the automation that will own this credential"
+                    placeholder="What this credential is for"
                     rows={3}
                     className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                   />
@@ -360,7 +358,7 @@ export function TenantWorkspaceAccessScreen() {
                 </div>
                 {latestCredentialSecret ? (
                   <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-700">Latest credential secret</p>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-700">New secret</p>
                     <p className="mt-2 text-xs font-medium text-slate-800">{latestCredentialSecret.label}</p>
                     <p className="mt-2 break-all font-mono text-xs text-slate-700">{latestCredentialSecret.secret}</p>
                     <button
@@ -409,7 +407,7 @@ export function TenantWorkspaceAccessScreen() {
                 </div>
                 {latestInviteURL ? (
                   <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Latest invite link</p>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">New invite link</p>
                     <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
                     <button
                       type="button"
@@ -429,8 +427,8 @@ export function TenantWorkspaceAccessScreen() {
             <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current service accounts</p>
-                  <p className="mt-2 text-sm text-slate-600">Each machine identity owns one or more API credentials. Rotate credentials without losing the machine identity record.</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
+                  <p className="mt-2 text-sm text-slate-600">Create, rotate, and disable machine credentials here.</p>
                 </div>
               </div>
               <div className="mt-4 grid gap-4">
@@ -445,7 +443,7 @@ export function TenantWorkspaceAccessScreen() {
                           </p>
                           <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{account.role} · {account.status} · {account.environment || "unspecified"} · {account.active_credential_count} active credential(s)</p>
                           {account.description ? <p className="mt-2 text-sm text-slate-600">{account.description}</p> : null}
-                          {account.purpose ? <p className="mt-2 text-xs text-slate-500">Purpose: {account.purpose}</p> : null}
+                          {account.purpose ? <p className="mt-2 text-xs text-slate-500">{account.purpose}</p> : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <button
@@ -455,7 +453,7 @@ export function TenantWorkspaceAccessScreen() {
                             className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                            Issue credential
+                            New credential
                           </button>
                           <button
                             type="button"
@@ -533,9 +531,7 @@ export function TenantWorkspaceAccessScreen() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Credential audit</p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Audit stays attached to the machine identity. Review recent credential activity and export a CSV for compliance or incident response.
-                  </p>
+                  <p className="mt-2 text-sm text-slate-600">Review recent service-account activity or export it.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <select
@@ -575,7 +571,6 @@ export function TenantWorkspaceAccessScreen() {
                 <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
                     <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
-                    <p className="mt-2 text-sm text-slate-600">Keep the event list compact. Open one event only when you need the full credential trace.</p>
                     <div className="mt-3 grid gap-3">
                       {(serviceAccountAuditQuery.data?.items ?? []).length > 0 ? (
                         <>
@@ -643,7 +638,6 @@ export function TenantWorkspaceAccessScreen() {
                             <p className="mt-1 text-xs text-slate-500">
                               {invite.role} · expires {formatExactTimestamp(invite.expires_at)}
                             </p>
-                            {invite.accept_url ? <p className="mt-2 break-all text-[11px] text-slate-500">{invite.accept_url}</p> : null}
                           </div>
                           <button
                             type="button"
