@@ -51,7 +51,6 @@ export function PaymentListScreen() {
   const searchParams = useSearchParams();
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
 
-  const [organizationID, setOrganizationID] = useState(searchParams.get("organization_id") || "");
   const [customerExternalID, setCustomerExternalID] = useState(searchParams.get("customer_external_id") || "");
   const [invoiceID, setInvoiceID] = useState(searchParams.get("invoice_id") || "");
   const [invoiceNumber, setInvoiceNumber] = useState(searchParams.get("invoice_number") || "");
@@ -64,7 +63,6 @@ export function PaymentListScreen() {
 
   const filters = useMemo<PaymentFilters>(
     () => ({
-      organization_id: organizationID.trim() || undefined,
       customer_external_id: customerExternalID.trim() || undefined,
       invoice_id: invoiceID.trim() || undefined,
       invoice_number: invoiceNumber.trim() || undefined,
@@ -77,13 +75,12 @@ export function PaymentListScreen() {
       limit: 100,
       offset: 0,
     }),
-    [organizationID, customerExternalID, invoiceID, invoiceNumber, lastEventType, invoiceStatus, paymentStatus, paymentOverdue, sortBy, order],
+    [customerExternalID, invoiceID, invoiceNumber, lastEventType, invoiceStatus, paymentStatus, paymentOverdue, sortBy, order],
   );
 
   const exportURL = useMemo(() => {
     if (!apiBaseURL) return "";
     const query = new URLSearchParams();
-    if (filters.organization_id) query.set("organization_id", filters.organization_id);
     if (filters.customer_external_id) query.set("customer_external_id", filters.customer_external_id);
     if (filters.invoice_id) query.set("invoice_id", filters.invoice_id);
     if (filters.invoice_number) query.set("invoice_number", filters.invoice_number);
@@ -157,13 +154,7 @@ export function PaymentListScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment inventory</p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">Filter and inspect</h2>
             </div>
-            <div className="grid gap-3 lg:grid-cols-4">
-              <input
-                value={organizationID}
-                onChange={(event) => setOrganizationID(event.target.value)}
-                placeholder="Organization ID"
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-              />
+            <div className="grid gap-3 lg:grid-cols-3">
               <input
                 value={customerExternalID}
                 onChange={(event) => setCustomerExternalID(event.target.value)}
@@ -250,7 +241,6 @@ export function PaymentListScreen() {
               <button
                 type="button"
                 onClick={() => {
-                  setOrganizationID("");
                   setCustomerExternalID("");
                   setInvoiceID("");
                   setInvoiceNumber("");
@@ -296,17 +286,17 @@ export function PaymentListScreen() {
 
 function PaymentRow({ item }: { item: PaymentSummary }) {
   const diagnosis = billingFailureDiagnosis(item);
+  const primaryLabel = item.customer_display_name || item.customer_external_id || "Unlinked customer";
 
   return (
     <Link
       href={`/payments/${encodeURIComponent(item.invoice_id)}`}
-      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.05fr)_repeat(5,minmax(0,0.55fr))_auto] lg:items-center"
+      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.62fr))_auto] lg:items-start"
     >
       <div className="min-w-0">
         <h3 className="truncate text-base font-semibold text-slate-950">{item.invoice_number || item.invoice_id}</h3>
-        <p className="mt-1 break-all font-mono text-xs text-slate-500">{item.invoice_id}</p>
-        <p className="mt-2 text-sm text-slate-600">
-          {item.customer_display_name || item.customer_external_id || "Unlinked customer"} · {formatMoney(item.total_due_amount_cents, item.currency || "USD")}
+        <p className="mt-1 text-sm text-slate-600">
+          {primaryLabel} · {formatMoney(item.total_due_amount_cents, item.currency || "USD")}
         </p>
         <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -318,12 +308,9 @@ function PaymentRow({ item }: { item: PaymentSummary }) {
         </div>
       </div>
       <StatusCell label="Payment" value={formatState(item.payment_status)} />
-      <StatusCell label="Invoice" value={formatState(item.invoice_status)} />
       <StatusCell label="Due state" value={item.payment_overdue ? "Overdue" : "Current"} />
-      <StatusCell label="Amount due" value={formatMoney(item.total_due_amount_cents, item.currency || "USD")} />
       <StatusCell label="Last event" value={formatExactTimestamp(item.last_event_at)} />
-      <StatusCell label="Customer" value={item.customer_external_id || "-"} mono />
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+      <span className="inline-flex items-center gap-2 self-center text-sm font-medium text-slate-700">
         Open
         <ChevronRight className="h-4 w-4" />
       </span>
@@ -340,11 +327,11 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function StatusCell({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function StatusCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 break-all text-sm font-semibold text-slate-950 ${mono ? "font-mono" : ""}`}>{value || "-"}</p>
+      <p className="mt-2 break-all text-sm font-semibold text-slate-950">{value || "-"}</p>
     </div>
   );
 }

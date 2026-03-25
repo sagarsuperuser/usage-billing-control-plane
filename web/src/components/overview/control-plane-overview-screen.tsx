@@ -122,19 +122,19 @@ export function ControlPlaneOverviewScreen() {
           {
             title: "Billing connection errors",
             value: platformMetrics.providerErrors,
-            body: "Fix these before assigning more workspaces.",
+            body: "Resolve these before attaching more workspaces.",
             href: "/billing-connections",
           },
           {
             title: "Workspaces missing pricing",
             value: platformMetrics.missingPricing,
-            body: "Pricing is still blocking these workspaces.",
+            body: "Finish pricing before these workspaces go live.",
             href: "/workspaces",
           },
           {
             title: "Workspaces missing first customer",
             value: platformMetrics.missingFirstCustomer,
-            body: "These workspaces still need a first billable customer.",
+            body: "Add the first billable customer to finish setup.",
             href: "/workspaces",
           },
         ]
@@ -148,13 +148,13 @@ export function ControlPlaneOverviewScreen() {
           {
             title: "Customers with billing sync errors",
             value: tenantMetrics.syncErrors,
-            body: "Fix sync before retrying collection or invoice actions.",
+            body: "Fix sync before retrying billing actions.",
             href: "/payments",
           },
           {
             title: "Billing-ready customers",
             value: tenantMetrics.billingReady,
-            body: "These customers are ready for subscription and payment operations.",
+            body: "These customers are ready for billing operations.",
             href: "/customers",
           },
         ];

@@ -199,17 +199,17 @@ export function InvoiceListScreen() {
 
 function InvoiceRow({ item }: { item: InvoiceSummary }) {
   const diagnosis = billingFailureDiagnosis(item);
+  const primaryLabel = item.customer_display_name || item.customer_external_id || "Unlinked customer";
 
   return (
     <Link
       href={`/invoices/${encodeURIComponent(item.invoice_id)}`}
-      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(5,minmax(0,0.55fr))_auto] lg:items-center"
+      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.62fr))_auto] lg:items-start"
     >
       <div className="min-w-0">
         <h3 className="truncate text-base font-semibold text-slate-950">{item.invoice_number || item.invoice_id}</h3>
-        <p className="mt-1 break-all font-mono text-xs text-slate-500">{item.invoice_id}</p>
-        <p className="mt-2 text-sm text-slate-600">
-          {item.customer_display_name || item.customer_external_id || "Unlinked customer"} · {formatMoney(item.total_amount_cents, item.currency || "USD")}
+        <p className="mt-1 text-sm text-slate-600">
+          {primaryLabel} · {formatMoney(item.total_amount_cents, item.currency || "USD")}
         </p>
         <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -223,10 +223,7 @@ function InvoiceRow({ item }: { item: InvoiceSummary }) {
       <StatusCell label="Invoice" value={formatInvoiceState(item.invoice_status)} />
       <StatusCell label="Payment" value={formatInvoiceState(item.payment_status)} />
       <StatusCell label="Due state" value={item.payment_overdue ? "Overdue" : "Current"} />
-      <StatusCell label="Amount due" value={formatMoney(item.total_due_amount_cents, item.currency || "USD")} />
-      <StatusCell label="Issued" value={formatExactTimestamp(item.issuing_date || item.created_at)} />
-      <StatusCell label="Customer" value={item.customer_external_id || "-"} mono />
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+      <span className="inline-flex items-center gap-2 self-center text-sm font-medium text-slate-700">
         Open
         <ChevronRight className="h-4 w-4" />
       </span>
@@ -243,11 +240,11 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function StatusCell({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function StatusCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 break-all text-sm font-semibold text-slate-950 ${mono ? "font-mono" : ""}`}>{value || "-"}</p>
+      <p className="mt-2 break-all text-sm font-semibold text-slate-950">{value || "-"}</p>
     </div>
   );
 }

@@ -828,6 +828,11 @@ function ServiceAccountAuditRow({
   onSelect: () => void;
 }) {
   const metadataCount = Object.keys(event.metadata ?? {}).length;
+  const auditSummary = event.actor_api_key_id
+    ? `Changed by another credential${metadataCount > 0 ? ` · ${metadataCount} metadata field${metadataCount === 1 ? "" : "s"}` : ""}`
+    : metadataCount > 0
+      ? `${metadataCount} metadata field${metadataCount === 1 ? "" : "s"}`
+      : "No additional metadata";
 
   return (
     <button
@@ -845,11 +850,7 @@ function ServiceAccountAuditRow({
         <p className="text-sm font-medium text-slate-950">{event.action}</p>
         <p className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</p>
       </div>
-      <p className="mt-2 text-xs text-slate-500">
-        {event.api_key_id}
-        {event.actor_api_key_id ? ` · actor ${event.actor_api_key_id}` : ""}
-        {metadataCount > 0 ? ` · ${metadataCount} metadata field${metadataCount === 1 ? "" : "s"}` : ""}
-      </p>
+      <p className="mt-2 text-xs text-slate-500">{auditSummary}</p>
     </button>
   );
 }
