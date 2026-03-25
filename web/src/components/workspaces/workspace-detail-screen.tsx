@@ -723,6 +723,23 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     </div>
                   </div>
 
+                  {selectedTenant.lago_organization_id || selectedTenant.lago_billing_provider_code ? (
+                    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-2">
+                        <p className="text-sm font-semibold text-slate-950">Billing backend mapping</p>
+                        <p className="text-sm text-slate-600">Immutable backend identifiers used for billing routing, sync, and webhook correlation.</p>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {selectedTenant.lago_organization_id ? (
+                          <MetaItem label="Lago organization ID" value={selectedTenant.lago_organization_id} mono />
+                        ) : null}
+                        {selectedTenant.lago_billing_provider_code ? (
+                          <MetaItem label="Lago provider code" value={selectedTenant.lago_billing_provider_code} mono />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
                   {activeBillingConnectionID ? (
                     <Link
                       href={`/billing-connections/${encodeURIComponent(activeBillingConnectionID)}`}

@@ -13,6 +13,8 @@ type TenantRecord = {
   name: string;
   status: "active" | "suspended" | "deleted";
   billing_provider_connection_id?: string;
+  lago_organization_id?: string;
+  lago_billing_provider_code?: string;
   workspace_billing: {
     configured: boolean;
     connected: boolean;
@@ -145,11 +147,15 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       id: "bpc_alpha",
       display_name: "Stripe Alpha",
       status: "connected",
+      lago_organization_id: "org_alpha",
+      lago_provider_code: "stripe_alpha",
     },
     bpc_beta: {
       id: "bpc_beta",
       display_name: "Stripe Beta",
       status: "connected",
+      lago_organization_id: "org_beta",
+      lago_provider_code: "stripe_beta",
     },
   };
   const tenants: TenantRecord[] = [
@@ -158,6 +164,8 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       name: "Tenant Alpha",
       status: "active",
       billing_provider_connection_id: "bpc_alpha",
+      lago_organization_id: "org_alpha",
+      lago_billing_provider_code: "stripe_alpha",
       workspace_billing: {
         configured: true,
         connected: true,
@@ -178,6 +186,8 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       name: "Tenant Beta",
       status: "active",
       billing_provider_connection_id: "bpc_beta",
+      lago_organization_id: "org_beta",
+      lago_billing_provider_code: "stripe_beta",
       workspace_billing: {
         configured: true,
         connected: true,
@@ -407,6 +417,9 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await expect(page.getByRole("heading", { name: "Tenant Alpha" })).toBeVisible();
   await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
   await expect(page.getByText("No billing-ready customer has been created yet").first()).toBeVisible();
+  await expect(page.getByText("Billing backend mapping")).toBeVisible();
+  await expect(page.getByText("org_alpha")).toBeVisible();
+  await expect(page.getByText("stripe_alpha")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();
   await expect(page.getByText("Workspace access")).toBeVisible();
   await expect(page.getByText("Current members")).toBeVisible();

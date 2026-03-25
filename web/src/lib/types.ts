@@ -300,6 +300,8 @@ export interface Tenant {
   name: string;
   status: "active" | "suspended" | "deleted";
   billing_provider_connection_id?: string;
+  lago_organization_id?: string;
+  lago_billing_provider_code?: string;
   workspace_billing: WorkspaceBilling;
   workspace_billing_settings: WorkspaceBillingSettings;
   created_at: string;
