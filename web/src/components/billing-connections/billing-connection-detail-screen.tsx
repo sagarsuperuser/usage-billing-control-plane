@@ -230,17 +230,6 @@ function buildConnectionHealthChecks(connection: {
     });
   }
 
-  checks.push({
-    label: "Billing target",
-    status: connection.lago_organization_id || connection.lago_provider_code ? "Override" : "Default",
-    detail: connection.lago_provider_code
-      ? `Uses provider code override ${connection.lago_provider_code}.`
-      : connection.lago_organization_id
-        ? "Uses organization override. Provider code resolves on sync."
-        : "Uses the platform billing target on sync.",
-    tone: connection.lago_organization_id || connection.lago_provider_code ? "neutral" : "good",
-  });
-
   return checks;
 }
 
