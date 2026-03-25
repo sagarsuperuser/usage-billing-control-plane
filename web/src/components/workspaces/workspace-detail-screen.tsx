@@ -380,11 +380,11 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Readiness</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Operational checklist</h2>
-                      <p className="mt-2 text-sm text-slate-600">Track what still blocks handoff into normal tenant operations.</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Current blockers</h2>
+                      <p className="mt-2 text-sm text-slate-600">Fix the items below before handing this workspace into normal operations.</p>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      {nextActions.length === 0 ? "No remaining blockers" : `${nextActions.length} action item(s) remaining`}
+                      {nextActions.length === 0 ? "No blockers" : `${nextActions.length} blocker(s)`}
                     </div>
                   </div>
                   <div className="mt-5 grid gap-3">
@@ -683,7 +683,6 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Active connection" value={activeBillingConnectionID || "Not assigned"} mono={Boolean(activeBillingConnectionID)} />
                     <MetaItem label="Connection name" value={billingConnectionQuery.data?.display_name || (billingConnectionQuery.isLoading ? "Loading" : "Unavailable")} />
-                    <MetaItem label="Connection status" value={billingConnectionQuery.data ? formatReadinessStatus(billingConnectionQuery.data.status) : billingConnectionQuery.isLoading ? "Loading" : "Unavailable"} />
                     <MetaItem
                       label="Connection sync state"
                       value={
@@ -696,14 +695,13 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                               : "Unavailable"
                       }
                     />
-                    <MetaItem label="Isolation mode" value={workspaceBilling?.isolation_mode ? formatReadinessStatus(workspaceBilling.isolation_mode) : selectedReadiness.billing_integration.isolation_mode ? formatReadinessStatus(selectedReadiness.billing_integration.isolation_mode) : "Shared"} />
                     <MetaItem label="Binding source" value={workspaceBilling?.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
                   </div>
 
                   <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-950">Billing diagnosis</p>
+                        <p className="text-sm font-semibold text-slate-950">Billing status</p>
                         <p className="mt-1 text-sm text-slate-600">
                           {workspaceBilling?.diagnosis_summary || selectedReadiness.billing_integration.diagnosis_summary || "Billing diagnosis is not available yet."}
                         </p>
@@ -713,7 +711,10 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                       </span>
                     </div>
                     <div className="mt-4 grid gap-3">
-                      <MetaItem label="Operator next step" value={workspaceBilling?.next_action || selectedReadiness.billing_integration.next_action || "No billing repair is needed."} />
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
+                        <p className="font-semibold text-slate-950">Next step</p>
+                        <p className="mt-2">{workspaceBilling?.next_action || selectedReadiness.billing_integration.next_action || "No billing repair is needed."}</p>
+                      </div>
                       {workspaceBilling?.provisioning_error || workspaceBilling?.last_sync_error ? (
                         <MetaItem
                           label="Latest failure detail"

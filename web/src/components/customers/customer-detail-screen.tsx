@@ -345,7 +345,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   ) : null}
                   {!billingProfileReady ? (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                      Payment setup stays blocked until the required billing fields are complete.
+                      Payment setup is blocked until the required billing fields are complete.
                     </div>
                   ) : null}
                 </section>
@@ -353,13 +353,13 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 <section id="payment-collection" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment collection</p>
                   <p className="mt-3 text-sm text-slate-600">
-                    Use this customer page as the primary collection path whenever invoice or payment detail says collection is blocked. Generate or resend the setup path here, then refresh verification before retrying collection elsewhere.
+                    Use this page when collection is blocked. Send the setup path here, then refresh verification before retrying elsewhere.
                   </p>
                   <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Collection diagnosis</p>
-                        <h3 className="mt-2 text-lg font-semibold text-slate-950">{collectionDiagnosis?.title || "Collection diagnosis unavailable"}</h3>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Collection status</p>
+                        <h3 className="mt-2 text-lg font-semibold text-slate-950">{collectionDiagnosis?.title || "Collection status unavailable"}</h3>
                         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                           {collectionDiagnosis?.summary || "Collection readiness could not be derived from the current customer state."}
                         </p>
@@ -369,11 +369,11 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                           collectionDiagnosis?.tone || "warning",
                         )}`}
                       >
-                        {collectionDiagnosis?.title || "Collection diagnosis unavailable"}
+                        {collectionDiagnosis?.title || "Collection status unavailable"}
                       </span>
                     </div>
                     <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
-                      <p className="font-semibold text-slate-950">Operator next step</p>
+                      <p className="font-semibold text-slate-950">Next step</p>
                       <p className="mt-2">{collectionDiagnosis?.nextStep || "Reload the customer detail and retry if the collection diagnosis still does not render."}</p>
                     </div>
                   </div>
@@ -382,7 +382,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer-directed setup</p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-950">Send one clear setup path</h3>
                       <p className="mt-2 text-sm text-slate-600">
-                        Use the email request as the default path. If a request already exists, resend that path instead of showing duplicate send actions.
+                        Use the email request as the default path. If one already exists, resend it instead of using duplicate actions.
                       </p>
                       <div className="mt-4 flex flex-wrap gap-3">
                         <button
@@ -412,7 +412,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Manual fallback</p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-950">Hosted setup link</h3>
                       <p className="mt-2 text-sm text-slate-600">
-                        Generate a direct hosted setup link only when you need to share it manually outside the normal request flow.
+                        Generate a hosted link only when you need to share it manually outside the normal request flow.
                       </p>
                       <div className="mt-4 flex flex-wrap gap-3">
                         <button
@@ -443,9 +443,9 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Verification and recovery</p>
-                        <h3 className="mt-2 text-lg font-semibold text-slate-950">Confirm setup before retrying elsewhere</h3>
+                        <h3 className="mt-2 text-lg font-semibold text-slate-950">Verify setup before retrying</h3>
                         <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                          Refresh payment verification after the payer completes setup. Use billing sync recovery only when the customer mapping or provider state is stale.
+                          Refresh verification after the payer completes setup. Use billing sync recovery only when the customer mapping or provider state is stale.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-3">
