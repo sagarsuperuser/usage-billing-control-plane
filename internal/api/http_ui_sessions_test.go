@@ -348,6 +348,83 @@ func TestUIPlatformSessionCanOnboardTenantWithBillingConnection(t *testing.T) {
 	}
 }
 
+func TestUIPlatformSessionCanOnboardTenantWithoutBillingConnection(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	repo := store.NewPostgresStore(db)
+	if err := repo.Migrate(); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	resetTables(t, db)
+	if _, err := db.Exec(`TRUNCATE TABLE sessions`); err != nil {
+		t.Fatalf("truncate sessions: %v", err)
+	}
+
+	mustCreateBrowserUser(t, repo, browserUserFixture{
+		email:        "platform-admin@alpha.test",
+		password:     "platform password 123",
+		platformRole: "platform_admin",
+	})
+
+	sessionManager := scs.New()
+	sessionManager.Store = postgresstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Name = "test_ui_platform_onboard_without_billing_session"
+	sessionManager.Cookie.HttpOnly = true
+	sessionManager.Cookie.Secure = false
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
+
+	handler := api.NewServer(
+		repo,
+		api.WithSessionManager(sessionManager),
+	).Handler()
+	ts := httptest.NewServer(sessionManager.LoadAndSave(handler))
+	defer ts.Close()
+
+	client := newSessionClient(t)
+
+	loginResp := sessionPostJSON(t, client, ts.URL+"/v1/ui/sessions/login", map[string]any{
+		"email":    "platform-admin@alpha.test",
+		"password": "platform password 123",
+	}, "", http.StatusCreated)
+	csrfToken, _ := loginResp["csrf_token"].(string)
+	if csrfToken == "" {
+		t.Fatalf("expected csrf_token in login response")
+	}
+
+	now := time.Now().UTC().Format("20060102150405.000000000")
+	tenantID := "tenant_ui_onboard_without_billing_" + strings.NewReplacer(".", "", ":", "").Replace(now)
+	result := sessionPostJSON(t, client, ts.URL+"/internal/onboarding/tenants", map[string]any{
+		"id":                  tenantID,
+		"name":                "Tenant UI Onboard Without Billing",
+		"bootstrap_admin_key": false,
+	}, csrfToken, http.StatusCreated)
+
+	tenant := result["tenant"].(map[string]any)
+	if got, ok := tenant["billing_provider_connection_id"]; ok && got != nil && got != "" {
+		t.Fatalf("expected empty billing_provider_connection_id, got %#v", got)
+	}
+	workspaceBilling, ok := tenant["workspace_billing"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected workspace_billing object in tenant response")
+	}
+	if got, ok := workspaceBilling["active_billing_connection_id"]; ok && got != nil && got != "" {
+		t.Fatalf("expected empty workspace_billing.active_billing_connection_id, got %#v", got)
+	}
+	if connected, _ := workspaceBilling["connected"].(bool); connected {
+		t.Fatalf("expected workspace_billing.connected=false")
+	}
+}
+
 func TestUIPlatformSessionCanUpdateExistingTenantOnboardingWithBillingConnection(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {

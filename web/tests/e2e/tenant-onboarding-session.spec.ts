@@ -105,6 +105,7 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
   let tenants: TenantRecord[] = [];
   const readinessByTenant: Record<string, TenantOnboardingReadiness> = {};
   let capturedCSRF = "";
+  let capturedOnboardingBody: Record<string, unknown> | null = null;
   const connection: BillingProviderConnection = {
     id: "bpc_alpha",
     provider_type: "stripe",
@@ -163,6 +164,7 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
     if (path === "/internal/onboarding/tenants" && method === "POST") {
       capturedCSRF = request.headers()["x-csrf-token"] || "";
       const body = request.postDataJSON() as Record<string, string>;
+      capturedOnboardingBody = body;
       const now = new Date().toISOString();
       const tenant: TenantRecord = {
         id: body.id,
@@ -222,10 +224,11 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
 
   return {
     getCapturedCSRF: () => capturedCSRF,
+    getCapturedOnboardingBody: () => capturedOnboardingBody,
   };
 }
 
-test("platform admin can onboard a tenant from the UI", async ({ page }) => {
+test("platform admin can onboard a tenant from the UI before selecting billing", async ({ page }) => {
   const mock = await installTenantOnboardingMock(page, sessionPayload);
 
   await page.goto("/tenant-onboarding");
@@ -234,16 +237,21 @@ test("platform admin can onboard a tenant from the UI", async ({ page }) => {
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
-  await expect(page.getByRole("heading", { name: "Workspace Setup" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create workspace" })).toBeVisible();
   await page.getByLabel("Workspace ID").fill("tenant_acme");
   await page.getByLabel("Workspace name").fill("Acme Corp");
-  await page.getByLabel("Billing connection").selectOption("bpc_alpha");
   await page.getByRole("button", { name: "Run workspace setup" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
+  await expect.poll(() => mock.getCapturedOnboardingBody()).toMatchObject({
+    id: "tenant_acme",
+    name: "Acme Corp",
+  });
+  expect(mock.getCapturedOnboardingBody()).not.toHaveProperty("billing_provider_connection_id");
 
   await page.goto("/workspaces/tenant_acme");
   await expect(page.getByRole("heading", { name: "Acme Corp" })).toBeVisible();
   await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();
+  await expect(page.getByText("Change active connection")).toBeVisible();
+  await expect(page.getByLabel("Active billing connection")).toBeVisible();
 });

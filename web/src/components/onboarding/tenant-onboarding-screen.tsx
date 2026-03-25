@@ -72,7 +72,7 @@ export function TenantOnboardingScreen() {
   });
 
   const createdSecret = result?.tenant_admin_bootstrap.secret ?? "";
-  const canSubmit = Boolean(isPlatformAdmin && csrfToken && tenantID.trim() && tenantName.trim() && billingProviderConnectionID);
+  const canSubmit = Boolean(isPlatformAdmin && csrfToken && tenantID.trim() && tenantName.trim());
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -86,7 +86,7 @@ export function TenantOnboardingScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace setup</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create workspace</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Create a workspace, attach one active billing connection, and optionally mint the first admin service account credential. Billing connection lifecycle stays on dedicated billing pages.
+                Create a workspace first, optionally attach an active billing connection, and mint the first admin service account credential if you need it. Billing connection lifecycle stays on dedicated billing pages.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -123,7 +123,7 @@ export function TenantOnboardingScreen() {
 
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
               <StepCard index="1" title="Name the workspace" body="Use a stable ID and a display name operators will recognize later." />
-              <StepCard index="2" title="Select active billing" body="Choose the one connection this workspace should use for billing execution." />
+              <StepCard index="2" title="Attach billing later" body="Optionally preselect one active connection now, or attach it from workspace detail after creation." />
               <StepCard index="3" title="Bootstrap admin access" body="Generate the first admin service account credential now or leave it for a controlled handoff." />
             </div>
 
@@ -140,7 +140,7 @@ export function TenantOnboardingScreen() {
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 2</p>
                 <h3 className="mt-2 text-lg font-semibold text-slate-950">Active billing connection</h3>
-                <p className="mt-2 text-sm text-slate-600">Billing connections are created separately. Workspace setup only chooses the active connection for this workspace.</p>
+                <p className="mt-2 text-sm text-slate-600">Billing connections are created separately. You can leave this empty, create the workspace, and attach billing from the workspace detail page after the backend finishes org bootstrap.</p>
                 {billingConnectionsQuery.isLoading ? (
                   <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -148,7 +148,7 @@ export function TenantOnboardingScreen() {
                   </div>
                 ) : connectedBillingConnections.length === 0 ? (
                   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                    No connected billing providers are available yet.
+                    No connected billing providers are available yet. Workspace creation can still continue without one.
                     <div className="mt-3">
                       <Link href="/billing-connections/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
                         <CreditCard className="h-4 w-4" />
@@ -166,7 +166,7 @@ export function TenantOnboardingScreen() {
                         onChange={(event) => setBillingProviderConnectionID(event.target.value)}
                         className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       >
-                        <option value="">Select one active billing connection</option>
+                        <option value="">Attach billing later</option>
                         {connectedBillingConnections.map((connection) => (
                           <option key={connection.id} value={connection.id}>
                             {connectionLabel(connection)}
@@ -182,7 +182,7 @@ export function TenantOnboardingScreen() {
                           <MetaItem label="Connection ID" value={selectedBillingConnection.id} mono />
                           <MetaItem label="Environment" value={selectedBillingConnection.environment} />
                           <MetaItem label="Connection health" value={formatReadinessStatus(selectedBillingConnection.status)} />
-                          <MetaItem label="Workspace billing" value="Will be attached on setup" />
+                          <MetaItem label="Workspace billing" value="Will be attached during setup" />
                         </div>
                       </div>
                     ) : null}
@@ -215,8 +215,8 @@ export function TenantOnboardingScreen() {
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ChecklistLine done={tenantID.trim().length > 0} text="Workspace ID is set" />
                 <ChecklistLine done={tenantName.trim().length > 0} text="Workspace name is set" />
-                <ChecklistLine done={Boolean(billingProviderConnectionID)} text="Billing connection is selected" />
-                <ChecklistLine done={connectedBillingConnections.length > 0} text="A connected billing provider exists" />
+                <ChecklistLine done text={billingProviderConnectionID ? "Billing connection is selected" : "Billing connection can be attached later"} />
+                <ChecklistLine done text={connectedBillingConnections.length > 0 ? "A connected billing provider exists" : "Workspace can be created before billing is connected"} />
               </div>
             </div>
 
@@ -304,7 +304,7 @@ export function TenantOnboardingScreen() {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What changes now</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
                   <p>Billing connections now own Stripe secret storage and provider sync.</p>
-                  <p>Workspace setup links one active billing connection to the workspace.</p>
+                  <p>Workspace setup can leave billing unassigned until the workspace exists.</p>
                   <p>Use workspace detail pages for readiness review and next actions.</p>
                 </div>
               </section>
