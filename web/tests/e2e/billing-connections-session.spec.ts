@@ -82,7 +82,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
         status: "pending",
         workspace_ready: false,
         sync_state: "never_synced",
-        sync_summary: "Connection has not been synced yet. Run the first sync before assigning it to workspaces.",
+        sync_summary: "First sync is still required before workspace assignment.",
         linked_workspace_count: 0,
         lago_organization_id: body.lago_organization_id,
         secret_configured: true,
@@ -136,7 +136,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             status: "pending",
             workspace_ready: false,
             sync_state: "pending",
-            sync_summary: "Connection is waiting for a successful provider sync.",
+            sync_summary: "Waiting for a successful sync.",
             last_synced_at: undefined,
             updated_at: now,
           }
@@ -338,7 +338,7 @@ test("platform admin can rotate a billing connection secret and see it return to
   await page.getByRole("button", { name: "Rotate secret" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
-  await expect(page.locator("div").filter({ hasText: /^Connection is waiting for a successful provider sync\.$/ })).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^Waiting for a successful sync\.$/ })).toBeVisible();
 });
 
 test("platform admin sees explicit verification checks for a failed billing connection", async ({ page, context }) => {
@@ -375,14 +375,14 @@ test("platform admin sees explicit verification checks for a failed billing conn
 
   await page.goto("/billing-connections/bpc_alpha");
 
-  await expect(page.getByRole("heading", { name: "Health checks" })).toBeVisible();
-  await expect(page.getByText("Verification diagnosis")).toBeVisible();
-  await expect(page.getByText("Provider verification failed")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connection diagnosis" })).toBeVisible();
+  await expect(page.getByText("Diagnosis", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verification failed" })).toBeVisible();
   await expect(page.getByText("Assignment risk High")).toBeVisible();
   await expect(page.getByText("2 linked workspaces depend on this path.")).toBeVisible();
   await expect(page.getByText("Last sync error", { exact: true })).toBeVisible();
   await expect(page.locator("div").filter({ hasText: /^provider timeout$/ }).first()).toBeVisible();
   await expect(page.getByText("Workspace assignment")).toBeVisible();
   await expect(page.getByText("There are 2 linked workspaces, but the connection is not currently ready.")).toBeVisible();
-  await expect(page.getByText("Review the last sync error, correct the provider secret or override, then rerun sync.")).toBeVisible();
+  await expect(page.getByText("Correct the error, then rerun sync.")).toBeVisible();
 });

@@ -78,33 +78,6 @@ function HealthCheckIcon({ tone }: { tone: HealthCheckTone }) {
   }
 }
 
-function nextActionLabel(connection: {
-  status: string;
-  sync_state: string;
-  secret_configured: boolean;
-  linked_workspace_count: number;
-}): string {
-  if (connection.status === "disabled") {
-    return "Re-enable by creating or selecting another active connection before moving more workspaces here.";
-  }
-  if (!connection.secret_configured) {
-    return "Store the Stripe secret first, then run sync so Alpha can verify the provider path.";
-  }
-  if (connection.sync_state === "failed") {
-    return "Review the last sync error, correct the provider secret or override, then rerun sync.";
-  }
-  if (connection.sync_state === "never_synced") {
-    return "Run the first sync before attaching this connection to any workspace.";
-  }
-  if (connection.sync_state === "pending") {
-    return "Wait for or trigger a successful sync before treating this connection as ready.";
-  }
-  if (connection.linked_workspace_count > 0) {
-    return "Healthy. Safe for current assignments and additional workspace handoff.";
-  }
-  return "Healthy. Safe to assign to the next workspace.";
-}
-
 function buildVerificationDiagnosis(connection: {
   status: string;
   sync_state: string;
@@ -126,8 +99,8 @@ function buildVerificationDiagnosis(connection: {
     return {
       code: "disabled",
       title: "Connection is disabled",
-      summary: "This billing path is intentionally out of service and should not receive new workspace assignments.",
-      nextStep: "Keep existing workspaces on another active connection before disabling or replacing this path.",
+      summary: "This billing path is out of service.",
+      nextStep: "Move workspaces to another active connection before replacing it.",
       assignmentRisk: "Blocked",
       workspaceImpact,
       tone: "bad",
@@ -137,9 +110,9 @@ function buildVerificationDiagnosis(connection: {
   if (!connection.secret_configured) {
     return {
       code: "missing_secret",
-      title: "Verification cannot run",
-      summary: "Alpha has no stored provider secret, so provider verification cannot succeed.",
-      nextStep: "Store the Stripe secret first, then run sync to verify the provider and workspace route.",
+      title: "Secret is missing",
+      summary: "Alpha cannot verify this connection without a stored provider secret.",
+      nextStep: "Store the secret, then run sync.",
       assignmentRisk: "Blocked",
       workspaceImpact,
       tone: "bad",
@@ -149,9 +122,9 @@ function buildVerificationDiagnosis(connection: {
   if (connection.sync_state === "failed") {
     return {
       code: "verification_failed",
-      title: "Provider verification failed",
-      summary: connection.last_sync_error || connection.sync_summary || "The latest verification attempt did not complete cleanly.",
-      nextStep: "Correct the provider secret or override mismatch, then rerun sync before trusting this connection.",
+      title: "Verification failed",
+      summary: connection.last_sync_error || connection.sync_summary || "The latest sync did not complete cleanly.",
+      nextStep: "Correct the error, then rerun sync.",
       assignmentRisk: connection.linked_workspace_count > 0 ? "High" : "Blocked",
       workspaceImpact,
       tone: "bad",
@@ -162,8 +135,8 @@ function buildVerificationDiagnosis(connection: {
     return {
       code: "verification_pending",
       title: "Verification is pending",
-      summary: "A change was made, but Alpha has not yet completed a successful verification after it.",
-      nextStep: "Run sync and wait for a healthy result before assigning additional workspaces.",
+      summary: "A change was made, but Alpha has not completed a healthy sync yet.",
+      nextStep: "Run sync before assigning more workspaces.",
       assignmentRisk: connection.linked_workspace_count > 0 ? "Elevated" : "Blocked",
       workspaceImpact,
       tone: "warn",
@@ -173,9 +146,9 @@ function buildVerificationDiagnosis(connection: {
   if (connection.sync_state === "never_synced") {
     return {
       code: "never_synced",
-      title: "Connection has never been verified",
-      summary: "The secret is stored, but Alpha has never verified this provider path against Lago and Stripe.",
-      nextStep: "Run the first sync before assigning this connection to any workspace.",
+      title: "First sync is still required",
+      summary: "The secret is stored, but Alpha has not verified this path yet.",
+      nextStep: "Run sync before assigning this connection to a workspace.",
       assignmentRisk: "Blocked",
       workspaceImpact,
       tone: "warn",
@@ -186,12 +159,12 @@ function buildVerificationDiagnosis(connection: {
     code: "verified",
     title: "Connection is verified",
     summary: connection.last_synced_at
-      ? `Last successful verification was ${formatExactTimestamp(connection.last_synced_at)}.`
-      : "The provider path is healthy and ready for workspace billing traffic.",
+      ? `Last successful sync was ${formatExactTimestamp(connection.last_synced_at)}.`
+      : "This provider path is healthy.",
     nextStep:
       connection.linked_workspace_count > 0
-        ? "Healthy. Safe to keep current workspaces here and use this connection for additional handoff."
-        : "Healthy. Safe to assign this connection to the next workspace.",
+        ? "Healthy. Safe for current and additional workspace assignments."
+        : "Healthy. Safe to assign to the next workspace.",
     assignmentRisk: "Low",
     workspaceImpact,
     tone: "good",
@@ -228,51 +201,6 @@ function buildConnectionHealthChecks(connection: {
         },
   );
 
-  switch (connection.sync_state) {
-    case "healthy":
-      checks.push({
-        label: "Provider verification",
-        status: "Passed",
-        detail: connection.last_synced_at
-          ? `Last successful sync at ${formatExactTimestamp(connection.last_synced_at)}.`
-          : connection.sync_summary,
-        tone: "good",
-      });
-      break;
-    case "failed":
-      checks.push({
-        label: "Provider verification",
-        status: "Failed",
-        detail: connection.last_sync_error || connection.sync_summary,
-        tone: "bad",
-      });
-      break;
-    case "pending":
-      checks.push({
-        label: "Provider verification",
-        status: "Pending",
-        detail: "A change was made, but Alpha still needs a successful sync before this path is trusted.",
-        tone: "warn",
-      });
-      break;
-    case "never_synced":
-      checks.push({
-        label: "Provider verification",
-        status: "Not run",
-        detail: "This connection has never been verified against Lago and Stripe from Alpha.",
-        tone: "warn",
-      });
-      break;
-    default:
-      checks.push({
-        label: "Provider verification",
-        status: "Disabled",
-        detail: "Disabled connections are intentionally excluded from assignment and sync recovery.",
-        tone: "neutral",
-      });
-      break;
-  }
-
   if (connection.status === "disabled") {
     checks.push({
       label: "Workspace assignment",
@@ -303,13 +231,13 @@ function buildConnectionHealthChecks(connection: {
   }
 
   checks.push({
-    label: "Target routing",
-    status: connection.lago_organization_id ? "Override set" : "Platform default",
+    label: "Billing target",
+    status: connection.lago_organization_id || connection.lago_provider_code ? "Override" : "Default",
     detail: connection.lago_provider_code
-      ? `Provider code override ${connection.lago_provider_code} will be used on sync.`
+      ? `Uses provider code override ${connection.lago_provider_code}.`
       : connection.lago_organization_id
-        ? "Organization override is set. Provider code will resolve from the override or next sync."
-        : "Connection resolves the billing target from platform configuration on sync.",
+        ? "Uses organization override. Provider code resolves on sync."
+        : "Uses the platform billing target on sync.",
     tone: connection.lago_organization_id || connection.lago_provider_code ? "neutral" : "good",
   });
 
@@ -475,9 +403,9 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryStat label="Status" value={formatReadinessStatus(connection.status)} helper={connection.sync_summary} />
+              <SummaryStat label="Status" value={formatReadinessStatus(connection.status)} helper={verificationDiagnosis?.title || "Ready state"} />
               <SummaryStat label="Environment" value={connection.environment} helper={`Provider: ${connection.provider_type}`} />
-              <SummaryStat label="Linked workspaces" value={String(connection.linked_workspace_count)} helper={connection.workspace_ready ? "Ready for assignment" : "Sync before attaching to more workspaces"} />
+              <SummaryStat label="Linked workspaces" value={String(connection.linked_workspace_count)} helper={connection.workspace_ready ? "Safe to assign" : "Requires healthy sync"} />
               <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Secret material stays outside the database" />
             </section>
 
@@ -487,8 +415,8 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Provider sync</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Connection health</h2>
-                      <p className="mt-2 text-sm text-slate-600">Track whether Alpha can safely attach this connection to workspaces.</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Sync status</h2>
+                      <p className="mt-2 text-sm text-slate-600">Latest verification state for this billing path.</p>
                     </div>
                     <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${readinessTone(connection.sync_state)}`}>
                       {formatReadinessStatus(connection.sync_state)}
@@ -513,19 +441,15 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Verification</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Health checks</h2>
-                      <p className="mt-2 text-sm text-slate-600">Use the checks below to decide whether this connection is safe for workspace billing traffic.</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 sm:max-w-[18rem]">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Operator next step</p>
-                      <p className="mt-2 leading-relaxed">{nextActionLabel(connection)}</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Connection diagnosis</h2>
+                      <p className="mt-2 text-sm text-slate-600">One decision, then a few supporting facts.</p>
                     </div>
                   </div>
                   {verificationDiagnosis ? (
                     <div className={`mt-5 rounded-2xl border p-5 ${healthCheckTone(verificationDiagnosis.tone)}`}>
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">Verification diagnosis</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">Diagnosis</p>
                           <h3 className="mt-2 text-lg font-semibold">{verificationDiagnosis.title}</h3>
                           <p className="mt-2 text-sm leading-relaxed opacity-90">{verificationDiagnosis.summary}</p>
                         </div>
@@ -701,7 +625,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                       className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
                     >
                       <CreditCard className="h-4 w-4" />
-                      Use in workspace setup
+                      Open workspace setup
                     </Link>
                   </div>
                 </section>

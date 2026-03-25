@@ -109,7 +109,7 @@ test.describe("billing connection lifecycle live staging", () => {
     await expect(rotatedSecretInput).toHaveValue(rotatedStripeSecretKey);
     await expect(rotateSecretButton).toBeEnabled();
     await rotateSecretButton.click();
-    await expect(page.locator("div").filter({ hasText: /^Connection is waiting for a successful provider sync\.$/ }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("div").filter({ hasText: /^Waiting for a successful sync\.$/ }).first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/^pending$/i).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Sync now" }).click();

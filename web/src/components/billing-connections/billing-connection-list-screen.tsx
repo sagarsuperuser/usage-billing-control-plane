@@ -76,9 +76,9 @@ export function BillingConnectionListScreen() {
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Billing Connections</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Reusable billing credentials</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Billing connections</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                This directory owns provider credentials, sync state, and reuse across workspaces. Workspaces attach to a connection. They do not carry credential state themselves.
+                Manage provider credentials and sync state here. Workspaces attach to a connection after it is ready.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -223,7 +223,7 @@ function EmptyState() {
   return (
     <div className="py-6 text-sm text-slate-600">
       <p className="font-semibold text-slate-950">No billing connections match the current filters.</p>
-      <p className="mt-2">Create a Stripe connection in Alpha before assigning billing to new workspaces.</p>
+      <p className="mt-2">Create a billing connection before assigning billing to a workspace.</p>
       <div className="mt-4 flex flex-wrap gap-3">
         <Link href="/billing-connections/new" className="inline-flex h-10 items-center rounded-xl bg-emerald-700 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-emerald-800">Create billing connection</Link>
       </div>
