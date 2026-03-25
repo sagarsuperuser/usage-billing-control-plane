@@ -113,12 +113,15 @@ test("platform admin can inspect tenant audit history", async ({ page, context }
   await expect(page.getByRole("heading", { name: "Tenant audit trail" })).toBeVisible();
   await expect(page.getByText("payment_setup_requested")).toBeVisible();
   await expect(page.getByText("workspace_billing_binding_updated")).toBeVisible();
+  await expect(page.getByText("cust_123")).toHaveCount(0);
+  await expect(page.getByText("card")).toHaveCount(0);
 
-  await page.getByLabel("Tenant").selectOption("tenant_alpha");
+  await page.getByRole("combobox").first().selectOption("tenant_alpha");
   await expect(page.getByText("payment_setup_requested")).toBeVisible();
   await expect(page.getByText("workspace_billing_binding_updated")).toHaveCount(0);
 
   await page.getByPlaceholder("created, payment_setup_requested").fill("payment_setup_requested");
+  await page.getByRole("button", { name: "View details for payment_setup_requested on tenant_alpha" }).click();
   await expect(page.getByText("cust_123")).toBeVisible();
   await expect(page.getByText("card")).toBeVisible();
 });

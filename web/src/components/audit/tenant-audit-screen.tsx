@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 
@@ -19,6 +19,7 @@ export function TenantAuditScreen() {
   const [tenantID, setTenantID] = useState("");
   const [action, setAction] = useState("");
   const [actorAPIKeyID, setActorAPIKeyID] = useState("");
+  const [selectedEventID, setSelectedEventID] = useState("");
 
   const tenantsQuery = useQuery({
     queryKey: ["platform-tenants", apiBaseURL],
@@ -47,6 +48,20 @@ export function TenantAuditScreen() {
     }
     return Array.from(values).sort();
   }, [auditQuery.data]);
+
+  const selectedEvent =
+    (auditQuery.data?.items ?? []).find((item) => item.id === selectedEventID) ?? null;
+
+  useEffect(() => {
+    const items = auditQuery.data?.items ?? [];
+    if (items.length === 0) {
+      setSelectedEventID("");
+      return;
+    }
+    if (selectedEventID && !items.some((item) => item.id === selectedEventID)) {
+      setSelectedEventID("");
+    }
+  }, [auditQuery.data, selectedEventID]);
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -126,15 +141,28 @@ export function TenantAuditScreen() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent tenant events</p>
-            <h2 className="text-xl font-semibold text-slate-950">Operator-visible audit history</h2>
+            <h2 className="text-xl font-semibold text-slate-950">Audit history</h2>
+            <p className="text-sm text-slate-600">Keep the list compact. Select an event only when you need the full record.</p>
           </div>
 
-          <div className="mt-5 grid gap-3">
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.85fr)]">
             {auditQuery.isLoading ? <LoadingState /> : null}
             {!auditQuery.isLoading && (auditQuery.data?.items.length ?? 0) === 0 ? <EmptyState /> : null}
-            {(auditQuery.data?.items ?? []).map((event) => (
-              <AuditRow key={event.id} event={event} />
-            ))}
+            {!auditQuery.isLoading && (auditQuery.data?.items.length ?? 0) > 0 ? (
+              <>
+                <div className="grid gap-3">
+                  {(auditQuery.data?.items ?? []).map((event) => (
+                    <AuditRow
+                      key={event.id}
+                      event={event}
+                      selected={event.id === selectedEventID}
+                      onSelect={() => setSelectedEventID(event.id)}
+                    />
+                  ))}
+                </div>
+                <AuditDetail event={selectedEvent} />
+              </>
+            ) : null}
           </div>
         </section>
       </main>
@@ -142,32 +170,78 @@ export function TenantAuditScreen() {
   );
 }
 
-function AuditRow({ event }: { event: TenantAuditEvent }) {
-  const entries = Object.entries(event.metadata ?? {}).sort(([left], [right]) => left.localeCompare(right));
+function AuditRow({
+  event,
+  selected,
+  onSelect,
+}: {
+  event: TenantAuditEvent;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const metadataCount = Object.keys(event.metadata ?? {}).length;
   return (
-    <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`View details for ${event.action} on ${event.tenant_id}`}
+      className={`w-full rounded-xl border p-4 text-left transition ${
+        selected
+          ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
+          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
+      }`}
+    >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
               {event.action}
             </span>
-            <span className="text-xs font-mono text-slate-500">{event.id}</span>
+            <span className="text-[11px] text-slate-500">{metadataCount} field{metadataCount === 1 ? "" : "s"}</span>
           </div>
           <p className="mt-2 text-sm text-slate-700">
-            Tenant <span className="font-medium text-slate-950">{event.tenant_id}</span>
+            <span className="font-medium text-slate-950">{event.tenant_id}</span>
             {event.actor_api_key_id ? (
               <>
                 {" "}
-                via <span className="font-mono text-slate-600">{event.actor_api_key_id}</span>
+                · <span className="font-mono text-slate-600">{event.actor_api_key_id}</span>
               </>
             ) : null}
           </p>
         </div>
-        <p className="shrink-0 text-sm text-slate-500">{new Date(event.created_at).toLocaleString()}</p>
+        <div className="shrink-0 text-right">
+          <p className="text-sm text-slate-500">{new Date(event.created_at).toLocaleString()}</p>
+          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">View details</p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function AuditDetail({ event }: { event: TenantAuditEvent | null }) {
+  const entries = Object.entries(event?.metadata ?? {}).sort(([left], [right]) => left.localeCompare(right));
+
+  if (!event) {
+    return (
+      <aside className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
+        Select an audit event to inspect the full metadata.
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event detail</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <DetailField label="Action" value={event.action} />
+        <DetailField label="Tenant" value={event.tenant_id} mono />
+        <DetailField label="Actor API key" value={event.actor_api_key_id || "-"} mono />
+        <DetailField label="Created at" value={new Date(event.created_at).toLocaleString()} />
+        <DetailField label="Event ID" value={event.id} mono className="sm:col-span-2" />
       </div>
       {entries.length > 0 ? (
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           {entries.map(([key, value]) => (
             <div key={key} className="rounded-lg border border-slate-200 bg-white px-3 py-3">
               <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{key}</dt>
@@ -178,7 +252,26 @@ function AuditRow({ event }: { event: TenantAuditEvent }) {
       ) : (
         <p className="mt-4 text-sm text-slate-500">No metadata attached.</p>
       )}
-    </article>
+    </aside>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+  mono,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-lg border border-slate-200 bg-white px-3 py-3 ${className}`.trim()}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-2 break-words text-sm text-slate-800 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
+    </div>
   );
 }
 
