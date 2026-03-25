@@ -381,7 +381,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Readiness</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Current blockers</h2>
-                      <p className="mt-2 text-sm text-slate-600">Fix the items below before handing this workspace into normal operations.</p>
+                      <p className="mt-2 text-sm text-slate-600">Clear these before the workspace goes live.</p>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                       {nextActions.length === 0 ? "No blockers" : `${nextActions.length} blocker(s)`}
@@ -412,9 +412,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   <div className="mt-5 grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-sm font-semibold text-slate-950">Invite workspace operator</p>
-                      <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                        Hand off this workspace through Alpha access, not backend-only provisioning.
-                      </p>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-600">Invite the workspace operator here.</p>
                       <div className="mt-4 grid gap-3">
                         <input
                           type="email"
@@ -464,9 +462,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <div className="grid gap-4">
                       <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                         <p className="text-sm font-semibold text-slate-950">Platform support override</p>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                          Platform admins can override tenant access for support, recovery, and compliance. Member changes and invite revocation require a reason and are audited.
-                        </p>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">Use only for support, recovery, or compliance. Changes here are audited.</p>
                         <div className="mt-4 grid gap-2">
                           <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Override reason</label>
                           <input
@@ -698,10 +694,10 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <MetaItem label="Binding source" value={workspaceBilling?.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
                   </div>
 
-                  <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-950">Billing status</p>
+                    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-950">Billing status</p>
                         <p className="mt-1 text-sm text-slate-600">
                           {workspaceBilling?.diagnosis_summary || selectedReadiness.billing_integration.diagnosis_summary || "Billing diagnosis is not available yet."}
                         </p>
@@ -728,7 +724,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex flex-col gap-2">
                         <p className="text-sm font-semibold text-slate-950">Billing backend mapping</p>
-                        <p className="text-sm text-slate-600">Immutable backend identifiers used for billing routing, sync, and webhook correlation.</p>
+                        <p className="text-sm text-slate-600">Read-only backend references for support and debugging.</p>
                       </div>
                       <div className="mt-4 grid gap-3 md:grid-cols-2">
                         {selectedTenant.lago_organization_id ? (

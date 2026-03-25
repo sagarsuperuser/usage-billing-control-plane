@@ -149,7 +149,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                       href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
                       className="inline-flex h-10 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
                     >
-                      Open customer collection path
+                      Open customer setup
                     </Link>
                   ) : null}
                 </div>
@@ -204,9 +204,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                       <option value="50">50</option>
                     </select>
                   </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    Expand or tighten the webhook window used to correlate payment state with dunning actions.
-                  </p>
+                  <p className="mt-3 text-sm text-slate-600">Change how many events are shown in the timeline.</p>
                 </section>
 
                 <BillingActivityTimeline
@@ -227,12 +225,12 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
                 />
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Recommended action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                       <p className="font-semibold text-slate-950">{actionConfig?.title || "No action required"}</p>
-                      <p className="mt-2">{actionConfig?.body || "No payment action guidance is currently available."}</p>
+                      <p className="mt-2">{actionConfig?.body || "No action is needed right now."}</p>
                     </div>
                     {actionConfig?.emphasizeRetry ? (
                       <button
@@ -266,7 +264,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                         href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
                         className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                       >
-                        Open customer collection path
+                        Open customer setup
                       </Link>
                     ) : null}
                     {!actionConfig?.emphasizeRetry &&
@@ -302,7 +300,6 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked invoice</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Invoice" value={payment.invoice_number || payment.invoice_id} />
-                    <MetaItem label="Organization" value={payment.organization_id || "-"} />
                     <MetaItem label="Updated" value={formatExactTimestamp(payment.updated_at)} />
                     <Link
                       href={`/invoices/${encodeURIComponent(payment.invoice_id)}`}

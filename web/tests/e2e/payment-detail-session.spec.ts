@@ -149,5 +149,5 @@ test("payment detail shows evidence-backed failure reasoning", async ({ page }) 
   await expect(evidence.getByText("card_declined")).toBeVisible();
   await expect(evidence.getByText("Dunning state")).toBeVisible();
   await expect(evidence.getByText("active", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open customer collection path" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open customer setup" }).first()).toBeVisible();
 });

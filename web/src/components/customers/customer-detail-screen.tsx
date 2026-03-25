@@ -352,9 +352,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
                 <section id="payment-collection" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment collection</p>
-                  <p className="mt-3 text-sm text-slate-600">
-                    Use this page when collection is blocked. Send the setup path here, then refresh verification before retrying elsewhere.
-                  </p>
+                  <p className="mt-3 text-sm text-slate-600">Send the setup path here, then refresh status.</p>
                   <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -381,9 +379,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer-directed setup</p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-950">Send one clear setup path</h3>
-                      <p className="mt-2 text-sm text-slate-600">
-                        Use the email request as the default path. If one already exists, resend it instead of using duplicate actions.
-                      </p>
+                      <p className="mt-2 text-sm text-slate-600">Use the email request first. Resend it instead of creating duplicates.</p>
                       <div className="mt-4 flex flex-wrap gap-3">
                         <button
                           type="button"
@@ -411,9 +407,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Manual fallback</p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-950">Hosted setup link</h3>
-                      <p className="mt-2 text-sm text-slate-600">
-                        Generate a hosted link only when you need to share it manually outside the normal request flow.
-                      </p>
+                      <p className="mt-2 text-sm text-slate-600">Use this only when you need to share the setup link manually.</p>
                       <div className="mt-4 flex flex-wrap gap-3">
                         <button
                           type="button"
@@ -444,9 +438,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Verification and recovery</p>
                         <h3 className="mt-2 text-lg font-semibold text-slate-950">Verify setup before retrying</h3>
-                        <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                          Refresh verification after the payer completes setup. Use billing sync recovery only when the customer mapping or provider state is stale.
-                        </p>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-600">Refresh after setup completes. Retry sync only when the billing state is stale.</p>
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <button
@@ -509,7 +501,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   {latestCheckoutURL ? (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
                       <p className="font-semibold text-emerald-900">Hosted payment setup link ready</p>
-                      <p className="mt-2">Use this fallback when you need to share the link manually, then refresh verification once setup is complete.</p>
+                      <p className="mt-2">Share this manually, then refresh status once setup is complete.</p>
                     </div>
                   ) : null}
                   {!canBeginPaymentSetup && readiness.payment_setup_status !== "ready" ? (
