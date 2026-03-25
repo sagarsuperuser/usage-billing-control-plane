@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Copy,
   Download,
@@ -39,6 +39,7 @@ import {
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
+import { type APIKeyAuditEvent } from "@/lib/types";
 
 export function TenantWorkspaceAccessScreen() {
   const queryClient = useQueryClient();
@@ -52,6 +53,7 @@ export function TenantWorkspaceAccessScreen() {
   const [serviceAccountEnvironment, setServiceAccountEnvironment] = useState("prod");
   const [latestCredentialSecret, setLatestCredentialSecret] = useState<{ label: string; secret: string } | null>(null);
   const [selectedAuditServiceAccountID, setSelectedAuditServiceAccountID] = useState("");
+  const [selectedAuditEventID, setSelectedAuditEventID] = useState("");
   const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
   const [confirmingMemberAction, setConfirmingMemberAction] = useState<{ userID: string; action: "suspend" } | null>(null);
 
@@ -238,6 +240,19 @@ export function TenantWorkspaceAccessScreen() {
       }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
   });
+  const selectedAuditEvent =
+    (serviceAccountAuditQuery.data?.items ?? []).find((item) => item.id === selectedAuditEventID) ?? null;
+
+  useEffect(() => {
+    const items = serviceAccountAuditQuery.data?.items ?? [];
+    if (items.length === 0) {
+      setSelectedAuditEventID("");
+      return;
+    }
+    if (selectedAuditEventID && !items.some((item) => item.id === selectedAuditEventID)) {
+      setSelectedAuditEventID("");
+    }
+  }, [serviceAccountAuditQuery.data, selectedAuditEventID]);
   const createAuditExportMutation = useMutation({
     mutationFn: () =>
       createTenantWorkspaceServiceAccountAuditExport({
@@ -560,17 +575,20 @@ export function TenantWorkspaceAccessScreen() {
                 <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
                     <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
+                    <p className="mt-2 text-sm text-slate-600">Keep the event list compact. Open one event only when you need the full credential trace.</p>
                     <div className="mt-3 grid gap-3">
                       {(serviceAccountAuditQuery.data?.items ?? []).length > 0 ? (
-                        (serviceAccountAuditQuery.data?.items ?? []).map((event) => (
-                          <div key={event.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-medium text-slate-950">{event.action}</p>
-                              <p className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</p>
-                            </div>
-                            <p className="mt-2 text-xs text-slate-500">{event.api_key_id}</p>
-                          </div>
-                        ))
+                        <>
+                          {(serviceAccountAuditQuery.data?.items ?? []).map((event) => (
+                            <ServiceAccountAuditRow
+                              key={event.id}
+                              event={event}
+                              selected={event.id === selectedAuditEventID}
+                              onSelect={() => setSelectedAuditEventID(event.id)}
+                            />
+                          ))}
+                          <ServiceAccountAuditDetail event={selectedAuditEvent} />
+                        </>
                       ) : (
                         <p className="text-sm text-slate-500">No audit events yet.</p>
                       )}
@@ -798,4 +816,110 @@ export function TenantWorkspaceAccessScreen() {
       </main>
     </div>
   );
+}
+
+function ServiceAccountAuditRow({
+  event,
+  selected,
+  onSelect,
+}: {
+  event: APIKeyAuditEvent;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const metadataCount = Object.keys(event.metadata ?? {}).length;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`View service account audit details for ${event.action}`}
+      className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+        selected
+          ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
+          : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-slate-950">{event.action}</p>
+        <p className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</p>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">
+        {event.api_key_id}
+        {event.actor_api_key_id ? ` · actor ${event.actor_api_key_id}` : ""}
+        {metadataCount > 0 ? ` · ${metadataCount} metadata field${metadataCount === 1 ? "" : "s"}` : ""}
+      </p>
+    </button>
+  );
+}
+
+function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }) {
+  const entries = Object.entries(event?.metadata ?? {}).sort(([left], [right]) => left.localeCompare(right));
+
+  if (!event) {
+    return (
+      <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-6 text-sm text-slate-600">
+        Select an audit event to inspect the full credential record.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
+      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Event detail</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <DetailField label="Action" value={event.action} />
+        <DetailField label="Created at" value={formatExactTimestamp(event.created_at)} />
+        <DetailField label="API key" value={event.api_key_id} mono />
+        <DetailField label="Actor API key" value={event.actor_api_key_id || "-"} mono />
+        <DetailField label="Event ID" value={event.id} mono className="sm:col-span-2" />
+      </div>
+      {entries.length > 0 ? (
+        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+          {entries.map(([key, value]) => (
+            <div key={key} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{key}</dt>
+              <dd className="mt-2 break-words text-sm text-slate-800">{formatAuditMetadataValue(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">No metadata attached.</p>
+      )}
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+  mono,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 ${className}`.trim()}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-2 break-words text-sm text-slate-900 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
+    </div>
+  );
+}
+
+function formatAuditMetadataValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }

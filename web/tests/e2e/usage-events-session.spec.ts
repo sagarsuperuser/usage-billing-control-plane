@@ -98,6 +98,7 @@ test("tenant operator can browse raw usage events", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Raw operational event view" })).toBeVisible();
   await expect(page.getByText("cust_beta")).toBeVisible();
   await expect(page.getByText("cust_alpha")).toBeVisible();
+  await expect(page.getByText("evt_2")).toHaveCount(0);
   await expect(page.getByText("Visible quantity")).toBeVisible();
   await expect(page.getByText("19")).toBeVisible();
 
@@ -106,4 +107,9 @@ test("tenant operator can browse raw usage events", async ({ page }) => {
 
   await expect(page.getByText("cust_alpha")).toBeVisible();
   await expect(page.getByText("cust_beta")).toHaveCount(0);
+  await expect(page.getByText("evt_1")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "View details for usage event evt_1" }).click();
+  await expect(page.getByText("evt_1", { exact: true })).toBeVisible();
+  await expect(page.getByText("idem_evt_1")).toBeVisible();
 });

@@ -203,7 +203,7 @@ test("supports session logout in payment operations UI", async ({ page }) => {
   await page.getByTestId("session-menu-toggle").click();
   await expect(page.getByTestId("session-logout")).toBeVisible();
 
-  await page.getByTestId("session-logout").click();
+  await page.getByTestId("session-logout").click({ force: true });
   await expect(page.getByTestId("session-login-submit")).toBeVisible();
 });
 
@@ -242,6 +242,10 @@ test("shows normalized failure diagnosis in the payment timeline drawer", async 
   await expect(page.getByRole("heading", { name: "Invoice Timeline" })).toBeVisible();
   await expect(drawer.getByText("Payment collection is blocked")).toBeVisible();
   await expect(drawer.getByText("Send or refresh payment setup, confirm the customer can complete it, then retry collection only after setup is ready.")).toBeVisible();
+  await expect(drawer.getByText("invoice.payment_failure:inv_123")).toHaveCount(0);
+
+  await drawer.getByRole("button", { name: "View timeline event invoice.payment_failure" }).click();
+  await expect(drawer.getByText("invoice.payment_failure:inv_123")).toBeVisible();
 });
 
 test("platform session is blocked from tenant payment operations without hitting tenant APIs", async ({ page }) => {

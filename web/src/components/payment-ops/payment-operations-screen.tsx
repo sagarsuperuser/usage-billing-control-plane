@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ChevronLeft,
@@ -100,6 +100,7 @@ export function PaymentOperationsScreen() {
   const [eventOrder, setEventOrder] = useState<(typeof orderOptions)[number]["value"]>("desc");
   const [eventLimit, setEventLimit] = useState(50);
   const [eventOffset, setEventOffset] = useState(0);
+  const [selectedEventID, setSelectedEventID] = useState("");
   const summaryStaleAfterSec = 300;
 
   const filters: InvoiceStatusFilters = useMemo(
@@ -195,6 +196,7 @@ export function PaymentOperationsScreen() {
   const attentionRequiredCount = summary?.attention_required_count ?? 0;
   const staleAttentionCount = summary?.stale_attention_required ?? 0;
   const selectedItem = items.find((item) => item.invoice_id === selectedInvoiceID);
+  const selectedEvent = (eventsQuery.data?.items || []).find((item) => item.id === selectedEventID) ?? null;
 
   const canGoNextStatuses = items.length === statusLimit;
   const canGoPrevStatuses = statusOffset > 0;
@@ -205,8 +207,22 @@ export function PaymentOperationsScreen() {
     setSelectedInvoiceID(invoiceID);
     setSelectedOrganizationID((orgID || "").trim());
     setEventOffset(0);
+    setSelectedEventID("");
     setTimelineOpen(true);
   };
+
+  useEffect(() => {
+    const items = eventsQuery.data?.items || [];
+    if (!timelineOpen || items.length === 0) {
+      if (!timelineOpen) {
+        setSelectedEventID("");
+      }
+      return;
+    }
+    if (selectedEventID && !items.some((item) => item.id === selectedEventID)) {
+      setSelectedEventID("");
+    }
+  }, [eventsQuery.data, selectedEventID, timelineOpen]);
 
   const resetStatusOffset = () => setStatusOffset(0);
 
@@ -696,36 +712,21 @@ export function PaymentOperationsScreen() {
                 <EmptyState label="No webhook events found for this invoice yet." />
               ) : null}
 
-              {(eventsQuery.data?.items || []).map((event) => (
-                <article key={event.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{event.webhook_type}</p>
-                      <p className="text-xs text-slate-500">Occurred {formatExactTimestamp(event.occurred_at)}</p>
-                      <p className="text-[11px] text-slate-500">Received {formatExactTimestamp(event.received_at)}</p>
-                    </div>
-                    <span className={`rounded-md px-2 py-1 text-[11px] ${paymentBadgeClass(event.payment_status)}`}>
-                      {event.payment_status || "n/a"}
-                    </span>
+              {(eventsQuery.data?.items || []).length > 0 ? (
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(280px,0.85fr)]">
+                  <div className="space-y-3">
+                    {(eventsQuery.data?.items || []).map((event) => (
+                      <TimelineEventRow
+                        key={event.id}
+                        event={event}
+                        selected={event.id === selectedEventID}
+                        onSelect={() => setSelectedEventID(event.id)}
+                      />
+                    ))}
                   </div>
-                  <dl className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-600">
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-500">Object</dt>
-                      <dd>{event.object_type}</dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-500">Webhook key</dt>
-                      <dd className="max-w-[62%] truncate" title={event.webhook_key}>
-                        {event.webhook_key}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-500">Relative time</dt>
-                      <dd>{formatRelativeTimestamp(event.received_at)}</dd>
-                    </div>
-                  </dl>
-                </article>
-              ))}
+                  <TimelineEventDetail event={selectedEvent} />
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3 text-xs text-slate-600">
@@ -754,6 +755,92 @@ export function PaymentOperationsScreen() {
           </aside>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function TimelineEventRow({
+  event,
+  selected,
+  onSelect,
+}: {
+  event: Awaited<ReturnType<typeof fetchInvoiceEvents>>["items"][number];
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`View timeline event ${event.webhook_type}`}
+      className={`w-full rounded-xl border p-3 text-left transition ${
+        selected
+          ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
+          : "border-stone-200 bg-stone-50 hover:border-stone-300 hover:bg-white"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-900">{event.webhook_type}</p>
+          <p className="mt-1 text-xs text-slate-500">Occurred {formatExactTimestamp(event.occurred_at)}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Received {formatRelativeTimestamp(event.received_at)}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <span className={`rounded-md px-2 py-1 text-[11px] ${paymentBadgeClass(event.payment_status)}`}>
+            {event.payment_status || "n/a"}
+          </span>
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">View details</p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function TimelineEventDetail({
+  event,
+}: {
+  event: Awaited<ReturnType<typeof fetchInvoiceEvents>>["items"][number] | null;
+}) {
+  if (!event) {
+    return (
+      <aside className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
+        Select a timeline event to inspect the raw webhook fields.
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event detail</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <TimelineDetailField label="Webhook type" value={event.webhook_type} />
+        <TimelineDetailField label="Payment status" value={event.payment_status || "-"} />
+        <TimelineDetailField label="Object" value={event.object_type} />
+        <TimelineDetailField label="Occurred at" value={formatExactTimestamp(event.occurred_at)} />
+        <TimelineDetailField label="Received at" value={formatExactTimestamp(event.received_at)} />
+        <TimelineDetailField label="Relative time" value={formatRelativeTimestamp(event.received_at)} />
+        <TimelineDetailField label="Webhook key" value={event.webhook_key} mono className="sm:col-span-2" />
+      </div>
+    </aside>
+  );
+}
+
+function TimelineDetailField({
+  label,
+  value,
+  mono,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-lg border border-stone-200 bg-white px-3 py-3 ${className}`.trim()}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
     </div>
   );
 }

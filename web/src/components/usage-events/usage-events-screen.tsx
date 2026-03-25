@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -54,6 +54,7 @@ export function UsageEventsScreen() {
   const [submitted, setSubmitted] = useState<FilterState>(defaultFilters);
   const [cursor, setCursor] = useState("");
   const [cursorTrail, setCursorTrail] = useState<string[]>([]);
+  const [selectedEventID, setSelectedEventID] = useState("");
 
   const query = useQuery({
     queryKey: ["usage-events", apiBaseURL, submitted, cursor],
@@ -72,12 +73,23 @@ export function UsageEventsScreen() {
   });
 
   const items = query.data?.items || [];
+  const selectedEvent = items.find((item) => item.id === selectedEventID) ?? null;
   const stats = useMemo(() => ({
     visible: items.length,
     quantity: items.reduce((sum, item) => sum + item.quantity, 0),
     customers: new Set(items.map((item) => item.customer_id)).size,
     meters: new Set(items.map((item) => item.meter_id)).size,
   }), [items]);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setSelectedEventID("");
+      return;
+    }
+    if (selectedEventID && !items.some((item) => item.id === selectedEventID)) {
+      setSelectedEventID("");
+    }
+  }, [items, selectedEventID]);
 
   const applyFilters = () => {
     setSubmitted(filters);
@@ -216,11 +228,25 @@ export function UsageEventsScreen() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3">
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.85fr)]">
             {query.isLoading ? <LoadingState /> : null}
             {query.isError ? <ErrorState message={query.error instanceof Error ? query.error.message : "Loading usage events failed."} /> : null}
             {!query.isLoading && !query.isError && items.length === 0 ? <EmptyState /> : null}
-            {!query.isLoading && !query.isError ? items.map((item) => <UsageEventRow key={item.id} item={item} />) : null}
+            {!query.isLoading && !query.isError && items.length > 0 ? (
+              <>
+                <div className="grid gap-3">
+                  {items.map((item) => (
+                    <UsageEventRow
+                      key={item.id}
+                      item={item}
+                      selected={item.id === selectedEventID}
+                      onSelect={() => setSelectedEventID(item.id)}
+                    />
+                  ))}
+                </div>
+                <UsageEventDetail item={selectedEvent} />
+              </>
+            ) : null}
           </div>
         </section>
       </main>
@@ -228,24 +254,77 @@ export function UsageEventsScreen() {
   );
 }
 
-function UsageEventRow({ item }: { item: UsageEvent }) {
+function UsageEventRow({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: UsageEvent;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   return (
-    <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.1fr)_repeat(5,minmax(0,0.58fr))] lg:items-center">
-      <div className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="truncate text-base font-semibold text-slate-950">{item.customer_id}</h3>
-          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">{item.quantity} units</span>
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`View details for usage event ${item.id}`}
+      className={`w-full rounded-xl border p-4 text-left transition ${
+        selected
+          ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
+          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
+      }`}
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="truncate text-base font-semibold text-slate-950">{item.customer_id}</h3>
+            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+              {item.quantity} units
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-slate-600">
+            Meter <span className="font-mono text-slate-700">{item.meter_id}</span>
+            {item.subscription_id ? (
+              <>
+                {" "}
+                · Subscription <span className="font-mono text-slate-700">{item.subscription_id}</span>
+              </>
+            ) : null}
+          </p>
         </div>
-        <p className="mt-1 break-all font-mono text-xs text-slate-500">{item.id}</p>
-        <p className="mt-2 text-sm text-slate-600">Observed {formatRelativeTimestamp(item.timestamp)}.</p>
+        <div className="shrink-0 text-right">
+          <p className="text-sm text-slate-500">Observed {formatRelativeTimestamp(item.timestamp)}</p>
+          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">View details</p>
+        </div>
       </div>
-      <StatusCell label="Meter" value={item.meter_id} mono />
-      <StatusCell label="Subscription" value={item.subscription_id || "-"} mono />
-      <StatusCell label="Occurred at" value={formatExactTimestamp(item.timestamp)} />
-      <StatusCell label="Idempotency key" value={item.idempotency_key || "-"} mono />
-      <StatusCell label="Quantity" value={String(item.quantity)} />
-      <StatusCell label="Tenant" value={item.tenant_id || "-"} mono />
-    </div>
+    </button>
+  );
+}
+
+function UsageEventDetail({ item }: { item: UsageEvent | null }) {
+  if (!item) {
+    return (
+      <aside className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
+        Select an event to inspect raw identifiers and ingestion detail.
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event detail</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <DetailField label="Customer" value={item.customer_id} mono />
+        <DetailField label="Meter" value={item.meter_id} mono />
+        <DetailField label="Subscription" value={item.subscription_id || "-"} mono />
+        <DetailField label="Tenant" value={item.tenant_id || "-"} mono />
+        <DetailField label="Quantity" value={String(item.quantity)} />
+        <DetailField label="Occurred at" value={formatExactTimestamp(item.timestamp)} />
+        <DetailField label="Idempotency key" value={item.idempotency_key || "-"} mono />
+        <DetailField label="Event ID" value={item.id} mono className="sm:col-span-2" />
+      </div>
+    </aside>
   );
 }
 
@@ -263,6 +342,15 @@ function StatusCell({ label, value, mono }: { label: string; value: string; mono
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className={`mt-2 break-all text-sm text-slate-950 ${mono ? "font-mono" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+function DetailField({ label, value, mono, className = "" }: { label: string; value: string; mono?: boolean; className?: string }) {
+  return (
+    <div className={`rounded-lg border border-slate-200 bg-white px-4 py-3 ${className}`.trim()}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-2 break-all text-sm text-slate-950 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
     </div>
   );
 }
