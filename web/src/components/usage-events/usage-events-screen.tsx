@@ -144,8 +144,8 @@ export function UsageEventsScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Usage events are tenant-scoped. Sign in with a tenant session to inspect event ingestion."
+            title="Workspace session required"
+            body="Usage events are workspace-scoped. Sign in with a workspace session to inspect event ingestion."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

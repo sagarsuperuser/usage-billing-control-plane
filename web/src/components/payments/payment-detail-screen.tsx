@@ -89,7 +89,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
+            title="Workspace session required"
             body="Payments are workspace-scoped. Sign in with a workspace account to inspect payment state, lifecycle signals, and retry actions."
             actionHref="/billing-connections"
             actionLabel="Open platform home"

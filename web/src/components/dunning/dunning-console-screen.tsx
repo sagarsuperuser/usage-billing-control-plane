@@ -217,8 +217,8 @@ export function DunningConsoleScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Dunning is tenant-scoped. Sign in with a tenant account to inspect collection policy and invoice-level runs."
+            title="Workspace session required"
+            body="Dunning is workspace-scoped. Sign in with a workspace account to inspect collection policy and invoice-level runs."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

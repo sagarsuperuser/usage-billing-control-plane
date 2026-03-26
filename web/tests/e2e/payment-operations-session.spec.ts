@@ -248,7 +248,7 @@ test("shows normalized failure diagnosis in the payment timeline drawer", async 
   await expect(drawer.getByText("invoice.payment_failure:inv_123")).toBeVisible();
 });
 
-test("platform session is blocked from tenant payment operations without hitting tenant APIs", async ({ page }) => {
+test("platform session is blocked from workspace payment operations without hitting workspace APIs", async ({ page }) => {
   await installPaymentOpsMock(page, {
     authenticated: true,
     scope: "platform",
@@ -259,8 +259,8 @@ test("platform session is blocked from tenant payment operations without hitting
 
   await page.goto("/payment-operations");
 
-  await expect(page.getByText("Tenant session required")).toBeVisible();
-  await expect(page.getByText("Payment operations are tenant-scoped.")).toBeVisible();
+  await expect(page.getByText("Workspace session required")).toBeVisible();
+  await expect(page.getByText("Payment operations are workspace-scoped.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open platform home" })).toBeVisible();
   await expect(page.getByText("INV-123")).toHaveCount(0);
   await expect

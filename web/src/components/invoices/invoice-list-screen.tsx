@@ -107,8 +107,8 @@ export function InvoiceListScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Invoices are tenant-scoped. Sign in with a tenant account to browse invoice state and payment readiness."
+            title="Workspace session required"
+            body="Invoices are workspace-scoped. Sign in with a workspace account to browse invoice state and payment readiness."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

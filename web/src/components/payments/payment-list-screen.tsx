@@ -134,7 +134,7 @@ export function PaymentListScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
+            title="Workspace session required"
             body="Payments are workspace-scoped. Sign in with a workspace account to inspect payment state, lifecycle signals, and recovery readiness."
             actionHref="/billing-connections"
             actionLabel="Open platform home"

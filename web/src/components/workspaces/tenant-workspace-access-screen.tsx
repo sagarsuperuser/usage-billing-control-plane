@@ -281,8 +281,8 @@ export function TenantWorkspaceAccessScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Switch to a tenant session to manage members, invites, and service accounts."
+            title="Workspace session required"
+            body="Switch to a workspace session to manage members, invites, and service accounts."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

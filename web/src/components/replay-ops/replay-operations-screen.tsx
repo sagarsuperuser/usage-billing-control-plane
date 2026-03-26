@@ -499,8 +499,8 @@ export function ReplayOperationsScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Recovery tools are tenant-scoped. Sign in with a tenant account to inspect replay jobs or queue recovery work."
+            title="Workspace session required"
+            body="Recovery tools are workspace-scoped. Sign in with a workspace account to inspect replay jobs or queue recovery work."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

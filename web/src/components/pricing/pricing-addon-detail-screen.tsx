@@ -29,7 +29,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/add-ons", label: "Add-ons" }, { label: addOn?.name || addOnID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Tenant session required" body="Add-ons are tenant-scoped. Sign in with a tenant account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
+        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Add-ons are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
         {addOnQuery.isLoading ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading add-on detail</div></section>

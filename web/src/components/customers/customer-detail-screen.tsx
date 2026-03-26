@@ -149,8 +149,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Customer detail is tenant-scoped. Sign in with a tenant reader, writer, or admin account to inspect readiness and run recovery actions."
+            title="Workspace session required"
+            body="Customer detail is workspace-scoped. Sign in with a workspace reader, writer, or admin account to inspect readiness and run recovery actions."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

@@ -146,8 +146,8 @@ export function InvoiceExplainabilityScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Explainability is tenant-scoped. Sign in with a tenant account to inspect invoice computation traces."
+            title="Workspace session required"
+            body="Explainability is workspace-scoped. Sign in with a workspace account to inspect invoice computation traces."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

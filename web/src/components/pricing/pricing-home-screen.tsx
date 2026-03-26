@@ -67,8 +67,8 @@ export function PricingHomeScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Pricing is tenant-scoped. Sign in with a tenant account to define metrics and plans."
+            title="Workspace session required"
+            body="Pricing is workspace-scoped. Sign in with a workspace account to define metrics and plans."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

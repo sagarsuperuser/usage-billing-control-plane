@@ -119,7 +119,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
+            title="Workspace session required"
             body="Subscription detail is workspace-scoped. Sign in with a workspace account to inspect readiness and request payment setup."
             actionHref="/billing-connections"
             actionLabel="Open platform home"

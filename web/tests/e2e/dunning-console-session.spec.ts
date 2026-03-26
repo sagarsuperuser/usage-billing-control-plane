@@ -129,7 +129,7 @@ test("shows normalized dunning diagnosis guidance in the run inventory", async (
   await expect(pausedRow.getByText("Resume or resolve this run before expecting retries or reminders to continue.")).toBeVisible();
 });
 
-test("blocks platform sessions from tenant-scoped dunning operations", async ({ page }) => {
+test("blocks platform sessions from workspace-scoped dunning operations", async ({ page }) => {
   await installDunningConsoleMock(page, {
     authenticated: true,
     scope: "platform",
@@ -140,7 +140,7 @@ test("blocks platform sessions from tenant-scoped dunning operations", async ({ 
 
   await page.goto("/dunning");
 
-  await expect(page.getByText("Tenant session required")).toBeVisible();
-  await expect(page.getByText("Dunning is tenant-scoped.")).toBeVisible();
+  await expect(page.getByText("Workspace session required")).toBeVisible();
+  await expect(page.getByText("Dunning is workspace-scoped.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open platform home" })).toBeVisible();
 });

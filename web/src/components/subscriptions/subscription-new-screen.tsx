@@ -69,7 +69,7 @@ export function SubscriptionNewScreen() {
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice title="Tenant session required" body="Subscriptions are tenant-scoped. Sign in with a tenant account to create them." actionHref="/billing-connections" actionLabel="Open platform home" />
+          <ScopeNotice title="Workspace session required" body="Subscriptions are workspace-scoped. Sign in with a workspace account to create them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
         {mutation.isSuccess ? (

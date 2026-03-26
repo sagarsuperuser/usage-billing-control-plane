@@ -47,7 +47,7 @@ export function PricingTaxNewScreen() {
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/taxes", label: "Taxes" }, { label: "New" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Tenant session required" body="Taxes are tenant-scoped. Sign in with a tenant account to create one." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
+        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to create one." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing tax</p>

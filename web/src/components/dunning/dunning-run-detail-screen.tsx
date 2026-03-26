@@ -97,8 +97,8 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Dunning run detail is tenant-scoped. Sign in with a tenant account to inspect collection workflow history."
+            title="Workspace session required"
+            body="Dunning run detail is workspace-scoped. Sign in with a workspace account to inspect collection workflow history."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

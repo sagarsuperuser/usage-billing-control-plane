@@ -385,8 +385,8 @@ export function PaymentOperationsScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Payment operations are tenant-scoped. Sign in with a tenant account to inspect invoice payment status or retry failed payments."
+            title="Workspace session required"
+            body="Payment operations are workspace-scoped. Sign in with a workspace account to inspect invoice payment status or retry failed payments."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

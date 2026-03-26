@@ -96,8 +96,8 @@ export function CustomerOnboardingScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="This screen drives tenant-scoped customer and payment APIs. Sign in with a tenant account."
+            title="Workspace session required"
+            body="This screen drives workspace-scoped customer and payment APIs. Sign in with a workspace account."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

@@ -106,7 +106,7 @@ test("shows normalized diagnosis guidance on dunning run detail", async ({ page 
   await expect(page.getByRole("button", { name: "Retry payment now" })).toHaveCount(0);
 });
 
-test("blocks platform sessions from tenant-scoped dunning run detail", async ({ page }) => {
+test("blocks platform sessions from workspace-scoped dunning run detail", async ({ page }) => {
   await installDunningRunDetailMock(page, {
     authenticated: true,
     scope: "platform",
@@ -117,7 +117,7 @@ test("blocks platform sessions from tenant-scoped dunning run detail", async ({ 
 
   await page.goto("/dunning/drun_123");
 
-  await expect(page.getByText("Tenant session required")).toBeVisible();
-  await expect(page.getByText("Dunning run detail is tenant-scoped.")).toBeVisible();
+  await expect(page.getByText("Workspace session required")).toBeVisible();
+  await expect(page.getByText("Dunning run detail is workspace-scoped.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open platform home" })).toBeVisible();
 });

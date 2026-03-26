@@ -56,7 +56,7 @@ export function PricingCouponListScreen() {
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice title="Tenant session required" body="Coupons are tenant-scoped. Sign in with a tenant account to manage them." actionHref="/billing-connections" actionLabel="Open platform home" />
+          <ScopeNotice title="Workspace session required" body="Coupons are workspace-scoped. Sign in with a workspace account to manage them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
         <section className="grid gap-4 md:grid-cols-3">

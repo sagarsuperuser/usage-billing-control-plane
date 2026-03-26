@@ -110,7 +110,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
+            title="Workspace session required"
             body="Invoice detail is workspace-scoped. Sign in with a workspace account to inspect financial state and invoice actions."
             actionHref="/billing-connections"
             actionLabel="Open platform home"

@@ -104,8 +104,8 @@ export function CustomerListScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
-            title="Tenant session required"
-            body="Customer directory is tenant-scoped. Sign in with a tenant reader, writer, or admin account to browse customer readiness."
+            title="Workspace session required"
+            body="Customer directory is workspace-scoped. Sign in with a workspace reader, writer, or admin account to browse customer readiness."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

@@ -29,7 +29,7 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice title="Tenant session required" body="Metrics are tenant-scoped. Sign in with a tenant account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" />
+          <ScopeNotice title="Workspace session required" body="Metrics are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
         {query.isLoading ? (
