@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"usage-billing-control-plane/internal/api"
+	"usage-billing-control-plane/internal/billingcheck"
 	"usage-billing-control-plane/internal/dunningflow"
 	"usage-billing-control-plane/internal/paymentsync"
 	"usage-billing-control-plane/internal/replay"
@@ -28,6 +29,7 @@ type ServerConfig struct {
 	RateLimit        RateLimitConfig
 	Lago             LagoConfig
 	BillingProviders BillingProviderConfig
+	BillingChecks    BillingConnectionCheckConfig
 	Payment          PaymentReconcileConfig
 	Dunning          DunningConfig
 	APIKeysRaw       string
@@ -47,13 +49,15 @@ type DBConfig struct {
 }
 
 type RoleConfig struct {
-	RunAPIServer                 bool
-	RunReplayWorker              bool
-	RunReplayDispatcher          bool
-	RunPaymentReconcileWorker    bool
-	RunPaymentReconcileScheduler bool
-	RunDunningWorker             bool
-	RunDunningScheduler          bool
+	RunAPIServer                       bool
+	RunReplayWorker                    bool
+	RunReplayDispatcher                bool
+	RunBillingConnectionCheckWorker    bool
+	RunBillingConnectionCheckScheduler bool
+	RunPaymentReconcileWorker          bool
+	RunPaymentReconcileScheduler       bool
+	RunDunningWorker                   bool
+	RunDunningScheduler                bool
 }
 
 type TemporalConfig struct {
@@ -126,6 +130,14 @@ type PaymentReconcileConfig struct {
 	StaleAfterSeconds int
 }
 
+type BillingConnectionCheckConfig struct {
+	TaskQueue         string
+	CronSchedule      string
+	WorkflowID        string
+	Batch             int
+	StaleAfterSeconds int
+}
+
 type DunningConfig struct {
 	TaskQueue    string
 	CronSchedule string
@@ -156,19 +168,21 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	productionLike := isProductionLikeEnvironment(runtimeEnv)
 
 	roles := RoleConfig{
-		RunAPIServer:                 getBoolEnv("RUN_API_SERVER", true),
-		RunReplayWorker:              getBoolEnv("RUN_REPLAY_WORKER", true),
-		RunReplayDispatcher:          getBoolEnv("RUN_REPLAY_DISPATCHER", true),
-		RunPaymentReconcileWorker:    getBoolEnv("RUN_PAYMENT_RECONCILE_WORKER", false),
-		RunPaymentReconcileScheduler: getBoolEnv("RUN_PAYMENT_RECONCILE_SCHEDULER", false),
-		RunDunningWorker:             getBoolEnv("RUN_DUNNING_WORKER", false),
-		RunDunningScheduler:          getBoolEnv("RUN_DUNNING_SCHEDULER", false),
+		RunAPIServer:                       getBoolEnv("RUN_API_SERVER", true),
+		RunReplayWorker:                    getBoolEnv("RUN_REPLAY_WORKER", true),
+		RunReplayDispatcher:                getBoolEnv("RUN_REPLAY_DISPATCHER", true),
+		RunBillingConnectionCheckWorker:    getBoolEnv("RUN_BILLING_CONNECTION_CHECK_WORKER", false),
+		RunBillingConnectionCheckScheduler: getBoolEnv("RUN_BILLING_CONNECTION_CHECK_SCHEDULER", false),
+		RunPaymentReconcileWorker:          getBoolEnv("RUN_PAYMENT_RECONCILE_WORKER", false),
+		RunPaymentReconcileScheduler:       getBoolEnv("RUN_PAYMENT_RECONCILE_SCHEDULER", false),
+		RunDunningWorker:                   getBoolEnv("RUN_DUNNING_WORKER", false),
+		RunDunningScheduler:                getBoolEnv("RUN_DUNNING_SCHEDULER", false),
 	}
-	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler && !roles.RunDunningWorker && !roles.RunDunningScheduler {
-		return ServerConfig{}, fmt.Errorf("at least one role must be enabled: RUN_API_SERVER, RUN_REPLAY_WORKER, RUN_REPLAY_DISPATCHER, RUN_PAYMENT_RECONCILE_WORKER, RUN_PAYMENT_RECONCILE_SCHEDULER, RUN_DUNNING_WORKER, RUN_DUNNING_SCHEDULER")
+	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunBillingConnectionCheckWorker && !roles.RunBillingConnectionCheckScheduler && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler && !roles.RunDunningWorker && !roles.RunDunningScheduler {
+		return ServerConfig{}, fmt.Errorf("at least one role must be enabled: RUN_API_SERVER, RUN_REPLAY_WORKER, RUN_REPLAY_DISPATCHER, RUN_BILLING_CONNECTION_CHECK_WORKER, RUN_BILLING_CONNECTION_CHECK_SCHEDULER, RUN_PAYMENT_RECONCILE_WORKER, RUN_PAYMENT_RECONCILE_SCHEDULER, RUN_DUNNING_WORKER, RUN_DUNNING_SCHEDULER")
 	}
-	if !roles.RunAPIServer && (roles.RunPaymentReconcileWorker || roles.RunPaymentReconcileScheduler || roles.RunDunningWorker || roles.RunDunningScheduler) {
-		return ServerConfig{}, fmt.Errorf("payment reconcile and dunning roles require RUN_API_SERVER=true")
+	if !roles.RunAPIServer && (roles.RunBillingConnectionCheckWorker || roles.RunBillingConnectionCheckScheduler || roles.RunPaymentReconcileWorker || roles.RunPaymentReconcileScheduler || roles.RunDunningWorker || roles.RunDunningScheduler) {
+		return ServerConfig{}, fmt.Errorf("billing connection check, payment reconcile, and dunning roles require RUN_API_SERVER=true")
 	}
 
 	uiSessionCookieSecure := getBoolEnv("UI_SESSION_COOKIE_SECURE", productionLike)
@@ -325,6 +339,13 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			SecretStoreSessionToken:    billingProviderSecretStoreSessionToken,
 			DefaultLagoOrganizationID:  billingProviderDefaultLagoOrganizationID,
 			StripeSuccessRedirectURL:   billingProviderStripeSuccessRedirectURL,
+		},
+		BillingChecks: BillingConnectionCheckConfig{
+			TaskQueue:         firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CONNECTION_CHECK_TEMPORAL_TASK_QUEUE")), billingcheck.DefaultTemporalBillingConnectionCheckTaskQueue),
+			CronSchedule:      firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CONNECTION_CHECK_CRON_SCHEDULE")), billingcheck.DefaultBillingConnectionCheckCronSchedule),
+			WorkflowID:        firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CONNECTION_CHECK_WORKFLOW_ID")), billingcheck.DefaultBillingConnectionCheckWorkflowID),
+			Batch:             getIntEnv("BILLING_CONNECTION_CHECK_BATCH", 50),
+			StaleAfterSeconds: getIntEnv("BILLING_CONNECTION_CHECK_STALE_AFTER_SEC", 21600),
 		},
 		Payment: PaymentReconcileConfig{
 			TaskQueue:         firstNonEmpty(strings.TrimSpace(os.Getenv("PAYMENT_RECONCILE_TEMPORAL_TASK_QUEUE")), paymentsync.DefaultTemporalPaymentReconcileTaskQueue),

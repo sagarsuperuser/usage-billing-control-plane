@@ -84,6 +84,19 @@ type ListBillingProviderConnectionsRequest struct {
 	Offset        int    `json:"offset,omitempty"`
 }
 
+type BillingProviderConnectionRecheckBatchRequest struct {
+	Limit      int
+	StaleAfter time.Duration
+}
+
+type BillingProviderConnectionRecheckBatchResult struct {
+	Scanned int
+	Checked int
+	Healthy int
+	Failed  int
+	Skipped int
+}
+
 func NewBillingProviderConnectionService(repo store.Repository, secretStore BillingSecretStore, adapter BillingProviderAdapter) *BillingProviderConnectionService {
 	return &BillingProviderConnectionService{store: repo, secretStore: secretStore, adapter: adapter}
 }
@@ -422,6 +435,64 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	current.LastSyncError = ""
 	current.UpdatedAt = now
 	return s.store.UpdateBillingProviderConnection(current)
+}
+
+func (s *BillingProviderConnectionService) RecheckBillingProviderConnectionsBatch(ctx context.Context, req BillingProviderConnectionRecheckBatchRequest) (BillingProviderConnectionRecheckBatchResult, error) {
+	if s == nil || s.store == nil {
+		return BillingProviderConnectionRecheckBatchResult{}, fmt.Errorf("%w: billing provider repository is required", ErrValidation)
+	}
+	if req.Limit <= 0 {
+		return BillingProviderConnectionRecheckBatchResult{}, fmt.Errorf("%w: limit must be > 0", ErrValidation)
+	}
+	if req.StaleAfter <= 0 {
+		return BillingProviderConnectionRecheckBatchResult{}, fmt.Errorf("%w: stale_after must be > 0", ErrValidation)
+	}
+
+	pageSize := req.Limit
+	if pageSize < 25 {
+		pageSize = 25
+	}
+
+	var result BillingProviderConnectionRecheckBatchResult
+	offset := 0
+	now := time.Now().UTC()
+	for result.Checked < req.Limit {
+		items, err := s.store.ListBillingProviderConnections(store.BillingProviderConnectionListFilter{
+			Limit:  pageSize,
+			Offset: offset,
+		})
+		if err != nil {
+			return result, err
+		}
+		if len(items) == 0 {
+			break
+		}
+		result.Scanned += len(items)
+		for _, item := range items {
+			if result.Checked >= req.Limit {
+				break
+			}
+			if item.Status == domain.BillingProviderConnectionStatusDisabled {
+				result.Skipped++
+				continue
+			}
+			if item.LastSyncedAt != nil && now.Sub(item.LastSyncedAt.UTC()) < req.StaleAfter {
+				result.Skipped++
+				continue
+			}
+			result.Checked++
+			if _, err := s.SyncBillingProviderConnection(ctx, item.ID); err != nil {
+				result.Failed++
+			} else {
+				result.Healthy++
+			}
+		}
+		offset += len(items)
+		if len(items) < pageSize {
+			break
+		}
+	}
+	return result, nil
 }
 
 func (s *BillingProviderConnectionService) DisableBillingProviderConnection(id string) (domain.BillingProviderConnection, error) {

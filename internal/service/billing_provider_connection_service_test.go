@@ -226,6 +226,123 @@ func TestBillingProviderConnectionService_SyncFailsWhenStripeVerificationFails(t
 	}
 }
 
+func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
+	repo := newTestBillingProviderRepo(t)
+	secretStore := NewMemoryBillingSecretStore()
+	verifier := &stubStripeConnectionVerifier{result: StripeConnectionVerificationResult{
+		AccountID:  "acct_batch",
+		Livemode:   false,
+		VerifiedAt: time.Now().UTC(),
+	}}
+	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
+		LagoOrganizationID: "org_batch",
+		LagoProviderCode:   "stripe_batch",
+		ConnectedAt:        time.Now().UTC(),
+		LastSyncedAt:       time.Now().UTC(),
+	}}
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
+
+	staleA, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:       "stripe",
+		Environment:        "test",
+		DisplayName:        "Stripe Stale A",
+		Scope:              "platform",
+		StripeSecretKey:    "sk_test_batch_a",
+		LagoOrganizationID: "org_seed",
+	}, "platform_api_key", "pkey_batch_a")
+	if err != nil {
+		t.Fatalf("create stale A: %v", err)
+	}
+	staleB, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:       "stripe",
+		Environment:        "test",
+		DisplayName:        "Stripe Stale B",
+		Scope:              "platform",
+		StripeSecretKey:    "sk_test_batch_b",
+		LagoOrganizationID: "org_seed",
+	}, "platform_api_key", "pkey_batch_b")
+	if err != nil {
+		t.Fatalf("create stale B: %v", err)
+	}
+	fresh, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:       "stripe",
+		Environment:        "test",
+		DisplayName:        "Stripe Fresh",
+		Scope:              "platform",
+		StripeSecretKey:    "sk_test_batch_c",
+		LagoOrganizationID: "org_seed",
+	}, "platform_api_key", "pkey_batch_c")
+	if err != nil {
+		t.Fatalf("create fresh: %v", err)
+	}
+	freshLastSyncedAt := time.Now().UTC()
+	fresh.Status = domain.BillingProviderConnectionStatusConnected
+	fresh.LastSyncedAt = &freshLastSyncedAt
+	fresh.ConnectedAt = &freshLastSyncedAt
+	if _, err := repo.UpdateBillingProviderConnection(fresh); err != nil {
+		t.Fatalf("persist fresh connection: %v", err)
+	}
+	disabled, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:       "stripe",
+		Environment:        "test",
+		DisplayName:        "Stripe Disabled",
+		Scope:              "platform",
+		StripeSecretKey:    "sk_test_batch_d",
+		LagoOrganizationID: "org_seed",
+	}, "platform_api_key", "pkey_batch_d")
+	if err != nil {
+		t.Fatalf("create disabled: %v", err)
+	}
+	if _, err := svc.DisableBillingProviderConnection(disabled.ID); err != nil {
+		t.Fatalf("disable connection: %v", err)
+	}
+
+	result, err := svc.RecheckBillingProviderConnectionsBatch(context.Background(), BillingProviderConnectionRecheckBatchRequest{
+		Limit:      2,
+		StaleAfter: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("recheck batch: %v", err)
+	}
+	if result.Checked != 2 {
+		t.Fatalf("expected 2 checked connections, got %d", result.Checked)
+	}
+	if result.Healthy != 2 {
+		t.Fatalf("expected 2 healthy checks, got %d", result.Healthy)
+	}
+	if result.Failed != 0 {
+		t.Fatalf("expected 0 failed checks, got %d", result.Failed)
+	}
+	if verifier.calls != 2 {
+		t.Fatalf("expected verifier calls 2, got %d", verifier.calls)
+	}
+	if adapter.calls != 2 {
+		t.Fatalf("expected adapter calls 2, got %d", adapter.calls)
+	}
+
+	gotStaleA, err := repo.GetBillingProviderConnection(staleA.ID)
+	if err != nil {
+		t.Fatalf("get stale A: %v", err)
+	}
+	if gotStaleA.LastSyncedAt == nil {
+		t.Fatalf("expected stale A to be rechecked")
+	}
+	gotStaleB, err := repo.GetBillingProviderConnection(staleB.ID)
+	if err != nil {
+		t.Fatalf("get stale B: %v", err)
+	}
+	if gotStaleB.LastSyncedAt == nil {
+		t.Fatalf("expected stale B to be rechecked")
+	}
+	gotFresh, err := repo.GetBillingProviderConnection(fresh.ID)
+	if err != nil {
+		t.Fatalf("get fresh: %v", err)
+	}
+	if gotFresh.LastSyncedAt == nil || !gotFresh.LastSyncedAt.Equal(freshLastSyncedAt) {
+		t.Fatalf("expected fresh connection to remain unchanged")
+	}
+}
+
 func TestBillingProviderConnectionService_SyncMissingLagoOrganizationID(t *testing.T) {
 	repo := newTestBillingProviderRepo(t)
 	secretStore := NewMemoryBillingSecretStore()

@@ -21,6 +21,7 @@ import (
 
 	"usage-billing-control-plane/internal/api"
 	"usage-billing-control-plane/internal/appconfig"
+	"usage-billing-control-plane/internal/billingcheck"
 	"usage-billing-control-plane/internal/dunningflow"
 	"usage-billing-control-plane/internal/logging"
 	"usage-billing-control-plane/internal/paymentsync"
@@ -68,6 +69,8 @@ func main() {
 		"api", cfg.Roles.RunAPIServer,
 		"replay_worker", cfg.Roles.RunReplayWorker,
 		"replay_dispatcher", cfg.Roles.RunReplayDispatcher,
+		"billing_connection_check_worker", cfg.Roles.RunBillingConnectionCheckWorker,
+		"billing_connection_check_scheduler", cfg.Roles.RunBillingConnectionCheckScheduler,
 		"payment_reconcile_worker", cfg.Roles.RunPaymentReconcileWorker,
 		"payment_reconcile_scheduler", cfg.Roles.RunPaymentReconcileScheduler,
 		"dunning_worker", cfg.Roles.RunDunningWorker,
@@ -75,14 +78,15 @@ func main() {
 	)
 
 	var (
-		temporalClient           temporalclient.Client
-		temporalReplayWorker     temporalsdkworker.Worker
-		temporalPaymentWorker    temporalsdkworker.Worker
-		temporalDunningWorker    temporalsdkworker.Worker
-		replayTemporalDispatcher *replay.TemporalDispatcher
-		rateLimiterCloser        interface{ Close() error }
+		temporalClient             temporalclient.Client
+		temporalReplayWorker       temporalsdkworker.Worker
+		temporalBillingCheckWorker temporalsdkworker.Worker
+		temporalPaymentWorker      temporalsdkworker.Worker
+		temporalDunningWorker      temporalsdkworker.Worker
+		replayTemporalDispatcher   *replay.TemporalDispatcher
+		rateLimiterCloser          interface{ Close() error }
 	)
-	if cfg.Roles.RunReplayWorker || cfg.Roles.RunReplayDispatcher || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler || cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler {
+	if cfg.Roles.RunReplayWorker || cfg.Roles.RunReplayDispatcher || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler || cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler {
 		temporalClient, err = temporalclient.Dial(temporalclient.Options{
 			HostPort:  cfg.Temporal.Address,
 			Namespace: cfg.Temporal.Namespace,
@@ -132,6 +136,9 @@ func main() {
 	closeReplayRuntime := func() {
 		if temporalReplayWorker != nil {
 			temporalReplayWorker.Stop()
+		}
+		if temporalBillingCheckWorker != nil {
+			temporalBillingCheckWorker.Stop()
 		}
 		if temporalPaymentWorker != nil {
 			temporalPaymentWorker.Stop()
@@ -240,13 +247,16 @@ func main() {
 	}
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL, "default_api_key_enabled", strings.TrimSpace(cfg.Lago.APIKey) != "", "admin_bootstrap_enabled", strings.TrimSpace(cfg.Lago.AdminAPIKey) != "")
 
-	var billingSecretStore service.BillingSecretStore
+	var (
+		billingSecretStore service.BillingSecretStore
+		billingProviderSvc *service.BillingProviderConnectionService
+	)
 	if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
 		billingSecretStore, err = newBillingSecretStore(context.Background(), cfg.BillingProviders)
 		if err != nil {
 			fatal(logger, "initialize billing provider secret store", "error", err)
 		}
-		billingProviderSvc := service.NewBillingProviderConnectionService(
+		billingProviderSvc = service.NewBillingProviderConnectionService(
 			repo,
 			billingSecretStore,
 			service.NewTenantAwareLagoBillingProviderAdapter(lagoResolver, cfg.BillingProviders.StripeSuccessRedirectURL),
@@ -266,6 +276,54 @@ func main() {
 		)
 	} else {
 		logger.Info("billing provider connections disabled", "component", "server")
+	}
+
+	if cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler {
+		if temporalClient == nil {
+			fatal(logger, "temporal client is required when billing connection check roles are enabled")
+		}
+		if billingProviderSvc == nil {
+			fatal(logger, "billing connection service is required when billing connection check roles are enabled")
+		}
+		if cfg.Roles.RunBillingConnectionCheckWorker {
+			temporalBillingCheckWorker = temporalsdkworker.New(temporalClient, cfg.BillingChecks.TaskQueue, temporalsdkworker.Options{})
+			if err := billingcheck.RegisterTemporalBillingConnectionCheckWorker(temporalBillingCheckWorker, billingProviderSvc); err != nil {
+				fatal(logger, "register billing connection check worker", "error", err)
+			}
+			if err := temporalBillingCheckWorker.Start(); err != nil {
+				closeReplayRuntime()
+				fatal(logger, "start billing connection check worker", "error", err)
+			}
+			logger.Info(
+				"billing connection check worker started",
+				"component", "server",
+				"temporal_address", cfg.Temporal.Address,
+				"temporal_namespace", cfg.Temporal.Namespace,
+				"task_queue", cfg.BillingChecks.TaskQueue,
+			)
+		}
+		if cfg.Roles.RunBillingConnectionCheckScheduler {
+			input := billingcheck.BillingConnectionCheckWorkflowInput{
+				Limit:             cfg.BillingChecks.Batch,
+				StaleAfterSeconds: cfg.BillingChecks.StaleAfterSeconds,
+			}
+			startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := billingcheck.EnsureBillingConnectionCheckCronWorkflow(startCtx, temporalClient, cfg.BillingChecks.TaskQueue, cfg.BillingChecks.WorkflowID, cfg.BillingChecks.CronSchedule, input)
+			cancel()
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "ensure billing connection check cron workflow", "error", err)
+			}
+			logger.Info(
+				"billing connection check scheduler enabled",
+				"component", "server",
+				"task_queue", cfg.BillingChecks.TaskQueue,
+				"workflow_id", cfg.BillingChecks.WorkflowID,
+				"cron", cfg.BillingChecks.CronSchedule,
+				"batch", input.Limit,
+				"stale_after_sec", input.StaleAfterSeconds,
+			)
+		}
 	}
 
 	if cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler {
