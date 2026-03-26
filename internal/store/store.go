@@ -128,7 +128,7 @@ type APIKeyAuditResult struct {
 type TenantAuditFilter struct {
 	TenantID      string
 	ActorAPIKeyID string
-	Action        string
+	Actions       []string
 	Limit         int
 	Offset        int
 }

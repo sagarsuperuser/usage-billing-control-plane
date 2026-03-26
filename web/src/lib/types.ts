@@ -412,6 +412,10 @@ export interface TenantAuditEvent {
   tenant_id: string;
   actor_api_key_id?: string;
   action: string;
+  event_code: string;
+  event_category: string;
+  event_title: string;
+  event_summary: string;
   metadata?: Record<string, unknown>;
   created_at: string;
 }

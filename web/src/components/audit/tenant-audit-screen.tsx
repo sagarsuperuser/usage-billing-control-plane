@@ -44,7 +44,7 @@ export function TenantAuditScreen() {
   const actionOptions = useMemo(() => {
     const values = new Set<string>();
     for (const item of auditQuery.data?.items ?? []) {
-      if (item.action) values.add(item.action);
+      if (item.event_code) values.add(item.event_code);
     }
     return Array.from(values).sort();
   }, [auditQuery.data]);
@@ -83,7 +83,7 @@ export function TenantAuditScreen() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Platform audit</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Tenant audit trail</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">
-            Inspect tenant-level changes such as onboarding, workspace billing updates, payment setup requests, and access operations from one operator surface.
+            Review workspace, billing, customer, and access changes from one operator surface.
           </p>
         </section>
 
@@ -117,7 +117,7 @@ export function TenantAuditScreen() {
                 value={action}
                 onChange={(event) => setAction(event.target.value)}
                 list="tenant-audit-actions"
-                placeholder="created, payment_setup_requested"
+                placeholder="workspace.created"
                 className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
               />
               <datalist id="tenant-audit-actions">
@@ -142,7 +142,7 @@ export function TenantAuditScreen() {
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent tenant events</p>
             <h2 className="text-xl font-semibold text-slate-950">Audit history</h2>
-            <p className="text-sm text-slate-600">Keep the list compact. Select an event only when you need the full record.</p>
+            <p className="text-sm text-slate-600">Select an event to inspect the full change record.</p>
           </div>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.85fr)]">
@@ -185,7 +185,7 @@ function AuditRow({
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      aria-label={`View details for ${event.action} on ${event.tenant_id}`}
+      aria-label={`View details for ${event.event_title} on ${event.tenant_id}`}
       className={`w-full rounded-xl border p-4 text-left transition ${
         selected
           ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
@@ -196,10 +196,12 @@ function AuditRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-              {event.action}
+              {event.event_category}
             </span>
             <span className="text-[11px] text-slate-500">{metadataCount} field{metadataCount === 1 ? "" : "s"}</span>
           </div>
+          <p className="mt-2 text-base font-semibold text-slate-950">{event.event_title}</p>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">{event.event_summary}</p>
           <p className="mt-2 text-sm text-slate-700">
             <span className="font-medium text-slate-950">{event.tenant_id}</span>
             {event.actor_api_key_id ? (
@@ -233,8 +235,13 @@ function AuditDetail({ event }: { event: TenantAuditEvent | null }) {
   return (
     <aside className="rounded-xl border border-slate-200 bg-slate-50 p-5">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event detail</p>
+      <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{event.event_category}</p>
+        <h3 className="mt-2 text-lg font-semibold text-slate-950">{event.event_title}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">{event.event_summary}</p>
+      </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <DetailField label="Action" value={event.action} />
+        <DetailField label="Event code" value={event.event_code} mono />
         <DetailField label="Tenant" value={event.tenant_id} mono />
         <DetailField label="Actor API key" value={event.actor_api_key_id || "-"} mono />
         <DetailField label="Created at" value={new Date(event.created_at).toLocaleString()} />
@@ -244,7 +251,7 @@ function AuditDetail({ event }: { event: TenantAuditEvent | null }) {
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           {entries.map(([key, value]) => (
             <div key={key} className="rounded-lg border border-slate-200 bg-white px-3 py-3">
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{key}</dt>
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{formatMetadataLabel(key)}</dt>
               <dd className="mt-2 break-words text-sm text-slate-800">{formatMetadataValue(value)}</dd>
             </div>
           ))}
@@ -273,6 +280,36 @@ function DetailField({
       <p className={`mt-2 break-words text-sm text-slate-800 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
     </div>
   );
+}
+
+function formatMetadataLabel(value: string): string {
+  switch (value) {
+    case "billing_provider_connection_id":
+      return "Billing connection";
+    case "previous_billing_provider_connection_id":
+      return "Previous billing connection";
+    case "new_billing_provider_connection_id":
+      return "New billing connection";
+    case "lago_organization_id":
+    case "new_lago_organization_id":
+      return "Billing organization reference";
+    case "previous_lago_organization_id":
+      return "Previous billing organization reference";
+    case "lago_billing_provider_code":
+    case "new_lago_billing_provider_code":
+      return "Billing provider reference";
+    case "previous_lago_billing_provider_code":
+      return "Previous billing provider reference";
+    case "customer_id":
+      return "Customer";
+    case "payment_method_type":
+      return "Payment method";
+  }
+  const normalized = value.replaceAll(".", " ").replaceAll("_", " ").trim();
+  if (!normalized) {
+    return value;
+  }
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function formatMetadataValue(value: unknown): string {

@@ -2072,14 +2072,14 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 		t.Fatalf("expected at least 3 tenant audit events, got %v", got)
 	}
 	auditItems := listItemsFromResponse(t, auditPage)
-	if !containsTenantAuditAction(auditItems, "tenant_ops", "created") {
-		t.Fatalf("expected created tenant audit event")
+	if !containsTenantAuditAction(auditItems, "tenant_ops", "workspace.created") {
+		t.Fatalf("expected workspace.created tenant audit event")
 	}
-	if !containsTenantAuditAction(auditItems, "tenant_ops", "status_changed") {
-		t.Fatalf("expected status_changed tenant audit event")
+	if !containsTenantAuditAction(auditItems, "tenant_ops", "workspace.status_changed") {
+		t.Fatalf("expected workspace.status_changed tenant audit event")
 	}
-	if !containsTenantAuditAction(auditItems, "tenant_ops", "updated") {
-		t.Fatalf("expected updated tenant audit event")
+	if !containsTenantAuditAction(auditItems, "tenant_ops", "workspace.billing_connection_changed") {
+		t.Fatalf("expected workspace.billing_connection_changed tenant audit event")
 	}
 
 	_ = patchJSON(t, ts.URL+"/internal/tenants/default", map[string]any{
@@ -3271,18 +3271,18 @@ func TestCustomerPaymentSetupRequestAndResend(t *testing.T) {
 		if item.TenantID != "default" {
 			continue
 		}
-		if item.Action == "payment_setup_requested" {
+		if item.Action == "customer.payment_setup_requested" {
 			sawRequested = true
 		}
-		if item.Action == "payment_setup_resent" {
+		if item.Action == "customer.payment_setup_resent" {
 			sawResent = true
 		}
 	}
 	if !sawRequested {
-		t.Fatalf("expected payment_setup_requested tenant audit event")
+		t.Fatalf("expected customer.payment_setup_requested tenant audit event")
 	}
 	if !sawResent {
-		t.Fatalf("expected payment_setup_resent tenant audit event")
+		t.Fatalf("expected customer.payment_setup_resent tenant audit event")
 	}
 }
 
@@ -3697,7 +3697,8 @@ func containsTenantAuditAction(items []any, tenantID, action string) bool {
 		}
 		gotTenantID, _ := m["tenant_id"].(string)
 		gotAction, _ := m["action"].(string)
-		if gotTenantID == tenantID && gotAction == action {
+		gotEventCode, _ := m["event_code"].(string)
+		if gotTenantID == tenantID && (gotAction == action || gotEventCode == action) {
 			return true
 		}
 	}

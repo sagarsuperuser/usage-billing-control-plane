@@ -184,17 +184,17 @@ func TestWorkspaceAccessSubresources(t *testing.T) {
 	foundDisable := false
 	for _, item := range auditPage.Items {
 		switch item.Action {
-		case "workspace_member_role_changed":
+		case "workspace.member_role_changed":
 			foundRoleChange = true
 			if got := item.Metadata["reason"]; got != "support override" {
 				t.Fatalf("expected role change reason support override, got %#v", got)
 			}
-		case "workspace_invitation_revoked":
+		case "workspace.invitation_revoked":
 			foundInviteRevoke = true
 			if got := item.Metadata["reason"]; got != "support cleanup" {
 				t.Fatalf("expected invite revoke reason support cleanup, got %#v", got)
 			}
-		case "workspace_member_disabled":
+		case "workspace.member_disabled":
 			foundDisable = true
 			if got := item.Metadata["reason"]; got != "suspend access" {
 				t.Fatalf("expected disable reason suspend access, got %#v", got)
@@ -202,13 +202,13 @@ func TestWorkspaceAccessSubresources(t *testing.T) {
 		}
 	}
 	if !foundRoleChange {
-		t.Fatalf("expected workspace_member_role_changed tenant audit event")
+		t.Fatalf("expected workspace.member_role_changed tenant audit event")
 	}
 	if !foundInviteRevoke {
-		t.Fatalf("expected workspace_invitation_revoked tenant audit event")
+		t.Fatalf("expected workspace.invitation_revoked tenant audit event")
 	}
 	if !foundDisable {
-		t.Fatalf("expected workspace_member_disabled tenant audit event")
+		t.Fatalf("expected workspace.member_disabled tenant audit event")
 	}
 }
 

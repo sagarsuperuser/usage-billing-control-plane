@@ -144,7 +144,7 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
 		TenantID:      id,
 		ActorAPIKeyID: tenantAuditActorAPIKeyID(actorAPIKeyID),
-		Action:        "created",
+		Action:        "workspace.created",
 		Metadata: tenantAuditMetadata(strings.TrimSpace(actorAPIKeyID), map[string]any{
 			"name":                           created.Name,
 			"status":                         created.Status,
@@ -245,7 +245,7 @@ func (s *TenantService) EnsureTenant(req EnsureTenantRequest, actorAPIKeyID stri
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
 		TenantID:      id,
 		ActorAPIKeyID: tenantAuditActorAPIKeyID(actorAPIKeyID),
-		Action:        "updated",
+		Action:        classifyTenantAuditChangeAction(metadata, false),
 		Metadata:      tenantAuditMetadata(strings.TrimSpace(actorAPIKeyID), metadata),
 		CreatedAt:     now,
 	}); auditErr != nil {
@@ -350,14 +350,10 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 		return domain.Tenant{}, err
 	}
 
-	action := "updated"
-	if statusChanged && len(metadata) == 2 {
-		action = "status_changed"
-	}
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
 		TenantID:      id,
 		ActorAPIKeyID: tenantAuditActorAPIKeyID(actorAPIKeyID),
-		Action:        action,
+		Action:        classifyTenantAuditChangeAction(metadata, statusChanged && len(metadata) == 2),
 		Metadata:      tenantAuditMetadata(strings.TrimSpace(actorAPIKeyID), metadata),
 		CreatedAt:     updated.UpdatedAt,
 	}); auditErr != nil {
@@ -605,14 +601,14 @@ func (s *TenantService) ListTenantAuditEvents(req ListTenantAuditEventsRequest) 
 	if err != nil {
 		return ListTenantAuditEventsResult{}, err
 	}
-	action, err := normalizeTenantAuditAction(req.Action)
+	actions, err := normalizeTenantAuditActions(req.Action)
 	if err != nil {
 		return ListTenantAuditEventsResult{}, err
 	}
 	out, err := s.store.ListTenantAuditEvents(store.TenantAuditFilter{
 		TenantID:      strings.TrimSpace(req.TenantID),
 		ActorAPIKeyID: strings.TrimSpace(req.ActorAPIKeyID),
-		Action:        action,
+		Actions:       actions,
 		Limit:         limit,
 		Offset:        offset,
 	})
@@ -653,15 +649,68 @@ func normalizeMutableTenantStatus(v domain.TenantStatus) (domain.TenantStatus, e
 	}
 }
 
-func normalizeTenantAuditAction(v string) (string, error) {
+func normalizeTenantAuditActions(v string) ([]string, error) {
 	value := strings.ToLower(strings.TrimSpace(v))
 	if value == "" {
-		return "", nil
+		return nil, nil
 	}
 	switch value {
-	case "created", "status_changed", "updated", "payment_setup_requested", "payment_setup_resent", "workspace_member_role_changed", "workspace_member_disabled", "workspace_member_reactivated", "workspace_invitation_revoked":
-		return value, nil
+	case "created",
+		"status_changed",
+		"updated",
+		"workspace.created":
+		return []string{"workspace.created", "created"}, nil
+	case "workspace.updated":
+		return []string{"workspace.updated", "updated"}, nil
+	case "workspace.renamed":
+		return []string{"workspace.renamed", "updated"}, nil
+	case "workspace.status_changed":
+		return []string{"workspace.status_changed", "status_changed", "updated"}, nil
+	case "workspace.billing_connection_changed":
+		return []string{"workspace.billing_connection_changed", "workspace_billing_binding_updated", "updated"}, nil
+	case "workspace.billing_configuration_updated":
+		return []string{"workspace.billing_configuration_updated", "updated"}, nil
+	case "customer.payment_setup_requested",
+		"payment_setup_requested":
+		return []string{"customer.payment_setup_requested", "payment_setup_requested"}, nil
+	case "customer.payment_setup_resent",
+		"payment_setup_resent":
+		return []string{"customer.payment_setup_resent", "payment_setup_resent"}, nil
+	case "workspace.member_role_changed",
+		"workspace_member_role_changed":
+		return []string{"workspace.member_role_changed", "workspace_member_role_changed"}, nil
+	case "workspace.member_disabled",
+		"workspace_member_disabled":
+		return []string{"workspace.member_disabled", "workspace_member_disabled"}, nil
+	case "workspace.member_reactivated",
+		"workspace_member_reactivated":
+		return []string{"workspace.member_reactivated", "workspace_member_reactivated"}, nil
+	case "workspace.invitation_revoked",
+		"workspace_invitation_revoked":
+		return []string{"workspace.invitation_revoked", "workspace_invitation_revoked"}, nil
 	default:
-		return "", fmt.Errorf("%w: unsupported tenant audit action", ErrValidation)
+		return nil, fmt.Errorf("%w: unsupported tenant audit action", ErrValidation)
 	}
+}
+
+func classifyTenantAuditChangeAction(metadata map[string]any, statusOnly bool) string {
+	if statusOnly {
+		return "workspace.status_changed"
+	}
+	if metadataHasTenantAuditKey(metadata, "previous_billing_provider_connection_id", "new_billing_provider_connection_id", "previous_lago_organization_id", "new_lago_organization_id", "previous_lago_billing_provider_code", "new_lago_billing_provider_code") {
+		return "workspace.billing_connection_changed"
+	}
+	if metadataHasTenantAuditKey(metadata, "previous_name", "new_name") {
+		return "workspace.renamed"
+	}
+	return "workspace.updated"
+}
+
+func metadataHasTenantAuditKey(metadata map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if value, ok := metadata[key]; ok && strings.TrimSpace(fmt.Sprint(value)) != "" {
+			return true
+		}
+	}
+	return false
 }

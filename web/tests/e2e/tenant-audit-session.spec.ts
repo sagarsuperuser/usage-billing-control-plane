@@ -21,6 +21,10 @@ type TenantAuditEvent = {
   tenant_id: string;
   actor_api_key_id?: string;
   action: string;
+  event_code: string;
+  event_category: string;
+  event_title: string;
+  event_summary: string;
   metadata?: Record<string, unknown>;
   created_at: string;
 };
@@ -36,7 +40,11 @@ async function installTenantAuditMock(context: BrowserContext, session: Platform
       id: "tae_1",
       tenant_id: "tenant_alpha",
       actor_api_key_id: "apk_platform_admin",
-      action: "payment_setup_requested",
+      action: "customer.payment_setup_requested",
+      event_code: "customer.payment_setup_requested",
+      event_category: "Billing",
+      event_title: "Payment setup requested",
+      event_summary: "A payment setup request was sent to the customer.",
       metadata: { customer_id: "cust_123", payment_method_type: "card" },
       created_at: now,
     },
@@ -44,7 +52,11 @@ async function installTenantAuditMock(context: BrowserContext, session: Platform
       id: "tae_2",
       tenant_id: "tenant_beta",
       actor_api_key_id: "apk_platform_admin",
-      action: "workspace_billing_binding_updated",
+      action: "workspace.billing_connection_changed",
+      event_code: "workspace.billing_connection_changed",
+      event_category: "Billing",
+      event_title: "Billing connection changed",
+      event_summary: "Billing connection changed from bpc_old to bpc_beta.",
       metadata: { billing_provider_connection_id: "bpc_beta" },
       created_at: now,
     },
@@ -82,7 +94,7 @@ async function installTenantAuditMock(context: BrowserContext, session: Platform
     const actorAPIKeyID = url.searchParams.get("actor_api_key_id");
     const filtered = events.filter((item) => {
       if (tenantID && item.tenant_id !== tenantID) return false;
-      if (action && item.action !== action) return false;
+      if (action && item.action !== action && item.event_code !== action) return false;
       if (actorAPIKeyID && item.actor_api_key_id !== actorAPIKeyID) return false;
       return true;
     });
@@ -111,17 +123,26 @@ test("platform admin can inspect tenant audit history", async ({ page, context }
   await page.goto("/tenant-audit");
 
   await expect(page.getByRole("heading", { name: "Tenant audit trail" })).toBeVisible();
-  await expect(page.getByText("payment_setup_requested")).toBeVisible();
-  await expect(page.getByText("workspace_billing_binding_updated")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "View details for Payment setup requested on tenant_alpha" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "View details for Billing connection changed on tenant_beta" }),
+  ).toBeVisible();
   await expect(page.getByText("cust_123")).toHaveCount(0);
   await expect(page.getByText("card")).toHaveCount(0);
 
   await page.getByRole("combobox").first().selectOption("tenant_alpha");
-  await expect(page.getByText("payment_setup_requested")).toBeVisible();
-  await expect(page.getByText("workspace_billing_binding_updated")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "View details for Payment setup requested on tenant_alpha" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "View details for Billing connection changed on tenant_beta" }),
+  ).toHaveCount(0);
 
-  await page.getByPlaceholder("created, payment_setup_requested").fill("payment_setup_requested");
-  await page.getByRole("button", { name: "View details for payment_setup_requested on tenant_alpha" }).click();
+  await page.getByPlaceholder("workspace.created").fill("customer.payment_setup_requested");
+  await page.getByRole("button", { name: "View details for Payment setup requested on tenant_alpha" }).click();
   await expect(page.getByText("cust_123")).toBeVisible();
   await expect(page.getByText("card")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payment setup requested" })).toBeVisible();
 });

@@ -86,6 +86,26 @@ type Server struct {
 	mux                                *http.ServeMux
 }
 
+type tenantAuditEventResponse struct {
+	ID            string         `json:"id"`
+	TenantID      string         `json:"tenant_id"`
+	ActorAPIKeyID string         `json:"actor_api_key_id,omitempty"`
+	Action        string         `json:"action"`
+	EventCode     string         `json:"event_code"`
+	EventCategory string         `json:"event_category"`
+	EventTitle    string         `json:"event_title"`
+	EventSummary  string         `json:"event_summary"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
+	CreatedAt     string         `json:"created_at"`
+}
+
+type tenantAuditResultResponse struct {
+	Items  []tenantAuditEventResponse `json:"items"`
+	Total  int                        `json:"total"`
+	Limit  int                        `json:"limit"`
+	Offset int                        `json:"offset"`
+}
+
 type workspaceBillingResponse struct {
 	Configured                bool   `json:"configured"`
 	Connected                 bool   `json:"connected"`
@@ -3067,7 +3087,32 @@ func (s *Server) handleInternalTenantAudit(w http.ResponseWriter, r *http.Reques
 		writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, events)
+	resp := tenantAuditResultResponse{
+		Items:  make([]tenantAuditEventResponse, 0, len(events.Items)),
+		Total:  events.Total,
+		Limit:  events.Limit,
+		Offset: events.Offset,
+	}
+	for _, event := range events.Items {
+		resp.Items = append(resp.Items, newTenantAuditEventResponse(event))
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func newTenantAuditEventResponse(event domain.TenantAuditEvent) tenantAuditEventResponse {
+	presentation := presentTenantAuditEvent(event)
+	return tenantAuditEventResponse{
+		ID:            event.ID,
+		TenantID:      event.TenantID,
+		ActorAPIKeyID: event.ActorAPIKeyID,
+		Action:        event.Action,
+		EventCode:     presentation.Code,
+		EventCategory: presentation.Category,
+		EventTitle:    presentation.Title,
+		EventSummary:  presentation.Summary,
+		Metadata:      event.Metadata,
+		CreatedAt:     event.CreatedAt.UTC().Format(time.RFC3339Nano),
+	}
 }
 
 func (s *Server) handleInternalOnboardingTenants(w http.ResponseWriter, r *http.Request) {

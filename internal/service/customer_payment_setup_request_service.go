@@ -119,7 +119,7 @@ func (s *CustomerPaymentSetupRequestService) send(tenantID, externalID string, a
 	if _, auditErr := s.store.CreateTenantAuditEvent(domain.TenantAuditEvent{
 		TenantID:      normalizeTenantID(tenantID),
 		ActorAPIKeyID: strings.TrimSpace(actor.ActorAPIKeyID),
-		Action:        "payment_setup_" + requestKind,
+		Action:        "customer.payment_setup_" + requestKind,
 		Metadata: map[string]any{
 			"customer_external_id": customer.ExternalID,
 			"customer_id":          customer.ID,

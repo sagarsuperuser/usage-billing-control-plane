@@ -426,8 +426,24 @@ func (s *PostgresStore) ListTenantAuditEvents(filter TenantAuditFilter) (TenantA
 	if strings.TrimSpace(filter.ActorAPIKeyID) != "" {
 		add("actor_api_key_id = $%d", strings.TrimSpace(filter.ActorAPIKeyID))
 	}
-	if strings.TrimSpace(filter.Action) != "" {
-		add("action = $%d", strings.TrimSpace(filter.Action))
+	actions := make([]string, 0, len(filter.Actions))
+	for _, action := range filter.Actions {
+		normalized := strings.TrimSpace(action)
+		if normalized == "" {
+			continue
+		}
+		actions = append(actions, normalized)
+	}
+	if len(actions) == 1 {
+		add("action = $%d", actions[0])
+	}
+	if len(actions) > 1 {
+		placeholders := make([]string, 0, len(actions))
+		for _, action := range actions {
+			args = append(args, action)
+			placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+		}
+		clauses = append(clauses, "action IN ("+strings.Join(placeholders, ", ")+")")
 	}
 	where := strings.Join(clauses, " AND ")
 

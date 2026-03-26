@@ -183,9 +183,9 @@ func (s *WorkspaceAccessService) UpdateWorkspaceMemberRoleWithAudit(workspaceID,
 	if auditErr := s.writeWorkspaceAccessAuditEvent(workspaceID, actor, workspaceAccessAuditEventInput{
 		Action: func() string {
 			if previousStatus == domain.UserTenantMembershipStatusDisabled {
-				return "workspace_member_reactivated"
+				return "workspace.member_reactivated"
 			}
-			return "workspace_member_role_changed"
+			return "workspace.member_role_changed"
 		}(),
 		Metadata: map[string]any{
 			"target_user_id":  user.ID,
@@ -239,7 +239,7 @@ func (s *WorkspaceAccessService) RemoveWorkspaceMemberWithAudit(workspaceID, use
 		return err
 	}
 	return s.writeWorkspaceAccessAuditEvent(workspaceID, actor, workspaceAccessAuditEventInput{
-		Action: "workspace_member_disabled",
+		Action: "workspace.member_disabled",
 		Metadata: map[string]any{
 			"target_user_id":  user.ID,
 			"target_email":    user.Email,
@@ -404,7 +404,7 @@ func (s *WorkspaceAccessService) RevokeWorkspaceInvitationWithAudit(workspaceID,
 		return domain.WorkspaceInvitation{}, err
 	}
 	if auditErr := s.writeWorkspaceAccessAuditEvent(workspaceID, actor, workspaceAccessAuditEventInput{
-		Action: "workspace_invitation_revoked",
+		Action: "workspace.invitation_revoked",
 		Metadata: map[string]any{
 			"invitation_id": updated.ID,
 			"target_email":  updated.Email,
