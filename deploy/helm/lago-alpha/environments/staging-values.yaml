@@ -22,6 +22,20 @@ replayDispatcher:
     repository: "139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
     tag: "latest"
 
+billingConnectionCheckWorker:
+  enabled: true
+  replicas: 1
+  image:
+    repository: "139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+billingConnectionCheckScheduler:
+  enabled: true
+  replicas: 1
+  image:
+    repository: "139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
 web:
   enabled: true
   replicas: 1
@@ -43,6 +57,15 @@ serviceAccounts:
     name: "lago-alpha-api"
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::139831607173:role/lago-alpha-staging-api-irsa"
+  billingConnectionCheckWorker:
+    create: true
+    name: "lago-alpha-billing-connection-check-worker"
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::139831607173:role/lago-alpha-staging-api-irsa"
+  billingConnectionCheckScheduler:
+    create: true
+    name: "lago-alpha-billing-connection-check-scheduler"
+    annotations: {}
   replayWorker:
     create: true
     name: "lago-alpha-replay-worker"

@@ -86,6 +86,28 @@ func main() {
 		replayTemporalDispatcher   *replay.TemporalDispatcher
 		rateLimiterCloser          interface{ Close() error }
 	)
+	closeReplayRuntime := func() {
+		if temporalReplayWorker != nil {
+			temporalReplayWorker.Stop()
+		}
+		if temporalBillingCheckWorker != nil {
+			temporalBillingCheckWorker.Stop()
+		}
+		if temporalPaymentWorker != nil {
+			temporalPaymentWorker.Stop()
+		}
+		if temporalDunningWorker != nil {
+			temporalDunningWorker.Stop()
+		}
+		if temporalClient != nil {
+			temporalClient.Close()
+		}
+		if rateLimiterCloser != nil {
+			if err := rateLimiterCloser.Close(); err != nil {
+				logger.Warn("rate limiter close failed", "component", "server", "error", err)
+			}
+		}
+	}
 	if cfg.Roles.RunReplayWorker || cfg.Roles.RunReplayDispatcher || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler || cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler {
 		temporalClient, err = temporalclient.Dial(temporalclient.Options{
 			HostPort:  cfg.Temporal.Address,
@@ -133,26 +155,99 @@ func main() {
 		}
 	}
 
-	closeReplayRuntime := func() {
-		if temporalReplayWorker != nil {
-			temporalReplayWorker.Stop()
+	var (
+		lagoResolver       *service.TenantBackedLagoTransportResolver
+		billingSecretStore service.BillingSecretStore
+		billingProviderSvc *service.BillingProviderConnectionService
+	)
+	if cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker {
+		lagoResolver, err = service.NewTenantBackedLagoTransportResolver(repo, service.LagoClientConfig{
+			BaseURL: cfg.Lago.APIURL,
+			APIKey:  cfg.Lago.APIKey,
+			Timeout: cfg.Lago.HTTPTimeout,
+		})
+		if err != nil {
+			closeReplayRuntime()
+			fatal(logger, "initialize lago transport resolver", "error", err)
 		}
-		if temporalBillingCheckWorker != nil {
-			temporalBillingCheckWorker.Stop()
-		}
-		if temporalPaymentWorker != nil {
-			temporalPaymentWorker.Stop()
-		}
-		if temporalDunningWorker != nil {
-			temporalDunningWorker.Stop()
-		}
-		if temporalClient != nil {
-			temporalClient.Close()
-		}
-		if rateLimiterCloser != nil {
-			if err := rateLimiterCloser.Close(); err != nil {
-				logger.Warn("rate limiter close failed", "component", "server", "error", err)
+
+		if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
+			billingSecretStore, err = newBillingSecretStore(context.Background(), cfg.BillingProviders)
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "initialize billing provider secret store", "error", err)
 			}
+			billingProviderSvc = service.NewBillingProviderConnectionService(
+				repo,
+				billingSecretStore,
+				service.NewTenantAwareLagoBillingProviderAdapter(lagoResolver, cfg.BillingProviders.StripeSuccessRedirectURL),
+			).WithDefaultLagoOrganizationID(cfg.BillingProviders.DefaultLagoOrganizationID)
+			stripeVerifier, verifyErr := service.NewHTTPStripeConnectionVerifier("", cfg.Lago.HTTPTimeout)
+			if verifyErr != nil {
+				closeReplayRuntime()
+				fatal(logger, "initialize stripe connection verifier", "error", verifyErr)
+			}
+			billingProviderSvc = billingProviderSvc.WithStripeConnectionVerifier(stripeVerifier)
+			logger.Info(
+				"billing provider connections enabled",
+				"component", "server",
+				"secret_store_backend", cfg.BillingProviders.SecretStoreBackend,
+				"default_lago_organization_id", cfg.BillingProviders.DefaultLagoOrganizationID,
+				"stripe_success_redirect_url", cfg.BillingProviders.StripeSuccessRedirectURL,
+			)
+		} else {
+			logger.Info("billing provider connections disabled", "component", "server")
+		}
+	}
+
+	if cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler {
+		if temporalClient == nil {
+			closeReplayRuntime()
+			fatal(logger, "temporal client is required when billing connection check roles are enabled")
+		}
+		if cfg.Roles.RunBillingConnectionCheckWorker && billingProviderSvc == nil {
+			closeReplayRuntime()
+			fatal(logger, "billing connection service is required when billing connection check worker is enabled")
+		}
+		if cfg.Roles.RunBillingConnectionCheckWorker {
+			temporalBillingCheckWorker = temporalsdkworker.New(temporalClient, cfg.BillingChecks.TaskQueue, temporalsdkworker.Options{})
+			if err := billingcheck.RegisterTemporalBillingConnectionCheckWorker(temporalBillingCheckWorker, billingProviderSvc); err != nil {
+				closeReplayRuntime()
+				fatal(logger, "register billing connection check worker", "error", err)
+			}
+			if err := temporalBillingCheckWorker.Start(); err != nil {
+				closeReplayRuntime()
+				fatal(logger, "start billing connection check worker", "error", err)
+			}
+			logger.Info(
+				"billing connection check worker started",
+				"component", "server",
+				"temporal_address", cfg.Temporal.Address,
+				"temporal_namespace", cfg.Temporal.Namespace,
+				"task_queue", cfg.BillingChecks.TaskQueue,
+			)
+		}
+		if cfg.Roles.RunBillingConnectionCheckScheduler {
+			input := billingcheck.BillingConnectionCheckWorkflowInput{
+				Limit:             cfg.BillingChecks.Batch,
+				StaleAfterSeconds: cfg.BillingChecks.StaleAfterSeconds,
+			}
+			startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := billingcheck.EnsureBillingConnectionCheckCronWorkflow(startCtx, temporalClient, cfg.BillingChecks.TaskQueue, cfg.BillingChecks.WorkflowID, cfg.BillingChecks.CronSchedule, input)
+			cancel()
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "ensure billing connection check cron workflow", "error", err)
+			}
+			logger.Info(
+				"billing connection check scheduler enabled",
+				"component", "server",
+				"task_queue", cfg.BillingChecks.TaskQueue,
+				"workflow_id", cfg.BillingChecks.WorkflowID,
+				"cron", cfg.BillingChecks.CronSchedule,
+				"batch", input.Limit,
+				"stale_after_sec", input.StaleAfterSeconds,
+			)
 		}
 	}
 
@@ -215,14 +310,6 @@ func main() {
 		serverOpts = append(serverOpts, api.WithRateLimiter(rateLimiter, cfg.RateLimit.FailOpen, cfg.RateLimit.LoginFailOpen))
 	}
 
-	lagoResolver, err := service.NewTenantBackedLagoTransportResolver(repo, service.LagoClientConfig{
-		BaseURL: cfg.Lago.APIURL,
-		APIKey:  cfg.Lago.APIKey,
-		Timeout: cfg.Lago.HTTPTimeout,
-	})
-	if err != nil {
-		fatal(logger, "initialize lago transport resolver", "error", err)
-	}
 	invoiceBillingAdapter := service.NewTenantAwareLagoInvoiceAdapter(lagoResolver)
 	customerBillingAdapter := service.NewTenantAwareLagoCustomerBillingAdapter(lagoResolver)
 	serverOpts = append(
@@ -247,83 +334,8 @@ func main() {
 	}
 	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL, "default_api_key_enabled", strings.TrimSpace(cfg.Lago.APIKey) != "", "admin_bootstrap_enabled", strings.TrimSpace(cfg.Lago.AdminAPIKey) != "")
 
-	var (
-		billingSecretStore service.BillingSecretStore
-		billingProviderSvc *service.BillingProviderConnectionService
-	)
-	if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
-		billingSecretStore, err = newBillingSecretStore(context.Background(), cfg.BillingProviders)
-		if err != nil {
-			fatal(logger, "initialize billing provider secret store", "error", err)
-		}
-		billingProviderSvc = service.NewBillingProviderConnectionService(
-			repo,
-			billingSecretStore,
-			service.NewTenantAwareLagoBillingProviderAdapter(lagoResolver, cfg.BillingProviders.StripeSuccessRedirectURL),
-		).WithDefaultLagoOrganizationID(cfg.BillingProviders.DefaultLagoOrganizationID)
-		stripeVerifier, verifyErr := service.NewHTTPStripeConnectionVerifier("", cfg.Lago.HTTPTimeout)
-		if verifyErr != nil {
-			fatal(logger, "initialize stripe connection verifier", "error", verifyErr)
-		}
-		billingProviderSvc = billingProviderSvc.WithStripeConnectionVerifier(stripeVerifier)
+	if billingProviderSvc != nil {
 		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
-		logger.Info(
-			"billing provider connections enabled",
-			"component", "server",
-			"secret_store_backend", cfg.BillingProviders.SecretStoreBackend,
-			"default_lago_organization_id", cfg.BillingProviders.DefaultLagoOrganizationID,
-			"stripe_success_redirect_url", cfg.BillingProviders.StripeSuccessRedirectURL,
-		)
-	} else {
-		logger.Info("billing provider connections disabled", "component", "server")
-	}
-
-	if cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler {
-		if temporalClient == nil {
-			fatal(logger, "temporal client is required when billing connection check roles are enabled")
-		}
-		if billingProviderSvc == nil {
-			fatal(logger, "billing connection service is required when billing connection check roles are enabled")
-		}
-		if cfg.Roles.RunBillingConnectionCheckWorker {
-			temporalBillingCheckWorker = temporalsdkworker.New(temporalClient, cfg.BillingChecks.TaskQueue, temporalsdkworker.Options{})
-			if err := billingcheck.RegisterTemporalBillingConnectionCheckWorker(temporalBillingCheckWorker, billingProviderSvc); err != nil {
-				fatal(logger, "register billing connection check worker", "error", err)
-			}
-			if err := temporalBillingCheckWorker.Start(); err != nil {
-				closeReplayRuntime()
-				fatal(logger, "start billing connection check worker", "error", err)
-			}
-			logger.Info(
-				"billing connection check worker started",
-				"component", "server",
-				"temporal_address", cfg.Temporal.Address,
-				"temporal_namespace", cfg.Temporal.Namespace,
-				"task_queue", cfg.BillingChecks.TaskQueue,
-			)
-		}
-		if cfg.Roles.RunBillingConnectionCheckScheduler {
-			input := billingcheck.BillingConnectionCheckWorkflowInput{
-				Limit:             cfg.BillingChecks.Batch,
-				StaleAfterSeconds: cfg.BillingChecks.StaleAfterSeconds,
-			}
-			startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			err := billingcheck.EnsureBillingConnectionCheckCronWorkflow(startCtx, temporalClient, cfg.BillingChecks.TaskQueue, cfg.BillingChecks.WorkflowID, cfg.BillingChecks.CronSchedule, input)
-			cancel()
-			if err != nil {
-				closeReplayRuntime()
-				fatal(logger, "ensure billing connection check cron workflow", "error", err)
-			}
-			logger.Info(
-				"billing connection check scheduler enabled",
-				"component", "server",
-				"task_queue", cfg.BillingChecks.TaskQueue,
-				"workflow_id", cfg.BillingChecks.WorkflowID,
-				"cron", cfg.BillingChecks.CronSchedule,
-				"batch", input.Limit,
-				"stale_after_sec", input.StaleAfterSeconds,
-			)
-		}
 	}
 
 	if cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler {

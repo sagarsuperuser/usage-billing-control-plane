@@ -181,8 +181,8 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunBillingConnectionCheckWorker && !roles.RunBillingConnectionCheckScheduler && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler && !roles.RunDunningWorker && !roles.RunDunningScheduler {
 		return ServerConfig{}, fmt.Errorf("at least one role must be enabled: RUN_API_SERVER, RUN_REPLAY_WORKER, RUN_REPLAY_DISPATCHER, RUN_BILLING_CONNECTION_CHECK_WORKER, RUN_BILLING_CONNECTION_CHECK_SCHEDULER, RUN_PAYMENT_RECONCILE_WORKER, RUN_PAYMENT_RECONCILE_SCHEDULER, RUN_DUNNING_WORKER, RUN_DUNNING_SCHEDULER")
 	}
-	if !roles.RunAPIServer && (roles.RunBillingConnectionCheckWorker || roles.RunBillingConnectionCheckScheduler || roles.RunPaymentReconcileWorker || roles.RunPaymentReconcileScheduler || roles.RunDunningWorker || roles.RunDunningScheduler) {
-		return ServerConfig{}, fmt.Errorf("billing connection check, payment reconcile, and dunning roles require RUN_API_SERVER=true")
+	if !roles.RunAPIServer && (roles.RunPaymentReconcileWorker || roles.RunPaymentReconcileScheduler || roles.RunDunningWorker || roles.RunDunningScheduler) {
+		return ServerConfig{}, fmt.Errorf("payment reconcile and dunning roles require RUN_API_SERVER=true")
 	}
 
 	uiSessionCookieSecure := getBoolEnv("UI_SESSION_COOKIE_SECURE", productionLike)

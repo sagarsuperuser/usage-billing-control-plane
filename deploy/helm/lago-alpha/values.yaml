@@ -6,6 +6,14 @@ serviceAccounts:
     create: true
     name: ""
     annotations: {}
+  billingConnectionCheckWorker:
+    create: true
+    name: ""
+    annotations: {}
+  billingConnectionCheckScheduler:
+    create: true
+    name: ""
+    annotations: {}
   replayWorker:
     create: true
     name: ""
@@ -95,6 +103,40 @@ replayDispatcher:
     limits:
       cpu: 500m
       memory: 768Mi
+  podAnnotations: {}
+  podLabels: {}
+
+billingConnectionCheckWorker:
+  enabled: false
+  replicas: 1
+  image:
+    repository: "" # defaults to api.image.repository when empty
+    tag: "" # defaults to api.image.tag when empty
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  podAnnotations: {}
+  podLabels: {}
+
+billingConnectionCheckScheduler:
+  enabled: false
+  replicas: 1
+  image:
+    repository: "" # defaults to api.image.repository when empty
+    tag: "" # defaults to api.image.tag when empty
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
   podAnnotations: {}
   podLabels: {}
 

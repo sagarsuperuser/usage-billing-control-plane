@@ -31,6 +31,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "lago-alpha.serviceAccountName.billingConnectionCheckWorker" -}}
+{{- if .Values.serviceAccounts.billingConnectionCheckWorker.create -}}
+{{- default (printf "%s-billing-connection-check-worker" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.billingConnectionCheckWorker.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccounts.billingConnectionCheckWorker.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "lago-alpha.serviceAccountName.billingConnectionCheckScheduler" -}}
+{{- if .Values.serviceAccounts.billingConnectionCheckScheduler.create -}}
+{{- default (printf "%s-billing-connection-check-scheduler" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.billingConnectionCheckScheduler.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccounts.billingConnectionCheckScheduler.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "lago-alpha.serviceAccountName.replayWorker" -}}
 {{- if .Values.serviceAccounts.replayWorker.create -}}
 {{- default (printf "%s-replay-worker" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.replayWorker.name -}}

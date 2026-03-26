@@ -46,6 +46,18 @@ spec:
               value: "true"
             - name: RUN_REPLAY_DISPATCHER
               value: "false"
+            - name: RUN_BILLING_CONNECTION_CHECK_WORKER
+              value: "false"
+            - name: RUN_BILLING_CONNECTION_CHECK_SCHEDULER
+              value: "false"
+            - name: RUN_PAYMENT_RECONCILE_WORKER
+              value: "false"
+            - name: RUN_PAYMENT_RECONCILE_SCHEDULER
+              value: "false"
+            - name: RUN_DUNNING_WORKER
+              value: "false"
+            - name: RUN_DUNNING_SCHEDULER
+              value: "false"
           resources:
             {{- toYaml .Values.replayWorker.resources | nindent 12 }}
 {{- end }}

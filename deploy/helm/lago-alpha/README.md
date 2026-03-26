@@ -3,6 +3,8 @@
 Deploys independently scalable workloads:
 
 - `api` (HTTP control plane)
+- `billing-connection-check-worker` (periodic Stripe credential verification worker)
+- `billing-connection-check-scheduler` (Temporal cron scheduler for billing connection rechecks)
 - `replay-worker` (Temporal workflow activity worker)
 - `replay-dispatcher` (queued replay job scheduler)
 - `web` (Next.js UI)

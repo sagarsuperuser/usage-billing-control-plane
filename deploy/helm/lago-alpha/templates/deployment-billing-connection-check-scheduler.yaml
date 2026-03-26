@@ -1,38 +1,39 @@
+{{- if .Values.billingConnectionCheckScheduler.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lago-alpha.fullname" . }}-api
+  name: {{ include "lago-alpha.fullname" . }}-billing-connection-check-scheduler
   labels:
     {{- include "lago-alpha.labels" . | nindent 4 }}
-    app.kubernetes.io/component: api
+    app.kubernetes.io/component: billing-connection-check-scheduler
 spec:
-  replicas: {{ .Values.api.replicas }}
+  replicas: {{ .Values.billingConnectionCheckScheduler.replicas }}
   selector:
     matchLabels:
       {{- include "lago-alpha.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: api
+      app.kubernetes.io/component: billing-connection-check-scheduler
   template:
     metadata:
       labels:
         {{- include "lago-alpha.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: api
-        {{- with .Values.api.podLabels }}
+        app.kubernetes.io/component: billing-connection-check-scheduler
+        {{- with .Values.billingConnectionCheckScheduler.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.api.podAnnotations }}
+      {{- with .Values.billingConnectionCheckScheduler.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "lago-alpha.serviceAccountName.api" . }}
+      serviceAccountName: {{ include "lago-alpha.serviceAccountName.billingConnectionCheckScheduler" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: api
-          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
-          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        - name: billing-connection-check-scheduler
+          image: "{{ default .Values.api.image.repository .Values.billingConnectionCheckScheduler.image.repository }}:{{ default .Values.api.image.tag .Values.billingConnectionCheckScheduler.image.tag }}"
+          imagePullPolicy: {{ .Values.billingConnectionCheckScheduler.image.pullPolicy }}
           envFrom:
             - configMapRef:
                 name: {{ include "lago-alpha.fullname" . }}-env
@@ -40,7 +41,7 @@ spec:
                 name: {{ .Values.secretEnv.secretRefName }}
           env:
             - name: RUN_API_SERVER
-              value: "true"
+              value: "false"
             - name: RUN_REPLAY_WORKER
               value: "false"
             - name: RUN_REPLAY_DISPATCHER
@@ -48,30 +49,15 @@ spec:
             - name: RUN_BILLING_CONNECTION_CHECK_WORKER
               value: "false"
             - name: RUN_BILLING_CONNECTION_CHECK_SCHEDULER
-              value: "false"
+              value: "true"
             - name: RUN_PAYMENT_RECONCILE_WORKER
               value: "false"
             - name: RUN_PAYMENT_RECONCILE_SCHEDULER
               value: "false"
             - name: RUN_DUNNING_WORKER
-              value: {{ .Values.api.runDunningWorker | quote }}
+              value: "false"
             - name: RUN_DUNNING_SCHEDULER
-              value: {{ .Values.api.runDunningScheduler | quote }}
-          ports:
-            - name: http
-              containerPort: 8080
-              protocol: TCP
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 15
+              value: "false"
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            {{- toYaml .Values.billingConnectionCheckScheduler.resources | nindent 12 }}
+{{- end }}

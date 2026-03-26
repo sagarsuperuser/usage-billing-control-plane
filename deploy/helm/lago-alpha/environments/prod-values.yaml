@@ -44,6 +44,15 @@ serviceAccounts:
     name: "lago-alpha-api"
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/lago-alpha-prod-api-irsa"
+  billingConnectionCheckWorker:
+    create: true
+    name: "lago-alpha-billing-connection-check-worker"
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/lago-alpha-prod-api-irsa"
+  billingConnectionCheckScheduler:
+    create: true
+    name: "lago-alpha-billing-connection-check-scheduler"
+    annotations: {}
   replayWorker:
     create: true
     name: "lago-alpha-replay-worker"
