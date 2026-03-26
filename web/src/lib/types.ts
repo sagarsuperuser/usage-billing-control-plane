@@ -476,7 +476,7 @@ export interface BillingProviderConnection {
   sync_state: "healthy" | "failed" | "never_synced" | "pending" | "disabled";
   sync_summary: string;
   check_ready: boolean;
-  check_blocker_code?: "disabled" | "missing_secret" | "billing_setup_incomplete";
+  check_blocker_code?: "disabled" | "missing_secret";
   check_blocker_summary?: string;
   linked_workspace_count: number;
   lago_organization_id?: string;

@@ -36,7 +36,7 @@ async function createConnection(page: import("@playwright/test").Page, name: str
   await expect(page).toHaveURL(/\/billing-connections\/[^/?]+(?:\?.*)?$/);
   await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 60000 });
   await expect(page.getByText(/^connected$/i).first()).toBeVisible({ timeout: 60000 });
-  await expect(page.locator("div").filter({ hasText: /^Stripe is connected and ready for billing\.$/ }).first()).toBeVisible({ timeout: 60000 });
+  await expect(page.locator("div").filter({ hasText: /^Stripe credentials are verified and ready for workspace assignment\.$/ }).first()).toBeVisible({ timeout: 60000 });
 
   const id = decodeURIComponent(page.url().split("/").pop()?.split("?")[0] || "");
   expect(id).not.toBe("");
@@ -102,11 +102,11 @@ test.describe("billing connection lifecycle live staging", () => {
     await expect(rotatedSecretInput).toHaveValue(rotatedStripeSecretKey);
     await expect(rotateSecretButton).toBeEnabled();
     await rotateSecretButton.click();
-    await expect(page.locator("div").filter({ hasText: /^Run another connection check before using this connection for billing\.$/ }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("div").filter({ hasText: /^Run another connection check before using this connection\.$/ }).first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/^pending$/i).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Refresh connection status" }).click();
-    await expect(page.locator("div").filter({ hasText: /^Stripe is connected and ready for billing\.$/ }).first()).toBeVisible({ timeout: 60000 });
+    await expect(page.locator("div").filter({ hasText: /^Stripe credentials are verified and ready for workspace assignment\.$/ }).first()).toBeVisible({ timeout: 60000 });
     await expect(page.getByText(/^connected$/i).first()).toBeVisible();
 
     await page.goto(`/workspaces/${encodeURIComponent(workspaceID)}`);

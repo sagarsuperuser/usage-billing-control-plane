@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +13,49 @@ import (
 
 	"usage-billing-control-plane/internal/api"
 	"usage-billing-control-plane/internal/domain"
+	"usage-billing-control-plane/internal/service"
 	"usage-billing-control-plane/internal/store"
 )
+
+type stubWorkspaceBillingProviderAdapter struct{}
+
+func (stubWorkspaceBillingProviderAdapter) EnsureStripeProvider(_ context.Context, input service.EnsureStripeProviderInput) (service.EnsureStripeProviderResult, error) {
+	providerCode := input.LagoProviderCode
+	if providerCode == "" {
+		providerCode = "stripe_workspace"
+	}
+	now := time.Now().UTC()
+	return service.EnsureStripeProviderResult{
+		LagoOrganizationID: input.LagoOrganizationID,
+		LagoProviderCode:   providerCode,
+		ConnectedAt:        now,
+		LastSyncedAt:       now,
+	}, nil
+}
+
+type stubWorkspaceOrgBootstrapper struct{}
+
+func (stubWorkspaceOrgBootstrapper) BootstrapOrganization(_ context.Context, name string) (service.LagoOrganizationBootstrapResult, error) {
+	return service.LagoOrganizationBootstrapResult{
+		OrganizationID: "org_" + normalizeTestSlug(name),
+		APIKey:         "api_" + normalizeTestSlug(name),
+	}, nil
+}
+
+func normalizeTestSlug(value string) string {
+	out := make([]rune, 0, len(value))
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			out = append(out, r)
+		case r >= 'A' && r <= 'Z':
+			out = append(out, r+('a'-'A'))
+		default:
+			out = append(out, '_')
+		}
+	}
+	return string(out)
+}
 
 func TestTenantOnboardingUsesBillingProviderConnection(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
@@ -33,10 +75,15 @@ func TestTenantOnboardingUsesBillingProviderConnection(t *testing.T) {
 	}
 	resetTables(t, db)
 	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+	secretStore := service.NewMemoryBillingSecretStore()
 
 	now := time.Now().UTC()
 	connectedAt := now
 	lastSyncedAt := now
+	secretRef, err := secretStore.PutStripeSecret(context.Background(), "bpc_tenant_assign_test", "sk_test_platform")
+	if err != nil {
+		t.Fatalf("store billing secret: %v", err)
+	}
 	connection, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
 		ID:                 "bpc_tenant_assign_test",
 		ProviderType:       domain.BillingProviderTypeStripe,
@@ -46,7 +93,7 @@ func TestTenantOnboardingUsesBillingProviderConnection(t *testing.T) {
 		Status:             domain.BillingProviderConnectionStatusConnected,
 		LagoOrganizationID: "org_platform",
 		LagoProviderCode:   "stripe_platform",
-		SecretRef:          "memory://billing-provider-connections/bpc_tenant_assign_test/seed",
+		SecretRef:          secretRef,
 		ConnectedAt:        &connectedAt,
 		LastSyncedAt:       &lastSyncedAt,
 		CreatedByType:      "platform_api_key",
@@ -63,7 +110,13 @@ func TestTenantOnboardingUsesBillingProviderConnection(t *testing.T) {
 		t.Fatalf("new authorizer: %v", err)
 	}
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer)).Handler())
+	billingSvc := service.NewBillingProviderConnectionService(repo, secretStore, stubWorkspaceBillingProviderAdapter{})
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithBillingProviderConnectionService(billingSvc),
+		api.WithLagoOrganizationBootstrapper(stubWorkspaceOrgBootstrapper{}),
+	).Handler())
 	defer ts.Close()
 
 	result := postJSON(t, ts.URL+"/internal/onboarding/tenants", map[string]any{
@@ -440,10 +493,15 @@ func TestTenantWorkspaceBillingSubresourceUpdatesActiveConnection(t *testing.T) 
 	}
 	resetTables(t, db)
 	mustCreatePlatformAPIKey(t, repo, "platform-admin")
+	secretStore := service.NewMemoryBillingSecretStore()
 
 	now := time.Now().UTC()
 	connectedAt := now
 	lastSyncedAt := now
+	secretRefA, err := secretStore.PutStripeSecret(context.Background(), "bpc_workspace_billing_a", "sk_test_a")
+	if err != nil {
+		t.Fatalf("store connection A secret: %v", err)
+	}
 	connectionA, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
 		ID:                 "bpc_workspace_billing_a",
 		ProviderType:       domain.BillingProviderTypeStripe,
@@ -453,7 +511,7 @@ func TestTenantWorkspaceBillingSubresourceUpdatesActiveConnection(t *testing.T) 
 		Status:             domain.BillingProviderConnectionStatusConnected,
 		LagoOrganizationID: "org_a",
 		LagoProviderCode:   "stripe_a",
-		SecretRef:          "memory://billing-provider-connections/bpc_workspace_billing_a/seed",
+		SecretRef:          secretRefA,
 		ConnectedAt:        &connectedAt,
 		LastSyncedAt:       &lastSyncedAt,
 		CreatedByType:      "platform_api_key",
@@ -464,6 +522,10 @@ func TestTenantWorkspaceBillingSubresourceUpdatesActiveConnection(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create billing provider connection A: %v", err)
 	}
+	secretRefB, err := secretStore.PutStripeSecret(context.Background(), "bpc_workspace_billing_b", "sk_test_b")
+	if err != nil {
+		t.Fatalf("store connection B secret: %v", err)
+	}
 	connectionB, err := repo.CreateBillingProviderConnection(domain.BillingProviderConnection{
 		ID:                 "bpc_workspace_billing_b",
 		ProviderType:       domain.BillingProviderTypeStripe,
@@ -473,7 +535,7 @@ func TestTenantWorkspaceBillingSubresourceUpdatesActiveConnection(t *testing.T) 
 		Status:             domain.BillingProviderConnectionStatusConnected,
 		LagoOrganizationID: "org_b",
 		LagoProviderCode:   "stripe_b",
-		SecretRef:          "memory://billing-provider-connections/bpc_workspace_billing_b/seed",
+		SecretRef:          secretRefB,
 		ConnectedAt:        &connectedAt,
 		LastSyncedAt:       &lastSyncedAt,
 		CreatedByType:      "platform_api_key",
@@ -522,7 +584,12 @@ func TestTenantWorkspaceBillingSubresourceUpdatesActiveConnection(t *testing.T) 
 		t.Fatalf("new authorizer: %v", err)
 	}
 
-	ts := httptest.NewServer(api.NewServer(repo, api.WithAPIKeyAuthorizer(authorizer)).Handler())
+	billingSvc := service.NewBillingProviderConnectionService(repo, secretStore, stubWorkspaceBillingProviderAdapter{})
+	ts := httptest.NewServer(api.NewServer(
+		repo,
+		api.WithAPIKeyAuthorizer(authorizer),
+		api.WithBillingProviderConnectionService(billingSvc),
+	).Handler())
 	defer ts.Close()
 
 	result := patchJSON(t, ts.URL+"/internal/tenants/tenant_workspace_billing/workspace-billing", map[string]any{

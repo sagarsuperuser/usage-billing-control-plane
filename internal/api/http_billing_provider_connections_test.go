@@ -45,7 +45,7 @@ func (s *stubStripeConnectionVerifierAPI) VerifyStripeSecret(_ context.Context, 
 	return s.result, nil
 }
 
-func TestInternalBillingProviderConnectionEndpointsSyncRequiresLagoOrganizationID(t *testing.T) {
+func TestInternalBillingProviderConnectionEndpointsSyncOnlyRequiresStripeSecret(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("TEST_DATABASE_URL is required for integration tests")
@@ -89,18 +89,19 @@ func TestInternalBillingProviderConnectionEndpointsSyncRequiresLagoOrganizationI
 	connection := created["connection"].(map[string]any)
 	connectionID := connection["id"].(string)
 
-	synced := postJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID+"/sync", map[string]any{}, "platform-admin", http.StatusBadRequest)
-	if synced["error"] != "Billing setup is incomplete for this workspace or connection." {
-		t.Fatalf("expected translated billing setup error, got %#v", synced["error"])
+	synced := postJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID+"/sync", map[string]any{}, "platform-admin", http.StatusOK)
+	syncedConnection := synced["connection"].(map[string]any)
+	if syncedConnection["status"] != "connected" {
+		t.Fatalf("expected connected status after check, got %#v", syncedConnection["status"])
 	}
 
 	got := getJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID, "platform-admin", http.StatusOK)
-	connectionAfterFailure := got["connection"].(map[string]any)
-	if connectionAfterFailure["check_ready"] != false {
-		t.Fatalf("expected check_ready=false without billing setup")
+	connectionAfterCheck := got["connection"].(map[string]any)
+	if connectionAfterCheck["check_ready"] != true {
+		t.Fatalf("expected check_ready=true when secret is present")
 	}
-	if connectionAfterFailure["check_blocker_code"] != "billing_setup_incomplete" {
-		t.Fatalf("expected billing setup blocker, got %#v", connectionAfterFailure["check_blocker_code"])
+	if connectionAfterCheck["workspace_ready"] != true {
+		t.Fatalf("expected workspace_ready=true after Stripe check")
 	}
 }
 
@@ -142,13 +143,11 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	defer ts.Close()
 
 	created := postJSON(t, ts.URL+"/internal/billing-provider-connections", map[string]any{
-		"provider_type":        "stripe",
-		"environment":          "test",
-		"display_name":         "Stripe Platform Test",
-		"scope":                "platform",
-		"stripe_secret_key":    "sk_test_http",
-		"lago_organization_id": "org_seed",
-		"lago_provider_code":   "stripe_seed",
+		"provider_type":     "stripe",
+		"environment":       "test",
+		"display_name":      "Stripe Platform Test",
+		"scope":             "platform",
+		"stripe_secret_key": "sk_test_http",
 	}, "platform-admin", http.StatusCreated)
 
 	connection := created["connection"].(map[string]any)
@@ -160,7 +159,7 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 		t.Fatalf("expected workspace_ready=false before sync")
 	}
 	if connection["check_ready"] != true {
-		t.Fatalf("expected check_ready=true when connection has billing target")
+		t.Fatalf("expected check_ready=true when connection has a secret")
 	}
 	if connection["linked_workspace_count"] != float64(0) {
 		t.Fatalf("expected linked workspace count 0, got %#v", connection["linked_workspace_count"])
@@ -200,8 +199,8 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	if syncedConnection["check_ready"] != true {
 		t.Fatalf("expected check_ready=true after sync")
 	}
-	if syncedConnection["lago_provider_code"] != "stripe_synced" {
-		t.Fatalf("expected synced provider code, got %#v", syncedConnection["lago_provider_code"])
+	if syncedConnection["sync_summary"] != "Stripe credentials are verified and ready for workspace assignment." {
+		t.Fatalf("expected provider verification summary, got %#v", syncedConnection["sync_summary"])
 	}
 
 	disabled := postJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID+"/disable", map[string]any{}, "platform-admin", http.StatusOK)
@@ -250,12 +249,11 @@ func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	created := postJSON(t, ts.URL+"/internal/billing-provider-connections", map[string]any{
-		"provider_type":        "stripe",
-		"environment":          "test",
-		"display_name":         "Stripe Rotate Test",
-		"scope":                "platform",
-		"stripe_secret_key":    "sk_test_http",
-		"lago_organization_id": "org_seed",
+		"provider_type":     "stripe",
+		"environment":       "test",
+		"display_name":      "Stripe Rotate Test",
+		"scope":             "platform",
+		"stripe_secret_key": "sk_test_http",
 	}, "platform-admin", http.StatusCreated)
 
 	connection := created["connection"].(map[string]any)
@@ -276,7 +274,7 @@ func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
 	if rotatedConnection["sync_state"] != "pending" {
 		t.Fatalf("expected pending sync_state after rotate, got %#v", rotatedConnection["sync_state"])
 	}
-	if rotatedConnection["sync_summary"] != "Run another connection check before using this connection for billing." {
+	if rotatedConnection["sync_summary"] != "Run another connection check before using this connection." {
 		t.Fatalf("expected pending sync_summary after rotate, got %#v", rotatedConnection["sync_summary"])
 	}
 	if rotatedConnection["workspace_ready"] != false {

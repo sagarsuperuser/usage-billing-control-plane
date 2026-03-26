@@ -65,21 +65,18 @@ func billingConnectionSyncState(item domain.BillingProviderConnection) string {
 func billingConnectionSyncSummary(item domain.BillingProviderConnection) string {
 	switch billingConnectionSyncState(item) {
 	case "healthy":
-		return "Stripe is connected and ready for billing."
+		return "Stripe credentials are verified and ready for workspace assignment."
 	case "failed":
 		if msg := strings.TrimSpace(item.LastSyncError); msg != "" {
 			return msg
 		}
-		return "Stripe needs attention before billing can continue."
+		return "Stripe needs attention before it can be used."
 	case "disabled":
 		return "Connection is disabled."
 	case "never_synced":
-		return "Run the first connection check after billing setup is complete."
+		return "Run the first connection check before assigning this connection to a workspace."
 	default:
-		if item.LastSyncedAt != nil && item.ConnectedAt == nil {
-			return "Stripe was checked, but billing setup is still incomplete for workspace use."
-		}
-		return "Run another connection check before using this connection for billing."
+		return "Run another connection check before using this connection."
 	}
 }
 
@@ -90,19 +87,7 @@ func (s *Server) describeBillingProviderConnectionCheck(item domain.BillingProvi
 	if strings.TrimSpace(item.SecretRef) == "" {
 		return false, "missing_secret", "Add a Stripe secret before checking this connection."
 	}
-	if strings.TrimSpace(item.LagoOrganizationID) != "" {
-		return true, "", ""
-	}
-	if strings.TrimSpace(item.OwnerTenantID) != "" {
-		tenant, err := s.repo.GetTenant(item.OwnerTenantID)
-		if err == nil && strings.TrimSpace(tenant.LagoOrganizationID) != "" {
-			return true, "", ""
-		}
-	}
-	if s.billingProviderConnectionService != nil && s.billingProviderConnectionService.DefaultLagoOrganizationID() != "" {
-		return true, "", ""
-	}
-	return false, "billing_setup_incomplete", "Complete billing setup for this connection before running a full connection check."
+	return true, "", ""
 }
 
 func (s *Server) newBillingProviderConnectionResponse(item domain.BillingProviderConnection, linkedWorkspaceCount int) billingProviderConnectionResponse {

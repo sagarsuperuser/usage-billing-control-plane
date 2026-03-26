@@ -121,10 +121,10 @@ function buildVerificationDiagnosis(connection: {
 
   if (!connection.check_ready) {
     return {
-      code: "billing_setup_required",
-      title: "Billing setup required",
-      summary: connection.check_blocker_summary || "Complete billing setup before Alpha can run a full connection check.",
-      nextStep: "Complete billing setup, then run the first connection check.",
+      code: "check_blocked",
+      title: "Check unavailable",
+      summary: connection.check_blocker_summary || "Alpha cannot run a connection check yet.",
+      nextStep: "Add the missing secret, then run the first connection check.",
       workspaceImpact,
       tone: "warn",
     };
@@ -142,21 +142,11 @@ function buildVerificationDiagnosis(connection: {
   }
 
   if (connection.sync_state === "pending") {
-    if (connection.last_synced_at && !connection.workspace_ready) {
-      return {
-        code: "billing_setup_pending",
-        title: "Check completed",
-        summary: connection.sync_summary || "Stripe was checked, but billing setup is still incomplete for workspace use.",
-        nextStep: "Complete billing setup before using this connection with workspaces.",
-        workspaceImpact,
-        tone: "warn",
-      };
-    }
     return {
       code: "verification_pending",
       title: "Check required",
       summary: "A change was made, but Alpha has not completed a fresh connection check yet.",
-      nextStep: "Run another connection check before using this connection for billing.",
+      nextStep: "Run another connection check before assigning this connection to a workspace.",
       workspaceImpact,
       tone: "warn",
     };
@@ -226,13 +216,13 @@ function buildConnectionHealthChecks(connection: {
       ? {
           label: "Connection check",
           status: "Available",
-          detail: "Alpha can run a full Stripe and billing readiness check for this connection.",
+          detail: "Alpha can verify this Stripe connection.",
           tone: "good",
         }
       : {
           label: "Connection check",
           status: "Blocked",
-          detail: connection.check_blocker_summary || "Complete billing setup before Alpha can run a full connection check.",
+          detail: connection.check_blocker_summary || "Alpha cannot run a connection check yet.",
           tone: "warn",
         },
   );
@@ -263,7 +253,7 @@ function buildConnectionHealthChecks(connection: {
           ? `There are ${connection.linked_workspace_count} linked workspace${connection.linked_workspace_count === 1 ? "" : "s"}, but the connection is not currently ready.`
           : connection.check_ready
             ? "Run a successful connection check before attaching new workspaces."
-            : "Complete billing setup before attaching new workspaces.",
+            : "Add the required secret before attaching new workspaces.",
       tone: connection.linked_workspace_count > 0 ? "bad" : "warn",
     });
   }
@@ -348,17 +338,17 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   const refreshActionLabel = !connection
     ? "Check connection"
     : !connection.check_ready
-      ? "Billing setup required"
+      ? "Secret required"
       : connection.sync_state === "never_synced"
         ? "Run first check"
         : "Refresh connection status";
   const refreshActionHelper = !connection
     ? ""
     : !connection.check_ready
-      ? connection.check_blocker_summary || "Complete billing setup before Alpha can run a full connection check."
+      ? connection.check_blocker_summary || "Add a Stripe secret before checking this connection."
       : connection.sync_state === "never_synced"
-        ? "Checks Stripe and completes the first billing readiness check."
-        : "Rechecks Stripe and refreshes billing readiness.";
+        ? "Checks the Stripe credentials and marks the connection ready for workspace assignment."
+        : "Rechecks the Stripe credentials and refreshes connection status.";
   const refreshActionDisabled = !connection || !csrfToken || refreshMutation.isPending || rotateSecretMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled" || !connection.check_ready;
 
   const startEditing = () => {
@@ -441,7 +431,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
               <SummaryStat
                 label="Linked workspaces"
                 value={String(connection.linked_workspace_count)}
-                helper={connection.workspace_ready ? "Ready for workspace use" : connection.check_ready ? "Check required before workspace use" : "Billing setup required before workspace use"}
+                helper={connection.workspace_ready ? "Ready for assignment" : connection.check_ready ? "Check required before assignment" : "Secret required before assignment"}
               />
               <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Required for connection checks" />
             </section>
@@ -453,7 +443,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Connection health</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Latest check</h2>
-                      <p className="mt-2 text-sm text-slate-600">Current Stripe check status and billing readiness.</p>
+                      <p className="mt-2 text-sm text-slate-600">Current Stripe check status and workspace assignment readiness.</p>
                     </div>
                     <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${readinessTone(connection.sync_state)}`}>
                       {formatReadinessStatus(connection.sync_state)}
@@ -461,7 +451,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   </div>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     <MetaItem label="Check state" value={connection.sync_state.replaceAll("_", " ")} />
-                    <MetaItem label="Billing readiness" value={connection.workspace_ready ? "Ready" : "Blocked"} />
+                    <MetaItem label="Assignment readiness" value={connection.workspace_ready ? "Ready" : "Blocked"} />
                     <MetaItem label="First ready at" value={connection.connected_at ? formatExactTimestamp(connection.connected_at) : "-"} />
                     <MetaItem label="Last checked" value={connection.last_synced_at ? formatExactTimestamp(connection.last_synced_at) : "-"} />
                   </div>

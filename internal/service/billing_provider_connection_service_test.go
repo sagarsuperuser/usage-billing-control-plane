@@ -141,22 +141,15 @@ func TestBillingProviderConnectionService_SyncSuccess(t *testing.T) {
 		Livemode:   false,
 		VerifiedAt: time.Now().UTC(),
 	}}
-	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
-		LagoOrganizationID: "org_sync",
-		LagoProviderCode:   "stripe_sync",
-		ConnectedAt:        time.Now().UTC(),
-		LastSyncedAt:       time.Now().UTC(),
-	}}
+	adapter := &stubBillingProviderAdapter{}
 	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
 
 	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
-		ProviderType:       "stripe",
-		Environment:        "test",
-		DisplayName:        "Stripe Sync",
-		Scope:              "platform",
-		StripeSecretKey:    "sk_test_sync",
-		LagoOrganizationID: "org_seed",
-		LagoProviderCode:   "stripe_seed",
+		ProviderType:    "stripe",
+		Environment:     "test",
+		DisplayName:     "Stripe Sync",
+		Scope:           "platform",
+		StripeSecretKey: "sk_test_sync",
 	}, "platform_api_key", "pkey_sync")
 	if err != nil {
 		t.Fatalf("create connection: %v", err)
@@ -175,14 +168,11 @@ func TestBillingProviderConnectionService_SyncSuccess(t *testing.T) {
 	if verifier.last != "sk_test_sync" {
 		t.Fatalf("expected verifier to receive secret, got %q", verifier.last)
 	}
-	if adapter.last.SecretKey != "sk_test_sync" {
-		t.Fatalf("expected adapter to receive secret, got %q", adapter.last.SecretKey)
+	if adapter.calls != 0 {
+		t.Fatalf("expected adapter not to be called during connection check, got %d", adapter.calls)
 	}
 	if synced.Status != domain.BillingProviderConnectionStatusConnected {
 		t.Fatalf("expected connected status, got %q", synced.Status)
-	}
-	if synced.LagoOrganizationID != "org_sync" || synced.LagoProviderCode != "stripe_sync" {
-		t.Fatalf("expected synced lago mapping, got org=%q provider=%q", synced.LagoOrganizationID, synced.LagoProviderCode)
 	}
 	if synced.LastSyncedAt == nil {
 		t.Fatalf("expected last_synced_at to be set")
@@ -234,12 +224,7 @@ func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
 		Livemode:   false,
 		VerifiedAt: time.Now().UTC(),
 	}}
-	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
-		LagoOrganizationID: "org_batch",
-		LagoProviderCode:   "stripe_batch",
-		ConnectedAt:        time.Now().UTC(),
-		LastSyncedAt:       time.Now().UTC(),
-	}}
+	adapter := &stubBillingProviderAdapter{}
 	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
 
 	staleA, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
@@ -316,8 +301,8 @@ func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
 	if verifier.calls != 2 {
 		t.Fatalf("expected verifier calls 2, got %d", verifier.calls)
 	}
-	if adapter.calls != 2 {
-		t.Fatalf("expected adapter calls 2, got %d", adapter.calls)
+	if adapter.calls != 0 {
+		t.Fatalf("expected adapter not to be called during periodic checks, got %d", adapter.calls)
 	}
 
 	gotStaleA, err := repo.GetBillingProviderConnection(staleA.ID)
@@ -343,7 +328,7 @@ func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
 	}
 }
 
-func TestBillingProviderConnectionService_SyncMissingLagoOrganizationID(t *testing.T) {
+func TestBillingProviderConnectionService_ProvisionWorkspaceBillingConnectionRequiresCheckedConnection(t *testing.T) {
 	repo := newTestBillingProviderRepo(t)
 	secretStore := NewMemoryBillingSecretStore()
 	adapter := &stubBillingProviderAdapter{}
@@ -360,24 +345,35 @@ func TestBillingProviderConnectionService_SyncMissingLagoOrganizationID(t *testi
 		t.Fatalf("create connection: %v", err)
 	}
 
-	_, err = svc.SyncBillingProviderConnection(context.Background(), created.ID)
-	if err == nil || !strings.Contains(err.Error(), "lago organization id is required") {
-		t.Fatalf("expected missing lago organization validation error, got %v", err)
+	_, err = svc.ProvisionWorkspaceBillingConnection(context.Background(), ProvisionWorkspaceBillingConnectionInput{
+		ConnectionID:       created.ID,
+		OwnerTenantID:      "tenant_test",
+		LagoOrganizationID: "org_test",
+	})
+	if err == nil || !strings.Contains(err.Error(), "must be checked before workspace assignment") {
+		t.Fatalf("expected checked-before-assignment validation error, got %v", err)
 	}
 	if adapter.calls != 0 {
 		t.Fatalf("expected adapter not to be called, got %d", adapter.calls)
 	}
 }
 
-func TestBillingProviderConnectionService_SyncUsesDefaultLagoOrganizationID(t *testing.T) {
+func TestBillingProviderConnectionService_ProvisionWorkspaceBillingConnection(t *testing.T) {
 	repo := newTestBillingProviderRepo(t)
 	secretStore := NewMemoryBillingSecretStore()
-	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
-		LagoProviderCode: "stripe_default_org",
-		ConnectedAt:      time.Now().UTC(),
-		LastSyncedAt:     time.Now().UTC(),
+	verifier := &stubStripeConnectionVerifier{result: StripeConnectionVerificationResult{
+		AccountID:  "acct_provision",
+		Livemode:   false,
+		VerifiedAt: time.Now().UTC(),
 	}}
-	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithDefaultLagoOrganizationID("org_default")
+	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
+		LagoOrganizationID: "org_default",
+		LagoProviderCode:   "stripe_default_org",
+		ConnectedAt:        time.Now().UTC(),
+		LastSyncedAt:       time.Now().UTC(),
+		LagoWebhookHMACKey: "hmac_workspace",
+	}}
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
 
 	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
 		ProviderType:    "stripe",
@@ -389,24 +385,39 @@ func TestBillingProviderConnectionService_SyncUsesDefaultLagoOrganizationID(t *t
 	if err != nil {
 		t.Fatalf("create connection: %v", err)
 	}
+	if _, err := svc.SyncBillingProviderConnection(context.Background(), created.ID); err != nil {
+		t.Fatalf("check connection before provisioning: %v", err)
+	}
 
-	synced, err := svc.SyncBillingProviderConnection(context.Background(), created.ID)
+	result, err := svc.ProvisionWorkspaceBillingConnection(context.Background(), ProvisionWorkspaceBillingConnectionInput{
+		ConnectionID:       created.ID,
+		OwnerTenantID:      "tenant_workspace",
+		LagoOrganizationID: "org_default",
+	})
 	if err != nil {
-		t.Fatalf("sync connection with default org: %v", err)
+		t.Fatalf("provision workspace billing: %v", err)
 	}
 	if adapter.last.LagoOrganizationID != "org_default" {
 		t.Fatalf("expected default org to be sent to adapter, got %q", adapter.last.LagoOrganizationID)
 	}
-	if synced.LagoOrganizationID != "org_default" {
-		t.Fatalf("expected synced connection to persist default org, got %q", synced.LagoOrganizationID)
+	if result.LagoOrganizationID != "org_default" {
+		t.Fatalf("expected provision result to preserve org, got %q", result.LagoOrganizationID)
+	}
+	secrets, err := secretStore.GetConnectionSecrets(context.Background(), created.SecretRef)
+	if err != nil {
+		t.Fatalf("get updated connection secrets: %v", err)
+	}
+	if secrets.LagoWebhookHMACKey != "hmac_workspace" {
+		t.Fatalf("expected workspace provisioning to persist hmac key, got %q", secrets.LagoWebhookHMACKey)
 	}
 }
 
-func TestBillingProviderConnectionService_SyncFailurePersistsState(t *testing.T) {
+func TestBillingProviderConnectionService_ProvisionFailureReturnsAdapterError(t *testing.T) {
 	repo := newTestBillingProviderRepo(t)
 	secretStore := NewMemoryBillingSecretStore()
+	verifier := &stubStripeConnectionVerifier{result: StripeConnectionVerificationResult{AccountID: "acct_checked"}}
 	adapter := &stubBillingProviderAdapter{err: errors.New("lago sync failed")}
-	svc := NewBillingProviderConnectionService(repo, secretStore, adapter)
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
 
 	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
 		ProviderType:    "stripe",
@@ -418,16 +429,17 @@ func TestBillingProviderConnectionService_SyncFailurePersistsState(t *testing.T)
 	if err != nil {
 		t.Fatalf("create connection: %v", err)
 	}
+	if _, err := svc.SyncBillingProviderConnection(context.Background(), created.ID); err != nil {
+		t.Fatalf("check connection before provisioning: %v", err)
+	}
 
-	updated, err := svc.SyncBillingProviderConnection(context.Background(), created.ID)
-	if err == nil {
-		t.Fatalf("expected sync error")
-	}
-	if updated.Status != domain.BillingProviderConnectionStatusSyncError {
-		t.Fatalf("expected sync_error status, got %q", updated.Status)
-	}
-	if updated.LastSyncError != "lago sync failed" {
-		t.Fatalf("expected last sync error to persist, got %q", updated.LastSyncError)
+	_, err = svc.ProvisionWorkspaceBillingConnection(context.Background(), ProvisionWorkspaceBillingConnectionInput{
+		ConnectionID:       created.ID,
+		OwnerTenantID:      "tenant_fail",
+		LagoOrganizationID: "org_fail",
+	})
+	if err == nil || !strings.Contains(err.Error(), "lago sync failed") {
+		t.Fatalf("expected adapter error during provisioning, got %v", err)
 	}
 }
 
@@ -475,47 +487,4 @@ func newTestBillingProviderRepo(t *testing.T) store.Repository {
 		t.Fatalf("migrate db: %v", err)
 	}
 	return repo
-}
-
-func TestBillingProviderConnectionService_SyncUsesOwnerTenantOrganizationID(t *testing.T) {
-	repo := newTestBillingProviderRepo(t)
-	secretStore := NewMemoryBillingSecretStore()
-	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
-		LagoProviderCode: "stripe_owner_org",
-		ConnectedAt:      time.Now().UTC(),
-		LastSyncedAt:     time.Now().UTC(),
-	}}
-	svc := NewBillingProviderConnectionService(repo, secretStore, adapter)
-
-	if _, err := repo.CreateTenant(domain.Tenant{
-		ID:                 "tenant_owner_org",
-		Name:               "Owner Tenant",
-		Status:             domain.TenantStatusActive,
-		LagoOrganizationID: "org_owner",
-	}); err != nil {
-		t.Fatalf("create tenant: %v", err)
-	}
-
-	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
-		ProviderType:    "stripe",
-		Environment:     "test",
-		DisplayName:     "Stripe Owner Org",
-		Scope:           "tenant",
-		OwnerTenantID:   "tenant_owner_org",
-		StripeSecretKey: "sk_test_owner_org",
-	}, "platform_api_key", "pkey_owner_org")
-	if err != nil {
-		t.Fatalf("create connection: %v", err)
-	}
-
-	synced, err := svc.SyncBillingProviderConnection(context.Background(), created.ID)
-	if err != nil {
-		t.Fatalf("sync connection with owner tenant org: %v", err)
-	}
-	if adapter.last.LagoOrganizationID != "org_owner" {
-		t.Fatalf("expected owner tenant org to be sent to adapter, got %q", adapter.last.LagoOrganizationID)
-	}
-	if synced.LagoOrganizationID != "org_owner" {
-		t.Fatalf("expected synced connection to persist owner tenant org, got %q", synced.LagoOrganizationID)
-	}
 }

@@ -79,7 +79,7 @@ export function BillingConnectionListScreen() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Billing Connections</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Billing connections</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Manage Stripe connections here. Workspaces use a connection after it is ready.
+                Manage Stripe connections here. Verify the connection first, then assign it to a workspace.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -177,7 +177,7 @@ function ConnectionRow({ connection }: { connection: BillingProviderConnection }
       <StatCell label="Provider" value={connection.provider_type} />
       <StatCell label="Environment" value={connection.environment} />
       <StatCell label="Linked workspaces" value={String(connection.linked_workspace_count)} />
-      <StatCell label="Workspace use" value={connection.workspace_ready ? "Ready" : "Blocked"} />
+      <StatCell label="Assignment" value={connection.workspace_ready ? "Ready" : "Blocked"} />
       <StatCell label="Last checked" value={connection.last_synced_at ? formatExactTimestamp(connection.last_synced_at) : "Not checked"} />
     </Link>
   );

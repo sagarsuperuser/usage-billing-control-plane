@@ -97,6 +97,13 @@ type BillingProviderConnectionRecheckBatchResult struct {
 	Skipped int
 }
 
+type ProvisionWorkspaceBillingConnectionInput struct {
+	ConnectionID       string
+	OwnerTenantID      string
+	LagoOrganizationID string
+	LagoProviderCode   string
+}
+
 func NewBillingProviderConnectionService(repo store.Repository, secretStore BillingSecretStore, adapter BillingProviderAdapter) *BillingProviderConnectionService {
 	return &BillingProviderConnectionService{store: repo, secretStore: secretStore, adapter: adapter}
 }
@@ -344,8 +351,8 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	if s.secretStore == nil {
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: billing secret store is required", ErrValidation)
 	}
-	if s.adapter == nil {
-		return domain.BillingProviderConnection{}, fmt.Errorf("%w: billing provider adapter is required", ErrValidation)
+	if s.verifier == nil {
+		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe connection verifier is required", ErrValidation)
 	}
 	current, err := s.GetBillingProviderConnection(id)
 	if err != nil {
@@ -364,84 +371,101 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	if strings.TrimSpace(secrets.StripeSecretKey) == "" {
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe secret is required before sync", ErrValidation)
 	}
-	if s.verifier != nil {
-		verificationResult, verifyErr := s.verifier.VerifyStripeSecret(ctx, secrets.StripeSecretKey)
-		if verifyErr != nil {
-			current.Status = domain.BillingProviderConnectionStatusSyncError
-			current.LastSyncError = strings.TrimSpace(verifyErr.Error())
-			current.UpdatedAt = time.Now().UTC()
-			updated, updateErr := s.store.UpdateBillingProviderConnection(current)
-			if updateErr != nil {
-				return domain.BillingProviderConnection{}, updateErr
-			}
-			return updated, verifyErr
-		}
-		if verificationResult.VerifiedAt.IsZero() {
-			verificationResult.VerifiedAt = time.Now().UTC()
-		}
-	}
-	resolvedLagoOrganizationID := strings.TrimSpace(current.LagoOrganizationID)
-	if resolvedLagoOrganizationID == "" && strings.TrimSpace(current.OwnerTenantID) != "" {
-		tenant, tenantErr := s.store.GetTenant(current.OwnerTenantID)
-		if tenantErr != nil && tenantErr != store.ErrNotFound {
-			return domain.BillingProviderConnection{}, tenantErr
-		}
-		if tenantErr == nil {
-			resolvedLagoOrganizationID = strings.TrimSpace(tenant.LagoOrganizationID)
-		}
-	}
-	if resolvedLagoOrganizationID == "" {
-		resolvedLagoOrganizationID = strings.TrimSpace(s.defaultLagoOrganizationID)
-	}
-	if resolvedLagoOrganizationID == "" {
-		return domain.BillingProviderConnection{}, fmt.Errorf("%w: lago organization id is required", ErrValidation)
-	}
-	result, syncErr := s.adapter.EnsureStripeProvider(ctx, EnsureStripeProviderInput{
-		ConnectionID:       current.ID,
-		DisplayName:        current.DisplayName,
-		Environment:        current.Environment,
-		SecretKey:          secrets.StripeSecretKey,
-		LagoOrganizationID: resolvedLagoOrganizationID,
-		LagoProviderCode:   current.LagoProviderCode,
-		OwnerTenantID:      current.OwnerTenantID,
-	})
-	if syncErr != nil {
+	verificationResult, verifyErr := s.verifier.VerifyStripeSecret(ctx, secrets.StripeSecretKey)
+	if verifyErr != nil {
 		current.Status = domain.BillingProviderConnectionStatusSyncError
-		current.LastSyncError = strings.TrimSpace(syncErr.Error())
+		current.LastSyncError = strings.TrimSpace(verifyErr.Error())
 		current.UpdatedAt = time.Now().UTC()
 		updated, updateErr := s.store.UpdateBillingProviderConnection(current)
 		if updateErr != nil {
 			return domain.BillingProviderConnection{}, updateErr
 		}
-		return updated, syncErr
+		return updated, verifyErr
+	}
+	if verificationResult.VerifiedAt.IsZero() {
+		verificationResult.VerifiedAt = time.Now().UTC()
 	}
 	current.Status = domain.BillingProviderConnectionStatusConnected
-	if strings.TrimSpace(result.LagoOrganizationID) != "" {
-		current.LagoOrganizationID = strings.TrimSpace(result.LagoOrganizationID)
-	} else if current.LagoOrganizationID == "" {
-		current.LagoOrganizationID = resolvedLagoOrganizationID
+	now := time.Now().UTC()
+	if current.ConnectedAt == nil {
+		current.ConnectedAt = &now
 	}
-	if strings.TrimSpace(result.LagoProviderCode) != "" {
-		current.LagoProviderCode = strings.TrimSpace(result.LagoProviderCode)
+	current.LastSyncedAt = &now
+	current.LastSyncError = ""
+	current.UpdatedAt = now
+	return s.store.UpdateBillingProviderConnection(current)
+}
+
+func (s *BillingProviderConnectionService) ProvisionWorkspaceBillingConnection(ctx context.Context, input ProvisionWorkspaceBillingConnectionInput) (EnsureStripeProviderResult, error) {
+	if s == nil || s.store == nil {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: billing provider repository is required", ErrValidation)
+	}
+	if s.secretStore == nil {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: billing secret store is required", ErrValidation)
+	}
+	if s.adapter == nil {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: billing provider adapter is required", ErrValidation)
+	}
+
+	connectionID := strings.TrimSpace(input.ConnectionID)
+	if connectionID == "" {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: billing provider connection id is required", ErrValidation)
+	}
+	resolvedLagoOrganizationID := strings.TrimSpace(input.LagoOrganizationID)
+	if resolvedLagoOrganizationID == "" {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: lago organization id is required", ErrValidation)
+	}
+
+	current, err := s.GetBillingProviderConnection(connectionID)
+	if err != nil {
+		return EnsureStripeProviderResult{}, err
+	}
+	if current.Status == domain.BillingProviderConnectionStatusDisabled {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: disabled connections cannot be assigned to a workspace", ErrValidation)
+	}
+	if current.Status != domain.BillingProviderConnectionStatusConnected {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: billing provider connection must be checked before workspace assignment", ErrValidation)
+	}
+	if current.ProviderType != domain.BillingProviderTypeStripe {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: unsupported provider type %q", ErrValidation, current.ProviderType)
+	}
+
+	secrets, err := s.secretStore.GetConnectionSecrets(ctx, current.SecretRef)
+	if err != nil {
+		return EnsureStripeProviderResult{}, err
+	}
+	if strings.TrimSpace(secrets.StripeSecretKey) == "" {
+		return EnsureStripeProviderResult{}, fmt.Errorf("%w: stripe secret is required before workspace assignment", ErrValidation)
+	}
+
+	result, err := s.adapter.EnsureStripeProvider(ctx, EnsureStripeProviderInput{
+		ConnectionID:       current.ID,
+		DisplayName:        current.DisplayName,
+		Environment:        current.Environment,
+		SecretKey:          secrets.StripeSecretKey,
+		LagoOrganizationID: resolvedLagoOrganizationID,
+		LagoProviderCode:   strings.TrimSpace(input.LagoProviderCode),
+		OwnerTenantID:      strings.TrimSpace(input.OwnerTenantID),
+	})
+	if err != nil {
+		return EnsureStripeProviderResult{}, err
 	}
 	if strings.TrimSpace(result.LagoWebhookHMACKey) != "" {
 		secrets.LagoWebhookHMACKey = strings.TrimSpace(result.LagoWebhookHMACKey)
 		if _, err := s.secretStore.UpdateConnectionSecrets(ctx, current.SecretRef, secrets); err != nil {
-			return domain.BillingProviderConnection{}, err
+			return EnsureStripeProviderResult{}, err
 		}
 	}
-	now := time.Now().UTC()
 	if result.ConnectedAt.IsZero() {
-		result.ConnectedAt = now
+		result.ConnectedAt = time.Now().UTC()
 	}
 	if result.LastSyncedAt.IsZero() {
-		result.LastSyncedAt = now
+		result.LastSyncedAt = result.ConnectedAt
 	}
-	current.ConnectedAt = &result.ConnectedAt
-	current.LastSyncedAt = &result.LastSyncedAt
-	current.LastSyncError = ""
-	current.UpdatedAt = now
-	return s.store.UpdateBillingProviderConnection(current)
+	if strings.TrimSpace(result.LagoOrganizationID) == "" {
+		result.LagoOrganizationID = resolvedLagoOrganizationID
+	}
+	return result, nil
 }
 
 func (s *BillingProviderConnectionService) RecheckBillingProviderConnectionsBatch(ctx context.Context, req BillingProviderConnectionRecheckBatchRequest) (BillingProviderConnectionRecheckBatchResult, error) {

@@ -794,6 +794,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
 	s.tenantService = service.NewTenantService(repo).
 		WithWorkspaceBillingBindingService(s.workspaceBillingBindingService).
+		WithBillingProviderConnectionService(s.billingProviderConnectionService).
 		WithLagoOrganizationBootstrapper(s.lagoOrganizationBootstrapper)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
@@ -6119,8 +6120,11 @@ func translateUserVisibleError(status int, code, message string) (string, string
 	switch {
 	case strings.Contains(lower, "lago organization id is required"),
 		strings.Contains(lower, "workspace has no billing execution context"),
-		strings.Contains(lower, "workspace billing binding exists but is not ready"):
+		strings.Contains(lower, "workspace billing binding exists but is not ready"),
+		strings.Contains(lower, "billing setup is incomplete for this workspace"):
 		return "Billing setup is incomplete for this workspace or connection.", code
+	case strings.Contains(lower, "billing provider connection must be checked before workspace assignment"):
+		return "Check this Stripe connection before assigning it to a workspace.", code
 	case strings.Contains(lower, "meter sync adapter is required"),
 		strings.Contains(lower, "lago meter sync adapter is required"),
 		strings.Contains(lower, "lago tax sync adapter is required"),

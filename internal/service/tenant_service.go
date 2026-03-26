@@ -14,6 +14,7 @@ import (
 type TenantService struct {
 	store                          store.Repository
 	workspaceBillingBindingService *WorkspaceBillingBindingService
+	billingProviderConnectionSvc   *BillingProviderConnectionService
 	organizationBootstrapper       LagoOrganizationBootstrapper
 }
 
@@ -61,6 +62,14 @@ func (s *TenantService) WithWorkspaceBillingBindingService(bindingSvc *Workspace
 		return nil
 	}
 	s.workspaceBillingBindingService = bindingSvc
+	return s
+}
+
+func (s *TenantService) WithBillingProviderConnectionService(connectionSvc *BillingProviderConnectionService) *TenantService {
+	if s == nil {
+		return nil
+	}
+	s.billingProviderConnectionSvc = connectionSvc
 	return s
 }
 
@@ -384,12 +393,11 @@ func (s *TenantService) resolveTenantWriteBillingConfiguration(current domain.Te
 		rawCode = strings.TrimSpace(*lagoBillingProviderCode)
 	}
 	if s.workspaceBillingBindingService != nil && rawConnectionID != "" {
-		resolvedConnectionID, _, _, err := s.ensureBindingBackedTenantBillingConfiguration(current.ID, rawConnectionID, rawOrg, rawCode, actorAPIKeyID)
+		resolvedConnectionID, resolvedOrg, resolvedCode, err := s.ensureBindingBackedTenantBillingConfiguration(current.ID, rawConnectionID, rawOrg, rawCode, actorAPIKeyID)
 		if err != nil {
 			return "", "", "", err
 		}
-		// Keep tenant-level Lago fields as compatibility residue only. The binding is the source of truth.
-		return resolvedConnectionID, current.LagoOrganizationID, current.LagoBillingProviderCode, nil
+		return resolvedConnectionID, resolvedOrg, resolvedCode, nil
 	}
 	return s.resolveTenantBillingConfiguration(rawConnectionID, rawOrg, rawCode)
 }
@@ -398,7 +406,7 @@ func (s *TenantService) syncTenantBillingBinding(current domain.Tenant, connecti
 	if s.workspaceBillingBindingService == nil || strings.TrimSpace(connectionID) == "" {
 		return current, nil
 	}
-	resolvedConnectionID, _, _, err := s.ensureBindingBackedTenantBillingConfiguration(
+	resolvedConnectionID, resolvedOrg, resolvedCode, err := s.ensureBindingBackedTenantBillingConfiguration(
 		current.ID,
 		connectionID,
 		rawLagoOrganizationID,
@@ -408,10 +416,14 @@ func (s *TenantService) syncTenantBillingBinding(current domain.Tenant, connecti
 	if err != nil {
 		return domain.Tenant{}, err
 	}
-	if current.BillingProviderConnectionID == resolvedConnectionID {
+	if current.BillingProviderConnectionID == resolvedConnectionID &&
+		current.LagoOrganizationID == resolvedOrg &&
+		current.LagoBillingProviderCode == resolvedCode {
 		return current, nil
 	}
 	current.BillingProviderConnectionID = resolvedConnectionID
+	current.LagoOrganizationID = resolvedOrg
+	current.LagoBillingProviderCode = resolvedCode
 	current.UpdatedAt = time.Now().UTC()
 	return s.store.UpdateTenant(current)
 }
@@ -420,10 +432,51 @@ func (s *TenantService) ensureBindingBackedTenantBillingConfiguration(workspaceI
 	if s.workspaceBillingBindingService == nil {
 		return s.resolveTenantBillingConfiguration(connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode)
 	}
-	resolvedConnectionID, resolvedOrg, resolvedCode, err := s.resolveTenantBillingConfiguration(connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode)
+
+	resolvedConnectionID := strings.TrimSpace(connectionID)
+	if resolvedConnectionID == "" {
+		return "", strings.TrimSpace(rawLagoOrganizationID), strings.TrimSpace(rawLagoBillingProviderCode), nil
+	}
+	connection, err := s.store.GetBillingProviderConnection(resolvedConnectionID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			return "", "", "", fmt.Errorf("%w: billing provider connection not found", ErrValidation)
+		}
+		return "", "", "", err
+	}
+	if connection.Status != domain.BillingProviderConnectionStatusConnected {
+		return "", "", "", fmt.Errorf("%w: billing provider connection must be checked before workspace assignment", ErrValidation)
+	}
+
+	tenant, err := s.store.GetTenant(workspaceID)
 	if err != nil {
 		return "", "", "", err
 	}
+	tenant, resolvedOrg, err := s.ensureTenantBillingOrganization(tenant, rawLagoOrganizationID)
+	if err != nil {
+		return "", "", "", err
+	}
+	resolvedCode := strings.TrimSpace(rawLagoBillingProviderCode)
+	if s.billingProviderConnectionSvc != nil {
+		result, err := s.billingProviderConnectionSvc.ProvisionWorkspaceBillingConnection(context.Background(), ProvisionWorkspaceBillingConnectionInput{
+			ConnectionID:       resolvedConnectionID,
+			OwnerTenantID:      tenant.ID,
+			LagoOrganizationID: resolvedOrg,
+			LagoProviderCode:   resolvedCode,
+		})
+		if err != nil {
+			return "", "", "", err
+		}
+		if strings.TrimSpace(result.LagoOrganizationID) != "" {
+			resolvedOrg = strings.TrimSpace(result.LagoOrganizationID)
+		}
+		if strings.TrimSpace(result.LagoProviderCode) != "" {
+			resolvedCode = strings.TrimSpace(result.LagoProviderCode)
+		}
+	} else if resolvedOrg == "" || resolvedCode == "" {
+		return "", "", "", fmt.Errorf("%w: workspace billing provisioning is not configured", ErrValidation)
+	}
+
 	actorType := "platform_api_key"
 	actorID := strings.TrimSpace(actorAPIKeyID)
 	if actorID == "" {
@@ -450,6 +503,40 @@ func (s *TenantService) ensureBindingBackedTenantBillingConfiguration(workspaceI
 	return effective.BillingProviderConnectionID, effective.BackendOrganizationID, effective.BackendProviderCode, nil
 }
 
+func (s *TenantService) ensureTenantBillingOrganization(current domain.Tenant, requestedOrganizationID string) (domain.Tenant, string, error) {
+	resolvedOrganizationID := strings.TrimSpace(requestedOrganizationID)
+	if resolvedOrganizationID != "" {
+		if current.LagoOrganizationID == resolvedOrganizationID {
+			return current, resolvedOrganizationID, nil
+		}
+		current.LagoOrganizationID = resolvedOrganizationID
+		current.UpdatedAt = time.Now().UTC()
+		updated, err := s.store.UpdateTenant(current)
+		if err != nil {
+			return domain.Tenant{}, "", err
+		}
+		return updated, resolvedOrganizationID, nil
+	}
+	if strings.TrimSpace(current.LagoOrganizationID) != "" {
+		return current, strings.TrimSpace(current.LagoOrganizationID), nil
+	}
+	if s.organizationBootstrapper == nil {
+		return domain.Tenant{}, "", fmt.Errorf("%w: billing setup is incomplete for this workspace", ErrValidation)
+	}
+	bootstrapped, err := s.bootstrapTenantOrganization(current.Name)
+	if err != nil {
+		return domain.Tenant{}, "", err
+	}
+	current.LagoOrganizationID = strings.TrimSpace(bootstrapped.OrganizationID)
+	current.LagoAPIKey = strings.TrimSpace(bootstrapped.APIKey)
+	current.UpdatedAt = time.Now().UTC()
+	updated, err := s.store.UpdateTenant(current)
+	if err != nil {
+		return domain.Tenant{}, "", err
+	}
+	return updated, current.LagoOrganizationID, nil
+}
+
 func (s *TenantService) resolveTenantBillingConfiguration(connectionID, rawLagoOrganizationID, rawLagoBillingProviderCode string) (string, string, string, error) {
 	connectionID = strings.TrimSpace(connectionID)
 	lagoOrganizationID := strings.TrimSpace(rawLagoOrganizationID)
@@ -465,12 +552,15 @@ func (s *TenantService) resolveTenantBillingConfiguration(connectionID, rawLagoO
 		return "", "", "", err
 	}
 	if connection.Status != domain.BillingProviderConnectionStatusConnected {
-		return "", "", "", fmt.Errorf("%w: billing provider connection must be connected before workspace assignment", ErrValidation)
+		return "", "", "", fmt.Errorf("%w: billing provider connection must be checked before workspace assignment", ErrValidation)
 	}
-	if strings.TrimSpace(connection.LagoOrganizationID) == "" || strings.TrimSpace(connection.LagoProviderCode) == "" {
-		return "", "", "", fmt.Errorf("%w: billing provider connection is missing lago mapping", ErrValidation)
+	if lagoOrganizationID == "" {
+		lagoOrganizationID = strings.TrimSpace(connection.LagoOrganizationID)
 	}
-	return connectionID, strings.TrimSpace(connection.LagoOrganizationID), strings.TrimSpace(connection.LagoProviderCode), nil
+	if lagoBillingProviderCode == "" {
+		lagoBillingProviderCode = strings.TrimSpace(connection.LagoProviderCode)
+	}
+	return connectionID, lagoOrganizationID, lagoBillingProviderCode, nil
 }
 
 func valueOrDefault(input *string, fallback string) string {

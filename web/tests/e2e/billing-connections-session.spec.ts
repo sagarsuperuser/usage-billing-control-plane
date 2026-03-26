@@ -23,7 +23,7 @@ type BillingProviderConnection = {
   sync_state: "healthy" | "failed" | "never_synced" | "pending" | "disabled";
   sync_summary: string;
   check_ready: boolean;
-  check_blocker_code?: "disabled" | "missing_secret" | "billing_setup_incomplete";
+  check_blocker_code?: "disabled" | "missing_secret";
   check_blocker_summary?: string;
   linked_workspace_count: number;
   lago_organization_id?: string;
@@ -85,7 +85,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
         status: "pending",
         workspace_ready: false,
         sync_state: "never_synced",
-        sync_summary: "Run the first connection check after billing setup is complete.",
+        sync_summary: "Run the first connection check before assigning this connection to a workspace.",
         check_ready: true,
         linked_workspace_count: 0,
         secret_configured: true,
@@ -114,7 +114,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             status: "connected",
             workspace_ready: true,
             sync_state: "healthy",
-            sync_summary: "Stripe is connected and ready for billing.",
+            sync_summary: "Stripe credentials are verified and ready for workspace assignment.",
             check_ready: true,
             lago_provider_code: "alpha_stripe_test_bpc_alpha",
             connected_at: now,
@@ -140,7 +140,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             status: "pending",
             workspace_ready: false,
             sync_state: "pending",
-            sync_summary: "Run another connection check before using this connection for billing.",
+            sync_summary: "Run another connection check before using this connection.",
             check_ready: true,
             last_synced_at: undefined,
             updated_at: now,
@@ -234,7 +234,7 @@ test("platform admin can create and sync a billing connection", async ({ page, c
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page).toHaveURL(/\/billing-connections\/bpc_alpha$/);
   await expect(page.getByRole("heading", { name: "Stripe Sandbox" })).toBeVisible();
-  await expect(page.locator("div").filter({ hasText: /^Stripe is connected and ready for billing\.$/ })).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^Stripe credentials are verified and ready for workspace assignment\.$/ })).toBeVisible();
 });
 
 test("platform admin can edit billing connection detail metadata", async ({ page, context }) => {
@@ -258,7 +258,7 @@ test("platform admin can edit billing connection detail metadata", async ({ page
       status: "connected",
       workspace_ready: true,
       sync_state: "healthy",
-      sync_summary: "Stripe is connected and ready for billing.",
+      sync_summary: "Stripe credentials are verified and ready for workspace assignment.",
       check_ready: true,
       linked_workspace_count: 0,
       secret_configured: true,
@@ -311,7 +311,7 @@ test("platform admin can rotate a billing connection secret and see it return to
       status: "connected",
       workspace_ready: true,
       sync_state: "healthy",
-      sync_summary: "Stripe is connected and ready for billing.",
+      sync_summary: "Stripe credentials are verified and ready for workspace assignment.",
       check_ready: true,
       linked_workspace_count: 1,
       secret_configured: true,
@@ -330,10 +330,10 @@ test("platform admin can rotate a billing connection secret and see it return to
   await page.getByRole("button", { name: "Rotate secret" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
-  await expect(page.locator("div").filter({ hasText: /^Run another connection check before using this connection for billing\.$/ })).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^Run another connection check before using this connection\.$/ })).toBeVisible();
 });
 
-test("platform admin sees billing setup required before the first connection check", async ({ page, context }) => {
+test("platform admin sees missing secret before the first connection check", async ({ page, context }) => {
   const session: PlatformSessionPayload = {
     authenticated: true,
     subject_type: "user",
@@ -354,12 +354,12 @@ test("platform admin sees billing setup required before the first connection che
       status: "pending",
       workspace_ready: false,
       sync_state: "never_synced",
-      sync_summary: "Run the first connection check after billing setup is complete.",
+      sync_summary: "Run the first connection check before assigning this connection to a workspace.",
       check_ready: false,
-      check_blocker_code: "billing_setup_incomplete",
-      check_blocker_summary: "Complete billing setup for this connection before running a full connection check.",
+      check_blocker_code: "missing_secret",
+      check_blocker_summary: "Add a Stripe secret before checking this connection.",
       linked_workspace_count: 0,
-      secret_configured: true,
+      secret_configured: false,
       created_by_type: "platform_api_key",
       created_at: seededNow,
       updated_at: seededNow,
@@ -368,9 +368,9 @@ test("platform admin sees billing setup required before the first connection che
 
   await page.goto("/billing-connections/bpc_alpha");
 
-  await expect(page.getByRole("button", { name: "Billing setup required" })).toBeDisabled();
-  await expect(page.getByText("Complete billing setup for this connection before running a full connection check.").first()).toBeVisible();
-  await expect(page.getByText("Billing setup required").nth(1)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Secret required" })).toBeDisabled();
+  await expect(page.getByText("Add a Stripe secret before checking this connection.").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Secret is missing" })).toBeVisible();
 });
 
 test("platform admin sees explicit verification checks for a failed billing connection", async ({ page, context }) => {
@@ -414,7 +414,7 @@ test("platform admin sees explicit verification checks for a failed billing conn
   await expect(page.getByText("2 linked workspaces depend on this path.")).toBeVisible();
   await expect(page.getByText("Latest issue", { exact: true })).toBeVisible();
   await expect(page.locator("div").filter({ hasText: /^provider timeout$/ }).first()).toBeVisible();
-  await expect(page.getByText("Workspace assignment")).toBeVisible();
+  await expect(page.getByText("Workspace assignment", { exact: true })).toBeVisible();
   await expect(page.getByText("There are 2 linked workspaces, but the connection is not currently ready.")).toBeVisible();
   await expect(page.getByText("Correct the issue, then refresh the connection.")).toBeVisible();
 });
