@@ -31,6 +31,22 @@ func (s *stubBillingProviderAdapter) EnsureStripeProvider(_ context.Context, inp
 	return s.result, nil
 }
 
+type stubStripeConnectionVerifier struct {
+	result StripeConnectionVerificationResult
+	err    error
+	calls  int
+	last   string
+}
+
+func (s *stubStripeConnectionVerifier) VerifyStripeSecret(_ context.Context, secretKey string) (StripeConnectionVerificationResult, error) {
+	s.calls++
+	s.last = secretKey
+	if s.err != nil {
+		return StripeConnectionVerificationResult{}, s.err
+	}
+	return s.result, nil
+}
+
 func TestMemoryBillingSecretStoreLifecycle(t *testing.T) {
 	t.Parallel()
 
@@ -120,13 +136,18 @@ func TestBillingProviderConnectionService_CreateAndRotate(t *testing.T) {
 func TestBillingProviderConnectionService_SyncSuccess(t *testing.T) {
 	repo := newTestBillingProviderRepo(t)
 	secretStore := NewMemoryBillingSecretStore()
+	verifier := &stubStripeConnectionVerifier{result: StripeConnectionVerificationResult{
+		AccountID:  "acct_123",
+		Livemode:   false,
+		VerifiedAt: time.Now().UTC(),
+	}}
 	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
 		LagoOrganizationID: "org_sync",
 		LagoProviderCode:   "stripe_sync",
 		ConnectedAt:        time.Now().UTC(),
 		LastSyncedAt:       time.Now().UTC(),
 	}}
-	svc := NewBillingProviderConnectionService(repo, secretStore, adapter)
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
 
 	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
 		ProviderType:       "stripe",
@@ -148,6 +169,12 @@ func TestBillingProviderConnectionService_SyncSuccess(t *testing.T) {
 	if adapter.calls != 1 {
 		t.Fatalf("expected adapter call, got %d", adapter.calls)
 	}
+	if verifier.calls != 1 {
+		t.Fatalf("expected verifier call, got %d", verifier.calls)
+	}
+	if verifier.last != "sk_test_sync" {
+		t.Fatalf("expected verifier to receive secret, got %q", verifier.last)
+	}
 	if adapter.last.SecretKey != "sk_test_sync" {
 		t.Fatalf("expected adapter to receive secret, got %q", adapter.last.SecretKey)
 	}
@@ -159,6 +186,43 @@ func TestBillingProviderConnectionService_SyncSuccess(t *testing.T) {
 	}
 	if synced.LastSyncedAt == nil {
 		t.Fatalf("expected last_synced_at to be set")
+	}
+}
+
+func TestBillingProviderConnectionService_SyncFailsWhenStripeVerificationFails(t *testing.T) {
+	repo := newTestBillingProviderRepo(t)
+	secretStore := NewMemoryBillingSecretStore()
+	verifier := &stubStripeConnectionVerifier{err: errors.New("Stripe rejected the connection details.")}
+	adapter := &stubBillingProviderAdapter{}
+	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
+
+	created, err := svc.CreateBillingProviderConnection(context.Background(), CreateBillingProviderConnectionRequest{
+		ProviderType:       "stripe",
+		Environment:        "test",
+		DisplayName:        "Stripe Verify Fail",
+		Scope:              "platform",
+		StripeSecretKey:    "sk_test_verify_fail",
+		LagoOrganizationID: "org_seed",
+	}, "platform_api_key", "pkey_verify_fail")
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+
+	updated, err := svc.SyncBillingProviderConnection(context.Background(), created.ID)
+	if err == nil {
+		t.Fatalf("expected stripe verification error")
+	}
+	if verifier.calls != 1 {
+		t.Fatalf("expected verifier call, got %d", verifier.calls)
+	}
+	if adapter.calls != 0 {
+		t.Fatalf("expected adapter not to be called, got %d", adapter.calls)
+	}
+	if updated.Status != domain.BillingProviderConnectionStatusSyncError {
+		t.Fatalf("expected sync_error status, got %q", updated.Status)
+	}
+	if updated.LastSyncError != "Stripe rejected the connection details." {
+		t.Fatalf("expected stripe verification error to persist, got %q", updated.LastSyncError)
 	}
 }
 

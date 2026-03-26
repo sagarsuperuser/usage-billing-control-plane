@@ -10,7 +10,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
-import { createBillingProviderConnection, syncBillingProviderConnection } from "@/lib/api";
+import { createBillingProviderConnection, refreshBillingProviderConnection } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function BillingConnectionNewScreen() {
@@ -19,7 +19,6 @@ export function BillingConnectionNewScreen() {
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
   const [displayName, setDisplayName] = useState("");
   const [environment, setEnvironment] = useState<"test" | "live">("test");
-  const [lagoOrganizationID, setLagoOrganizationID] = useState("");
   const [stripeSecretKey, setStripeSecretKey] = useState("");
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -34,23 +33,22 @@ export function BillingConnectionNewScreen() {
           display_name: displayName.trim(),
           scope: "platform",
           stripe_secret_key: stripeSecretKey.trim(),
-          lago_organization_id: lagoOrganizationID.trim() || undefined,
         },
       });
-      return syncBillingProviderConnection({
+      return refreshBillingProviderConnection({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
         connectionID: created.id,
       });
     },
     onSuccess: async (connection) => {
-      setFlash(`Billing connection ${connection.display_name} is connected.`);
+      setFlash(`Billing connection ${connection.display_name} is ready.`);
       await queryClient.invalidateQueries({ queryKey: ["billing-provider-connections"] });
       router.push(`/billing-connections/${encodeURIComponent(connection.id)}`);
     },
   });
 
-  const canSubmit = Boolean(isPlatformAdmin && csrfToken && displayName.trim() && stripeSecretKey.trim());
+  const canSubmit = Boolean(isPlatformAdmin && displayName.trim() && stripeSecretKey.trim());
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -64,7 +62,7 @@ export function BillingConnectionNewScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing connection</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">New billing connection</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Create a platform-owned Stripe connection. Alpha stores the secret, syncs the provider, and exposes a stable record for workspace assignment.
+                Create a platform-owned Stripe connection. Alpha stores the secret, checks the Stripe credentials, and makes the connection available for workspace use.
               </p>
             </div>
             <Link href="/billing-connections" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
@@ -92,7 +90,7 @@ export function BillingConnectionNewScreen() {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Connect Stripe</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                  This flow is Stripe-first. Alpha keeps the secret in its secret store and syncs only the provider configuration needed for execution.
+                  Add the Stripe secret and let Alpha check the connection before any workspace uses it.
                 </p>
               </div>
               <span className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-700">
@@ -103,7 +101,7 @@ export function BillingConnectionNewScreen() {
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
               <StepCard index="1" title="Name the connection" body="Use a durable display name your operators will recognize later." />
               <StepCard index="2" title="Store the Stripe secret" body="Alpha keeps the secret outside normal database rows." />
-              <StepCard index="3" title="Sync the provider" body="Alpha provisions the provider and records the mapping on the connection." />
+              <StepCard index="3" title="Check Stripe" body="Alpha verifies the credentials before the connection is marked ready." />
             </div>
 
             <div className="mt-5 grid gap-5">
@@ -127,17 +125,6 @@ export function BillingConnectionNewScreen() {
                   <InputField label="Stripe secret key" value={stripeSecretKey} onChange={setStripeSecretKey} placeholder="sk_test_..." type="password" />
                 </div>
               </section>
-
-              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Internal override</p>
-                <h3 className="mt-2 text-lg font-semibold text-slate-950">Billing organization</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Alpha should normally resolve the backing billing organization from platform configuration. Only set this if you intentionally need a non-default target.
-                </p>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <InputField label="Billing organization override" value={lagoOrganizationID} onChange={setLagoOrganizationID} placeholder="4a3951fe-09d8-40ae-8425-6a05aacbd4ea" />
-                </div>
-              </section>
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -146,7 +133,7 @@ export function BillingConnectionNewScreen() {
                 <ChecklistLine done={displayName.trim().length > 0} text="Connection name is set" />
                 <ChecklistLine done={stripeSecretKey.trim().length > 0} text="Stripe secret key is set" />
                 <ChecklistLine done text="Provider type is Stripe" />
-                <ChecklistLine done text={lagoOrganizationID.trim().length > 0 ? "Billing organization override added" : "Billing org will resolve from platform config"} />
+                <ChecklistLine done text="Alpha will check the Stripe connection after create" />
               </div>
             </div>
 
@@ -161,7 +148,7 @@ export function BillingConnectionNewScreen() {
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                Create and sync connection
+                Create and check connection
               </button>
             </div>
           </section>
@@ -171,14 +158,14 @@ export function BillingConnectionNewScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What Alpha owns</p>
               <div className="mt-4 grid gap-2">
                 <ChecklistLine done text="Secret stays out of tenant rows" />
-                <ChecklistLine done text="Provider sync is explicit and observable" />
+                <ChecklistLine done text="Provider check is explicit and observable" />
                 <ChecklistLine done text="Workspaces link a stable connection record" />
-                <ChecklistLine done text="Default billing org can come from platform config" />
+                <ChecklistLine done text="Internal billing routing stays behind the product" />
               </div>
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-600">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">After connect</p>
-              <p className="mt-3">Rotate secrets, resync providers, and disable stale connections from the billing connection detail page after the initial sync succeeds.</p>
+              <p className="mt-3">Rotate the secret, refresh the connection, or disable the connection later from the detail page.</p>
             </section>
           </aside>
         </div>

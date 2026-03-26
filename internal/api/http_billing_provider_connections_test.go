@@ -33,6 +33,18 @@ func (s *stubBillingProviderAdapterAPI) EnsureStripeProvider(_ context.Context, 
 	return s.result, nil
 }
 
+type stubStripeConnectionVerifierAPI struct {
+	result service.StripeConnectionVerificationResult
+	err    error
+}
+
+func (s *stubStripeConnectionVerifierAPI) VerifyStripeSecret(_ context.Context, _ string) (service.StripeConnectionVerificationResult, error) {
+	if s.err != nil {
+		return service.StripeConnectionVerificationResult{}, s.err
+	}
+	return s.result, nil
+}
+
 func TestInternalBillingProviderConnectionEndpointsSyncRequiresLagoOrganizationID(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -57,7 +69,8 @@ func TestInternalBillingProviderConnectionEndpointsSyncRequiresLagoOrganizationI
 		t.Fatalf("new authorizer: %v", err)
 	}
 
-	svc := service.NewBillingProviderConnectionService(repo, service.NewMemoryBillingSecretStore(), &stubBillingProviderAdapterAPI{})
+	svc := service.NewBillingProviderConnectionService(repo, service.NewMemoryBillingSecretStore(), &stubBillingProviderAdapterAPI{}).
+		WithStripeConnectionVerifier(&stubStripeConnectionVerifierAPI{result: service.StripeConnectionVerificationResult{AccountID: "acct_ok"}})
 
 	ts := httptest.NewServer(api.NewServer(repo,
 		api.WithAPIKeyAuthorizer(authorizer),
@@ -110,7 +123,8 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 		LagoOrganizationID: "org_synced",
 		LagoProviderCode:   "stripe_synced",
 	}}
-	svc := service.NewBillingProviderConnectionService(repo, service.NewMemoryBillingSecretStore(), adapter)
+	svc := service.NewBillingProviderConnectionService(repo, service.NewMemoryBillingSecretStore(), adapter).
+		WithStripeConnectionVerifier(&stubStripeConnectionVerifierAPI{result: service.StripeConnectionVerificationResult{AccountID: "acct_ok"}})
 
 	ts := httptest.NewServer(api.NewServer(repo,
 		api.WithAPIKeyAuthorizer(authorizer),
@@ -211,7 +225,8 @@ func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
 		LagoProviderCode:   "stripe_synced",
 	}}
 	secretStore := service.NewMemoryBillingSecretStore()
-	svc := service.NewBillingProviderConnectionService(repo, secretStore, adapter)
+	svc := service.NewBillingProviderConnectionService(repo, secretStore, adapter).
+		WithStripeConnectionVerifier(&stubStripeConnectionVerifierAPI{result: service.StripeConnectionVerificationResult{AccountID: "acct_ok"}})
 
 	ts := httptest.NewServer(api.NewServer(repo,
 		api.WithAPIKeyAuthorizer(authorizer),
@@ -246,7 +261,7 @@ func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
 	if rotatedConnection["sync_state"] != "pending" {
 		t.Fatalf("expected pending sync_state after rotate, got %#v", rotatedConnection["sync_state"])
 	}
-	if rotatedConnection["sync_summary"] != "Connection is waiting for a successful provider sync." {
+	if rotatedConnection["sync_summary"] != "Connection needs a fresh check before billing can continue." {
 		t.Fatalf("expected pending sync_summary after rotate, got %#v", rotatedConnection["sync_summary"])
 	}
 	if rotatedConnection["workspace_ready"] != false {

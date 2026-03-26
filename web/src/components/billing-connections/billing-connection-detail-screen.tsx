@@ -12,8 +12,8 @@ import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import {
   disableBillingProviderConnection,
   fetchBillingProviderConnection,
+  refreshBillingProviderConnection,
   rotateBillingProviderConnectionSecret,
-  syncBillingProviderConnection,
   updateBillingProviderConnection,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
@@ -34,7 +34,6 @@ type ConnectionVerificationDiagnosis = {
   title: string;
   summary: string;
   nextStep: string;
-  assignmentRisk: string;
   workspaceImpact: string;
   tone: HealthCheckTone;
 };
@@ -99,9 +98,8 @@ function buildVerificationDiagnosis(connection: {
     return {
       code: "disabled",
       title: "Connection is disabled",
-      summary: "This billing path is out of service.",
+      summary: "This connection is out of service.",
       nextStep: "Move workspaces to another active connection before replacing it.",
-      assignmentRisk: "Blocked",
       workspaceImpact,
       tone: "bad",
     };
@@ -111,9 +109,8 @@ function buildVerificationDiagnosis(connection: {
     return {
       code: "missing_secret",
       title: "Secret is missing",
-      summary: "Alpha cannot verify this connection without a stored provider secret.",
-      nextStep: "Store the secret, then run sync.",
-      assignmentRisk: "Blocked",
+      summary: "Alpha cannot check this connection without a stored Stripe secret.",
+      nextStep: "Store the secret, then refresh the connection.",
       workspaceImpact,
       tone: "bad",
     };
@@ -122,10 +119,9 @@ function buildVerificationDiagnosis(connection: {
   if (connection.sync_state === "failed") {
     return {
       code: "verification_failed",
-      title: "Verification failed",
-      summary: connection.last_sync_error || connection.sync_summary || "The latest sync did not complete cleanly.",
-      nextStep: "Correct the error, then rerun sync.",
-      assignmentRisk: connection.linked_workspace_count > 0 ? "High" : "Blocked",
+      title: "Needs attention",
+      summary: connection.last_sync_error || connection.sync_summary || "Alpha could not confirm that Stripe is ready.",
+      nextStep: "Correct the issue, then refresh the connection.",
       workspaceImpact,
       tone: "bad",
     };
@@ -134,10 +130,9 @@ function buildVerificationDiagnosis(connection: {
   if (connection.sync_state === "pending") {
     return {
       code: "verification_pending",
-      title: "Verification is pending",
-      summary: "A change was made, but Alpha has not completed a healthy sync yet.",
-      nextStep: "Run sync before assigning more workspaces.",
-      assignmentRisk: connection.linked_workspace_count > 0 ? "Elevated" : "Blocked",
+      title: "Check required",
+      summary: "A change was made, but Alpha has not completed a fresh connection check yet.",
+      nextStep: "Refresh the connection before assigning more workspaces.",
       workspaceImpact,
       tone: "warn",
     };
@@ -146,10 +141,9 @@ function buildVerificationDiagnosis(connection: {
   if (connection.sync_state === "never_synced") {
     return {
       code: "never_synced",
-      title: "First sync is still required",
-      summary: "The secret is stored, but Alpha has not verified this path yet.",
-      nextStep: "Run sync before assigning this connection to a workspace.",
-      assignmentRisk: "Blocked",
+      title: "Check required",
+      summary: "The secret is stored, but Alpha has not checked this Stripe connection yet.",
+      nextStep: "Refresh the connection before assigning it to a workspace.",
       workspaceImpact,
       tone: "warn",
     };
@@ -157,15 +151,14 @@ function buildVerificationDiagnosis(connection: {
 
   return {
     code: "verified",
-    title: "Connection is verified",
+    title: "Connected",
     summary: connection.last_synced_at
-      ? `Last successful sync was ${formatExactTimestamp(connection.last_synced_at)}.`
-      : "This provider path is healthy.",
+      ? `Last checked ${formatExactTimestamp(connection.last_synced_at)}.`
+      : "This Stripe connection is healthy.",
     nextStep:
       connection.linked_workspace_count > 0
         ? "Healthy. Safe for current and additional workspace assignments."
         : "Healthy. Safe to assign to the next workspace.",
-    assignmentRisk: "Low",
     workspaceImpact,
     tone: "good",
   };
@@ -190,13 +183,13 @@ function buildConnectionHealthChecks(connection: {
       ? {
           label: "Secret material",
           status: "Stored",
-          detail: "Alpha has a provider secret reference and can attempt verification.",
+          detail: "Alpha has the Stripe secret and can check the connection.",
           tone: "good",
         }
       : {
           label: "Secret material",
           status: "Missing",
-          detail: "No provider secret is stored, so sync cannot verify or repair this connection.",
+          detail: "No Stripe secret is stored, so Alpha cannot check this connection.",
           tone: "bad",
         },
   );
@@ -225,7 +218,7 @@ function buildConnectionHealthChecks(connection: {
       detail:
         connection.linked_workspace_count > 0
           ? `There are ${connection.linked_workspace_count} linked workspace${connection.linked_workspace_count === 1 ? "" : "s"}, but the connection is not currently ready.`
-          : "Do not attach new workspaces until provider verification is healthy.",
+          : "Do not attach new workspaces until the connection is healthy.",
       tone: connection.linked_workspace_count > 0 ? "bad" : "warn",
     });
   }
@@ -239,8 +232,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [environment, setEnvironment] = useState<"test" | "live">("test");
-  const [lagoOrganizationID, setLagoOrganizationID] = useState("");
-  const [lagoProviderCode, setLagoProviderCode] = useState("");
   const [rotatedStripeSecretKey, setRotatedStripeSecretKey] = useState("");
 
   const connectionQuery = useQuery({
@@ -249,8 +240,8 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
     enabled: isAuthenticated && isPlatformAdmin && connectionID.trim().length > 0,
   });
 
-  const syncMutation = useMutation({
-    mutationFn: () => syncBillingProviderConnection({ runtimeBaseURL: apiBaseURL, csrfToken, connectionID }),
+  const refreshMutation = useMutation({
+    mutationFn: () => refreshBillingProviderConnection({ runtimeBaseURL: apiBaseURL, csrfToken, connectionID }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connection", apiBaseURL, connectionID] }),
@@ -268,8 +259,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
         body: {
           display_name: displayName.trim(),
           environment,
-          lago_organization_id: lagoOrganizationID.trim() || "",
-          lago_provider_code: lagoProviderCode.trim() || "",
         },
       }),
     onSuccess: async () => {
@@ -316,8 +305,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
     if (!connection) return;
     setDisplayName(connection.display_name);
     setEnvironment(connection.environment);
-    setLagoOrganizationID(connection.lago_organization_id || "");
-    setLagoProviderCode(connection.lago_provider_code || "");
     setIsEditing(true);
   };
 
@@ -325,8 +312,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
     if (connection) {
       setDisplayName(connection.display_name);
       setEnvironment(connection.environment);
-      setLagoOrganizationID(connection.lago_organization_id || "");
-      setLagoProviderCode(connection.lago_provider_code || "");
     }
     setIsEditing(false);
   };
@@ -370,7 +355,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing connection</p>
                   <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{connection.display_name}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                    <span className="font-mono text-xs text-slate-500">{connection.id}</span>
                     <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(connection.status)}`}>
                       {formatReadinessStatus(connection.status)}
                     </span>
@@ -392,10 +376,10 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryStat label="Status" value={formatReadinessStatus(connection.status)} helper={verificationDiagnosis?.title || "Ready state"} />
+              <SummaryStat label="Status" value={formatReadinessStatus(connection.status)} helper={verificationDiagnosis?.title || "Connection state"} />
               <SummaryStat label="Environment" value={connection.environment} helper={`Provider: ${connection.provider_type}`} />
-              <SummaryStat label="Linked workspaces" value={String(connection.linked_workspace_count)} helper={connection.workspace_ready ? "Safe to assign" : "Requires healthy sync"} />
-              <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Required for sync" />
+              <SummaryStat label="Linked workspaces" value={String(connection.linked_workspace_count)} helper={connection.workspace_ready ? "Ready for workspace use" : "Blocked until healthy"} />
+              <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Required to check Stripe" />
             </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
@@ -403,24 +387,24 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Provider sync</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Sync status</h2>
-                      <p className="mt-2 text-sm text-slate-600">Latest sync state.</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Connection health</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Latest check</h2>
+                      <p className="mt-2 text-sm text-slate-600">Latest provider check and billing readiness.</p>
                     </div>
                     <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${readinessTone(connection.sync_state)}`}>
                       {formatReadinessStatus(connection.sync_state)}
                     </span>
                   </div>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
-                    <MetaItem label="Sync state" value={connection.sync_state.replaceAll("_", " ")} />
-                    <MetaItem label="Workspace readiness" value={connection.workspace_ready ? "Ready" : "Needs sync"} />
-                    <MetaItem label="Connected at" value={connection.connected_at ? formatExactTimestamp(connection.connected_at) : "-"} />
-                    <MetaItem label="Last synced at" value={connection.last_synced_at ? formatExactTimestamp(connection.last_synced_at) : "-"} />
+                    <MetaItem label="Connection state" value={connection.sync_state.replaceAll("_", " ")} />
+                    <MetaItem label="Workspace readiness" value={connection.workspace_ready ? "Ready" : "Blocked"} />
+                    <MetaItem label="First ready at" value={connection.connected_at ? formatExactTimestamp(connection.connected_at) : "-"} />
+                    <MetaItem label="Last checked" value={connection.last_synced_at ? formatExactTimestamp(connection.last_synced_at) : "-"} />
                   </div>
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{connection.sync_summary}</div>
                   {connection.last_sync_error ? (
                     <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-700">Last sync error</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-700">Latest issue</p>
                       <p className="mt-2 text-sm leading-relaxed text-rose-800">{connection.last_sync_error}</p>
                     </div>
                   ) : null}
@@ -494,12 +478,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                     <div className="mt-5 grid gap-3 lg:grid-cols-2">
                       <MetaItem label="Display name" value={connection.display_name} />
                       <MetaItem label="Environment" value={connection.environment} />
-                      <MetaItem
-                        label="Organization override"
-                        value={connection.lago_organization_id || "Default"}
-                        mono={Boolean(connection.lago_organization_id)}
-                      />
-                      <MetaItem label="Provider code override" value={connection.lago_provider_code || "Auto"} mono={Boolean(connection.lago_provider_code)} />
                     </div>
                   ) : (
                     <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -516,26 +494,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                           <option value="live">Live</option>
                         </select>
                       </label>
-                      <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-sm font-semibold text-slate-950">Advanced overrides</p>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                          Only change these if support needs a non-default route.
-                        </p>
-                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                          <InputField
-                            label="Organization override"
-                            value={lagoOrganizationID}
-                            onChange={setLagoOrganizationID}
-                            placeholder="4a3951fe-09d8-40ae-8425-6a05aacbd4ea"
-                          />
-                          <InputField
-                            label="Provider code override"
-                            value={lagoProviderCode}
-                            onChange={setLagoProviderCode}
-                            placeholder="alpha_stripe_test_bpc_..."
-                          />
-                        </div>
-                      </div>
                       <div className="lg:col-span-2 flex flex-wrap gap-3">
                         <button
                           type="button"
@@ -566,17 +524,17 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   <div className="mt-4 grid gap-3">
                       <button
                         type="button"
-                        onClick={() => syncMutation.mutate()}
-                        disabled={!csrfToken || syncMutation.isPending || rotateSecretMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
+                        onClick={() => refreshMutation.mutate()}
+                        disabled={!csrfToken || refreshMutation.isPending || rotateSecretMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {syncMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                        Sync now
+                        {refreshMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                        Refresh connection
                       </button>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <p className="text-sm font-semibold text-slate-950">Rotate Stripe secret</p>
                         <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                          Use this when the Stripe secret changes. Sync again after rotation.
+                          Use this when the Stripe secret changes. Alpha will require a fresh connection check afterward.
                         </p>
                         <div className="mt-3 grid gap-3">
                           <InputField
@@ -589,7 +547,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                           <button
                             type="button"
                             onClick={() => rotateSecretMutation.mutate()}
-                            disabled={!csrfToken || rotateSecretMutation.isPending || syncMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled" || !rotatedStripeSecretKey.trim()}
+                            disabled={!csrfToken || rotateSecretMutation.isPending || refreshMutation.isPending || disableMutation.isPending || updateMutation.isPending || connection.status === "disabled" || !rotatedStripeSecretKey.trim()}
                             className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {rotateSecretMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
@@ -600,7 +558,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                       <button
                         type="button"
                         onClick={() => disableMutation.mutate()}
-                        disabled={!csrfToken || disableMutation.isPending || rotateSecretMutation.isPending || syncMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
+                        disabled={!csrfToken || disableMutation.isPending || rotateSecretMutation.isPending || refreshMutation.isPending || updateMutation.isPending || connection.status === "disabled"}
                         className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                       {disableMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
@@ -621,8 +579,6 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Provider" value={connection.provider_type} />
                     <MetaItem label="Linked workspaces" value={String(connection.linked_workspace_count)} />
-                    <MetaItem label="Secret configured" value={connection.secret_configured ? "Yes" : "No"} />
-                    <MetaItem label="Created by" value={connection.created_by_id ? `${connection.created_by_type}:${connection.created_by_id}` : connection.created_by_type} mono={Boolean(connection.created_by_id)} />
                     <MetaItem label="Created at" value={formatExactTimestamp(connection.created_at)} />
                     <MetaItem label="Updated at" value={formatExactTimestamp(connection.updated_at)} />
                     <MetaItem label="Disabled at" value={connection.disabled_at ? formatExactTimestamp(connection.disabled_at) : "-"} />

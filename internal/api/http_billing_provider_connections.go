@@ -62,18 +62,18 @@ func billingConnectionSyncState(item domain.BillingProviderConnection) string {
 func billingConnectionSyncSummary(item domain.BillingProviderConnection) string {
 	switch billingConnectionSyncState(item) {
 	case "healthy":
-		return "Connected and ready for workspace assignment."
+		return "Stripe is connected and ready for billing."
 	case "failed":
 		if msg := strings.TrimSpace(item.LastSyncError); msg != "" {
 			return msg
 		}
-		return "The last sync failed. Review provider configuration and try again."
+		return "Stripe needs attention before billing can continue."
 	case "disabled":
-		return "Connection is disabled and cannot be assigned to new workspaces."
+		return "Connection is disabled."
 	case "never_synced":
-		return "Connection has not been synced yet. Run the first sync before assigning it to workspaces."
+		return "Connection has not been checked yet."
 	default:
-		return "Connection is waiting for a successful provider sync."
+		return "Connection needs a fresh check before billing can continue."
 	}
 }
 

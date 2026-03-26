@@ -10,6 +10,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchBillingProviderConnections } from "@/lib/api";
+import { formatExactTimestamp } from "@/lib/format";
 import { type BillingProviderConnection } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -49,7 +50,7 @@ export function BillingConnectionListScreen() {
     const term = search.trim().toLowerCase();
     if (!term) return items;
     return items.filter((item) =>
-      [item.display_name, item.id, item.provider_type, item.environment]
+      [item.display_name, item.provider_type, item.environment]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(term))
     );
@@ -78,7 +79,7 @@ export function BillingConnectionListScreen() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Billing Connections</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Billing connections</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Manage provider credentials and sync state here. Workspaces attach to a connection after it is ready.
+                Manage Stripe connections here. Workspaces use a connection after it is ready.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -100,7 +101,7 @@ export function BillingConnectionListScreen() {
           <div className="grid gap-3 border-t border-stone-200 px-5 py-4 sm:grid-cols-2 xl:grid-cols-5 lg:px-6">
             <MetricCard label="Visible" value={summary.total} />
             <MetricCard label="Connected" value={summary.connected} tone="success" />
-            <MetricCard label="Sync errors" value={summary.syncErrors} tone="danger" />
+            <MetricCard label="Needs attention" value={summary.syncErrors} tone="danger" />
             <MetricCard label="Disabled" value={summary.disabled} />
             <MetricCard label="Linked workspaces" value={summary.linkedWorkspaces} />
           </div>
@@ -126,7 +127,7 @@ export function BillingConnectionListScreen() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by name, provider, environment, or ID"
+                placeholder="Search by name, provider, or environment"
                 className="h-11 min-w-[280px] rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-900 outline-none ring-emerald-300 transition placeholder:text-slate-500 focus:ring-2"
               />
               <select
@@ -137,7 +138,7 @@ export function BillingConnectionListScreen() {
                 <option value="">All statuses</option>
                 <option value="connected">Connected</option>
                 <option value="pending">Pending</option>
-                <option value="sync_error">Sync error</option>
+                <option value="sync_error">Needs attention</option>
                 <option value="disabled">Disabled</option>
               </select>
             </div>
@@ -171,14 +172,13 @@ function ConnectionRow({ connection }: { connection: BillingProviderConnection }
             {connection.status}
           </span>
         </div>
-        <p className="mt-1 break-all font-mono text-[11px] text-slate-500">{connection.id}</p>
         <p className="mt-2 text-sm leading-6 text-slate-600">{connection.sync_summary}</p>
       </div>
       <StatCell label="Provider" value={connection.provider_type} />
       <StatCell label="Environment" value={connection.environment} />
       <StatCell label="Linked workspaces" value={String(connection.linked_workspace_count)} />
-      <StatCell label="Workspace ready" value={connection.workspace_ready ? "Yes" : "No"} />
-      <StatCell label="Scope" value={connection.scope} />
+      <StatCell label="Workspace use" value={connection.workspace_ready ? "Ready" : "Blocked"} />
+      <StatCell label="Last checked" value={connection.last_synced_at ? formatExactTimestamp(connection.last_synced_at) : "Not checked"} />
     </Link>
   );
 }

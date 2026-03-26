@@ -8,7 +8,6 @@ const workspaceID = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_WORKSPACE_ID 
 const workspaceName = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_WORKSPACE_NAME || "";
 const primaryConnectionName = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_PRIMARY_NAME || "";
 const secondaryConnectionName = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_SECONDARY_NAME || "";
-const lagoOrganizationID = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_LAGO_ORGANIZATION_ID || "";
 const stripeSecretKey = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_STRIPE_SECRET_KEY || "";
 const rotatedStripeSecretKey = process.env.PLAYWRIGHT_LIVE_BILLING_CONNECTION_ROTATED_STRIPE_SECRET_KEY || stripeSecretKey;
 
@@ -19,7 +18,7 @@ async function createConnection(page: import("@playwright/test").Page, name: str
   await page.waitForLoadState("networkidle");
   const nameInput = page.getByLabel("Connection name");
   const secretInput = page.getByLabel("Stripe secret key");
-  const submitButton = page.getByRole("button", { name: "Create and sync connection" });
+  const submitButton = page.getByRole("button", { name: "Create and check connection" });
   const nameChecklist = page.locator("div").filter({ hasText: /Connection name is set/ }).first();
   const secretChecklist = page.locator("div").filter({ hasText: /Stripe secret key is set/ }).first();
   await expect(nameInput).toBeEditable();
@@ -29,12 +28,6 @@ async function createConnection(page: import("@playwright/test").Page, name: str
   await secretInput.click();
   await secretInput.pressSequentially(secretKey);
   await expect(secretInput).toHaveValue(secretKey);
-  if (lagoOrganizationID) {
-    const orgOverrideInput = page.getByLabel("Billing organization override");
-    await orgOverrideInput.click();
-    await orgOverrideInput.pressSequentially(lagoOrganizationID);
-    await expect(orgOverrideInput).toHaveValue(lagoOrganizationID);
-  }
   await expect(nameChecklist).toContainText("OK");
   await expect(secretChecklist).toContainText("OK");
   await expect(submitButton).toBeEnabled();
@@ -43,7 +36,7 @@ async function createConnection(page: import("@playwright/test").Page, name: str
   await expect(page).toHaveURL(/\/billing-connections\/[^/?]+(?:\?.*)?$/);
   await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 60000 });
   await expect(page.getByText(/^connected$/i).first()).toBeVisible({ timeout: 60000 });
-  await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ }).first()).toBeVisible({ timeout: 60000 });
+  await expect(page.locator("div").filter({ hasText: /^Stripe is connected and ready for billing\.$/ }).first()).toBeVisible({ timeout: 60000 });
 
   const id = decodeURIComponent(page.url().split("/").pop()?.split("?")[0] || "");
   expect(id).not.toBe("");
@@ -109,11 +102,11 @@ test.describe("billing connection lifecycle live staging", () => {
     await expect(rotatedSecretInput).toHaveValue(rotatedStripeSecretKey);
     await expect(rotateSecretButton).toBeEnabled();
     await rotateSecretButton.click();
-    await expect(page.locator("div").filter({ hasText: /^Waiting for a successful sync\.$/ }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("div").filter({ hasText: /^Connection needs a fresh check before billing can continue\.$/ }).first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/^pending$/i).first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Sync now" }).click();
-    await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ }).first()).toBeVisible({ timeout: 60000 });
+    await page.getByRole("button", { name: "Refresh connection" }).click();
+    await expect(page.locator("div").filter({ hasText: /^Stripe is connected and ready for billing\.$/ }).first()).toBeVisible({ timeout: 60000 });
     await expect(page.getByText(/^connected$/i).first()).toBeVisible();
 
     await page.goto(`/workspaces/${encodeURIComponent(workspaceID)}`);
@@ -126,7 +119,7 @@ test.describe("billing connection lifecycle live staging", () => {
     await page.goto(`/billing-connections/${encodeURIComponent(primaryConnectionID)}`);
     await expect(page.getByRole("heading", { name: primaryConnectionName })).toBeVisible();
     await page.getByRole("button", { name: "Disable connection" }).click();
-    await expect(page.locator("div").filter({ hasText: /^Connection is disabled and cannot be assigned to new workspaces\.$/ }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("div").filter({ hasText: /^Connection is disabled\.$/ }).first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/^disabled$/i).first()).toBeVisible();
 
     await page.goto(`/workspaces/${encodeURIComponent(workspaceID)}`);

@@ -82,9 +82,8 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
         status: "pending",
         workspace_ready: false,
         sync_state: "never_synced",
-        sync_summary: "First sync is still required before workspace assignment.",
+        sync_summary: "Connection has not been checked yet.",
         linked_workspace_count: 0,
-        lago_organization_id: body.lago_organization_id,
         secret_configured: true,
         created_by_type: "platform_api_key",
         created_at: now,
@@ -111,7 +110,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             status: "connected",
             workspace_ready: true,
             sync_state: "healthy",
-            sync_summary: "Connected and ready for workspace assignment.",
+            sync_summary: "Stripe is connected and ready for billing.",
             lago_provider_code: "alpha_stripe_test_bpc_alpha",
             connected_at: now,
             last_synced_at: now,
@@ -136,7 +135,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             status: "pending",
             workspace_ready: false,
             sync_state: "pending",
-            sync_summary: "Waiting for a successful sync.",
+            sync_summary: "Connection needs a fresh check before billing can continue.",
             last_synced_at: undefined,
             updated_at: now,
           }
@@ -173,8 +172,6 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
               ...item,
               display_name: body.display_name || item.display_name,
               environment: body.environment === "live" ? "live" : body.environment === "test" ? "test" : item.environment,
-              lago_organization_id: body.lago_organization_id || undefined,
-              lago_provider_code: body.lago_provider_code || undefined,
               updated_at: now,
             }
           : item,
@@ -198,7 +195,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
 async function createConnectionFromNewScreen(page: Page) {
   const nameInput = page.getByLabel("Connection name");
   const secretInput = page.getByLabel("Stripe secret key");
-  const submitButton = page.getByRole("button", { name: "Create and sync connection" });
+  const submitButton = page.getByRole("button", { name: "Create and check connection" });
 
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
   await expect(page.getByRole("heading", { name: "New billing connection" })).toBeVisible();
@@ -231,7 +228,7 @@ test("platform admin can create and sync a billing connection", async ({ page, c
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page).toHaveURL(/\/billing-connections\/bpc_alpha$/);
   await expect(page.getByRole("heading", { name: "Stripe Sandbox" })).toBeVisible();
-  await expect(page.locator("div").filter({ hasText: /^Connected and ready for workspace assignment\.$/ })).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^Stripe is connected and ready for billing\.$/ })).toBeVisible();
 });
 
 test("platform admin can edit billing connection detail metadata", async ({ page, context }) => {
@@ -255,10 +252,8 @@ test("platform admin can edit billing connection detail metadata", async ({ page
       status: "connected",
       workspace_ready: true,
       sync_state: "healthy",
-      sync_summary: "Connected and ready for workspace assignment.",
+      sync_summary: "Stripe is connected and ready for billing.",
       linked_workspace_count: 0,
-      lago_organization_id: "org_original",
-      lago_provider_code: "alpha_original",
       secret_configured: true,
       created_by_type: "platform_api_key",
       created_at: seededNow,
@@ -275,27 +270,17 @@ test("platform admin can edit billing connection detail metadata", async ({ page
   await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
 
   const connectionNameInput = page.getByLabel("Connection name");
-  const orgOverrideInput = page.getByLabel("Organization override");
-  const providerCodeInput = page.getByLabel("Provider code override");
 
   await expect(connectionNameInput).toBeEditable();
   await connectionNameInput.click();
   await connectionNameInput.press("Meta+A");
   await connectionNameInput.pressSequentially("Stripe Sandbox Updated");
-  await orgOverrideInput.click();
-  await orgOverrideInput.press("Meta+A");
-  await orgOverrideInput.pressSequentially("org_updated");
-  await providerCodeInput.click();
-  await providerCodeInput.press("Meta+A");
-  await providerCodeInput.pressSequentially("alpha_override");
   const saveButton = page.getByRole("button", { name: "Save changes" });
   await expect(saveButton).toBeEnabled();
   await saveButton.click({ force: true });
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page.getByRole("heading", { name: "Stripe Sandbox Updated" })).toBeVisible();
-  await expect(page.getByText("org_updated", { exact: true })).toBeVisible();
-  await expect(page.getByText("alpha_override", { exact: true })).toBeVisible();
 });
 
 test("platform admin can rotate a billing connection secret and see it return to pending", async ({ page, context }) => {
@@ -319,10 +304,8 @@ test("platform admin can rotate a billing connection secret and see it return to
       status: "connected",
       workspace_ready: true,
       sync_state: "healthy",
-      sync_summary: "Connected and ready for workspace assignment.",
+      sync_summary: "Stripe is connected and ready for billing.",
       linked_workspace_count: 1,
-      lago_organization_id: "org_original",
-      lago_provider_code: "alpha_original",
       secret_configured: true,
       created_by_type: "platform_api_key",
       created_at: seededNow,
@@ -339,7 +322,7 @@ test("platform admin can rotate a billing connection secret and see it return to
   await page.getByRole("button", { name: "Rotate secret" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
-  await expect(page.locator("div").filter({ hasText: /^Waiting for a successful sync\.$/ })).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^Connection needs a fresh check before billing can continue\.$/ })).toBeVisible();
 });
 
 test("platform admin sees explicit verification checks for a failed billing connection", async ({ page, context }) => {
@@ -378,11 +361,11 @@ test("platform admin sees explicit verification checks for a failed billing conn
 
   await expect(page.getByRole("heading", { name: "Current status" })).toBeVisible();
   await expect(page.getByText("Status", { exact: true }).nth(1)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Verification failed" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
   await expect(page.getByText("2 linked workspaces depend on this path.")).toBeVisible();
-  await expect(page.getByText("Last sync error", { exact: true })).toBeVisible();
+  await expect(page.getByText("Latest issue", { exact: true })).toBeVisible();
   await expect(page.locator("div").filter({ hasText: /^provider timeout$/ }).first()).toBeVisible();
   await expect(page.getByText("Workspace assignment")).toBeVisible();
   await expect(page.getByText("There are 2 linked workspaces, but the connection is not currently ready.")).toBeVisible();
-  await expect(page.getByText("Correct the error, then rerun sync.")).toBeVisible();
+  await expect(page.getByText("Correct the issue, then refresh the connection.")).toBeVisible();
 });

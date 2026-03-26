@@ -1378,6 +1378,14 @@ export async function syncBillingProviderConnection(input: {
   return payload.connection;
 }
 
+export async function refreshBillingProviderConnection(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  connectionID: string;
+}): Promise<BillingProviderConnection> {
+  return syncBillingProviderConnection(input);
+}
+
 export async function disableBillingProviderConnection(input: {
   runtimeBaseURL?: string;
   csrfToken: string;

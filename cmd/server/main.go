@@ -251,6 +251,11 @@ func main() {
 			billingSecretStore,
 			service.NewTenantAwareLagoBillingProviderAdapter(lagoResolver, cfg.BillingProviders.StripeSuccessRedirectURL),
 		).WithDefaultLagoOrganizationID(cfg.BillingProviders.DefaultLagoOrganizationID)
+		stripeVerifier, verifyErr := service.NewHTTPStripeConnectionVerifier("", cfg.Lago.HTTPTimeout)
+		if verifyErr != nil {
+			fatal(logger, "initialize stripe connection verifier", "error", verifyErr)
+		}
+		billingProviderSvc = billingProviderSvc.WithStripeConnectionVerifier(stripeVerifier)
 		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
 		logger.Info(
 			"billing provider connections enabled",

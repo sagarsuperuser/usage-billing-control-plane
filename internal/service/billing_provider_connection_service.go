@@ -16,6 +16,16 @@ type BillingProviderAdapter interface {
 	EnsureStripeProvider(ctx context.Context, input EnsureStripeProviderInput) (EnsureStripeProviderResult, error)
 }
 
+type StripeConnectionVerifier interface {
+	VerifyStripeSecret(ctx context.Context, secretKey string) (StripeConnectionVerificationResult, error)
+}
+
+type StripeConnectionVerificationResult struct {
+	AccountID  string
+	Livemode   bool
+	VerifiedAt time.Time
+}
+
 type EnsureStripeProviderInput struct {
 	ConnectionID       string
 	DisplayName        string
@@ -38,6 +48,7 @@ type BillingProviderConnectionService struct {
 	store                     store.Repository
 	secretStore               BillingSecretStore
 	adapter                   BillingProviderAdapter
+	verifier                  StripeConnectionVerifier
 	defaultLagoOrganizationID string
 }
 
@@ -82,6 +93,14 @@ func (s *BillingProviderConnectionService) WithDefaultLagoOrganizationID(id stri
 		return nil
 	}
 	s.defaultLagoOrganizationID = strings.TrimSpace(id)
+	return s
+}
+
+func (s *BillingProviderConnectionService) WithStripeConnectionVerifier(verifier StripeConnectionVerifier) *BillingProviderConnectionService {
+	if s == nil {
+		return nil
+	}
+	s.verifier = verifier
 	return s
 }
 
@@ -324,6 +343,22 @@ func (s *BillingProviderConnectionService) SyncBillingProviderConnection(ctx con
 	}
 	if strings.TrimSpace(secrets.StripeSecretKey) == "" {
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe secret is required before sync", ErrValidation)
+	}
+	if s.verifier != nil {
+		verificationResult, verifyErr := s.verifier.VerifyStripeSecret(ctx, secrets.StripeSecretKey)
+		if verifyErr != nil {
+			current.Status = domain.BillingProviderConnectionStatusSyncError
+			current.LastSyncError = strings.TrimSpace(verifyErr.Error())
+			current.UpdatedAt = time.Now().UTC()
+			updated, updateErr := s.store.UpdateBillingProviderConnection(current)
+			if updateErr != nil {
+				return domain.BillingProviderConnection{}, updateErr
+			}
+			return updated, verifyErr
+		}
+		if verificationResult.VerifiedAt.IsZero() {
+			verificationResult.VerifiedAt = time.Now().UTC()
+		}
 	}
 	resolvedLagoOrganizationID := strings.TrimSpace(current.LagoOrganizationID)
 	if resolvedLagoOrganizationID == "" && strings.TrimSpace(current.OwnerTenantID) != "" {
