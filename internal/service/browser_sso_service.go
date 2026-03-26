@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	ErrBrowserSSOProviderNotFound   = errors.New("sso provider not found")
-	ErrBrowserSSOEmailRequired      = errors.New("sso email is required")
-	ErrBrowserSSOEmailNotVerified   = errors.New("sso email is not verified")
-	ErrBrowserSSOUserNotProvisioned = errors.New("sso user is not provisioned")
+	ErrBrowserSSOProviderNotFound    = errors.New("sso provider not found")
+	ErrBrowserSSOEmailRequired       = errors.New("sso email is required")
+	ErrBrowserSSOEmailNotVerified    = errors.New("sso email is not verified")
+	ErrBrowserSSOUserNotProvisioned  = errors.New("sso user is not provisioned")
+	ErrBrowserSSOInviteEmailMismatch = errors.New("sso invite email mismatch")
 )
 
 type BrowserSSOClaims struct {
@@ -232,7 +233,10 @@ func (s *BrowserSSOService) canProvisionUserFromInvitation(invitationToken, emai
 	if invite.ExpiresAt.Before(time.Now().UTC()) {
 		return false, nil
 	}
-	return strings.EqualFold(strings.TrimSpace(invite.Email), strings.TrimSpace(email)), nil
+	if !strings.EqualFold(strings.TrimSpace(invite.Email), strings.TrimSpace(email)) {
+		return false, ErrBrowserSSOInviteEmailMismatch
+	}
+	return true, nil
 }
 
 func (s *BrowserSSOService) provider(providerKey string) (BrowserSSOProvider, error) {

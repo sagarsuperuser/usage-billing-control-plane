@@ -190,7 +190,9 @@ function resolveAuthErrorMessage(providerKey: string | null, errorCode: string |
   const label = providerKey ? ` for ${providerKey}` : "";
   switch (errorCode) {
     case "sso_user_not_provisioned":
-      return `No browser account is provisioned${label}. Ask an admin to grant platform or tenant access first.`;
+      return `No browser account is provisioned${label}. Ask an admin to grant platform or workspace access first.`;
+    case "workspace_invitation_email_mismatch":
+      return `This invitation is for a different email${label}. Sign in with the invited Google account or open the invite again with the correct account.`;
     case "sso_email_not_verified":
       return `The identity provider did not return a verified email${label}.`;
     case "tenant_selection_required":

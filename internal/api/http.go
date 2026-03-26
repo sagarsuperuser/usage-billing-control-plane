@@ -4093,6 +4093,8 @@ func (s *Server) uiSSOErrorCode(err error) string {
 		return "sso_email_required"
 	case errors.Is(err, service.ErrBrowserSSOEmailNotVerified):
 		return "sso_email_not_verified"
+	case errors.Is(err, service.ErrBrowserSSOInviteEmailMismatch):
+		return "workspace_invitation_email_mismatch"
 	case errors.Is(err, service.ErrBrowserSSOUserNotProvisioned):
 		return "sso_user_not_provisioned"
 	case errors.Is(err, service.ErrBrowserTenantSelection):

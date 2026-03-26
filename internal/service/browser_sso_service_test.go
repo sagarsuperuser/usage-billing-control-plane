@@ -292,6 +292,57 @@ func TestBrowserSSOServiceProvisionsUserWhenPendingInvitationMatches(t *testing.
 	}
 }
 
+func TestBrowserSSOServiceRejectsInvitationEmailMismatch(t *testing.T) {
+	existing := domain.User{
+		ID:           "usr_platform",
+		Email:        "admin@example.com",
+		DisplayName:  "Admin",
+		Status:       domain.UserStatusActive,
+		PlatformRole: domain.UserPlatformRoleAdmin,
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}
+	storeStub := newBrowserSSOStoreStub(existing, nil)
+	storeStub.invitations[hashInvitationTokenForTest("invite-token")] = domain.WorkspaceInvitation{
+		ID:          "win_1",
+		WorkspaceID: "tenant_a",
+		Email:       "invited@example.com",
+		Role:        "writer",
+		Status:      domain.WorkspaceInvitationStatusPending,
+		ExpiresAt:   time.Now().UTC().Add(24 * time.Hour),
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	authSvc, err := service.NewBrowserUserAuthService(storeStub)
+	if err != nil {
+		t.Fatalf("new browser user auth service: %v", err)
+	}
+	ssoSvc, err := service.NewBrowserSSOService(
+		storeStub,
+		authSvc,
+		[]service.BrowserSSOProvider{
+			fakeBrowserSSOProvider{
+				definition: service.BrowserSSOProviderDefinition{Key: "google", DisplayName: "Google Workspace", Type: domain.BrowserSSOProviderTypeOIDC},
+				claims: service.BrowserSSOClaims{
+					Subject:       "google-subject-mismatch",
+					Email:         "wrong@example.com",
+					EmailVerified: true,
+					DisplayName:   "Wrong User",
+				},
+			},
+		},
+		service.BrowserSSOServiceConfig{},
+	)
+	if err != nil {
+		t.Fatalf("new browser sso service: %v", err)
+	}
+
+	_, err = ssoSvc.AuthenticateCallback(context.Background(), "google", "code", "verifier", "nonce", "", "https://api.example.com/v1/ui/auth/sso/google/callback", "invite-token")
+	if !errors.Is(err, service.ErrBrowserSSOInviteEmailMismatch) {
+		t.Fatalf("expected invite email mismatch error, got %v", err)
+	}
+}
+
 func hashInvitationTokenForTest(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
