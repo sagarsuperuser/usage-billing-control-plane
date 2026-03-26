@@ -163,7 +163,8 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
-  await expect(page.getByRole("heading", { name: "Customer Setup" })).toBeVisible();
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create customer" })).toBeVisible();
   await page.getByLabel("Customer external ID").fill("cust_acme_primary");
   await page.getByLabel("Display name").fill("Acme Primary Customer");
   await page.getByLabel("Billing email").fill("billing@acme.test");
@@ -173,7 +174,7 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
   await page.getByLabel("Billing postal code").fill("560001");
   await page.getByLabel("Billing country").fill("IN");
   await page.getByLabel("Currency").fill("USD");
-  await page.getByRole("heading", { name: "Payment setup options" }).click();
+  await expect(page.getByRole("heading", { name: "Payment setup" })).toBeVisible();
   await page.getByLabel("Billing connection code").fill("stripe_default");
   await page.getByRole("button", { name: "Run customer setup" }).click();
 

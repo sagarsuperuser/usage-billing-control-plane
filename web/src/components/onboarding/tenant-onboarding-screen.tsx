@@ -86,7 +86,7 @@ export function TenantOnboardingScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace setup</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create workspace</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Create a workspace first, optionally attach an active billing connection, and mint the first admin service account credential if you need it. Billing connection lifecycle stays on dedicated billing pages.
+                Create the workspace, attach billing now or later, and optionally mint the first admin credential.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -114,7 +114,7 @@ export function TenantOnboardingScreen() {
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Workspace provisioning</h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-600">This flow only creates or reconciles the workspace. Ongoing readiness review happens on the workspace detail page.</p>
+                <p className="mt-2 max-w-2xl text-sm text-slate-600">This page creates the workspace. Review readiness and billing from workspace detail.</p>
               </div>
               <span className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-700">
                 <Building2 className="h-5 w-5" />
@@ -122,9 +122,9 @@ export function TenantOnboardingScreen() {
             </div>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
-              <StepCard index="1" title="Name the workspace" body="Use a stable ID and a display name operators will recognize later." />
-              <StepCard index="2" title="Attach billing later" body="Optionally preselect one active connection now, or attach it from workspace detail after creation." />
-              <StepCard index="3" title="Bootstrap admin access" body="Generate the first admin service account credential now or leave it for a controlled handoff." />
+              <StepCard index="1" title="Name the workspace" body="Use a stable ID and clear display name." />
+              <StepCard index="2" title="Attach billing later" body="Attach an active billing connection now or later." />
+              <StepCard index="3" title="Bootstrap admin access" body="Generate the first admin credential now or do it later." />
             </div>
 
             <div className="mt-5 grid gap-5">
@@ -139,8 +139,8 @@ export function TenantOnboardingScreen() {
 
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 2</p>
-                <h3 className="mt-2 text-lg font-semibold text-slate-950">Active billing connection</h3>
-                <p className="mt-2 text-sm text-slate-600">Billing connections are created separately. You can leave this empty, create the workspace, and attach billing from the workspace detail page after the backend finishes org bootstrap.</p>
+                <h3 className="mt-2 text-lg font-semibold text-slate-950">Billing connection</h3>
+                <p className="mt-2 text-sm text-slate-600">You can leave this empty and attach billing after the workspace is created.</p>
                 {billingConnectionsQuery.isLoading ? (
                   <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -148,7 +148,7 @@ export function TenantOnboardingScreen() {
                   </div>
                 ) : connectedBillingConnections.length === 0 ? (
                   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                    No connected billing providers are available yet. Workspace creation can still continue without one.
+                    No connected billing providers yet. You can still create the workspace.
                     <div className="mt-3">
                       <Link href="/billing-connections/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
                         <CreditCard className="h-4 w-4" />
@@ -159,7 +159,7 @@ export function TenantOnboardingScreen() {
                 ) : (
                   <div className="mt-4 grid gap-4">
                     <label className="grid gap-2 text-sm text-slate-700">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Active billing connection</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Billing connection</span>
                       <select
                         aria-label="Billing connection"
                         value={billingProviderConnectionID}
@@ -182,7 +182,6 @@ export function TenantOnboardingScreen() {
                           <MetaItem label="Connection ID" value={selectedBillingConnection.id} mono />
                           <MetaItem label="Environment" value={selectedBillingConnection.environment} />
                           <MetaItem label="Connection health" value={formatReadinessStatus(selectedBillingConnection.status)} />
-                          <MetaItem label="Workspace billing" value="Will be attached during setup" />
                         </div>
                       </div>
                     ) : null}
@@ -211,12 +210,12 @@ export function TenantOnboardingScreen() {
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Before you run</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Ready to run</p>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ChecklistLine done={tenantID.trim().length > 0} text="Workspace ID is set" />
                 <ChecklistLine done={tenantName.trim().length > 0} text="Workspace name is set" />
-                <ChecklistLine done text={billingProviderConnectionID ? "Billing connection is selected" : "Billing connection can be attached later"} />
-                <ChecklistLine done text={connectedBillingConnections.length > 0 ? "A connected billing provider exists" : "Workspace can be created before billing is connected"} />
+                <ChecklistLine done text={billingProviderConnectionID ? "Billing is selected" : "Billing can be attached later"} />
+                <ChecklistLine done text={connectedBillingConnections.length > 0 ? "A connected billing provider is available" : "Billing can be added later"} />
               </div>
             </div>
 
@@ -257,7 +256,7 @@ export function TenantOnboardingScreen() {
                   <KeyRound className="h-4 w-4" />
                   First admin service account credential
                 </div>
-                <p className="mt-2">Capture this one-time credential now and hand it off through your secure admin bootstrap path.</p>
+                <p className="mt-2">Store this one-time credential now.</p>
                 <p className="mt-3 break-all rounded-lg border border-amber-200 bg-white px-3 py-3 font-mono text-xs text-amber-800">{createdSecret}</p>
               </div>
             ) : null}
@@ -266,11 +265,11 @@ export function TenantOnboardingScreen() {
           <aside className="min-w-0 grid gap-5 self-start">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">After setup</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Use dedicated workspace pages</h2>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">Next screens</h2>
               <div className="mt-4 grid gap-2">
-                <ChecklistLine done text="Create or reconcile the workspace here" />
-                <ChecklistLine done text="Open workspace detail to review readiness" />
-                <ChecklistLine done text="Manage Stripe and sync from billing connections" />
+                <ChecklistLine done text="Create the workspace here" />
+                <ChecklistLine done text="Open workspace detail" />
+                <ChecklistLine done text="Manage billing from Billing connections" />
               </div>
             </section>
 
@@ -285,7 +284,7 @@ export function TenantOnboardingScreen() {
                 </div>
                 {result.tenant.billing_provider_connection_id ? (
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    Active billing connection
+                    Billing connection
                     <p className="mt-2 break-all font-mono text-xs text-slate-500">{result.tenant.billing_provider_connection_id}</p>
                   </div>
                 ) : null}
@@ -301,11 +300,11 @@ export function TenantOnboardingScreen() {
               </section>
             ) : (
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What changes now</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Use workspaces after create</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p>Billing connections now own Stripe secret storage and provider sync.</p>
-                  <p>Workspace setup can leave billing unassigned until the workspace exists.</p>
-                  <p>Use workspace detail pages for readiness review and next actions.</p>
+                  <p>Billing is attached from workspace detail or Billing connections.</p>
+                  <p>You can create the workspace before attaching billing.</p>
+                  <p>Use workspace detail for readiness and next steps.</p>
                 </div>
               </section>
             )}

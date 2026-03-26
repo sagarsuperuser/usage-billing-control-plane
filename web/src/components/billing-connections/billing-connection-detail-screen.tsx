@@ -395,7 +395,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
               <SummaryStat label="Status" value={formatReadinessStatus(connection.status)} helper={verificationDiagnosis?.title || "Ready state"} />
               <SummaryStat label="Environment" value={connection.environment} helper={`Provider: ${connection.provider_type}`} />
               <SummaryStat label="Linked workspaces" value={String(connection.linked_workspace_count)} helper={connection.workspace_ready ? "Safe to assign" : "Requires healthy sync"} />
-              <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Secret material stays outside the database" />
+              <SummaryStat label="Secret" value={connection.secret_configured ? "Configured" : "Missing"} helper="Required for sync" />
             </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
@@ -405,7 +405,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Provider sync</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Sync status</h2>
-                      <p className="mt-2 text-sm text-slate-600">Latest verification state for this billing path.</p>
+                      <p className="mt-2 text-sm text-slate-600">Latest sync state.</p>
                     </div>
                     <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${readinessTone(connection.sync_state)}`}>
                       {formatReadinessStatus(connection.sync_state)}
@@ -430,25 +430,22 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Verification</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Connection diagnosis</h2>
-                      <p className="mt-2 text-sm text-slate-600">One decision, then a few supporting facts.</p>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Current status</h2>
+                      <p className="mt-2 text-sm text-slate-600">One clear status with supporting facts.</p>
                     </div>
                   </div>
                   {verificationDiagnosis ? (
                     <div className={`mt-5 rounded-2xl border p-5 ${healthCheckTone(verificationDiagnosis.tone)}`}>
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">Diagnosis</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">Status</p>
                           <h3 className="mt-2 text-lg font-semibold">{verificationDiagnosis.title}</h3>
                           <p className="mt-2 text-sm leading-relaxed opacity-90">{verificationDiagnosis.summary}</p>
                         </div>
-                        <span className="self-start rounded-full border border-current/20 bg-white/60 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                          Assignment risk {verificationDiagnosis.assignmentRisk}
-                        </span>
                       </div>
                       <div className="mt-4 grid gap-3 lg:grid-cols-2">
                         <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-75">Workspace impact</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-75">Workspaces</p>
                           <p className="mt-2">{verificationDiagnosis.workspaceImpact}</p>
                         </div>
                         <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
@@ -480,7 +477,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Configuration</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Metadata and overrides</h2>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Connection settings</h2>
                     </div>
                     {!isEditing ? (
                       <button
@@ -498,11 +495,11 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                       <MetaItem label="Display name" value={connection.display_name} />
                       <MetaItem label="Environment" value={connection.environment} />
                       <MetaItem
-                        label="Billing organization override"
-                        value={connection.lago_organization_id || "Resolved from platform config on next sync"}
+                        label="Organization override"
+                        value={connection.lago_organization_id || "Default"}
                         mono={Boolean(connection.lago_organization_id)}
                       />
-                      <MetaItem label="Provider code override" value={connection.lago_provider_code || "-"} mono={Boolean(connection.lago_provider_code)} />
+                      <MetaItem label="Provider code override" value={connection.lago_provider_code || "Auto"} mono={Boolean(connection.lago_provider_code)} />
                     </div>
                   ) : (
                     <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -520,13 +517,13 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                         </select>
                       </label>
                       <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-sm font-semibold text-slate-950">Internal overrides</p>
+                        <p className="text-sm font-semibold text-slate-950">Advanced overrides</p>
                         <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                          Alpha should normally resolve the backing billing organization from platform configuration. Use overrides only when you intentionally need a non-default target.
+                          Only change these if support needs a non-default route.
                         </p>
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
                           <InputField
-                            label="Billing organization override"
+                            label="Organization override"
                             value={lagoOrganizationID}
                             onChange={setLagoOrganizationID}
                             placeholder="4a3951fe-09d8-40ae-8425-6a05aacbd4ea"
@@ -579,7 +576,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <p className="text-sm font-semibold text-slate-950">Rotate Stripe secret</p>
                         <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                          Rotation marks the connection pending until the next successful sync. Use this when the backing Stripe key changes or you want to re-store it cleanly.
+                          Use this when the Stripe secret changes. Sync again after rotation.
                         </p>
                         <div className="mt-3 grid gap-3">
                           <InputField

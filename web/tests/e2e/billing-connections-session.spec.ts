@@ -200,6 +200,7 @@ async function createConnectionFromNewScreen(page: Page) {
   const secretInput = page.getByLabel("Stripe secret key");
   const submitButton = page.getByRole("button", { name: "Create and sync connection" });
 
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
   await expect(page.getByRole("heading", { name: "New billing connection" })).toBeVisible();
   await expect(nameInput).toBeEditable();
   await nameInput.click();
@@ -274,7 +275,7 @@ test("platform admin can edit billing connection detail metadata", async ({ page
   await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
 
   const connectionNameInput = page.getByLabel("Connection name");
-  const orgOverrideInput = page.getByLabel("Billing organization override");
+  const orgOverrideInput = page.getByLabel("Organization override");
   const providerCodeInput = page.getByLabel("Provider code override");
 
   await expect(connectionNameInput).toBeEditable();
@@ -375,10 +376,9 @@ test("platform admin sees explicit verification checks for a failed billing conn
 
   await page.goto("/billing-connections/bpc_alpha");
 
-  await expect(page.getByRole("heading", { name: "Connection diagnosis" })).toBeVisible();
-  await expect(page.getByText("Diagnosis", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Current status" })).toBeVisible();
+  await expect(page.getByText("Status", { exact: true }).nth(1)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Verification failed" })).toBeVisible();
-  await expect(page.getByText("Assignment risk High")).toBeVisible();
   await expect(page.getByText("2 linked workspaces depend on this path.")).toBeVisible();
   await expect(page.getByText("Last sync error", { exact: true })).toBeVisible();
   await expect(page.locator("div").filter({ hasText: /^provider timeout$/ }).first()).toBeVisible();

@@ -87,7 +87,7 @@ export function CustomerOnboardingScreen() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer setup</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create customer</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">Create a billable customer, apply the billing profile, and optionally start payment setup. Ongoing review and recovery live on dedicated customer pages.</p>
+              <p className="mt-3 max-w-3xl text-sm text-slate-600">Create the customer, apply the billing profile, and optionally start payment setup.</p>
             </div>
             <Link href="/customers" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open customers</Link>
           </div>
@@ -119,7 +119,7 @@ export function CustomerOnboardingScreen() {
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Customer onboarding</h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-600">This page creates or reconciles the customer. Browse ongoing health and recovery from the customer directory and detail pages.</p>
+                <p className="mt-2 max-w-2xl text-sm text-slate-600">This page creates the customer. Review readiness and recovery from customer detail.</p>
               </div>
               <span className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-700">
                 <UserRoundPlus className="h-5 w-5" />
@@ -127,9 +127,9 @@ export function CustomerOnboardingScreen() {
             </div>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
-              <StepCard index="1" title="Create the customer" body="Capture the identity teams will search for and manage later." />
-              <StepCard index="2" title="Complete billing profile" body="Add the billing details Alpha needs before it can sync readiness." />
-              <StepCard index="3" title="Start payment setup" body="Launch payer setup now or leave it for a later controlled follow-up." />
+              <StepCard index="1" title="Create the customer" body="Use the ID and name operators will look for later." />
+              <StepCard index="2" title="Complete billing profile" body="Add the billing details needed for sync and invoicing." />
+              <StepCard index="3" title="Start payment setup" body="Start payment setup now or leave it for later." />
             </div>
 
             <div className="mt-5 grid gap-5">
@@ -158,14 +158,14 @@ export function CustomerOnboardingScreen() {
 
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 3</p>
-                <h3 className="mt-2 text-lg font-semibold text-slate-950">Payment setup options</h3>
+                <h3 className="mt-2 text-lg font-semibold text-slate-950">Payment setup</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
                   <div className="grid gap-4">
                     <InputField label="Billing connection code" value={providerCode} onChange={setProviderCode} placeholder="stripe_default" />
                     <InputField label="Payment method type" value={paymentMethodType} onChange={setPaymentMethodType} placeholder="card" />
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Advanced control</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Option</p>
                     <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
                       <input type="checkbox" checked={startPaymentSetup} onChange={(event) => setStartPaymentSetup(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
                       Start payment setup now
@@ -176,14 +176,14 @@ export function CustomerOnboardingScreen() {
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Before you run</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Ready to run</p>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
-                <ChecklistLine done={externalID.trim().length > 0} text="Customer external ID is set" />
+                <ChecklistLine done={externalID.trim().length > 0} text="Customer ID is set" />
                 <ChecklistLine done={displayName.trim().length > 0} text="Display name is set" />
                 <ChecklistLine done={email.trim().length > 0} text="Billing email is set" />
-                <ChecklistLine done={providerCode.trim().length > 0} text="Billing connection code is set" />
+                <ChecklistLine done={providerCode.trim().length > 0} text="Connection code is set" />
                 <ChecklistLine done={currency.trim().length > 0} text="Currency is set" />
-                <ChecklistLine done={startPaymentSetup} text="Payment setup will start after customer sync" />
+                <ChecklistLine done={startPaymentSetup} text="Payment setup will start" />
               </div>
             </div>
 
@@ -226,7 +226,7 @@ export function CustomerOnboardingScreen() {
 
             {result?.checkout_url ? (
               <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-                <p className="font-semibold text-emerald-800">Payment setup link</p>
+                <p className="font-semibold text-emerald-800">Payment link</p>
                 <a href={result.checkout_url} target="_blank" rel="noreferrer" className="mt-2 block break-all rounded-lg border border-emerald-200 bg-white px-3 py-3 font-mono text-xs text-emerald-800 hover:bg-emerald-100">
                   {result.checkout_url}
                 </a>
@@ -237,11 +237,11 @@ export function CustomerOnboardingScreen() {
           <aside className="min-w-0 grid gap-5 self-start">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">After setup</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Use dedicated customer pages</h2>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">Next screens</h2>
               <div className="mt-4 grid gap-2">
-                <ChecklistLine done text="Create or reconcile the customer here" />
-                <ChecklistLine done text="Open customer detail to review readiness" />
-                <ChecklistLine done text="Use the directory to browse the tenant customer base" />
+                <ChecklistLine done text="Create the customer here" />
+                <ChecklistLine done text="Open customer detail" />
+                <ChecklistLine done text="Use the directory to browse customers" />
               </div>
             </section>
 
@@ -264,11 +264,11 @@ export function CustomerOnboardingScreen() {
               </section>
             ) : (
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What changes now</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Use customer pages after create</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p>Customer setup is now a focused creation flow instead of a mixed diagnostics page.</p>
-                  <p>Use Customers to browse and inspect readiness across the tenant.</p>
-                  <p>Use customer detail pages for billing sync status, payment readiness, and recovery actions.</p>
+                  <p>This page is for create only.</p>
+                  <p>Use Customers to browse the tenant customer base.</p>
+                  <p>Use customer detail for readiness and recovery.</p>
                 </div>
               </section>
             )}
