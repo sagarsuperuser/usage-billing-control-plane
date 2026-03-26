@@ -85,6 +85,15 @@ func main() {
 		temporalDunningWorker      temporalsdkworker.Worker
 		replayTemporalDispatcher   *replay.TemporalDispatcher
 		rateLimiterCloser          interface{ Close() error }
+		lagoResolver               *service.TenantBackedLagoTransportResolver
+		invoiceBillingAdapter      service.InvoiceBillingAdapter
+		customerBillingAdapter     service.CustomerBillingAdapter
+		billingSecretStore         service.BillingSecretStore
+		billingProviderSvc         *service.BillingProviderConnectionService
+		invitationEmailSender      service.WorkspaceInvitationEmailSender
+		passwordResetEmailSender   service.PasswordResetEmailSender
+		paymentSetupEmailSender    service.CustomerPaymentSetupRequestEmailSender
+		notificationSvc            *service.NotificationService
 	)
 	closeReplayRuntime := func() {
 		if temporalReplayWorker != nil {
@@ -155,12 +164,11 @@ func main() {
 		}
 	}
 
-	var (
-		lagoResolver       *service.TenantBackedLagoTransportResolver
-		billingSecretStore service.BillingSecretStore
-		billingProviderSvc *service.BillingProviderConnectionService
-	)
-	if cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker {
+	needBillingAdapters := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunDunningWorker
+	needBillingProviderConnections := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker
+	needNotificationRuntime := cfg.Roles.RunAPIServer || cfg.Roles.RunDunningWorker
+
+	if needBillingAdapters {
 		lagoResolver, err = service.NewTenantBackedLagoTransportResolver(repo, service.LagoClientConfig{
 			BaseURL: cfg.Lago.APIURL,
 			APIKey:  cfg.Lago.APIKey,
@@ -170,7 +178,12 @@ func main() {
 			closeReplayRuntime()
 			fatal(logger, "initialize lago transport resolver", "error", err)
 		}
+		invoiceBillingAdapter = service.NewTenantAwareLagoInvoiceAdapter(lagoResolver)
+		customerBillingAdapter = service.NewTenantAwareLagoCustomerBillingAdapter(lagoResolver)
+		logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL, "default_api_key_enabled", strings.TrimSpace(cfg.Lago.APIKey) != "", "admin_bootstrap_enabled", strings.TrimSpace(cfg.Lago.AdminAPIKey) != "")
+	}
 
+	if needBillingProviderConnections {
 		if strings.TrimSpace(cfg.BillingProviders.SecretStoreBackend) != "" {
 			billingSecretStore, err = newBillingSecretStore(context.Background(), cfg.BillingProviders)
 			if err != nil {
@@ -198,6 +211,83 @@ func main() {
 		} else {
 			logger.Info("billing provider connections disabled", "component", "server")
 		}
+	}
+
+	if needNotificationRuntime {
+		if strings.TrimSpace(cfg.Email.SMTPHost) != "" {
+			invitationEmailSender, err = service.NewSMTPWorkspaceInvitationEmailSender(service.SMTPWorkspaceInvitationEmailConfig{
+				Host:      cfg.Email.SMTPHost,
+				Port:      cfg.Email.SMTPPort,
+				Username:  cfg.Email.SMTPUsername,
+				Password:  cfg.Email.SMTPPassword,
+				FromEmail: cfg.Email.FromEmail,
+				FromName:  cfg.Email.FromName,
+			})
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "initialize workspace invitation email sender", "error", err)
+			}
+
+			passwordResetEmailSender, err = service.NewSMTPPasswordResetEmailSender(service.SMTPPasswordResetEmailConfig{
+				Host:      cfg.Email.SMTPHost,
+				Port:      cfg.Email.SMTPPort,
+				Username:  cfg.Email.SMTPUsername,
+				Password:  cfg.Email.SMTPPassword,
+				FromEmail: cfg.Email.FromEmail,
+				FromName:  cfg.Email.FromName,
+			})
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "initialize password reset email sender", "error", err)
+			}
+
+			paymentSetupEmailSender, err = service.NewSMTPPaymentSetupRequestEmailSender(service.SMTPPaymentSetupRequestEmailConfig{
+				Host:      cfg.Email.SMTPHost,
+				Port:      cfg.Email.SMTPPort,
+				Username:  cfg.Email.SMTPUsername,
+				Password:  cfg.Email.SMTPPassword,
+				FromEmail: cfg.Email.FromEmail,
+				FromName:  cfg.Email.FromName,
+			})
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "initialize payment setup request email sender", "error", err)
+			}
+			logger.Info(
+				"alpha notification service enabled",
+				"component", "server",
+				"smtp_host", cfg.Email.SMTPHost,
+				"from_email", cfg.Email.FromEmail,
+			)
+			logger.Info(
+				"password reset email enabled",
+				"component", "server",
+				"smtp_host", cfg.Email.SMTPHost,
+				"from_email", cfg.Email.FromEmail,
+				"reset_ttl", cfg.Email.ResetTokenTTL.String(),
+			)
+			logger.Info(
+				"payment setup request email enabled",
+				"component", "server",
+				"smtp_host", cfg.Email.SMTPHost,
+				"from_email", cfg.Email.FromEmail,
+			)
+		} else {
+			logger.Info("workspace invitation email disabled", "component", "server")
+			logger.Info("password reset email disabled", "component", "server")
+			logger.Info("payment setup request email disabled", "component", "server")
+		}
+		notificationSvc = service.NewNotificationService(
+			invitationEmailSender,
+			passwordResetEmailSender,
+			paymentSetupEmailSender,
+			invoiceBillingAdapter,
+		)
+		logger.Info(
+			"billing notification delegation enabled",
+			"component", "server",
+			"backend", "lago",
+		)
 	}
 
 	if cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler {
@@ -251,101 +341,19 @@ func main() {
 		}
 	}
 
-	if !cfg.Roles.RunAPIServer {
-		logger.Info("roles only mode waiting for shutdown", "component", "server")
-		<-ctx.Done()
-		closeReplayRuntime()
-		logger.Info("shutdown complete", "component", "server")
-		return
-	}
-
-	if cfg.UISession.RequireOrigin && cfg.ProductionLike && len(cfg.UISession.AllowedOrigins) == 0 {
-		logger.Warn("session origin allowlist empty; same-origin only", "component", "server")
-	}
-
-	var rateLimiter api.RateLimiter
-	if cfg.RateLimit.Enabled {
-		redisRateLimiter, err := api.NewRedisRateLimiter(api.RedisRateLimiterConfig{
-			RedisURL:    cfg.RateLimit.RedisURL,
-			KeyPrefix:   cfg.RateLimit.KeyPrefix,
-			PolicyRates: cfg.RateLimit.PolicyRates,
-		})
-		if err != nil {
-			fatal(logger, "initialize rate limiter", "error", err)
-		}
-		rateLimiter = redisRateLimiter
-		rateLimiterCloser = redisRateLimiter
-		logger.Info(
-			"rate limiter enabled",
-			"component", "server",
-			"backend", "redis",
-			"fail_open", cfg.RateLimit.FailOpen,
-			"login_fail_open", cfg.RateLimit.LoginFailOpen,
-		)
-	} else if cfg.ProductionLike {
-		logger.Warn("rate limiter disabled", "component", "server", "environment", cfg.RuntimeEnv)
-	}
-
-	uiSessionManager := scs.New()
-	uiSessionManager.Store = postgresstore.New(db)
-	uiSessionManager.Lifetime = cfg.UISession.Lifetime
-	uiSessionManager.Cookie.Name = cfg.UISession.CookieName
-	uiSessionManager.Cookie.HttpOnly = true
-	uiSessionManager.Cookie.Secure = cfg.UISession.CookieSecure
-	uiSessionManager.Cookie.Path = "/"
-	uiSessionManager.Cookie.SameSite = cfg.UISession.CookieSameSite
-
-	serverOpts := []api.ServerOption{
-		api.WithMetricsProvider(buildMetricsProvider(replayTemporalDispatcher, db)),
-		api.WithSessionManager(uiSessionManager),
-		api.WithSessionOriginPolicy(cfg.UISession.RequireOrigin, cfg.UISession.AllowedOrigins),
-		api.WithLogger(logger),
-		api.WithReadinessCheck(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			return db.PingContext(ctx)
-		}),
-	}
-	if rateLimiter != nil {
-		serverOpts = append(serverOpts, api.WithRateLimiter(rateLimiter, cfg.RateLimit.FailOpen, cfg.RateLimit.LoginFailOpen))
-	}
-
-	invoiceBillingAdapter := service.NewTenantAwareLagoInvoiceAdapter(lagoResolver)
-	customerBillingAdapter := service.NewTenantAwareLagoCustomerBillingAdapter(lagoResolver)
-	serverOpts = append(
-		serverOpts,
-		api.WithMeterSyncAdapter(service.NewTenantAwareLagoMeterSyncAdapter(lagoResolver)),
-		api.WithTaxSyncAdapter(service.NewTenantAwareLagoTaxSyncAdapter(lagoResolver)),
-		api.WithPlanSyncAdapter(service.NewTenantAwareLagoPlanSyncAdapter(lagoResolver, repo)),
-		api.WithSubscriptionSyncAdapter(service.NewTenantAwareLagoSubscriptionSyncAdapter(lagoResolver, repo)),
-		api.WithUsageSyncAdapter(service.NewTenantAwareLagoUsageSyncAdapter(lagoResolver)),
-		api.WithInvoiceBillingAdapter(invoiceBillingAdapter),
-		api.WithCustomerBillingAdapter(customerBillingAdapter),
-	)
-	if strings.TrimSpace(cfg.Lago.AdminAPIKey) != "" {
-		lagoOrgBootstrapper, bootstrapErr := service.NewLagoAdminOrganizationBootstrapper(service.LagoClientConfig{
-			BaseURL: cfg.Lago.APIURL,
-			Timeout: cfg.Lago.HTTPTimeout,
-		}, cfg.Lago.AdminAPIKey)
-		if bootstrapErr != nil {
-			fatal(logger, "initialize lago admin bootstrapper", "error", bootstrapErr)
-		}
-		serverOpts = append(serverOpts, api.WithLagoOrganizationBootstrapper(lagoOrgBootstrapper))
-	}
-	logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL, "default_api_key_enabled", strings.TrimSpace(cfg.Lago.APIKey) != "", "admin_bootstrap_enabled", strings.TrimSpace(cfg.Lago.AdminAPIKey) != "")
-
-	if billingProviderSvc != nil {
-		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
-	}
-
 	if cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler {
 		if temporalClient == nil {
+			closeReplayRuntime()
 			fatal(logger, "temporal client is required when payment reconcile roles are enabled")
 		}
-
+		if cfg.Roles.RunPaymentReconcileWorker && invoiceBillingAdapter == nil {
+			closeReplayRuntime()
+			fatal(logger, "invoice billing adapter is required when payment reconcile worker is enabled")
+		}
 		if cfg.Roles.RunPaymentReconcileWorker {
 			temporalPaymentWorker = temporalsdkworker.New(temporalClient, cfg.Payment.TaskQueue, temporalsdkworker.Options{})
 			if err := paymentsync.RegisterTemporalPaymentReconcileWorker(temporalPaymentWorker, repo, invoiceBillingAdapter); err != nil {
+				closeReplayRuntime()
 				fatal(logger, "register payment reconcile worker", "error", err)
 			}
 			if err := temporalPaymentWorker.Start(); err != nil {
@@ -360,7 +368,6 @@ func main() {
 				"task_queue", cfg.Payment.TaskQueue,
 			)
 		}
-
 		if cfg.Roles.RunPaymentReconcileScheduler {
 			input := paymentsync.PaymentReconcileWorkflowInput{
 				Limit:             cfg.Payment.Batch,
@@ -386,156 +393,19 @@ func main() {
 		}
 	}
 
-	var webhookKeyProvider service.LagoWebhookHMACKeyProvider
-	var tenantWebhookKeyProvider service.LagoWebhookHMACKeyProvider
-	var staticWebhookKeyProvider service.LagoWebhookHMACKeyProvider
-	if billingSecretStore != nil {
-		tenantWebhookKeyProvider = service.NewTenantBackedLagoWebhookHMACKeyProvider(repo, billingSecretStore)
-	}
-	if strings.TrimSpace(cfg.Lago.WebhookHMACKey) != "" {
-		staticWebhookKeyProvider, err = service.NewStaticLagoWebhookHMACKeyProvider(cfg.Lago.WebhookHMACKey)
-		if err != nil {
-			fatal(logger, "initialize static lago webhook hmac key", "error", err)
-		}
-	}
-	switch {
-	case tenantWebhookKeyProvider != nil && staticWebhookKeyProvider != nil:
-		webhookKeyProvider, err = service.NewFallbackLagoWebhookHMACKeyProvider(tenantWebhookKeyProvider, staticWebhookKeyProvider)
-		if err != nil {
-			fatal(logger, "initialize fallback lago webhook hmac key provider", "error", err)
-		}
-		logger.Info("using tenant-backed lago webhook hmac verification with static fallback", "component", "server")
-	case tenantWebhookKeyProvider != nil:
-		webhookKeyProvider = tenantWebhookKeyProvider
-		logger.Info("using tenant-backed lago webhook hmac verification", "component", "server")
-	case staticWebhookKeyProvider != nil:
-		webhookKeyProvider = staticWebhookKeyProvider
-		logger.Info("using static lago webhook hmac verification", "component", "server")
-	default:
-		fatal(logger, "initialize lago webhook verifier", "error", fmt.Errorf("lago webhook hmac verification requires billing provider secret store or LAGO_WEBHOOK_HMAC_KEY"))
-	}
-	webhookVerifier, err := service.NewLagoHMACWebhookVerifier(webhookKeyProvider)
-	if err != nil {
-		fatal(logger, "initialize lago webhook verifier", "error", err)
-	}
-	workspaceBillingBindingService := service.NewWorkspaceBillingBindingService(repo)
-	webhookDunningSvc, err := service.NewDunningService(repo)
-	if err != nil {
-		fatal(logger, "initialize webhook dunning service", "error", err)
-	}
-	lagoWebhookSvc := service.NewLagoWebhookService(
-		repo,
-		webhookVerifier,
-		service.NewTenantBackedLagoOrganizationTenantMapper(repo),
-		service.NewCustomerService(repo, customerBillingAdapter).WithWorkspaceBillingBindingService(workspaceBillingBindingService),
-	).WithDunningService(webhookDunningSvc)
-	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
-	logger.Info("lago webhook sync enabled", "component", "server", "mapper_backend", "tenant_store")
-
-	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
-	if err != nil {
-		fatal(logger, "initialize api key authorizer", "error", err)
-	}
-	serverOpts = append(serverOpts, api.WithAPIKeyAuthorizer(authorizer))
-	logger.Info("api auth enabled", "component", "server", "backend", "postgres")
-
-	browserUserAuthService, err := service.NewBrowserUserAuthService(repo)
-	if err != nil {
-		fatal(logger, "initialize browser user auth", "error", err)
-	}
-	serverOpts = append(serverOpts, api.WithBrowserUserAuthService(browserUserAuthService))
-
-	var (
-		invitationEmailSender    service.WorkspaceInvitationEmailSender
-		passwordResetEmailSender service.PasswordResetEmailSender
-		paymentSetupEmailSender  service.CustomerPaymentSetupRequestEmailSender
-	)
-	if strings.TrimSpace(cfg.Email.SMTPHost) != "" {
-		invitationEmailSender, err = service.NewSMTPWorkspaceInvitationEmailSender(service.SMTPWorkspaceInvitationEmailConfig{
-			Host:      cfg.Email.SMTPHost,
-			Port:      cfg.Email.SMTPPort,
-			Username:  cfg.Email.SMTPUsername,
-			Password:  cfg.Email.SMTPPassword,
-			FromEmail: cfg.Email.FromEmail,
-			FromName:  cfg.Email.FromName,
-		})
-		if err != nil {
-			fatal(logger, "initialize workspace invitation email sender", "error", err)
-		}
-
-		passwordResetEmailSender, err = service.NewSMTPPasswordResetEmailSender(service.SMTPPasswordResetEmailConfig{
-			Host:      cfg.Email.SMTPHost,
-			Port:      cfg.Email.SMTPPort,
-			Username:  cfg.Email.SMTPUsername,
-			Password:  cfg.Email.SMTPPassword,
-			FromEmail: cfg.Email.FromEmail,
-			FromName:  cfg.Email.FromName,
-		})
-		if err != nil {
-			fatal(logger, "initialize password reset email sender", "error", err)
-		}
-
-		paymentSetupEmailSender, err = service.NewSMTPPaymentSetupRequestEmailSender(service.SMTPPaymentSetupRequestEmailConfig{
-			Host:      cfg.Email.SMTPHost,
-			Port:      cfg.Email.SMTPPort,
-			Username:  cfg.Email.SMTPUsername,
-			Password:  cfg.Email.SMTPPassword,
-			FromEmail: cfg.Email.FromEmail,
-			FromName:  cfg.Email.FromName,
-		})
-		if err != nil {
-			fatal(logger, "initialize payment setup request email sender", "error", err)
-		}
-		serverOpts = append(serverOpts, api.WithPasswordResetService(service.NewPasswordResetService(repo, cfg.Email.ResetTokenTTL)))
-		logger.Info(
-			"alpha notification service enabled",
-			"component", "server",
-			"smtp_host", cfg.Email.SMTPHost,
-			"from_email", cfg.Email.FromEmail,
-		)
-		logger.Info(
-			"password reset email enabled",
-			"component", "server",
-			"smtp_host", cfg.Email.SMTPHost,
-			"from_email", cfg.Email.FromEmail,
-			"reset_ttl", cfg.Email.ResetTokenTTL.String(),
-		)
-		logger.Info(
-			"payment setup request email enabled",
-			"component", "server",
-			"smtp_host", cfg.Email.SMTPHost,
-			"from_email", cfg.Email.FromEmail,
-		)
-	} else {
-		logger.Info("workspace invitation email disabled", "component", "server")
-		logger.Info("password reset email disabled", "component", "server")
-		logger.Info("payment setup request email disabled", "component", "server")
-	}
-	serverOpts = append(serverOpts, api.WithNotificationService(service.NewNotificationService(
-		invitationEmailSender,
-		passwordResetEmailSender,
-		paymentSetupEmailSender,
-		invoiceBillingAdapter,
-	)))
-	logger.Info(
-		"billing notification delegation enabled",
-		"component", "server",
-		"backend", "lago",
-	)
-
 	if cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler {
 		if temporalClient == nil {
+			closeReplayRuntime()
 			fatal(logger, "temporal client is required when dunning roles are enabled")
 		}
-		notificationSvc := service.NewNotificationService(
-			invitationEmailSender,
-			passwordResetEmailSender,
-			paymentSetupEmailSender,
-			invoiceBillingAdapter,
-		)
+		if cfg.Roles.RunDunningWorker && (customerBillingAdapter == nil || invoiceBillingAdapter == nil || notificationSvc == nil) {
+			closeReplayRuntime()
+			fatal(logger, "dunning worker dependencies are required when dunning worker is enabled")
+		}
 		if cfg.Roles.RunDunningWorker {
 			temporalDunningWorker = temporalsdkworker.New(temporalClient, cfg.Dunning.TaskQueue, temporalsdkworker.Options{})
 			if err := dunningflow.RegisterTemporalDunningWorker(temporalDunningWorker, repo, customerBillingAdapter, invoiceBillingAdapter, notificationSvc); err != nil {
+				closeReplayRuntime()
 				fatal(logger, "register dunning worker", "error", err)
 			}
 			if err := temporalDunningWorker.Start(); err != nil {
@@ -601,6 +471,156 @@ func main() {
 				"tenant_id", cfg.Dunning.TenantID,
 			)
 		}
+	}
+
+	if !cfg.Roles.RunAPIServer {
+		logger.Info("roles only mode waiting for shutdown", "component", "server")
+		<-ctx.Done()
+		closeReplayRuntime()
+		logger.Info("shutdown complete", "component", "server")
+		return
+	}
+
+	if cfg.UISession.RequireOrigin && cfg.ProductionLike && len(cfg.UISession.AllowedOrigins) == 0 {
+		logger.Warn("session origin allowlist empty; same-origin only", "component", "server")
+	}
+
+	var rateLimiter api.RateLimiter
+	if cfg.RateLimit.Enabled {
+		redisRateLimiter, err := api.NewRedisRateLimiter(api.RedisRateLimiterConfig{
+			RedisURL:    cfg.RateLimit.RedisURL,
+			KeyPrefix:   cfg.RateLimit.KeyPrefix,
+			PolicyRates: cfg.RateLimit.PolicyRates,
+		})
+		if err != nil {
+			fatal(logger, "initialize rate limiter", "error", err)
+		}
+		rateLimiter = redisRateLimiter
+		rateLimiterCloser = redisRateLimiter
+		logger.Info(
+			"rate limiter enabled",
+			"component", "server",
+			"backend", "redis",
+			"fail_open", cfg.RateLimit.FailOpen,
+			"login_fail_open", cfg.RateLimit.LoginFailOpen,
+		)
+	} else if cfg.ProductionLike {
+		logger.Warn("rate limiter disabled", "component", "server", "environment", cfg.RuntimeEnv)
+	}
+
+	uiSessionManager := scs.New()
+	uiSessionManager.Store = postgresstore.New(db)
+	uiSessionManager.Lifetime = cfg.UISession.Lifetime
+	uiSessionManager.Cookie.Name = cfg.UISession.CookieName
+	uiSessionManager.Cookie.HttpOnly = true
+	uiSessionManager.Cookie.Secure = cfg.UISession.CookieSecure
+	uiSessionManager.Cookie.Path = "/"
+	uiSessionManager.Cookie.SameSite = cfg.UISession.CookieSameSite
+
+	serverOpts := []api.ServerOption{
+		api.WithMetricsProvider(buildMetricsProvider(replayTemporalDispatcher, db)),
+		api.WithSessionManager(uiSessionManager),
+		api.WithSessionOriginPolicy(cfg.UISession.RequireOrigin, cfg.UISession.AllowedOrigins),
+		api.WithLogger(logger),
+		api.WithReadinessCheck(func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			return db.PingContext(ctx)
+		}),
+	}
+	if rateLimiter != nil {
+		serverOpts = append(serverOpts, api.WithRateLimiter(rateLimiter, cfg.RateLimit.FailOpen, cfg.RateLimit.LoginFailOpen))
+	}
+
+	serverOpts = append(
+		serverOpts,
+		api.WithMeterSyncAdapter(service.NewTenantAwareLagoMeterSyncAdapter(lagoResolver)),
+		api.WithTaxSyncAdapter(service.NewTenantAwareLagoTaxSyncAdapter(lagoResolver)),
+		api.WithPlanSyncAdapter(service.NewTenantAwareLagoPlanSyncAdapter(lagoResolver, repo)),
+		api.WithSubscriptionSyncAdapter(service.NewTenantAwareLagoSubscriptionSyncAdapter(lagoResolver, repo)),
+		api.WithUsageSyncAdapter(service.NewTenantAwareLagoUsageSyncAdapter(lagoResolver)),
+		api.WithInvoiceBillingAdapter(invoiceBillingAdapter),
+		api.WithCustomerBillingAdapter(customerBillingAdapter),
+	)
+	if strings.TrimSpace(cfg.Lago.AdminAPIKey) != "" {
+		lagoOrgBootstrapper, bootstrapErr := service.NewLagoAdminOrganizationBootstrapper(service.LagoClientConfig{
+			BaseURL: cfg.Lago.APIURL,
+			Timeout: cfg.Lago.HTTPTimeout,
+		}, cfg.Lago.AdminAPIKey)
+		if bootstrapErr != nil {
+			fatal(logger, "initialize lago admin bootstrapper", "error", bootstrapErr)
+		}
+		serverOpts = append(serverOpts, api.WithLagoOrganizationBootstrapper(lagoOrgBootstrapper))
+	}
+
+	if billingProviderSvc != nil {
+		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
+	}
+
+	var webhookKeyProvider service.LagoWebhookHMACKeyProvider
+	var tenantWebhookKeyProvider service.LagoWebhookHMACKeyProvider
+	var staticWebhookKeyProvider service.LagoWebhookHMACKeyProvider
+	if billingSecretStore != nil {
+		tenantWebhookKeyProvider = service.NewTenantBackedLagoWebhookHMACKeyProvider(repo, billingSecretStore)
+	}
+	if strings.TrimSpace(cfg.Lago.WebhookHMACKey) != "" {
+		staticWebhookKeyProvider, err = service.NewStaticLagoWebhookHMACKeyProvider(cfg.Lago.WebhookHMACKey)
+		if err != nil {
+			fatal(logger, "initialize static lago webhook hmac key", "error", err)
+		}
+	}
+	switch {
+	case tenantWebhookKeyProvider != nil && staticWebhookKeyProvider != nil:
+		webhookKeyProvider, err = service.NewFallbackLagoWebhookHMACKeyProvider(tenantWebhookKeyProvider, staticWebhookKeyProvider)
+		if err != nil {
+			fatal(logger, "initialize fallback lago webhook hmac key provider", "error", err)
+		}
+		logger.Info("using tenant-backed lago webhook hmac verification with static fallback", "component", "server")
+	case tenantWebhookKeyProvider != nil:
+		webhookKeyProvider = tenantWebhookKeyProvider
+		logger.Info("using tenant-backed lago webhook hmac verification", "component", "server")
+	case staticWebhookKeyProvider != nil:
+		webhookKeyProvider = staticWebhookKeyProvider
+		logger.Info("using static lago webhook hmac verification", "component", "server")
+	default:
+		fatal(logger, "initialize lago webhook verifier", "error", fmt.Errorf("lago webhook hmac verification requires billing provider secret store or LAGO_WEBHOOK_HMAC_KEY"))
+	}
+	webhookVerifier, err := service.NewLagoHMACWebhookVerifier(webhookKeyProvider)
+	if err != nil {
+		fatal(logger, "initialize lago webhook verifier", "error", err)
+	}
+	workspaceBillingBindingService := service.NewWorkspaceBillingBindingService(repo)
+	webhookDunningSvc, err := service.NewDunningService(repo)
+	if err != nil {
+		fatal(logger, "initialize webhook dunning service", "error", err)
+	}
+	lagoWebhookSvc := service.NewLagoWebhookService(
+		repo,
+		webhookVerifier,
+		service.NewTenantBackedLagoOrganizationTenantMapper(repo),
+		service.NewCustomerService(repo, customerBillingAdapter).WithWorkspaceBillingBindingService(workspaceBillingBindingService),
+	).WithDunningService(webhookDunningSvc)
+	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
+	logger.Info("lago webhook sync enabled", "component", "server", "mapper_backend", "tenant_store")
+
+	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
+	if err != nil {
+		fatal(logger, "initialize api key authorizer", "error", err)
+	}
+	serverOpts = append(serverOpts, api.WithAPIKeyAuthorizer(authorizer))
+	logger.Info("api auth enabled", "component", "server", "backend", "postgres")
+
+	browserUserAuthService, err := service.NewBrowserUserAuthService(repo)
+	if err != nil {
+		fatal(logger, "initialize browser user auth", "error", err)
+	}
+	serverOpts = append(serverOpts, api.WithBrowserUserAuthService(browserUserAuthService))
+
+	if passwordResetEmailSender != nil {
+		serverOpts = append(serverOpts, api.WithPasswordResetService(service.NewPasswordResetService(repo, cfg.Email.ResetTokenTTL)))
+	}
+	if notificationSvc != nil {
+		serverOpts = append(serverOpts, api.WithNotificationService(notificationSvc))
 	}
 
 	if len(cfg.SSO.OIDCProviders) > 0 {

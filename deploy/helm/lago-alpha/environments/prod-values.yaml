@@ -53,6 +53,22 @@ serviceAccounts:
     create: true
     name: "lago-alpha-billing-connection-check-scheduler"
     annotations: {}
+  paymentReconcileWorker:
+    create: true
+    name: "lago-alpha-payment-reconcile-worker"
+    annotations: {}
+  paymentReconcileScheduler:
+    create: true
+    name: "lago-alpha-payment-reconcile-scheduler"
+    annotations: {}
+  dunningWorker:
+    create: true
+    name: "lago-alpha-dunning-worker"
+    annotations: {}
+  dunningScheduler:
+    create: true
+    name: "lago-alpha-dunning-scheduler"
+    annotations: {}
   replayWorker:
     create: true
     name: "lago-alpha-replay-worker"

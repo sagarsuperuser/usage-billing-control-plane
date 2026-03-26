@@ -1,38 +1,39 @@
+{{- if .Values.dunningScheduler.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lago-alpha.fullname" . }}-api
+  name: {{ include "lago-alpha.fullname" . }}-dunning-scheduler
   labels:
     {{- include "lago-alpha.labels" . | nindent 4 }}
-    app.kubernetes.io/component: api
+    app.kubernetes.io/component: dunning-scheduler
 spec:
-  replicas: {{ .Values.api.replicas }}
+  replicas: {{ .Values.dunningScheduler.replicas }}
   selector:
     matchLabels:
       {{- include "lago-alpha.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: api
+      app.kubernetes.io/component: dunning-scheduler
   template:
     metadata:
       labels:
         {{- include "lago-alpha.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: api
-        {{- with .Values.api.podLabels }}
+        app.kubernetes.io/component: dunning-scheduler
+        {{- with .Values.dunningScheduler.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.api.podAnnotations }}
+      {{- with .Values.dunningScheduler.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "lago-alpha.serviceAccountName.api" . }}
+      serviceAccountName: {{ include "lago-alpha.serviceAccountName.dunningScheduler" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: api
-          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
-          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        - name: dunning-scheduler
+          image: "{{ default .Values.api.image.repository .Values.dunningScheduler.image.repository }}:{{ default .Values.api.image.tag .Values.dunningScheduler.image.tag }}"
+          imagePullPolicy: {{ .Values.dunningScheduler.image.pullPolicy }}
           envFrom:
             - configMapRef:
                 name: {{ include "lago-alpha.fullname" . }}-env
@@ -40,7 +41,7 @@ spec:
                 name: {{ .Values.secretEnv.secretRefName }}
           env:
             - name: RUN_API_SERVER
-              value: "true"
+              value: "false"
             - name: RUN_REPLAY_WORKER
               value: "false"
             - name: RUN_REPLAY_DISPATCHER
@@ -56,22 +57,7 @@ spec:
             - name: RUN_DUNNING_WORKER
               value: "false"
             - name: RUN_DUNNING_SCHEDULER
-              value: "false"
-          ports:
-            - name: http
-              containerPort: 8080
-              protocol: TCP
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 15
+              value: "true"
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            {{- toYaml .Values.dunningScheduler.resources | nindent 12 }}
+{{- end }}

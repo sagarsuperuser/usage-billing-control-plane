@@ -5,8 +5,6 @@ api:
     tag: "latest"
   autoscaling:
     enabled: false
-  runDunningWorker: "true"
-  runDunningScheduler: "true"
 
 replayWorker:
   enabled: true
@@ -30,6 +28,34 @@ billingConnectionCheckWorker:
     tag: "latest"
 
 billingConnectionCheckScheduler:
+  enabled: true
+  replicas: 1
+  image:
+    repository: "139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+paymentReconcileWorker:
+  enabled: false
+  replicas: 1
+  image:
+    repository: "139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+paymentReconcileScheduler:
+  enabled: false
+  replicas: 1
+  image:
+    repository: "139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+dunningWorker:
+  enabled: true
+  replicas: 1
+  image:
+    repository: "139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api"
+    tag: "latest"
+
+dunningScheduler:
   enabled: true
   replicas: 1
   image:
@@ -65,6 +91,22 @@ serviceAccounts:
   billingConnectionCheckScheduler:
     create: true
     name: "lago-alpha-billing-connection-check-scheduler"
+    annotations: {}
+  paymentReconcileWorker:
+    create: true
+    name: "lago-alpha-payment-reconcile-worker"
+    annotations: {}
+  paymentReconcileScheduler:
+    create: true
+    name: "lago-alpha-payment-reconcile-scheduler"
+    annotations: {}
+  dunningWorker:
+    create: true
+    name: "lago-alpha-dunning-worker"
+    annotations: {}
+  dunningScheduler:
+    create: true
+    name: "lago-alpha-dunning-scheduler"
     annotations: {}
   replayWorker:
     create: true

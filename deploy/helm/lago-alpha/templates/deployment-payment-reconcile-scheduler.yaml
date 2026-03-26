@@ -1,38 +1,39 @@
+{{- if .Values.paymentReconcileScheduler.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lago-alpha.fullname" . }}-api
+  name: {{ include "lago-alpha.fullname" . }}-payment-reconcile-scheduler
   labels:
     {{- include "lago-alpha.labels" . | nindent 4 }}
-    app.kubernetes.io/component: api
+    app.kubernetes.io/component: payment-reconcile-scheduler
 spec:
-  replicas: {{ .Values.api.replicas }}
+  replicas: {{ .Values.paymentReconcileScheduler.replicas }}
   selector:
     matchLabels:
       {{- include "lago-alpha.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: api
+      app.kubernetes.io/component: payment-reconcile-scheduler
   template:
     metadata:
       labels:
         {{- include "lago-alpha.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: api
-        {{- with .Values.api.podLabels }}
+        app.kubernetes.io/component: payment-reconcile-scheduler
+        {{- with .Values.paymentReconcileScheduler.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.api.podAnnotations }}
+      {{- with .Values.paymentReconcileScheduler.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "lago-alpha.serviceAccountName.api" . }}
+      serviceAccountName: {{ include "lago-alpha.serviceAccountName.paymentReconcileScheduler" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: api
-          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
-          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        - name: payment-reconcile-scheduler
+          image: "{{ default .Values.api.image.repository .Values.paymentReconcileScheduler.image.repository }}:{{ default .Values.api.image.tag .Values.paymentReconcileScheduler.image.tag }}"
+          imagePullPolicy: {{ .Values.paymentReconcileScheduler.image.pullPolicy }}
           envFrom:
             - configMapRef:
                 name: {{ include "lago-alpha.fullname" . }}-env
@@ -40,7 +41,7 @@ spec:
                 name: {{ .Values.secretEnv.secretRefName }}
           env:
             - name: RUN_API_SERVER
-              value: "true"
+              value: "false"
             - name: RUN_REPLAY_WORKER
               value: "false"
             - name: RUN_REPLAY_DISPATCHER
@@ -52,26 +53,11 @@ spec:
             - name: RUN_PAYMENT_RECONCILE_WORKER
               value: "false"
             - name: RUN_PAYMENT_RECONCILE_SCHEDULER
-              value: "false"
+              value: "true"
             - name: RUN_DUNNING_WORKER
               value: "false"
             - name: RUN_DUNNING_SCHEDULER
               value: "false"
-          ports:
-            - name: http
-              containerPort: 8080
-              protocol: TCP
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 15
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            {{- toYaml .Values.paymentReconcileScheduler.resources | nindent 12 }}
+{{- end }}

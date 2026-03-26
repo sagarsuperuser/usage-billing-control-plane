@@ -47,6 +47,38 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "lago-alpha.serviceAccountName.paymentReconcileWorker" -}}
+{{- if .Values.serviceAccounts.paymentReconcileWorker.create -}}
+{{- default (printf "%s-payment-reconcile-worker" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.paymentReconcileWorker.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccounts.paymentReconcileWorker.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "lago-alpha.serviceAccountName.paymentReconcileScheduler" -}}
+{{- if .Values.serviceAccounts.paymentReconcileScheduler.create -}}
+{{- default (printf "%s-payment-reconcile-scheduler" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.paymentReconcileScheduler.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccounts.paymentReconcileScheduler.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "lago-alpha.serviceAccountName.dunningWorker" -}}
+{{- if .Values.serviceAccounts.dunningWorker.create -}}
+{{- default (printf "%s-dunning-worker" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.dunningWorker.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccounts.dunningWorker.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "lago-alpha.serviceAccountName.dunningScheduler" -}}
+{{- if .Values.serviceAccounts.dunningScheduler.create -}}
+{{- default (printf "%s-dunning-scheduler" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.dunningScheduler.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccounts.dunningScheduler.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "lago-alpha.serviceAccountName.replayWorker" -}}
 {{- if .Values.serviceAccounts.replayWorker.create -}}
 {{- default (printf "%s-replay-worker" (include "lago-alpha.fullname" .)) .Values.serviceAccounts.replayWorker.name -}}
