@@ -144,7 +144,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/customers", label: "Tenant" }, { href: "/customers", label: "Customers" }, { label: customer?.display_name || externalID }]} />
+        <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { href: "/customers", label: "Customers" }, { label: customer?.display_name || externalID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -162,7 +162,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-950">Customer not available</h1>
-            <p className="mt-3 text-sm text-slate-600">The requested customer could not be loaded from the tenant APIs.</p>
+            <p className="mt-3 text-sm text-slate-600">The requested customer could not be loaded from the workspace APIs.</p>
             <Link href="/customers" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
               <ArrowLeft className="h-4 w-4" />
               Back to customers

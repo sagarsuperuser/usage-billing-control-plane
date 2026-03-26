@@ -120,7 +120,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
-            body="Subscription detail is tenant-scoped. Sign in with a tenant account to inspect readiness and request payment setup."
+            body="Subscription detail is workspace-scoped. Sign in with a workspace account to inspect readiness and request payment setup."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
@@ -132,7 +132,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-950">Subscription not available</h1>
-            <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the tenant APIs.</p>
+            <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the workspace APIs.</p>
             <Link href="/subscriptions" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
               <ArrowLeft className="h-4 w-4" />
               Back to subscriptions

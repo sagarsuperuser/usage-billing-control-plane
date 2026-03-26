@@ -122,7 +122,7 @@ test("platform admin can inspect tenant audit history", async ({ page, context }
 
   await page.goto("/tenant-audit");
 
-  await expect(page.getByRole("heading", { name: "Tenant audit trail" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace audit trail" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "View details for Payment setup requested on tenant_alpha" }),
   ).toBeVisible();

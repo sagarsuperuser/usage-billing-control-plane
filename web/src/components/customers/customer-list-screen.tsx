@@ -83,7 +83,7 @@ export function CustomerListScreen() {
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/customers", label: "Tenant" }, { label: "Customers" }]} />
+        <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Customers" }]} />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -245,7 +245,7 @@ function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
       <p className="font-semibold text-slate-950">No customers match the current filters.</p>
-      <p className="mt-2">Clear filters or create a new customer to start the tenant billing journey.</p>
+      <p className="mt-2">Clear filters or create a new customer to start the workspace billing journey.</p>
       <div className="mt-4 flex flex-wrap gap-3">
         <Link href="/customers/new" className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800">Create customer</Link>
       </div>

@@ -80,7 +80,7 @@ export function CustomerOnboardingScreen() {
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/customers", label: "Tenant" }, { href: "/customers", label: "Customers" }, { label: "New" }]} />
+        <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { href: "/customers", label: "Customers" }, { label: "New" }]} />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -267,7 +267,7 @@ export function CustomerOnboardingScreen() {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Use customer pages after create</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
                   <p>This page is for create only.</p>
-                  <p>Use Customers to browse the tenant customer base.</p>
+                  <p>Use Customers to browse the workspace customer base.</p>
                   <p>Use customer detail for readiness and recovery.</p>
                 </div>
               </section>

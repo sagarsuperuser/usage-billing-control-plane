@@ -127,7 +127,7 @@ export function UsageEventsScreen() {
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/customers", label: "Tenant" }, { label: "Usage Events" }]} />
+        <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Usage Events" }]} />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -318,7 +318,7 @@ function UsageEventDetail({ item }: { item: UsageEvent | null }) {
         <DetailField label="Customer" value={item.customer_id} mono />
         <DetailField label="Meter" value={item.meter_id} mono />
         <DetailField label="Subscription" value={item.subscription_id || "-"} mono />
-        <DetailField label="Tenant" value={item.tenant_id || "-"} mono />
+        <DetailField label="Workspace ID" value={item.tenant_id || "-"} mono />
         <DetailField label="Quantity" value={String(item.quantity)} />
         <DetailField label="Occurred at" value={formatExactTimestamp(item.timestamp)} />
         <DetailField label="Idempotency key" value={item.idempotency_key || "-"} mono />

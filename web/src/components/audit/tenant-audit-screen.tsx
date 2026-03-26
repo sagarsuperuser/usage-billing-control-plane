@@ -49,6 +49,14 @@ export function TenantAuditScreen() {
     return Array.from(values).sort();
   }, [auditQuery.data]);
 
+  const workspaceNames = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const item of tenantsQuery.data ?? []) {
+      out.set(item.id, item.name);
+    }
+    return out;
+  }, [tenantsQuery.data]);
+
   const selectedEvent =
     (auditQuery.data?.items ?? []).find((item) => item.id === selectedEventID) ?? null;
 
@@ -67,13 +75,13 @@ export function TenantAuditScreen() {
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/control-plane", label: "Overview" }, { label: "Tenant audit" }]} />
+        <AppBreadcrumbs items={[{ href: "/control-plane", label: "Overview" }, { label: "Workspace audit" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && (scope !== "platform" || !isPlatformAdmin) ? (
           <ScopeNotice
             title="Platform session required"
-            body="Tenant audit is a platform operator surface. Sign in with a platform admin session to inspect cross-workspace changes."
+            body="Workspace audit is a platform operator surface. Sign in with a platform admin session to inspect cross-workspace changes."
             actionHref="/control-plane"
             actionLabel="Open platform home"
           />
@@ -81,7 +89,7 @@ export function TenantAuditScreen() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Platform audit</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Tenant audit trail</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace audit trail</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">
             Review workspace, billing, customer, and access changes from one operator surface.
           </p>
@@ -89,7 +97,7 @@ export function TenantAuditScreen() {
 
         <section className="grid gap-4 md:grid-cols-4">
           <MetricCard label="Events loaded" value={String(auditQuery.data?.items.length ?? 0)} />
-          <MetricCard label="Matching tenants" value={tenantID ? "1" : String(tenantsQuery.data?.length ?? 0)} />
+          <MetricCard label="Matching workspaces" value={tenantID ? "1" : String(tenantsQuery.data?.length ?? 0)} />
           <MetricCard label="Actions" value={String(actionOptions.length)} />
           <MetricCard label="Result window" value={String(auditQuery.data?.limit ?? DEFAULT_LIMIT)} />
         </section>
@@ -97,13 +105,13 @@ export function TenantAuditScreen() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
             <label className="grid gap-2 text-sm text-slate-700">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Tenant</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace</span>
               <select
                 value={tenantID}
                 onChange={(event) => setTenantID(event.target.value)}
                 className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
               >
-                <option value="">All tenants</option>
+                <option value="">All workspaces</option>
                 {(tenantsQuery.data ?? []).map((tenant) => (
                   <option key={tenant.id} value={tenant.id}>
                     {tenant.id}
@@ -140,7 +148,7 @@ export function TenantAuditScreen() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent tenant events</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent workspace events</p>
             <h2 className="text-xl font-semibold text-slate-950">Audit history</h2>
             <p className="text-sm text-slate-600">Select an event to inspect the full change record.</p>
           </div>
@@ -155,12 +163,13 @@ export function TenantAuditScreen() {
                     <AuditRow
                       key={event.id}
                       event={event}
+                      workspaceName={workspaceNames.get(event.tenant_id)}
                       selected={event.id === selectedEventID}
                       onSelect={() => setSelectedEventID(event.id)}
                     />
                   ))}
                 </div>
-                <AuditDetail event={selectedEvent} />
+                <AuditDetail event={selectedEvent} workspaceName={selectedEvent ? workspaceNames.get(selectedEvent.tenant_id) : undefined} />
               </>
             ) : null}
           </div>
@@ -172,10 +181,12 @@ export function TenantAuditScreen() {
 
 function AuditRow({
   event,
+  workspaceName,
   selected,
   onSelect,
 }: {
   event: TenantAuditEvent;
+  workspaceName?: string;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -203,7 +214,8 @@ function AuditRow({
           <p className="mt-2 text-base font-semibold text-slate-950">{event.event_title}</p>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">{event.event_summary}</p>
           <p className="mt-2 text-sm text-slate-700">
-            <span className="font-medium text-slate-950">{event.tenant_id}</span>
+            <span className="font-medium text-slate-950">{workspaceName || event.tenant_id}</span>
+            {workspaceName ? <> · <span className="font-mono text-slate-600">{event.tenant_id}</span></> : null}
             {event.actor_api_key_id ? (
               <>
                 {" "}
@@ -221,7 +233,7 @@ function AuditRow({
   );
 }
 
-function AuditDetail({ event }: { event: TenantAuditEvent | null }) {
+function AuditDetail({ event, workspaceName }: { event: TenantAuditEvent | null; workspaceName?: string }) {
   const entries = Object.entries(event?.metadata ?? {}).sort(([left], [right]) => left.localeCompare(right));
 
   if (!event) {
@@ -242,7 +254,8 @@ function AuditDetail({ event }: { event: TenantAuditEvent | null }) {
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <DetailField label="Event code" value={event.event_code} mono />
-        <DetailField label="Tenant" value={event.tenant_id} mono />
+        <DetailField label="Workspace" value={workspaceName || "-"} />
+        <DetailField label="Workspace ID" value={event.tenant_id} mono />
         <DetailField label="Actor API key" value={event.actor_api_key_id || "-"} mono />
         <DetailField label="Created at" value={new Date(event.created_at).toLocaleString()} />
         <DetailField label="Event ID" value={event.id} mono className="sm:col-span-2" />
@@ -339,7 +352,7 @@ function LoadingState() {
   return (
     <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
       <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading tenant audit events
+      Loading workspace audit events
     </div>
   );
 }
@@ -347,8 +360,8 @@ function LoadingState() {
 function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No tenant audit events match the current filters.</p>
-      <p className="mt-2">Try widening the tenant, action, or actor filters.</p>
+      <p className="font-semibold text-slate-950">No workspace audit events match the current filters.</p>
+      <p className="mt-2">Try widening the workspace, action, or actor filters.</p>
     </div>
   );
 }

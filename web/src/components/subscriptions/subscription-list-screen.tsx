@@ -58,7 +58,7 @@ export function SubscriptionListScreen() {
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/control-plane", label: "Tenant" }, { label: "Subscriptions" }]} />
+        <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Subscriptions" }]} />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -80,7 +80,7 @@ export function SubscriptionListScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
-            body="Subscriptions are tenant-scoped. Sign in with a tenant account to create and track customer subscriptions."
+            body="Subscriptions are workspace-scoped. Sign in with a workspace account to create and track customer subscriptions."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />

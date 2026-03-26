@@ -117,7 +117,7 @@ export function PaymentListScreen() {
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <ControlPlaneNav />
-        <AppBreadcrumbs items={[{ href: "/control-plane", label: "Tenant" }, { label: "Payments" }]} />
+        <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Payments" }]} />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -135,7 +135,7 @@ export function PaymentListScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Tenant session required"
-            body="Payments are tenant-scoped. Sign in with a tenant account to inspect payment state, lifecycle signals, and recovery readiness."
+            body="Payments are workspace-scoped. Sign in with a workspace account to inspect payment state, lifecycle signals, and recovery readiness."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
@@ -349,7 +349,7 @@ function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
       <p className="font-semibold text-slate-950">No payments match the current filters.</p>
-      <p className="mt-2">Clear filters or wait for invoice payment activity to appear in the tenant billing history.</p>
+      <p className="mt-2">Clear filters or wait for invoice payment activity to appear in the workspace billing history.</p>
     </div>
   );
 }
