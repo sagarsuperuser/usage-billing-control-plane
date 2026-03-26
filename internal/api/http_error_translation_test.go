@@ -48,6 +48,34 @@ func TestTranslateUserVisibleError(t *testing.T) {
 			message:     "validation error: unsupported payment provider code \"foo\"",
 			wantMessage: "The configured billing provider is not supported.",
 		},
+		{
+			name:        "pricing sync failure",
+			status:      502,
+			code:        "dependency_error",
+			message:     "lago plan sync failed (create_status=500 create_body=boom update_status=500 update_body=boom)",
+			wantMessage: "Pricing changes could not be applied right now.",
+		},
+		{
+			name:        "subscription sync failure",
+			status:      502,
+			code:        "dependency_error",
+			message:     "lago subscription sync failed (create_status=500 create_body=boom update_status=500 update_body=boom)",
+			wantMessage: "Subscription changes could not be applied right now.",
+		},
+		{
+			name:        "unsupported pricing configuration",
+			status:      502,
+			code:        "dependency_error",
+			message:     "pricing mode \"graduated\" is not supported for lago plan sync",
+			wantMessage: "This pricing configuration is not supported yet.",
+		},
+		{
+			name:        "usage sync unsupported aggregation",
+			status:      502,
+			code:        "dependency_error",
+			message:     "unsupported aggregation \"avg\" for lago usage sync",
+			wantMessage: "This usage configuration is not supported yet.",
+		},
 	}
 
 	for _, tt := range tests {

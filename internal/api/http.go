@@ -4820,7 +4820,7 @@ func (s *Server) handleRatingRuleByID(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
 	if s.meterSyncAdapter == nil {
-		writeError(w, http.StatusServiceUnavailable, "meter sync adapter is required")
+		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
 		return
 	}
 
@@ -4840,7 +4840,7 @@ func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
-			writeError(w, http.StatusBadGateway, "meter created but lago sync failed: "+err.Error())
+			writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
 			return
 		}
 		writeJSON(w, http.StatusCreated, meter)
@@ -4862,7 +4862,7 @@ func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleMeterByID(w http.ResponseWriter, r *http.Request) {
 	if s.meterSyncAdapter == nil {
-		writeError(w, http.StatusServiceUnavailable, "meter sync adapter is required")
+		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
 		return
 	}
 
@@ -4887,7 +4887,7 @@ func (s *Server) handleMeterByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
-			writeError(w, http.StatusBadGateway, "meter updated but lago sync failed: "+err.Error())
+			writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
 			return
 		}
 		writeJSON(w, http.StatusOK, meter)
@@ -6121,6 +6121,45 @@ func translateUserVisibleError(status int, code, message string) (string, string
 		strings.Contains(lower, "workspace has no billing execution context"),
 		strings.Contains(lower, "workspace billing binding exists but is not ready"):
 		return "Billing setup is incomplete for this workspace or connection.", code
+	case strings.Contains(lower, "meter sync adapter is required"),
+		strings.Contains(lower, "lago meter sync adapter is required"),
+		strings.Contains(lower, "lago tax sync adapter is required"),
+		strings.Contains(lower, "lago plan sync adapter is required"),
+		strings.Contains(lower, "lago subscription sync adapter is required"),
+		strings.Contains(lower, "lago usage sync adapter is required"):
+		return "Pricing updates are unavailable right now.", code
+	case strings.Contains(lower, "metric created but lago sync failed"),
+		strings.Contains(lower, "meter created but lago sync failed"),
+		strings.Contains(lower, "meter updated but lago sync failed"),
+		strings.Contains(lower, "lago meter sync failed"):
+		return "Pricing metric changes could not be applied right now.", code
+	case strings.Contains(lower, "lago tax sync failed"):
+		return "Tax changes could not be applied right now.", code
+	case strings.Contains(lower, "lago plan sync failed"),
+		strings.Contains(lower, "lago add-on sync failed"),
+		strings.Contains(lower, "lago coupon sync failed"),
+		strings.Contains(lower, "lago fixed charge sync failed"),
+		strings.Contains(lower, "list lago fixed charges failed"),
+		strings.Contains(lower, "decode lago fixed charges response"),
+		strings.Contains(lower, "lago billable metric lookup failed"),
+		strings.Contains(lower, "decode lago billable metric response"):
+		return "Pricing changes could not be applied right now.", code
+	case strings.Contains(lower, "package pricing with overage is not yet supported for lago plan sync"),
+		(strings.Contains(lower, "pricing mode") && strings.Contains(lower, "not supported for lago plan sync")):
+		return "This pricing configuration is not supported yet.", code
+	case strings.Contains(lower, "lago subscription sync failed"),
+		strings.Contains(lower, "lago subscription terminate failed"),
+		strings.Contains(lower, "list lago applied coupons failed"),
+		strings.Contains(lower, "decode lago applied coupons response"),
+		strings.Contains(lower, "apply lago coupon failed"),
+		strings.Contains(lower, "delete lago applied coupon failed"):
+		return "Subscription changes could not be applied right now.", code
+	case strings.Contains(lower, "count aggregation requires quantity=1 for lago usage sync"),
+		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for lago usage sync")),
+		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for lago sync")):
+		return "This usage configuration is not supported yet.", code
+	case strings.Contains(lower, "lago usage sync failed"):
+		return "Usage could not be recorded right now.", code
 	case strings.Contains(lower, "failed to load payment receipts from lago"):
 		return "Payment receipts could not be loaded right now.", code
 	case strings.Contains(lower, "failed to load credit notes from lago"):

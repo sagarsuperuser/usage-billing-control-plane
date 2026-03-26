@@ -68,7 +68,7 @@ func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.meterSyncAdapter == nil {
-		writeError(w, http.StatusServiceUnavailable, "meter sync adapter is required")
+		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
 		return
 	}
 
@@ -100,7 +100,7 @@ func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.meterSyncAdapter.SyncMeter(r.Context(), metric); err != nil {
-			writeError(w, http.StatusBadGateway, "metric created but lago sync failed: "+err.Error())
+			writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
 			return
 		}
 		writeJSON(w, http.StatusCreated, metric)
