@@ -3229,7 +3229,18 @@ func parseUIInvitationPath(path string) (token string, action string) {
 }
 
 func invitationTokenFromNextPath(nextPath string) string {
-	token, action := parseUIInvitationPath(normalizeUINextPath(nextPath))
+	nextPath = normalizeUINextPath(nextPath)
+	if strings.HasPrefix(nextPath, "/invite/") {
+		token := strings.TrimSpace(strings.TrimPrefix(nextPath, "/invite/"))
+		if token != "" && !strings.Contains(token, "/") {
+			return token
+		}
+		return ""
+	}
+	if !strings.HasPrefix(nextPath, "/v1/ui/invitations/") {
+		return ""
+	}
+	token, action := parseUIInvitationPath(nextPath)
 	if token == "" {
 		return ""
 	}
