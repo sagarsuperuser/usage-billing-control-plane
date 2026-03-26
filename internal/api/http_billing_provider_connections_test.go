@@ -93,6 +93,15 @@ func TestInternalBillingProviderConnectionEndpointsSyncRequiresLagoOrganizationI
 	if synced["error"] != "Billing setup is incomplete for this workspace or connection." {
 		t.Fatalf("expected translated billing setup error, got %#v", synced["error"])
 	}
+
+	got := getJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID, "platform-admin", http.StatusOK)
+	connectionAfterFailure := got["connection"].(map[string]any)
+	if connectionAfterFailure["check_ready"] != false {
+		t.Fatalf("expected check_ready=false without billing setup")
+	}
+	if connectionAfterFailure["check_blocker_code"] != "billing_setup_incomplete" {
+		t.Fatalf("expected billing setup blocker, got %#v", connectionAfterFailure["check_blocker_code"])
+	}
 }
 
 func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
@@ -150,6 +159,9 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	if connection["workspace_ready"] != false {
 		t.Fatalf("expected workspace_ready=false before sync")
 	}
+	if connection["check_ready"] != true {
+		t.Fatalf("expected check_ready=true when connection has billing target")
+	}
 	if connection["linked_workspace_count"] != float64(0) {
 		t.Fatalf("expected linked workspace count 0, got %#v", connection["linked_workspace_count"])
 	}
@@ -184,6 +196,9 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	}
 	if syncedConnection["workspace_ready"] != true {
 		t.Fatalf("expected workspace_ready=true after sync")
+	}
+	if syncedConnection["check_ready"] != true {
+		t.Fatalf("expected check_ready=true after sync")
 	}
 	if syncedConnection["lago_provider_code"] != "stripe_synced" {
 		t.Fatalf("expected synced provider code, got %#v", syncedConnection["lago_provider_code"])
@@ -261,10 +276,13 @@ func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
 	if rotatedConnection["sync_state"] != "pending" {
 		t.Fatalf("expected pending sync_state after rotate, got %#v", rotatedConnection["sync_state"])
 	}
-	if rotatedConnection["sync_summary"] != "Connection needs a fresh check before billing can continue." {
+	if rotatedConnection["sync_summary"] != "Run another connection check before using this connection for billing." {
 		t.Fatalf("expected pending sync_summary after rotate, got %#v", rotatedConnection["sync_summary"])
 	}
 	if rotatedConnection["workspace_ready"] != false {
 		t.Fatalf("expected workspace_ready=false after rotate")
+	}
+	if rotatedConnection["check_ready"] != true {
+		t.Fatalf("expected check_ready=true after rotate")
 	}
 }

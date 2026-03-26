@@ -109,6 +109,13 @@ func (s *BillingProviderConnectionService) WithDefaultLagoOrganizationID(id stri
 	return s
 }
 
+func (s *BillingProviderConnectionService) DefaultLagoOrganizationID() string {
+	if s == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.defaultLagoOrganizationID)
+}
+
 func (s *BillingProviderConnectionService) WithStripeConnectionVerifier(verifier StripeConnectionVerifier) *BillingProviderConnectionService {
 	if s == nil {
 		return nil

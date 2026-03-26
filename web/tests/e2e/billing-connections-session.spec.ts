@@ -22,6 +22,9 @@ type BillingProviderConnection = {
   workspace_ready: boolean;
   sync_state: "healthy" | "failed" | "never_synced" | "pending" | "disabled";
   sync_summary: string;
+  check_ready: boolean;
+  check_blocker_code?: "disabled" | "missing_secret" | "billing_setup_incomplete";
+  check_blocker_summary?: string;
   linked_workspace_count: number;
   lago_organization_id?: string;
   lago_provider_code?: string;
@@ -82,7 +85,8 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
         status: "pending",
         workspace_ready: false,
         sync_state: "never_synced",
-        sync_summary: "Connection has not been checked yet.",
+        sync_summary: "Run the first connection check after billing setup is complete.",
+        check_ready: true,
         linked_workspace_count: 0,
         secret_configured: true,
         created_by_type: "platform_api_key",
@@ -111,6 +115,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             workspace_ready: true,
             sync_state: "healthy",
             sync_summary: "Stripe is connected and ready for billing.",
+            check_ready: true,
             lago_provider_code: "alpha_stripe_test_bpc_alpha",
             connected_at: now,
             last_synced_at: now,
@@ -135,7 +140,8 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             status: "pending",
             workspace_ready: false,
             sync_state: "pending",
-            sync_summary: "Connection needs a fresh check before billing can continue.",
+            sync_summary: "Run another connection check before using this connection for billing.",
+            check_ready: true,
             last_synced_at: undefined,
             updated_at: now,
           }
@@ -207,7 +213,7 @@ async function createConnectionFromNewScreen(page: Page) {
   await secretInput.pressSequentially("sk_test_123");
   await expect(secretInput).toHaveValue("sk_test_123");
   await expect(submitButton).toBeEnabled();
-  await submitButton.click();
+  await submitButton.click({ force: true });
 }
 
 test("platform admin can create and sync a billing connection", async ({ page, context }) => {
@@ -253,6 +259,7 @@ test("platform admin can edit billing connection detail metadata", async ({ page
       workspace_ready: true,
       sync_state: "healthy",
       sync_summary: "Stripe is connected and ready for billing.",
+      check_ready: true,
       linked_workspace_count: 0,
       secret_configured: true,
       created_by_type: "platform_api_key",
@@ -305,6 +312,7 @@ test("platform admin can rotate a billing connection secret and see it return to
       workspace_ready: true,
       sync_state: "healthy",
       sync_summary: "Stripe is connected and ready for billing.",
+      check_ready: true,
       linked_workspace_count: 1,
       secret_configured: true,
       created_by_type: "platform_api_key",
@@ -322,7 +330,47 @@ test("platform admin can rotate a billing connection secret and see it return to
   await page.getByRole("button", { name: "Rotate secret" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
-  await expect(page.locator("div").filter({ hasText: /^Connection needs a fresh check before billing can continue\.$/ })).toBeVisible();
+  await expect(page.locator("div").filter({ hasText: /^Run another connection check before using this connection for billing\.$/ })).toBeVisible();
+});
+
+test("platform admin sees billing setup required before the first connection check", async ({ page, context }) => {
+  const session: PlatformSessionPayload = {
+    authenticated: true,
+    subject_type: "user",
+    subject_id: "usr_platform_1",
+    user_email: "platform-admin@alpha.test",
+    scope: "platform",
+    platform_role: "platform_admin",
+    csrf_token: "csrf-platform-123",
+  };
+  const seededNow = new Date().toISOString();
+  await installBillingConnectionMock(context, session, [
+    {
+      id: "bpc_alpha",
+      provider_type: "stripe",
+      environment: "test",
+      display_name: "Stripe Sandbox",
+      scope: "platform",
+      status: "pending",
+      workspace_ready: false,
+      sync_state: "never_synced",
+      sync_summary: "Run the first connection check after billing setup is complete.",
+      check_ready: false,
+      check_blocker_code: "billing_setup_incomplete",
+      check_blocker_summary: "Complete billing setup for this connection before running a full connection check.",
+      linked_workspace_count: 0,
+      secret_configured: true,
+      created_by_type: "platform_api_key",
+      created_at: seededNow,
+      updated_at: seededNow,
+    },
+  ]);
+
+  await page.goto("/billing-connections/bpc_alpha");
+
+  await expect(page.getByRole("button", { name: "Billing setup required" })).toBeDisabled();
+  await expect(page.getByText("Complete billing setup for this connection before running a full connection check.").first()).toBeVisible();
+  await expect(page.getByText("Billing setup required").nth(1)).toBeVisible();
 });
 
 test("platform admin sees explicit verification checks for a failed billing connection", async ({ page, context }) => {
@@ -347,6 +395,7 @@ test("platform admin sees explicit verification checks for a failed billing conn
       workspace_ready: false,
       sync_state: "failed",
       sync_summary: "provider timeout",
+      check_ready: true,
       linked_workspace_count: 2,
       lago_organization_id: "org_original",
       secret_configured: true,

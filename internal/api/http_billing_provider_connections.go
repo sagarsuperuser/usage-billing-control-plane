@@ -20,6 +20,9 @@ type billingProviderConnectionResponse struct {
 	WorkspaceReady       bool                                   `json:"workspace_ready"`
 	SyncState            string                                 `json:"sync_state"`
 	SyncSummary          string                                 `json:"sync_summary"`
+	CheckReady           bool                                   `json:"check_ready"`
+	CheckBlockerCode     string                                 `json:"check_blocker_code,omitempty"`
+	CheckBlockerSummary  string                                 `json:"check_blocker_summary,omitempty"`
 	LinkedWorkspaceCount int                                    `json:"linked_workspace_count"`
 	LagoOrganizationID   string                                 `json:"lago_organization_id,omitempty"`
 	LagoProviderCode     string                                 `json:"lago_provider_code,omitempty"`
@@ -71,13 +74,39 @@ func billingConnectionSyncSummary(item domain.BillingProviderConnection) string 
 	case "disabled":
 		return "Connection is disabled."
 	case "never_synced":
-		return "Connection has not been checked yet."
+		return "Run the first connection check after billing setup is complete."
 	default:
-		return "Connection needs a fresh check before billing can continue."
+		if item.LastSyncedAt != nil && item.ConnectedAt == nil {
+			return "Stripe was checked, but billing setup is still incomplete for workspace use."
+		}
+		return "Run another connection check before using this connection for billing."
 	}
 }
 
-func newBillingProviderConnectionResponse(item domain.BillingProviderConnection, linkedWorkspaceCount int) billingProviderConnectionResponse {
+func (s *Server) describeBillingProviderConnectionCheck(item domain.BillingProviderConnection) (bool, string, string) {
+	if item.Status == domain.BillingProviderConnectionStatusDisabled {
+		return false, "disabled", "Disabled connections cannot be checked."
+	}
+	if strings.TrimSpace(item.SecretRef) == "" {
+		return false, "missing_secret", "Add a Stripe secret before checking this connection."
+	}
+	if strings.TrimSpace(item.LagoOrganizationID) != "" {
+		return true, "", ""
+	}
+	if strings.TrimSpace(item.OwnerTenantID) != "" {
+		tenant, err := s.repo.GetTenant(item.OwnerTenantID)
+		if err == nil && strings.TrimSpace(tenant.LagoOrganizationID) != "" {
+			return true, "", ""
+		}
+	}
+	if s.billingProviderConnectionService != nil && s.billingProviderConnectionService.DefaultLagoOrganizationID() != "" {
+		return true, "", ""
+	}
+	return false, "billing_setup_incomplete", "Complete billing setup for this connection before running a full connection check."
+}
+
+func (s *Server) newBillingProviderConnectionResponse(item domain.BillingProviderConnection, linkedWorkspaceCount int) billingProviderConnectionResponse {
+	checkReady, checkBlockerCode, checkBlockerSummary := s.describeBillingProviderConnectionCheck(item)
 	out := billingProviderConnectionResponse{
 		ID:                   item.ID,
 		ProviderType:         item.ProviderType,
@@ -89,6 +118,9 @@ func newBillingProviderConnectionResponse(item domain.BillingProviderConnection,
 		WorkspaceReady:       item.Status == domain.BillingProviderConnectionStatusConnected,
 		SyncState:            billingConnectionSyncState(item),
 		SyncSummary:          billingConnectionSyncSummary(item),
+		CheckReady:           checkReady,
+		CheckBlockerCode:     checkBlockerCode,
+		CheckBlockerSummary:  checkBlockerSummary,
 		LinkedWorkspaceCount: linkedWorkspaceCount,
 		LagoOrganizationID:   item.LagoOrganizationID,
 		LagoProviderCode:     item.LagoProviderCode,
@@ -136,7 +168,7 @@ func (s *Server) handleInternalBillingProviderConnections(w http.ResponseWriter,
 			writeDomainError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusCreated, map[string]any{"connection": newBillingProviderConnectionResponse(created, 0)})
+		writeJSON(w, http.StatusCreated, map[string]any{"connection": s.newBillingProviderConnectionResponse(created, 0)})
 	case http.MethodGet:
 		limit, err := parseQueryInt(r, "limit")
 		if err != nil {
@@ -172,7 +204,7 @@ func (s *Server) handleInternalBillingProviderConnections(w http.ResponseWriter,
 		}
 		resp := make([]billingProviderConnectionResponse, 0, len(items))
 		for _, item := range items {
-			resp = append(resp, newBillingProviderConnectionResponse(item, counts[item.ID]))
+			resp = append(resp, s.newBillingProviderConnectionResponse(item, counts[item.ID]))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": resp})
 	default:
@@ -226,7 +258,7 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 		if !ok {
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
+		writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
 	case action == "disable":
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
@@ -241,7 +273,7 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 		if !ok {
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
+		writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
 	case action == "rotate-secret":
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
@@ -261,7 +293,7 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 		if !ok {
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
+		writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
 	default:
 		switch r.Method {
 		case http.MethodGet:
@@ -274,7 +306,7 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 			if !ok {
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
+			writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
 		case http.MethodPatch:
 			var req service.UpdateBillingProviderConnectionRequest
 			if err := decodeJSON(r, &req); err != nil {
@@ -290,7 +322,7 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 			if !ok {
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"connection": newBillingProviderConnectionResponse(item, counts[id])})
+			writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
 		default:
 			writeMethodNotAllowed(w)
 		}

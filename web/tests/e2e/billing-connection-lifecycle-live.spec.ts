@@ -102,10 +102,10 @@ test.describe("billing connection lifecycle live staging", () => {
     await expect(rotatedSecretInput).toHaveValue(rotatedStripeSecretKey);
     await expect(rotateSecretButton).toBeEnabled();
     await rotateSecretButton.click();
-    await expect(page.locator("div").filter({ hasText: /^Connection needs a fresh check before billing can continue\.$/ }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("div").filter({ hasText: /^Run another connection check before using this connection for billing\.$/ }).first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/^pending$/i).first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Refresh connection" }).click();
+    await page.getByRole("button", { name: "Refresh connection status" }).click();
     await expect(page.locator("div").filter({ hasText: /^Stripe is connected and ready for billing\.$/ }).first()).toBeVisible({ timeout: 60000 });
     await expect(page.getByText(/^connected$/i).first()).toBeVisible();
 
