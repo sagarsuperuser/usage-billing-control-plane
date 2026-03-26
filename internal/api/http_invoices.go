@@ -207,7 +207,7 @@ func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if statusCode < 200 || statusCode >= 300 {
-		writeJSONRaw(w, statusCode, body)
+		writeTranslatedUpstreamError(w, statusCode, "Payment receipts could not be loaded right now.", body)
 		return
 	}
 
@@ -240,7 +240,7 @@ func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if statusCode < 200 || statusCode >= 300 {
-		writeJSONRaw(w, statusCode, body)
+		writeTranslatedUpstreamError(w, statusCode, "Invoice details could not be loaded right now.", body)
 		return
 	}
 	if customerExternalID == "" {
@@ -256,7 +256,7 @@ func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if statusCode < 200 || statusCode >= 300 {
-		writeJSONRaw(w, statusCode, body)
+		writeTranslatedUpstreamError(w, statusCode, "Credit notes could not be loaded right now.", body)
 		return
 	}
 

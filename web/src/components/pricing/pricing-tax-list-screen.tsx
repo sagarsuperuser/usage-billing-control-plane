@@ -44,7 +44,7 @@ export function PricingTaxListScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Taxes</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Maintain reusable tax codes and rates, then assign them to customer billing profiles and workspace billing entities for Lago execution.
+                Maintain reusable tax codes and rates, then assign them to customer billing profiles and workspace billing settings.
               </p>
             </div>
             <Link href="/pricing/taxes/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
@@ -98,7 +98,12 @@ function TaxRow({ tax }: { tax: Tax }) {
       <StatusCell label="Status" value={tax.status} />
       <StatusCell label="Rate" value={tax.rate.toFixed(2) + "%"} />
       <StatusCell label="Applies to" value="Customers / entity" />
-      <StatusCell label="Execution" value={tax.status === "active" ? "Synced to Lago" : "Not active"} />
+      <StatusCell
+        label="Availability"
+        value={
+          tax.status === "active" ? "Ready to assign" : tax.status === "draft" ? "Draft" : "Archived"
+        }
+      />
       <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">Open<ChevronRight className="h-4 w-4" /></span>
     </Link>
   );

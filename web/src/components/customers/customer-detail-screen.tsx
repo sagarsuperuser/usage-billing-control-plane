@@ -203,7 +203,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <SummaryStat label="Customer" value={readiness.customer_active ? "ready" : "pending"} helper={readiness.customer_active ? "Active" : "Needs attention"} />
-              <SummaryStat label="Billing profile" value={readiness.billing_profile_status} helper={readiness.lago_customer_synced ? "Synced to billing" : "Needs sync"} />
+              <SummaryStat label="Billing profile" value={readiness.billing_profile_status} helper={readiness.lago_customer_synced ? "Billing ready" : "Needs attention"} />
               <SummaryStat label="Payment setup" value={readiness.payment_setup_status} helper={readiness.default_payment_method_verified ? "Verified" : "Awaiting setup"} />
               <SummaryStat label="Open actions" value={String(readinessMissingSteps.length)} helper="Remaining checklist items" />
             </section>

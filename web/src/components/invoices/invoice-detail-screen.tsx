@@ -315,7 +315,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   {resendEmailMutation.isSuccess ? (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
                       <p className="font-semibold text-emerald-900">Invoice email dispatched</p>
-                      <p className="mt-2">Alpha accepted the resend action and delegated document delivery through Lago.</p>
+                      <p className="mt-2">Alpha accepted the resend action and queued invoice delivery.</p>
                     </div>
                   ) : null}
                   {resendEmailMutation.isError ? (

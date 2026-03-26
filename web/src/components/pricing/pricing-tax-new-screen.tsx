@@ -52,7 +52,7 @@ export function PricingTaxNewScreen() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing tax</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create tax</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-600">Define a reusable tax code and rate that Alpha can assign to billing profiles and workspace billing entities, then execute in Lago.</p>
+          <p className="mt-3 max-w-3xl text-sm text-slate-600">Define a reusable tax code and rate that Alpha can assign to customer billing profiles and workspace billing settings.</p>
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -87,7 +87,7 @@ export function PricingTaxNewScreen() {
           </section>
 
           <aside className="grid gap-5 self-start">
-            <InfoCard title="Execution path" body="Active taxes are synced into Lago and can be assigned through Alpha customer billing profiles or workspace billing settings." />
+            <InfoCard title="Assignment" body="Active taxes are available for customer billing profiles and workspace billing settings." />
             <InfoCard title="Use stable codes" body="Treat tax codes like reusable configuration. Change rates or descriptions deliberately so invoice behavior stays explainable." />
           </aside>
         </div>

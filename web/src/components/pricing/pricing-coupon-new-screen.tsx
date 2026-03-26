@@ -127,7 +127,7 @@ export function PricingCouponNewScreen() {
 
           <aside className="grid gap-5 self-start">
             <InfoCard title="Good fit" body="Use percent-off for simple promos and amount-off for negotiated fixed relief." />
-            <InfoCard title="Current scope" body="Coupons are synced into Lago with plan scoping, billing-period frequency, and optional expiration, then applied to customers through active subscription plans." />
+            <InfoCard title="Current scope" body="Coupons follow plan scoping, billing-period frequency, and optional expiration, then apply to customers through active subscription plans." />
           </aside>
         </div>
       </main>

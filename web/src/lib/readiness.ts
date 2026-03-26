@@ -57,7 +57,7 @@ const customerStepLabels: Record<string, string> = {
   customer_exists: "Customer record has not been created yet",
   customer_active: "Customer is not active yet",
   billing_provider_configured: "Billing connection is not configured yet",
-  lago_customer_synced: "Billing profile has not synced yet",
+  lago_customer_synced: "Billing profile is not ready yet",
   payment_setup_ready: "Customer has not completed payment setup",
   default_payment_method_verified: "Default payment method has not been verified yet",
 };

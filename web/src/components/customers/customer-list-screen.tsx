@@ -187,13 +187,24 @@ function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: 
         </div>
         <p className="mt-1 break-all font-mono text-xs text-slate-500">{customer.external_id}</p>
         <p className="mt-2 text-sm text-slate-600">
-          {diagnosis?.summary || (nextStep ? `Next action: ${describeCustomerMissingStep(nextStep)}` : "Customer is ready for billing operations.")}
+          {diagnosis?.summary || (nextStep ? `Next action: ${describeCustomerMissingStep(nextStep)}` : "No immediate customer blocker is shown.")}
         </p>
       </div>
       <StatusCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
       <StatusCell label="Profile" value={readiness ? formatReadinessStatus(readiness.billing_profile_status) : "Loading"} />
       <StatusCell label="Payments" value={readiness ? formatReadinessStatus(readiness.payment_setup_status) : "Loading"} />
-      <StatusCell label="Billing sync" value={customer.lago_customer_id ? "Synced" : "Missing"} />
+      <StatusCell
+        label="Collection"
+        value={
+          diagnosis
+            ? diagnosis.tone === "healthy"
+              ? "Ready"
+              : diagnosis.tone === "warning"
+                ? "Pending"
+                : "Blocked"
+            : "Review"
+        }
+      />
       <StatusCell label="Status" value={customer.status} />
       <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
         Open

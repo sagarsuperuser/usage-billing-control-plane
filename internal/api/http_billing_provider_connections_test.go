@@ -90,8 +90,8 @@ func TestInternalBillingProviderConnectionEndpointsSyncRequiresLagoOrganizationI
 	connectionID := connection["id"].(string)
 
 	synced := postJSON(t, ts.URL+"/internal/billing-provider-connections/"+connectionID+"/sync", map[string]any{}, "platform-admin", http.StatusBadRequest)
-	if synced["error"] != "validation error: lago organization id is required" {
-		t.Fatalf("expected missing lago org validation error, got %#v", synced["error"])
+	if synced["error"] != "Billing setup is incomplete for this workspace or connection." {
+		t.Fatalf("expected translated billing setup error, got %#v", synced["error"])
 	}
 }
 

@@ -16,9 +16,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lago Alpha | Control Plane",
+  title: "Alpha | Control Plane",
   description:
-    "Tenant-aware usage billing control plane on top of Lago with payment operations and invoice explainability.",
+    "Tenant-aware usage billing control plane with payment operations and invoice explainability.",
 };
 
 export default function RootLayout({

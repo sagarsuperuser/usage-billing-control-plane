@@ -172,6 +172,10 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 				s.logger.Warn("materialize retry payment projection failed", "invoice_id", invoiceID, "tenant_id", requestTenantID(r), "error", syncErr)
 			}
 		}
+		if statusCode < 200 || statusCode >= 300 {
+			writeTranslatedUpstreamError(w, statusCode, "Payment retry could not be started right now.", body)
+			return
+		}
 		writeJSONRaw(w, statusCode, body)
 		return
 	}

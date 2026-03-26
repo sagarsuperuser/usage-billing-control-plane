@@ -679,19 +679,6 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Active connection" value={activeBillingConnectionID || "Not assigned"} mono={Boolean(activeBillingConnectionID)} />
                     <MetaItem label="Connection name" value={billingConnectionQuery.data?.display_name || (billingConnectionQuery.isLoading ? "Loading" : "Unavailable")} />
-                    <MetaItem
-                      label="Connection sync state"
-                      value={
-                        workspaceBilling?.connection_sync_state
-                          ? formatReadinessStatus(workspaceBilling.connection_sync_state)
-                          : billingConnectionQuery.data?.sync_state
-                            ? formatReadinessStatus(billingConnectionQuery.data.sync_state)
-                            : billingConnectionQuery.isLoading
-                              ? "Loading"
-                              : "Unavailable"
-                      }
-                    />
-                    <MetaItem label="Binding source" value={workspaceBilling?.source || selectedReadiness.billing_integration.workspace_billing_source || "Pending binding"} />
                   </div>
 
                     <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -720,21 +707,43 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     </div>
                   </div>
 
-                  {selectedTenant.lago_organization_id || selectedTenant.lago_billing_provider_code ? (
-                    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex flex-col gap-2">
-                        <p className="text-sm font-semibold text-slate-950">Billing backend mapping</p>
-                        <p className="text-sm text-slate-600">Read-only backend references for support and debugging.</p>
-                      </div>
+                  {(workspaceBilling?.connection_sync_state ||
+                    billingConnectionQuery.data?.sync_state ||
+                    selectedTenant.lago_organization_id ||
+                    selectedTenant.lago_billing_provider_code) ? (
+                    <details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <summary className="cursor-pointer text-sm font-semibold text-slate-950">
+                        Support and debug details
+                      </summary>
+                      <p className="mt-2 text-sm text-slate-600">
+                        Backend references and internal state for support use only.
+                      </p>
                       <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {workspaceBilling?.source || selectedReadiness.billing_integration.workspace_billing_source ? (
+                          <MetaItem
+                            label="Assignment source"
+                            value={workspaceBilling?.source || selectedReadiness.billing_integration.workspace_billing_source || "-"}
+                          />
+                        ) : null}
+                        {workspaceBilling?.connection_sync_state ? (
+                          <MetaItem
+                            label="Connection state"
+                            value={formatReadinessStatus(workspaceBilling.connection_sync_state)}
+                          />
+                        ) : billingConnectionQuery.data?.sync_state ? (
+                          <MetaItem
+                            label="Connection state"
+                            value={formatReadinessStatus(billingConnectionQuery.data.sync_state)}
+                          />
+                        ) : null}
                         {selectedTenant.lago_organization_id ? (
-                          <MetaItem label="Lago organization ID" value={selectedTenant.lago_organization_id} mono />
+                          <MetaItem label="Billing organization ID" value={selectedTenant.lago_organization_id} mono />
                         ) : null}
                         {selectedTenant.lago_billing_provider_code ? (
-                          <MetaItem label="Lago provider code" value={selectedTenant.lago_billing_provider_code} mono />
+                          <MetaItem label="Billing provider code" value={selectedTenant.lago_billing_provider_code} mono />
                         ) : null}
                       </div>
-                    </div>
+                    </details>
                   ) : null}
 
                   {activeBillingConnectionID ? (

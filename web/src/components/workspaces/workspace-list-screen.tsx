@@ -226,7 +226,7 @@ function WorkspaceRow({ tenant, readiness }: { tenant: Tenant; readiness?: Tenan
         </div>
         <p className="mt-1 break-all font-mono text-[11px] text-slate-500">{tenant.id}</p>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          {nextStep ? `Next action: ${formatStep(nextStep)}` : "All major onboarding checkpoints are complete."}
+          {nextStep ? `Next action: ${formatStep(nextStep)}` : "No immediate blocker is shown."}
         </p>
       </div>
       <StatCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />

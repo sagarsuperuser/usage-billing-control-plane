@@ -109,7 +109,7 @@ export function PricingHomeScreen() {
             <DomainPanel
               eyebrow="Taxes"
               title="Tax catalog and application"
-              body="Define reusable tax codes and rates, then attach them to customer billing profiles and workspace billing entities so Alpha can execute them in Lago."
+              body="Define reusable tax codes and rates, then attach them to customer billing profiles and workspace billing settings."
               href="/pricing/taxes"
               cta="Open taxes"
               secondaryHref="/pricing/taxes/new"

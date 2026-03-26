@@ -417,7 +417,8 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await expect(page.getByRole("heading", { name: "Tenant Alpha" })).toBeVisible();
   await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
   await expect(page.getByText("No billing-ready customer has been created yet").first()).toBeVisible();
-  await expect(page.getByText("Billing backend mapping")).toBeVisible();
+  await expect(page.getByText("Support and debug details")).toBeVisible();
+  await page.getByText("Support and debug details").click();
   await expect(page.getByText("org_alpha")).toBeVisible();
   await expect(page.getByText("stripe_alpha")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();

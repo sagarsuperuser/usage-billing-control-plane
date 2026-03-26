@@ -187,7 +187,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial controls</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Change plan or cancel billing</h2>
                   <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    Plan changes sync through Lago using the subscription code as the shared commercial identity. Cancellation archives the Alpha subscription and terminates the active Lago subscription.
+                    Change the billed plan here or cancel the subscription when billing should stop. Alpha applies the billing change and keeps the subscription state aligned.
                   </p>
                   <div className="mt-5 grid gap-4">
                     <div className="grid gap-2">

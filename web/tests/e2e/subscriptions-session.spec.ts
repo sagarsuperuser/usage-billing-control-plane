@@ -283,6 +283,6 @@ test("tenant writer can create subscription and resend payment setup", async ({ 
   await expect(page.getByRole("heading", { name: "Acme Growth" })).toBeVisible();
   await expect(page.getByText("Pending payment setup", { exact: true }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Resend link" }).click();
-  await expect(page.getByRole("link", { name: "Open resent setup link" })).toBeVisible();
+  await page.getByRole("button", { name: "Resend payment setup" }).click();
+  await expect(page.getByRole("link", { name: "Open latest setup link" })).toBeVisible();
 });

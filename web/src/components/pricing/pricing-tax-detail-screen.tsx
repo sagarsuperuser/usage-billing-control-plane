@@ -56,7 +56,10 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Stat label="Status" value={tax.status} />
               <Stat label="Rate" value={tax.rate.toFixed(2) + "%"} />
-              <Stat label="Execution" value={tax.status === "active" ? "Synced to Lago" : "Inactive"} />
+              <Stat
+                label="Availability"
+                value={tax.status === "active" ? "Ready to assign" : tax.status === "draft" ? "Draft" : "Archived"}
+              />
               <Stat label="Scope" value="Customers / entity" />
             </section>
           </>

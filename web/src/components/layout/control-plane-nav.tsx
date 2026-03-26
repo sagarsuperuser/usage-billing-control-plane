@@ -154,7 +154,7 @@ export function ControlPlaneNav() {
                 </span>
               </div>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                Product-owned billing administration on top of Lago. Platform configures reusable billing assets. Workspaces run pricing, customer, and subscription operations.
+                Product-owned billing administration for platform and workspace operations. Platform configures reusable billing assets. Workspaces run pricing, customer, and subscription operations.
               </p>
               {isLoading ? (
                 <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">

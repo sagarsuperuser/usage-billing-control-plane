@@ -98,7 +98,7 @@ export function InvoiceListScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoices</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Invoice visibility</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Browse invoice state, payment state, due amounts, and linked customers without dropping into Lago UI or the advanced payment operations console.
+                Browse invoice state, payment state, due amounts, and linked customers without leaving the main invoice workflow.
               </p>
             </div>
           </div>

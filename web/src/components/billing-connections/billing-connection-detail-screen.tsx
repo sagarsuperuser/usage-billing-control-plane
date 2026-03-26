@@ -157,8 +157,8 @@ function buildVerificationDiagnosis(connection: {
       : "This Stripe connection is healthy.",
     nextStep:
       connection.linked_workspace_count > 0
-        ? "Healthy. Safe for current and additional workspace assignments."
-        : "Healthy. Safe to assign to the next workspace.",
+        ? "Healthy. Ready for current and additional workspace assignments."
+        : "Healthy. Ready for the next workspace assignment.",
     workspaceImpact,
     tone: "good",
   };
