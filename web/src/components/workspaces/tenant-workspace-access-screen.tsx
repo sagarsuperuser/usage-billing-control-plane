@@ -52,6 +52,7 @@ export function TenantWorkspaceAccessScreen() {
   const [serviceAccountPurpose, setServiceAccountPurpose] = useState("");
   const [serviceAccountEnvironment, setServiceAccountEnvironment] = useState("prod");
   const [latestCredentialSecret, setLatestCredentialSecret] = useState<{ label: string; secret: string } | null>(null);
+  const [selectedServiceAccountID, setSelectedServiceAccountID] = useState("");
   const [selectedAuditServiceAccountID, setSelectedAuditServiceAccountID] = useState("");
   const [selectedAuditEventID, setSelectedAuditEventID] = useState("");
   const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
@@ -148,6 +149,7 @@ export function TenantWorkspaceAccessScreen() {
       setServiceAccountDescription("");
       setServiceAccountPurpose("");
       setServiceAccountEnvironment("prod");
+      setSelectedServiceAccountID(payload.service_account.id);
       setSelectedAuditServiceAccountID(payload.service_account.id);
       if (payload.secret) {
         setLatestCredentialSecret({ label: payload.service_account.name, secret: payload.secret });
@@ -211,6 +213,9 @@ export function TenantWorkspaceAccessScreen() {
   const members = membersQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
   const serviceAccounts = serviceAccountsQuery.data ?? [];
+  const selectedServiceAccountIDValue = selectedServiceAccountID || serviceAccounts[0]?.id || "";
+  const selectedServiceAccount =
+    serviceAccounts.find((item) => item.id === selectedServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
   const selectedAuditServiceAccountIDValue =
     selectedAuditServiceAccountID || serviceAccounts[0]?.id || "";
   const selectedAuditServiceAccount =
@@ -428,73 +433,140 @@ export function TenantWorkspaceAccessScreen() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
-                  <p className="mt-2 text-sm text-slate-600">Create, rotate, and disable machine credentials here.</p>
+                  <p className="mt-2 text-sm text-slate-600">Keep machine access scoped, rotated, and easy to review.</p>
                 </div>
               </div>
-              <div className="mt-4 grid gap-4">
-                {serviceAccounts.length > 0 ? (
-                  serviceAccounts.map((account) => (
-                    <div key={account.id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                      <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                          <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                            <ServerCog className="h-4 w-4 text-emerald-700" />
-                            {account.name}
-                          </p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{account.role} · {account.status} · {account.environment || "unspecified"} · {account.active_credential_count} active credential(s)</p>
-                          {account.description ? <p className="mt-2 text-sm text-slate-600">{account.description}</p> : null}
-                          {account.purpose ? <p className="mt-2 text-xs text-slate-500">{account.purpose}</p> : null}
+              <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="grid gap-3">
+                  {serviceAccounts.length > 0 ? (
+                    serviceAccounts.map((account) => (
+                      <button
+                        key={account.id}
+                        type="button"
+                        onClick={() => setSelectedServiceAccountID(account.id)}
+                        aria-pressed={selectedServiceAccountIDValue === account.id}
+                        className={`rounded-2xl border px-4 py-4 text-left transition ${
+                          selectedServiceAccountIDValue === account.id
+                            ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
+                            : "border-stone-200 bg-stone-50 hover:border-stone-300 hover:bg-stone-100"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                              <ServerCog className="h-4 w-4 text-emerald-700" />
+                              <span className="truncate">{account.name}</span>
+                            </p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">
+                              {formatServiceAccountRole(account.role)} · {formatServiceAccountStatus(account.status)} · {(account.environment || "unspecified").toUpperCase()}
+                            </p>
+                            <p className="mt-2 text-sm text-slate-700">
+                              {account.active_credential_count} active credential{account.active_credential_count === 1 ? "" : "s"} · {describeServiceAccountActivity(account)}
+                            </p>
+                            {account.description ? <p className="mt-2 text-xs text-slate-500">{account.description}</p> : null}
+                          </div>
+                          <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                            {account.credentials.length} total
+                          </span>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => issueCredentialMutation.mutate(account.id)}
-                            disabled={!csrfToken || issueCredentialMutation.isPending || account.status !== "active"}
-                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                            New credential
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedAuditServiceAccountID(account.id)}
-                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
-                          >
-                            <ShieldCheck className="h-3.5 w-3.5" />
-                            View audit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateServiceAccountStatusMutation.mutate({
-                                serviceAccountID: account.id,
-                                status: account.status === "active" ? "disabled" : "active",
-                              })
-                            }
-                            disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
-                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <ShieldOff className="h-3.5 w-3.5" />
-                            {account.status === "active" ? "Disable" : "Enable"}
-                          </button>
-                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">No service accounts yet.</p>
+                  )}
+                </div>
+
+                {selectedServiceAccount ? (
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected service account</p>
+                        <p className="mt-2 text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
+                        <p className="mt-2 text-sm text-slate-700">
+                          {selectedServiceAccount.description || "Use this identity for a single automation or integration path."}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {selectedServiceAccount.purpose || "No purpose recorded"} · created {formatExactTimestamp(selectedServiceAccount.created_at)}
+                        </p>
                       </div>
-                      <div className="mt-4 grid gap-3">
-                        {account.credentials.length > 0 ? (
-                          account.credentials.map((credential) => {
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)}
+                          disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                          Issue credential
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAuditServiceAccountID(selectedServiceAccount.id)}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Open audit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateServiceAccountStatusMutation.mutate({
+                              serviceAccountID: selectedServiceAccount.id,
+                              status: selectedServiceAccount.status === "active" ? "disabled" : "active",
+                            })
+                          }
+                          disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <ShieldOff className="h-3.5 w-3.5" />
+                          {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <DetailField label="Status" value={formatServiceAccountStatus(selectedServiceAccount.status)} />
+                      <DetailField label="Access role" value={formatServiceAccountRole(selectedServiceAccount.role)} />
+                      <DetailField label="Active credentials" value={`${selectedServiceAccount.active_credential_count}`} />
+                      <DetailField label="Last activity" value={describeServiceAccountActivity(selectedServiceAccount)} />
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Current credentials</p>
+                      <div className="mt-3 grid gap-3">
+                        {selectedServiceAccount.credentials.length > 0 ? (
+                          selectedServiceAccount.credentials.map((credential) => {
                             const isRevoked = Boolean(credential.revoked_at);
                             return (
-                              <div key={credential.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                              <div key={credential.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                   <div className="min-w-0">
-                                    <p className="text-sm font-medium text-slate-950">{credential.name}</p>
-                                    <p className="mt-1 text-xs text-slate-500">{credential.key_prefix} · created {formatExactTimestamp(credential.created_at)}</p>
-                                    <p className="mt-1 text-xs text-slate-500">{isRevoked ? `revoked ${formatExactTimestamp(credential.revoked_at!)}` : credential.last_used_at ? `last used ${formatExactTimestamp(credential.last_used_at)}` : "never used"}</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-sm font-medium text-slate-950">{credential.name}</p>
+                                      <span
+                                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                                          isRevoked
+                                            ? "border border-rose-200 bg-rose-50 text-rose-700"
+                                            : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        }`}
+                                      >
+                                        {isRevoked ? "Revoked" : "Active"}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      {credential.key_prefix} · issued {formatExactTimestamp(credential.created_at)}
+                                    </p>
+                                    <p className="mt-1 text-sm text-slate-700">{describeCredentialActivity(credential)}</p>
                                   </div>
                                   <div className="flex flex-wrap items-center gap-2">
                                     <button
                                       type="button"
-                                      onClick={() => rotateCredentialMutation.mutate({ serviceAccountID: account.id, credentialID: credential.id })}
+                                      onClick={() =>
+                                        rotateCredentialMutation.mutate({
+                                          serviceAccountID: selectedServiceAccount.id,
+                                          credentialID: credential.id,
+                                        })
+                                      }
                                       disabled={!csrfToken || isRevoked || rotateCredentialMutation.isPending}
                                       className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
@@ -503,7 +575,12 @@ export function TenantWorkspaceAccessScreen() {
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => revokeCredentialMutation.mutate({ serviceAccountID: account.id, credentialID: credential.id })}
+                                      onClick={() =>
+                                        revokeCredentialMutation.mutate({
+                                          serviceAccountID: selectedServiceAccount.id,
+                                          credentialID: credential.id,
+                                        })
+                                      }
                                       disabled={!csrfToken || isRevoked || revokeCredentialMutation.isPending}
                                       className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
@@ -520,9 +597,11 @@ export function TenantWorkspaceAccessScreen() {
                         )}
                       </div>
                     </div>
-                  ))
+                  </div>
                 ) : (
-                  <p className="text-sm text-slate-500">No service accounts yet.</p>
+                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
+                    Create a service account to review credential posture and machine access.
+                  </div>
                 )}
               </div>
             </section>
@@ -531,7 +610,7 @@ export function TenantWorkspaceAccessScreen() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Credential audit</p>
-                  <p className="mt-2 text-sm text-slate-600">Review recent service-account activity or export it.</p>
+                  <p className="mt-2 text-sm text-slate-600">Review credential lifecycle events and export evidence when needed.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <select
@@ -560,8 +639,11 @@ export function TenantWorkspaceAccessScreen() {
               {selectedAuditServiceAccount ? (
                 <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
                   <p className="text-sm font-medium text-slate-950">{selectedAuditServiceAccount.name}</p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    {selectedAuditServiceAccount.active_credential_count} active credential{selectedAuditServiceAccount.active_credential_count === 1 ? "" : "s"} · {describeServiceAccountActivity(selectedAuditServiceAccount)}
+                  </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {selectedAuditServiceAccount.role} · {selectedAuditServiceAccount.environment || "unspecified"} · {selectedAuditServiceAccount.active_credential_count} active credential(s)
+                    {formatServiceAccountRole(selectedAuditServiceAccount.role)} · {(selectedAuditServiceAccount.environment || "unspecified").toUpperCase()}
                   </p>
                 </div>
               ) : (
@@ -573,49 +655,49 @@ export function TenantWorkspaceAccessScreen() {
                     <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
                     <div className="mt-3 grid gap-3">
                       {(serviceAccountAuditQuery.data?.items ?? []).length > 0 ? (
-                        <>
-                          {(serviceAccountAuditQuery.data?.items ?? []).map((event) => (
-                            <ServiceAccountAuditRow
-                              key={event.id}
-                              event={event}
-                              selected={event.id === selectedAuditEventID}
-                              onSelect={() => setSelectedAuditEventID(event.id)}
-                            />
-                          ))}
-                          <ServiceAccountAuditDetail event={selectedAuditEvent} />
-                        </>
+                        (serviceAccountAuditQuery.data?.items ?? []).map((event) => (
+                          <ServiceAccountAuditRow
+                            key={event.id}
+                            event={event}
+                            selected={event.id === selectedAuditEventID}
+                            onSelect={() => setSelectedAuditEventID(event.id)}
+                          />
+                        ))
                       ) : (
                         <p className="text-sm text-slate-500">No audit events yet.</p>
                       )}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Audit exports</p>
-                    <div className="mt-3 grid gap-3">
-                      {(serviceAccountAuditExportsQuery.data?.items ?? []).length > 0 ? (
-                        (serviceAccountAuditExportsQuery.data?.items ?? []).map((item) => (
-                          <div key={item.job.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-medium text-slate-950">{item.job.status}</p>
-                              <p className="text-xs text-slate-500">{formatExactTimestamp(item.job.created_at)}</p>
+                  <div className="grid gap-4">
+                    <ServiceAccountAuditDetail event={selectedAuditEvent} />
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Audit exports</p>
+                      <div className="mt-3 grid gap-3">
+                        {(serviceAccountAuditExportsQuery.data?.items ?? []).length > 0 ? (
+                          (serviceAccountAuditExportsQuery.data?.items ?? []).map((item) => (
+                            <div key={item.job.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-medium text-slate-950">{formatAuditExportStatus(item.job.status)}</p>
+                                <p className="text-xs text-slate-500">{formatExactTimestamp(item.job.created_at)}</p>
+                              </div>
+                              <p className="mt-2 text-sm text-slate-700">{item.job.row_count} row(s) prepared</p>
+                              {item.download_url ? (
+                                <a
+                                  href={item.download_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  Download CSV
+                                </a>
+                              ) : null}
                             </div>
-                            <p className="mt-2 text-xs text-slate-500">{item.job.row_count} row(s)</p>
-                            {item.download_url ? (
-                              <a
-                                href={item.download_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                                Download CSV
-                              </a>
-                            ) : null}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-slate-500">No audit exports created yet.</p>
-                      )}
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">No audit exports created yet.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -821,19 +903,14 @@ function ServiceAccountAuditRow({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const metadataCount = Object.keys(event.metadata ?? {}).length;
-  const auditSummary = event.actor_api_key_id
-    ? `Changed by another credential${metadataCount > 0 ? ` · ${metadataCount} metadata field${metadataCount === 1 ? "" : "s"}` : ""}`
-    : metadataCount > 0
-      ? `${metadataCount} metadata field${metadataCount === 1 ? "" : "s"}`
-      : "No additional metadata";
+  const presentation = describeAuditEvent(event);
 
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      aria-label={`View service account audit details for ${event.action}`}
+      aria-label={`View service account audit details for ${presentation.title}`}
       className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
         selected
           ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
@@ -841,10 +918,11 @@ function ServiceAccountAuditRow({
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-slate-950">{event.action}</p>
+        <p className="text-sm font-medium text-slate-950">{presentation.title}</p>
         <p className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</p>
       </div>
-      <p className="mt-2 text-xs text-slate-500">{auditSummary}</p>
+      <p className="mt-2 text-sm text-slate-700">{presentation.summary}</p>
+      <p className="mt-2 text-xs text-slate-500">{presentation.supporting}</p>
     </button>
   );
 }
@@ -862,19 +940,21 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
 
   return (
     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
-      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Event detail</p>
+      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected event</p>
+      <p className="mt-2 text-lg font-semibold text-slate-950">{describeAuditEvent(event).title}</p>
+      <p className="mt-2 text-sm text-slate-700">{describeAuditEvent(event).summary}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <DetailField label="Action" value={event.action} />
+        <DetailField label="Event" value={describeAuditEvent(event).title} />
         <DetailField label="Created at" value={formatExactTimestamp(event.created_at)} />
-        <DetailField label="API key" value={event.api_key_id} mono />
-        <DetailField label="Actor API key" value={event.actor_api_key_id || "-"} mono />
+        <DetailField label="Credential" value={event.api_key_id} mono />
+        <DetailField label="Actor credential" value={event.actor_api_key_id || "Admin session"} mono />
         <DetailField label="Event ID" value={event.id} mono className="sm:col-span-2" />
       </div>
       {entries.length > 0 ? (
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           {entries.map(([key, value]) => (
             <div key={key} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{key}</dt>
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{formatAuditMetadataKey(key)}</dt>
               <dd className="mt-2 break-words text-sm text-slate-800">{formatAuditMetadataValue(value)}</dd>
             </div>
           ))}
@@ -917,4 +997,109 @@ function formatAuditMetadataValue(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function describeServiceAccountActivity(account: {
+  credentials: Array<{ last_used_at?: string; revoked_at?: string }>;
+  status: "active" | "disabled";
+}): string {
+  const lastUsed = account.credentials
+    .map((credential) => credential.last_used_at)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))[0];
+
+  if (lastUsed) {
+    return `last used ${formatExactTimestamp(lastUsed)}`;
+  }
+  if (account.status === "disabled") {
+    return "disabled";
+  }
+  return "no credential use recorded";
+}
+
+function describeCredentialActivity(credential: { last_used_at?: string; revoked_at?: string }): string {
+  if (credential.revoked_at) {
+    return `Revoked ${formatExactTimestamp(credential.revoked_at)}`;
+  }
+  if (credential.last_used_at) {
+    return `Last used ${formatExactTimestamp(credential.last_used_at)}`;
+  }
+  return "No usage recorded yet";
+}
+
+function formatServiceAccountRole(role: "reader" | "writer" | "admin"): string {
+  switch (role) {
+    case "admin":
+      return "Admin";
+    case "writer":
+      return "Writer";
+    default:
+      return "Reader";
+  }
+}
+
+function formatServiceAccountStatus(status: "active" | "disabled"): string {
+  return status === "active" ? "Active" : "Disabled";
+}
+
+function describeAuditEvent(event: APIKeyAuditEvent): { title: string; summary: string; supporting: string } {
+  const metadataCount = Object.keys(event.metadata ?? {}).length;
+  const purpose = typeof event.metadata?.purpose === "string" ? event.metadata.purpose.trim() : "";
+  const environment = typeof event.metadata?.environment === "string" ? event.metadata.environment.trim() : "";
+  const context = [purpose, environment].filter(Boolean).join(" · ");
+  const contextSuffix = context ? ` for ${context}` : "";
+  const actorSummary = event.actor_api_key_id ? "Changed by another credential" : "Changed from the workspace access console";
+  const metadataSummary =
+    metadataCount > 0 ? `${metadataCount} supporting field${metadataCount === 1 ? "" : "s"}` : "No supporting fields";
+
+  switch (event.action) {
+    case "created":
+      return {
+        title: "Credential issued",
+        summary: `A new credential was issued${contextSuffix}.`,
+        supporting: `${actorSummary} · ${metadataSummary}`,
+      };
+    case "revoked":
+      return {
+        title: "Credential revoked",
+        summary: `A credential was revoked${contextSuffix}.`,
+        supporting: `${actorSummary} · ${metadataSummary}`,
+      };
+    case "rotated":
+      return {
+        title: "Credential rotated",
+        summary: `A credential was rotated and replaced${contextSuffix}.`,
+        supporting: `${actorSummary} · ${metadataSummary}`,
+      };
+    default:
+      return {
+        title: formatAuditActionLabel(event.action),
+        summary: context ? `Credential activity recorded for ${context}.` : "Credential activity recorded.",
+        supporting: `${actorSummary} · ${metadataSummary}`,
+      };
+  }
+}
+
+function formatAuditActionLabel(action: string): string {
+  return action
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function formatAuditMetadataKey(key: string): string {
+  return key
+    .split("_")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function formatAuditExportStatus(status: string): string {
+  return status
+    .split("_")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 }
