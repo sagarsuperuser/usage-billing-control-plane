@@ -1,6 +1,9 @@
 nameOverride: ""
 fullnameOverride: ""
 
+reloader:
+  enabled: false
+
 serviceAccounts:
   api:
     create: true

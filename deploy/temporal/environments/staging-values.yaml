@@ -45,6 +45,18 @@ server:
             enableHostVerification: false
     namespaces:
       create: false
+  frontend:
+    podAnnotations:
+      secret.reloader.stakater.com/reload: temporal-sql
+  history:
+    podAnnotations:
+      secret.reloader.stakater.com/reload: temporal-sql
+  matching:
+    podAnnotations:
+      secret.reloader.stakater.com/reload: temporal-sql
+  worker:
+    podAnnotations:
+      secret.reloader.stakater.com/reload: temporal-sql
 
 frontend:
   service:
@@ -83,6 +95,8 @@ worker:
 
 admintools:
   enabled: true
+  podAnnotations:
+    secret.reloader.stakater.com/reload: temporal-sql
   resources:
     requests:
       cpu: 100m

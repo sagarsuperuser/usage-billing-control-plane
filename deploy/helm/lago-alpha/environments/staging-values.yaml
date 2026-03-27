@@ -141,6 +141,9 @@ dbSecretEnv:
   enabled: true
   secretRefName: "lago-alpha-db-staging"
 
+reloader:
+  enabled: true
+
 externalSecrets:
   enabled: true
   refreshInterval: "1m"

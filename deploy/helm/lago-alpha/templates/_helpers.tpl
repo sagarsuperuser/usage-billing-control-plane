@@ -114,3 +114,9 @@ envFrom:
       name: {{ .Values.dbSecretEnv.secretRefName }}
   {{- end }}
 {{- end -}}
+
+{{- define "lago-alpha.reloaderAnnotations" -}}
+{{- if .root.Values.reloader.enabled }}
+secret.reloader.stakater.com/reload: {{ printf "%s%s" .root.Values.secretEnv.secretRefName (ternary (printf ",%s" .root.Values.dbSecretEnv.secretRefName) "" .includeDatabase) | quote }}
+{{- end }}
+{{- end -}}
