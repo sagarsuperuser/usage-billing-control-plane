@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, LoaderCircle } from "lucide-react";
+import { ArrowRight, LoaderCircle, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -25,16 +25,19 @@ export function PricingHomeScreen() {
     queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
+
   const addOnsQuery = useQuery({
     queryKey: ["pricing-add-ons", apiBaseURL],
     queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
+
   const couponsQuery = useQuery({
     queryKey: ["pricing-coupons", apiBaseURL],
     queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }),
     enabled: isAuthenticated && scope === "tenant",
   });
+
   const taxesQuery = useQuery({
     queryKey: ["pricing-taxes", apiBaseURL],
     queryFn: () => fetchTaxes({ runtimeBaseURL: apiBaseURL }),
@@ -49,6 +52,63 @@ export function PricingHomeScreen() {
   const taxCount = taxesQuery.data?.length ?? 0;
   const draftPlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
   const activePlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "active").length;
+  const activeTaxCount = (taxesQuery.data ?? []).filter((tax) => tax.status === "active").length;
+  const catalogCount = metricCount + taxCount + addOnCount + couponCount + planCount;
+
+  const catalogRows = [
+    {
+      label: "Metrics",
+      itemLabel: "metric",
+      count: metricCount,
+      summary: metricCount > 0 ? `${metricCount} reusable usage definitions` : "No metric definitions yet",
+      posture: metricCount > 0 ? "Ready for plan design" : "Required before plans can price usage",
+      href: "/pricing/metrics",
+      createHref: "/pricing/metrics/new",
+      createLabel: "New metric",
+    },
+    {
+      label: "Plans",
+      itemLabel: "plan",
+      count: planCount,
+      summary: planCount > 0 ? `${activePlanCount} active / ${draftPlanCount} draft` : "No commercial packages yet",
+      posture: metricCount > 0 ? (planCount > 0 ? "Review activation posture" : "Ready to create first plan") : "Blocked on metrics",
+      href: "/pricing/plans",
+      createHref: "/pricing/plans/new",
+      createLabel: "New plan",
+    },
+    {
+      label: "Add-ons",
+      itemLabel: "add-on",
+      count: addOnCount,
+      summary: addOnCount > 0 ? `${addOnCount} reusable recurring extras` : "No reusable extras yet",
+      posture: addOnCount > 0 ? "Attach through plan packages" : "Optional catalog extension",
+      href: "/pricing/add-ons",
+      createHref: "/pricing/add-ons/new",
+      createLabel: "New add-on",
+    },
+    {
+      label: "Coupons",
+      itemLabel: "coupon",
+      count: couponCount,
+      summary: couponCount > 0 ? `${couponCount} commercial relief rules` : "No discount rules yet",
+      posture: couponCount > 0 ? "Apply through plans or follow-up" : "Optional launch or retention tool",
+      href: "/pricing/coupons",
+      createHref: "/pricing/coupons/new",
+      createLabel: "New coupon",
+    },
+    {
+      label: "Taxes",
+      itemLabel: "tax",
+      count: taxCount,
+      summary: taxCount > 0 ? `${activeTaxCount} active / ${taxCount - activeTaxCount} inactive` : "No reusable tax rules yet",
+      posture: taxCount > 0 ? "Assign through billing settings" : "Optional until tax handling is needed",
+      href: "/pricing/taxes",
+      createHref: "/pricing/taxes/new",
+      createLabel: "New tax",
+    },
+  ] as const;
+
+  const setupQueue = catalogRows.filter((row) => row.count === 0);
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -56,12 +116,26 @@ export function PricingHomeScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Workspace" }, { label: "Pricing" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Pricing foundation</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-600">
-            Define what gets measured and how customers are charged without leaving Alpha. Start with stable metrics, then compose plans on top of them.
-          </p>
+        <section className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Pricing catalog</h1>
+              <p className="mt-3 text-sm text-slate-600">
+                Define reusable pricing records once, then assemble commercial packages from the catalog. Metrics establish what can be priced; plans publish the customer-facing package.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/pricing/metrics/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                <Plus className="h-4 w-4" />
+                New metric
+              </Link>
+              <Link href="/pricing/plans/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                <Plus className="h-4 w-4" />
+                New plan
+              </Link>
+            </div>
+          </div>
         </section>
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -74,14 +148,11 @@ export function PricingHomeScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-          <MetricCard label="Metrics" value={metricCount} />
-          <MetricCard label="Taxes" value={taxCount} />
-          <MetricCard label="Add-ons" value={addOnCount} />
-          <MetricCard label="Coupons" value={couponCount} />
-          <MetricCard label="Plans" value={planCount} />
-          <MetricCard label="Draft plans" value={draftPlanCount} />
-          <MetricCard label="Active plans" value={activePlanCount} />
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCell label="Catalog records" value={catalogCount} hint="Metrics, plans, add-ons, coupons, and taxes" />
+          <SummaryCell label="Active plans" value={activePlanCount} hint={planCount > 0 ? `${draftPlanCount} draft plans remain under review` : "No active commercial package yet"} />
+          <SummaryCell label="Reusable rules" value={metricCount + addOnCount + couponCount + taxCount} hint="Reusable inputs before customer assignment" />
+          <SummaryCell label="Immediate gaps" value={setupQueue.length} hint={setupQueue.length > 0 ? "Domains still missing a first record" : "Core pricing inventory is present"} />
         </section>
 
         {loading ? (
@@ -92,90 +163,67 @@ export function PricingHomeScreen() {
             </div>
           </section>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operating posture</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Pricing inventory</h2>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_360px]">
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-6 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Catalog inventory</p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-950">Pricing records</h2>
+                    <p className="mt-2 text-sm text-slate-600">One row per pricing domain with current inventory, operating posture, and direct actions.</p>
+                  </div>
                 </div>
               </div>
-              <div className="mt-5 grid gap-3">
-                <InventoryRow label="Metrics" summary={metricCount > 0 ? `${metricCount} configured` : "Create the first metric"} href="/pricing/metrics" action="Open" />
-                <InventoryRow label="Taxes" summary={taxCount > 0 ? `${taxCount} reusable rules` : "Create the first tax rule"} href="/pricing/taxes" action="Open" />
-                <InventoryRow label="Add-ons" summary={addOnCount > 0 ? `${addOnCount} recurring extras` : "Create the first add-on"} href="/pricing/add-ons" action="Open" />
-                <InventoryRow label="Coupons" summary={couponCount > 0 ? `${couponCount} discount rules` : "Create the first coupon"} href="/pricing/coupons" action="Open" />
-                <InventoryRow label="Plans" summary={planCount > 0 ? `${activePlanCount} active / ${draftPlanCount} draft` : "Create the first commercial package"} href="/pricing/plans" action="Open" />
+
+              <div className="hidden grid-cols-[180px_110px_minmax(0,1fr)_auto] gap-4 border-b border-slate-200 px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 lg:grid">
+                <span>Domain</span>
+                <span>Count</span>
+                <span>Current posture</span>
+                <span>Actions</span>
+              </div>
+
+              <div className="divide-y divide-slate-200">
+                {catalogRows.map((row) => (
+                  <CatalogRow key={row.label} {...row} />
+                ))}
               </div>
             </section>
 
-            <section className="grid gap-5 xl:grid-cols-2">
-            <DomainPanel
-              eyebrow="Metrics"
-              title="What gets measured"
-              body="Stable usage records that plans can reuse."
-              href="/pricing/metrics"
-              cta="Open metrics"
-              secondaryHref="/pricing/metrics/new"
-              secondaryLabel="New metric"
-              stats={[
-                { label: "Total", value: String(metricCount) },
-                { label: "Next step", value: metricCount > 0 ? "Review inventory" : "Create first metric" },
-              ]}
-            />
-            <DomainPanel
-              eyebrow="Taxes"
-              title="Tax catalog and application"
-              body="Reusable tax rules for customer and workspace billing settings."
-              href="/pricing/taxes"
-              cta="Open taxes"
-              secondaryHref="/pricing/taxes/new"
-              secondaryLabel="New tax"
-              stats={[
-                { label: "Total", value: String(taxCount) },
-                { label: "Use", value: taxCount > 0 ? "Assign to profiles" : "Create first tax" },
-              ]}
-            />
-            <DomainPanel
-              eyebrow="Add-ons"
-              title="Package recurring extras"
-              body="Reusable fixed-price extras that can be attached to plans."
-              href="/pricing/add-ons"
-              cta="Open add-ons"
-              secondaryHref="/pricing/add-ons/new"
-              secondaryLabel="New add-on"
-              stats={[
-                { label: "Total", value: String(addOnCount) },
-                { label: "Use", value: addOnCount > 0 ? "Attach to plans" : "Create first add-on" },
-              ]}
-            />
-            <DomainPanel
-              eyebrow="Coupons"
-              title="Model commercial relief"
-              body="Reusable discount rules for launches, promotions, and negotiated offers."
-              href="/pricing/coupons"
-              cta="Open coupons"
-              secondaryHref="/pricing/coupons/new"
-              secondaryLabel="New coupon"
-              stats={[
-                { label: "Total", value: String(couponCount) },
-                { label: "Use", value: couponCount > 0 ? "Attach to plans" : "Create first coupon" },
-              ]}
-            />
-            <DomainPanel
-              eyebrow="Plans"
-              title="How customers are charged"
-              body="Commercial packages built from a base price plus reusable pricing inputs."
-              href="/pricing/plans"
-              cta="Open plans"
-              secondaryHref="/pricing/plans/new"
-              secondaryLabel="New plan"
-              stats={[
-                { label: "Total", value: String(planCount) },
-                { label: "Drafts", value: String(draftPlanCount) },
-              ]}
-            />
-            </section>
+            <div className="grid gap-5">
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operating model</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial setup sequence</h2>
+                <div className="mt-5 grid gap-3">
+                  <SequenceStep number="1" title="Define metrics" body="Create stable usage records first so plans are built on reusable measurement rules." />
+                  <SequenceStep number="2" title="Package plans" body="Assemble customer-facing plans from base price, metrics, add-ons, and coupons." />
+                  <SequenceStep number="3" title="Add optional rules" body="Attach taxes, add-ons, and coupons only where they change commercial behavior clearly." />
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Immediate queue</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Setup gaps</h2>
+                <div className="mt-5 grid gap-3">
+                  {setupQueue.length > 0 ? (
+                    setupQueue.map((row) => (
+                      <Link key={row.label} href={row.createHref} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300 hover:bg-slate-100">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">Create first {row.itemLabel}</p>
+                            <p className="mt-1 text-sm text-slate-600">{row.posture}</p>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-slate-500" />
+                        </div>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                      Core pricing inventory is in place. Use the catalog table to review counts, open records, and create additional variants only when commercial scope changes.
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
         )}
       </main>
@@ -183,73 +231,72 @@ export function PricingHomeScreen() {
   );
 }
 
-function DomainPanel({
-  eyebrow,
-  title,
-  body,
-  href,
-  cta,
-  secondaryHref,
-  secondaryLabel,
-  stats,
-}: {
-  eyebrow: string;
-  title: string;
-  body: string;
-  href: string;
-  cta: string;
-  secondaryHref: string;
-  secondaryLabel: string;
-  stats: Array<{ label: string; value: string }>;
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{eyebrow}</p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">{title}</h2>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600">{body}</p>
-        </div>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        {stats.map((stat) => (
-          <div key={stat.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
-            <p className="mt-2 text-sm font-semibold text-slate-950">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-5 flex flex-wrap gap-3">
-        <Link href={href} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-          {cta}
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-        <Link href={secondaryHref} className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-          {secondaryLabel}
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
+function SummaryCell({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <div className="mt-2 flex items-end justify-between gap-3">
+        <p className="text-2xl font-semibold text-slate-950">{value}</p>
+        <p className="max-w-[180px] text-right text-xs leading-relaxed text-slate-500">{hint}</p>
+      </div>
     </div>
   );
 }
 
-function InventoryRow({ label, summary, href, action }: { label: string; summary: string; href: string; action: string }) {
+function CatalogRow({
+  label,
+  count,
+  summary,
+  posture,
+  href,
+  createHref,
+  createLabel,
+}: {
+  label: string;
+  itemLabel: string;
+  count: number;
+  summary: string;
+  posture: string;
+  href: string;
+  createHref: string;
+  createLabel: string;
+}) {
   return (
-    <Link href={href} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300 hover:bg-slate-100 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-center">
-      <p className="text-sm font-semibold text-slate-950">{label}</p>
-      <p className="text-sm text-slate-600">{summary}</p>
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-        {action}
-        <ArrowRight className="h-4 w-4" />
-      </span>
-    </Link>
+    <div className="grid gap-4 px-6 py-5 lg:grid-cols-[180px_110px_minmax(0,1fr)_auto] lg:items-center">
+      <div>
+        <p className="text-sm font-semibold text-slate-950">{label}</p>
+        <p className="mt-1 text-sm text-slate-500 lg:hidden">{summary}</p>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-slate-950">{count}</p>
+        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">records</p>
+      </div>
+      <div>
+        <p className="text-sm text-slate-700">{summary}</p>
+        <p className="mt-1 text-sm text-slate-500">{posture}</p>
+      </div>
+      <div className="flex flex-wrap gap-2 lg:justify-end">
+        <Link href={href} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition hover:bg-slate-100">
+          Open
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+        <Link href={createHref} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+          <Plus className="h-4 w-4" />
+          {createLabel}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function SequenceStep({ number, title, body }: { number: string; title: string; body: string }) {
+  return (
+    <div className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-700">{number}</div>
+      <div>
+        <p className="text-sm font-semibold text-slate-950">{title}</p>
+        <p className="mt-1 text-sm text-slate-600">{body}</p>
+      </div>
+    </div>
   );
 }
