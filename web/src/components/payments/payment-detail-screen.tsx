@@ -166,7 +166,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current action</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current posture</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     <StatusCard label="Action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <StatusCard label="Requires action" value={payment.lifecycle.requires_action ? "Yes" : "No"} />
@@ -192,7 +192,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Timeline window</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Correlation range</h2>
+                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Event range</h2>
                     </div>
                     <select
                       value={String(eventLimit)}
@@ -204,7 +204,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                       <option value="50">50</option>
                     </select>
                   </div>
-                  <p className="mt-3 text-sm text-slate-600">Change how many events are shown in the timeline.</p>
+                  <p className="mt-3 text-sm text-slate-600">Control how many events appear in the timeline.</p>
                 </section>
 
                 <BillingActivityTimeline
@@ -225,7 +225,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
                 />
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Recommended action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -281,7 +281,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked customer</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Customer" value={payment.customer_display_name || "-"} />
                     <MetaItem label="Customer external ID" value={payment.customer_external_id || "-"} mono />
@@ -300,7 +300,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked invoice</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Invoice" value={payment.invoice_number || payment.invoice_id} />
-                    <MetaItem label="Updated" value={formatExactTimestamp(payment.updated_at)} />
+                    <MetaItem label="Last updated" value={formatExactTimestamp(payment.updated_at)} />
                     <Link
                       href={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
                       className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"

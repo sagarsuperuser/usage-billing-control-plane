@@ -234,14 +234,14 @@ export function PaymentOperationsScreen() {
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Payment Operations Console</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Failed Payment Triage</h1>
+              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Payment operations</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Failed payment triage</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Inspect failed/pending/overdue invoices, open webhook timeline drawer, and trigger safe payment retries.
+                Review invoices that need attention, inspect the timeline, and trigger safe retries from one workspace console.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
-              <MetricCard label="Loaded invoices" value={loadedCount} />
+              <MetricCard label="Visible invoices" value={loadedCount} />
               <MetricCard label="Failed" value={failedCount} tone="danger" />
               <MetricCard label="Overdue" value={overdueCount} tone="danger" />
               <MetricCard label="Attention" value={attentionRequiredCount} tone="danger" />
@@ -341,7 +341,7 @@ export function PaymentOperationsScreen() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Actions</label>
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Refresh</label>
               <button
                 type="button"
                 onClick={() => statusesQuery.refetch()}
@@ -425,11 +425,11 @@ export function PaymentOperationsScreen() {
                       key={item.invoice_id}
                       onClick={() => openTimeline(item.invoice_id, item.organization_id)}
                       className={`cursor-pointer transition ${
-                        selected ? "bg-emerald-50" : "bg-stone-50 hover:bg-slate-800/90"
+                        selected ? "bg-emerald-50" : "bg-white hover:bg-slate-50"
                       }`}
                     >
                       <td className="rounded-l-xl px-3 py-3 align-top">
-                        <p className="font-medium text-cyan-200">{item.invoice_number || item.invoice_id}</p>
+                        <p className="font-medium text-slate-950">{item.invoice_number || item.invoice_id}</p>
                         <p className="text-xs text-slate-500">{item.invoice_id}</p>
                       </td>
                       <td className="px-3 py-3 align-top text-slate-700">{item.organization_id || "-"}</td>
@@ -439,7 +439,7 @@ export function PaymentOperationsScreen() {
                           {item.payment_status || "unknown"}
                         </span>
                         {item.last_payment_error ? (
-                          <p className="mt-1 flex items-start gap-1 text-xs text-rose-200/90">
+                          <p className="mt-1 flex items-start gap-1 text-xs text-rose-700">
                             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                             <span className="line-clamp-2">{item.last_payment_error}</span>
                           </p>
@@ -474,7 +474,7 @@ export function PaymentOperationsScreen() {
                               event.stopPropagation();
                               openTimeline(item.invoice_id, item.organization_id);
                             }}
-                            className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/50 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-cyan-500/25"
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
                           >
                             Timeline
                           </button>
@@ -485,7 +485,7 @@ export function PaymentOperationsScreen() {
                               retryMutation.mutate(item.invoice_id);
                             }}
                             disabled={!isAuthenticated || !csrfToken || !canWrite || retrying}
-                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                             title={!canWrite ? "Writer or admin role required" : undefined}
                           >
                             {retrying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
@@ -638,13 +638,13 @@ export function PaymentOperationsScreen() {
                 className="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eventsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Refresh timeline
+                Refresh
               </button>
             </div>
 
             <section className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Lifecycle Summary</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Current diagnosis</h3>
                 <button
                   type="button"
                   onClick={() => lifecycleQuery.refetch()}
@@ -680,7 +680,7 @@ export function PaymentOperationsScreen() {
                     <MetricCard label="Events analyzed" value={lifecycleQuery.data.events_analyzed} />
                   </div>
                   <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs text-slate-700">
-                    <p className="font-semibold uppercase tracking-wider text-slate-600">Recommended Action</p>
+                    <p className="font-semibold uppercase tracking-wider text-slate-600">Recommended action</p>
                     <p className="mt-1 text-sm text-slate-900">{formatBillingState(lifecycleQuery.data.recommended_action)}</p>
                     <p className="mt-1 text-slate-600">{lifecycleQuery.data.recommended_action_note}</p>
                     <p className="mt-2 text-[11px] text-slate-500">
@@ -688,7 +688,7 @@ export function PaymentOperationsScreen() {
                       {lifecycleQuery.data.last_success_at ? formatExactTimestamp(lifecycleQuery.data.last_success_at) : "-"}
                     </p>
                     {lifecycleQuery.data.event_window_truncated ? (
-                      <p className="mt-1 text-[11px] text-amber-200">
+                      <p className="mt-1 text-[11px] text-amber-700">
                         Event window truncated at {lifecycleQuery.data.event_window_limit} rows. Use timeline filters for deeper history.
                       </p>
                     ) : null}
@@ -805,7 +805,7 @@ function TimelineEventDetail({
   if (!event) {
     return (
       <aside className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
-        Select a timeline event to inspect the raw webhook fields.
+        Select a timeline event to inspect its raw webhook fields.
       </aside>
     );
   }
