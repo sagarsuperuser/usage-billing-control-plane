@@ -81,7 +81,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing plan</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace plan</p>
                   <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{plan.name}</h1>
                   <p className="mt-3 break-all font-mono text-xs text-slate-500">{plan.code}</p>
                   <p className="mt-3 max-w-3xl text-sm text-slate-600">{plan.description || "No description provided."}</p>
@@ -93,14 +93,34 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              <Stat label="Status" value={plan.status} />
-              <Stat label="Interval" value={plan.billing_interval} />
-              <Stat label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} />
-              <Stat label="Metrics" value={String(plan.meter_ids.length)} />
-              <Stat label="Add-ons" value={String((plan.add_on_ids ?? []).length)} />
-              <Stat label="Coupons" value={String((plan.coupon_ids ?? []).length)} />
-            </section>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid gap-5">
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                  <Stat label="Status" value={plan.status} />
+                  <Stat label="Interval" value={plan.billing_interval} />
+                  <Stat label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} />
+                  <Stat label="Metrics" value={String(plan.meter_ids.length)} />
+                  <Stat label="Add-ons" value={String((plan.add_on_ids ?? []).length)} />
+                  <Stat label="Coupons" value={String((plan.coupon_ids ?? []).length)} />
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial package</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Plan posture</h2>
+                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <InfoCell label="Plan code" value={plan.code} />
+                    <InfoCell label="Status" value={plan.status} />
+                    <InfoCell label="Billing interval" value={plan.billing_interval} />
+                    <InfoCell label="Commercial use" value="Reusable workspace package" />
+                  </div>
+                </section>
+              </div>
+
+              <aside className="grid gap-5 self-start">
+                <GuidanceCard title="Operator posture" body="Use plan detail to inspect the full commercial package: priced usage, recurring extras, and any applied customer relief." />
+                <GuidanceCard title="Next action" body="Review linked metrics, add-ons, and coupons here before the plan is used in active subscriptions." />
+              </aside>
+            </div>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-start justify-between gap-4">
@@ -223,4 +243,13 @@ function InfoCell({ label, value }: { label: string; value: string }) {
 
 function EmptyPanel({ message }: { message: string }) {
   return <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">{message}</p>;
+}
+
+function GuidanceCard({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+    </section>
+  );
 }

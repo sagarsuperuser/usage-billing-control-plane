@@ -44,7 +44,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing add-on</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace add-on</p>
                   <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{addOn.name}</h1>
                   <p className="mt-3 break-all font-mono text-xs text-slate-500">{addOn.code}</p>
                   <p className="mt-3 max-w-3xl text-sm text-slate-600">{addOn.description || "No description provided."}</p>
@@ -53,12 +53,32 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
               </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Stat label="Status" value={addOn.status} />
-              <Stat label="Interval" value={addOn.billing_interval} />
-              <Stat label="Recurring amount" value={`${(addOn.amount_cents / 100).toFixed(2)} ${addOn.currency}`} />
-              <Stat label="Currency" value={addOn.currency} />
-            </section>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid gap-5">
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <Stat label="Status" value={addOn.status} />
+                  <Stat label="Interval" value={addOn.billing_interval} />
+                  <Stat label="Recurring amount" value={`${(addOn.amount_cents / 100).toFixed(2)} ${addOn.currency}`} />
+                  <Stat label="Currency" value={addOn.currency} />
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial rule</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Recurring add-on terms</h2>
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <InfoCell label="Name" value={addOn.name} />
+                    <InfoCell label="Code" value={addOn.code} mono />
+                    <InfoCell label="Billing interval" value={addOn.billing_interval} />
+                    <InfoCell label="Commercial use" value="Reusable recurring extra" />
+                  </div>
+                </section>
+              </div>
+
+              <aside className="grid gap-5 self-start">
+                <GuidanceCard title="Operator posture" body="Use add-ons for fixed recurring extras that operators can explain clearly on top of the base plan." />
+                <GuidanceCard title="Next action" body="Attach this record to plans that need the extra charge. Use plan detail to confirm where it is currently used." />
+              </aside>
+            </div>
           </>
         )}
       </main>
@@ -68,4 +88,12 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p><p className="mt-2 text-base font-semibold text-slate-950">{value}</p></div>;
+}
+
+function InfoCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p><p className={`mt-2 text-sm font-semibold text-slate-950 ${mono ? "break-all font-mono" : ""}`}>{value}</p></div>;
+}
+
+function GuidanceCard({ title, body }: { title: string; body: string }) {
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-950">{title}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p></section>;
 }
