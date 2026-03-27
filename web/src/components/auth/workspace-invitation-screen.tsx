@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, MailCheck, PanelsTopLeft } from "lucide-react";
@@ -18,6 +18,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   const { setSession } = useSessionStore();
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const autoAcceptStartedRef = useRef(false);
 
   const previewQuery = useQuery({
     queryKey: ["workspace-invitation", apiBaseURL, token],
@@ -62,6 +63,23 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
     },
   });
 
+  const onRegister = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    registerMutation.mutate();
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || !previewQuery.data?.can_accept || !csrfToken) {
+      autoAcceptStartedRef.current = false;
+      return;
+    }
+    if (acceptMutation.isPending || acceptMutation.isSuccess || autoAcceptStartedRef.current) {
+      return;
+    }
+    autoAcceptStartedRef.current = true;
+    acceptMutation.mutate();
+  }, [acceptMutation, csrfToken, isAuthenticated, previewQuery.data]);
+
   if (isLoading || previewQuery.isLoading) {
     return (
       <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -103,11 +121,6 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   const loginHref = buildLoginPath(invitePath);
   const emailMismatch = isAuthenticated && preview.authenticated && !preview.email_matches_session;
   const showRegistrationForm = preview.requires_login && !isAuthenticated && !preview.account_exists;
-
-  const onRegister = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    registerMutation.mutate();
-  };
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
