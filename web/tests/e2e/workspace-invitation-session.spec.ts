@@ -94,3 +94,64 @@ test("authenticated invited user auto-accepts the workspace invitation", async (
   await expect.poll(() => acceptCalls).toBe(1);
   await expect(page).toHaveURL(/\/customers$/);
 });
+
+test("unauthenticated invited user only sees explicit auth choices", async ({ page, context }) => {
+  await context.route("**/runtime-config", async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseURL: url.origin }),
+    });
+  });
+
+  await context.route("**/v1/ui/sessions/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "null",
+    });
+  });
+
+  await context.route("**/v1/ui/auth/providers", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        sso_providers: [{ key: "google", display_name: "Google", type: "oidc" }],
+      }),
+    });
+  });
+
+  await context.route("**/v1/ui/invitations/invite-token-456", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        invitation: {
+          id: "wsi_456",
+          workspace_id: "tenant_sagar",
+          email: "sagar10018233@gmail.com",
+          role: "admin",
+          status: "pending",
+          expires_at: new Date(Date.now() + 3600_000).toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        workspace_name: "Sagar Corp",
+        requires_login: true,
+        authenticated: false,
+        current_user_email: "",
+        email_matches_session: false,
+        can_accept: false,
+        account_exists: true,
+      }),
+    });
+  });
+
+  await page.goto("/invite/invite-token-456");
+
+  await expect(page.getByRole("link", { name: "Continue with Google" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in with email and password" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in to continue" })).toHaveCount(0);
+});

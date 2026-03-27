@@ -222,15 +222,8 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
             </div>
           ) : null}
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            {!isAuthenticated || preview.requires_login ? (
-              <Link
-                href={loginHref}
-                className="inline-flex h-11 items-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-              >
-                Sign in to continue
-              </Link>
-            ) : (
+          {isAuthenticated ? (
+            <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => acceptMutation.mutate()}
@@ -240,16 +233,14 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
                 {acceptMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
                 Accept invitation
               </button>
-            )}
-            {isAuthenticated ? (
               <Link
                 href="/login"
                 className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
               >
                 Switch account
               </Link>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </section>
       </main>
     </div>
