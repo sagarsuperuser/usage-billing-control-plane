@@ -236,7 +236,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing profile</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial and tax settings</h2>
                       <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                        Keep the customer&apos;s legal billing identity, address, tax identifier, currency, and billing connection code current here. Payment setup and invoice sync depend on this profile being complete.
+                        Keep legal identity, billing address, tax details, currency, and billing connection current here.
                       </p>
                     </div>
                     <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(readiness.billing_profile_status)}`}>
@@ -291,7 +291,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
 
                   <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Profile completeness</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Required fields</p>
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
                       <ChecklistLine done={Boolean((profileDraft.legal_name || "").trim())} text="Legal name is set" />
                       <ChecklistLine done={Boolean((profileDraft.email || "").trim())} text="Billing email is set" />
@@ -300,8 +300,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       <ChecklistLine done={Boolean((profileDraft.billing_postal_code || "").trim())} text="Billing postal code is set" />
                       <ChecklistLine done={Boolean((profileDraft.billing_country || "").trim())} text="Billing country is set" />
                       <ChecklistLine done={Boolean((profileDraft.currency || "").trim())} text="Currency is set" />
-                      <ChecklistLine done={Boolean((profileDraft.tax_codes || []).length)} text="Tax codes are optional but ready when assigned" />
-                      <ChecklistLine done={Boolean((profileDraft.tax_identifier || "").trim())} text="Tax identifier is optional but ready when present" />
+                      <ChecklistLine done={Boolean((profileDraft.tax_codes || []).length)} text="Tax codes are optional and ready when assigned" />
+                      <ChecklistLine done={Boolean((profileDraft.tax_identifier || "").trim())} text="Tax identifier is optional and ready when present" />
                     </div>
                   </div>
 
@@ -352,7 +352,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
                 <section id="payment-collection" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment collection</p>
-                  <p className="mt-3 text-sm text-slate-600">Send the setup path here, then refresh status.</p>
+                  <p className="mt-3 text-sm text-slate-600">Send the setup path here, then refresh verification.</p>
                   <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -378,8 +378,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer-directed setup</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-950">Send one clear setup path</h3>
-                      <p className="mt-2 text-sm text-slate-600">Use the email request first. Resend it instead of creating duplicates.</p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-950">Email setup request</h3>
+                      <p className="mt-2 text-sm text-slate-600">Use the email request first. Resend instead of creating duplicates.</p>
                       <div className="mt-4 flex flex-wrap gap-3">
                         <button
                           type="button"
@@ -407,7 +407,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Manual fallback</p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-950">Hosted setup link</h3>
-                      <p className="mt-2 text-sm text-slate-600">Use this only when you need to share the setup link manually.</p>
+                      <p className="mt-2 text-sm text-slate-600">Use this only when you need to share the setup link directly.</p>
                       <div className="mt-4 flex flex-wrap gap-3">
                         <button
                           type="button"
@@ -437,8 +437,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Verification and recovery</p>
-                        <h3 className="mt-2 text-lg font-semibold text-slate-950">Verify setup before retrying</h3>
-                        <p className="mt-2 max-w-2xl text-sm text-slate-600">Refresh after setup completes. Retry sync only when the billing state is stale.</p>
+                        <h3 className="mt-2 text-lg font-semibold text-slate-950">Verify before retrying</h3>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-600">Refresh after setup completes. Retry sync only when billing state is stale.</p>
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <button
@@ -524,7 +524,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer metadata</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer record</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Email" value={customer.email || "-"} />
                     <MetaItem label="Created" value={formatExactTimestamp(customer.created_at)} />

@@ -27,7 +27,7 @@ function formatState(value?: string): string {
   return value.replaceAll("_", " ");
 }
 
-function InfoCard({ title, body }: { title: string; body: string }) {
+function CompactRule({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{title}</p>
@@ -187,7 +187,7 @@ export function DunningConsoleScreen() {
               <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Collections</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning runs</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Manage collection policy here and open the exact invoice run when you need to intervene.
+                Review collection policy, then open the exact invoice run that needs operator action.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -199,18 +199,9 @@ export function DunningConsoleScreen() {
           </div>
 
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <InfoCard
-              title="Policy"
-              body="Alpha owns the collection policy and operator workflow."
-            />
-            <InfoCard
-              title="Run detail"
-              body="Each row maps to one invoice-level workflow."
-            />
-            <InfoCard
-              title="Manual actions"
-              body="Use reminders only when you need to override the normal schedule."
-            />
+            <CompactRule title="Policy" body="Keep one default collection policy per workspace." />
+            <CompactRule title="Run detail" body="Each row is one invoice-level collection workflow." />
+            <CompactRule title="Manual actions" body="Use reminders only when you need to override the normal cadence." />
           </div>
         </section>
 
@@ -342,7 +333,7 @@ export function DunningConsoleScreen() {
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Run inventory</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">Invoice-level dunning workflows</h2>
-                <p className="mt-2 text-sm text-slate-600">Filter active runs by invoice, customer, or state before opening the detailed event and intent timeline.</p>
+                <p className="mt-2 text-sm text-slate-600">Filter by invoice, customer, or state before opening the detailed workflow record.</p>
               </div>
 
               <div className="grid gap-3 lg:grid-cols-4">
@@ -378,7 +369,7 @@ export function DunningConsoleScreen() {
                   className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {runsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  Refresh runs
+                  Refresh
                 </button>
                 <span className="text-sm text-slate-500">Showing {runs.length} run{runs.length === 1 ? "" : "s"}</span>
               </div>
@@ -420,7 +411,7 @@ export function DunningConsoleScreen() {
 
             {runs.length > 0 ? (
               <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-slate-600">
-                Oldest visible next action: {formatRelativeTimestamp(runs[runs.length - 1]?.next_action_at)}. Open a run to inspect event history and notification dispatch state.
+                Oldest visible next action: {formatRelativeTimestamp(runs[runs.length - 1]?.next_action_at)}. Open a run to inspect state changes and reminder dispatch.
               </div>
             ) : null}
           </section>
