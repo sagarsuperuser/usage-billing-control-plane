@@ -107,10 +107,10 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Dunning Run Detail</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Dunning run</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Invoice-level collections workflow</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Inspect the active run, event history, and notification intents before retrying payment collection or escalating into deeper recovery work.
+                Inspect the active run, event history, and reminder dispatch before retrying collection or escalating recovery.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -224,8 +224,8 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
                     <p className="mt-2 text-sm leading-6 text-slate-700">{diagnosis.nextStep}</p>
                   </div>
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Workflow state</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Operator guidance</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
                       {run.paused
                         ? "Resume or resolve this run before expecting automation to continue."
                         : run.resolved_at
@@ -281,7 +281,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
 
               <aside className="grid gap-6 self-start">
                 <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Notification intents</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Reminder dispatch</p>
                   <h2 className="mt-1 text-lg font-semibold text-slate-900">Dispatch status</h2>
                   <div className="mt-4 grid gap-3">
                     {detail?.notification_intents.length ? (

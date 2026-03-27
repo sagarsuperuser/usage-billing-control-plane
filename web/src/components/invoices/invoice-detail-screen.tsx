@@ -196,7 +196,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current state</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current posture</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     <StatusCard label="Invoice status" value={formatBillingState(invoice.invoice_status)} />
                     <StatusCard label="Payment status" value={formatBillingState(invoice.payment_status)} />
@@ -311,7 +311,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Advanced actions</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Document actions</p>
                   {resendEmailMutation.isSuccess ? (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
                       <p className="font-semibold text-emerald-900">Invoice email dispatched</p>
@@ -403,7 +403,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   </section>
                 ) : null}
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked customer</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Customer" value={invoice.customer_display_name || "-"} />
                     <MetaItem label="Customer external ID" value={invoice.customer_external_id || "-"} mono />
