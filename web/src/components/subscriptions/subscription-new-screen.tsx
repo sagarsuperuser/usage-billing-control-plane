@@ -62,9 +62,9 @@ export function SubscriptionNewScreen() {
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: "New" }]} />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create subscription</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-600">Pick the customer, choose the plan, and decide whether to request payment setup immediately.</p>
+          <p className="mt-3 max-w-3xl text-sm text-slate-600">Choose the customer and plan, then decide whether Alpha should start hosted payment setup immediately.</p>
         </section>
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -85,10 +85,10 @@ export function SubscriptionNewScreen() {
                   </a>
                 ) : null}
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <Link href={`/subscriptions/${encodeURIComponent(mutation.data.subscription.id)}`} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <a href={`/subscriptions/${encodeURIComponent(mutation.data.subscription.id)}`} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
                     Open subscription
                     <ArrowRight className="h-4 w-4" />
-                  </Link>
+                  </a>
                   <Link href="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
                     Back to subscriptions
                   </Link>
@@ -108,7 +108,15 @@ export function SubscriptionNewScreen() {
             }}
           >
             <div className="grid gap-5">
+              <div className="grid gap-3 lg:grid-cols-3">
+                <OperatorCard title="Eligibility" body="You need an existing customer and an active plan before this record can be created." />
+                <OperatorCard title="Operator input" body="Keep the commercial record concise. Use the code only when your team needs a stable internal reference." />
+                <OperatorCard title="After create" body="Use subscription detail for payment setup follow-up, state changes, and operator recovery." />
+              </div>
+
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Commercial record</p>
+                <h2 className="mt-2 text-lg font-semibold text-slate-950">Customer and plan selection</h2>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Subscription name" hint="Optional. Alpha can generate a default.">
                     <input data-testid="subscription-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Acme Growth" className={inputClass} />
@@ -136,6 +144,8 @@ export function SubscriptionNewScreen() {
               </section>
 
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Payment setup</p>
+                <h2 className="mt-2 text-lg font-semibold text-slate-950">Hosted collection handoff</h2>
                 <label className="flex items-start gap-3 text-sm text-slate-700">
                   <input data-testid="subscription-request-payment-setup" type="checkbox" checked={requestPaymentSetup} onChange={(event) => setRequestPaymentSetup(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300" />
                   <span>
@@ -147,6 +157,16 @@ export function SubscriptionNewScreen() {
                   <Field label="Payment method type" hint="Defaults to card.">
                     <input data-testid="subscription-payment-method-type" value={paymentMethodType} onChange={(event) => setPaymentMethodType(event.target.value)} placeholder="card" className={inputClass} />
                   </Field>
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <ChecklistLine done={Boolean(customerExternalID)} text="Customer selected" />
+                  <ChecklistLine done={Boolean(planID)} text="Plan selected" />
+                  <ChecklistLine done={Boolean(csrfToken)} text="Writable workspace session present" />
+                  <ChecklistLine done={requestPaymentSetup} text="Hosted payment setup will start" />
                 </div>
               </section>
 
@@ -163,13 +183,22 @@ export function SubscriptionNewScreen() {
           </form>
 
           <aside className="grid gap-5 self-start">
-            <InfoCard title="Before you start" body="You need at least one customer and one plan. The Wave 1 flow stays intentionally simple." />
-            <InfoCard title="Customer-owned payment setup" body="Operators should not collect card details. Use the generated hosted link so the payer completes billing setup directly." />
             <InfoCard title="Current inventory" body={`${customers.length} customers available · ${plans.length} plans available`} />
+            <InfoCard title="Operator guidance" body="Use this screen to create the commercial record. Use subscription detail after submit for state changes and payment setup follow-up." />
+            <InfoCard title="Hosted setup rule" body="Operators should not collect card details directly. Send the generated setup link and let the payer complete the step." />
           </aside>
         </div>
       </main>
     </div>
+  );
+}
+
+function OperatorCard({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+    </section>
   );
 }
 
@@ -189,6 +218,17 @@ function InfoCard({ title, body }: { title: string; body: string }) {
       <p className="text-sm font-semibold text-slate-950">{title}</p>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
     </section>
+  );
+}
+
+function ChecklistLine({ done, text }: { done: boolean; text: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
+      <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+        {done ? "OK" : "!"}
+      </span>
+      <p className="text-sm text-slate-800">{text}</p>
+    </div>
   );
 }
 
