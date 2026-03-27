@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -135,7 +135,7 @@ export function UsageEventsScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage Events</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Raw operational event view</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Inspect recent raw usage events for support, onboarding, and billing disputes. This page is intentionally bounded to filtered, paginated operational reads.
+                Review recent raw usage events for support and billing disputes from one workspace event inventory.
               </p>
             </div>
           </div>
@@ -160,10 +160,10 @@ export function UsageEventsScreen() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Filters</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Bound the query before you inspect events</h2>
-            </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Filters</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Bound the inventory before reviewing events</h2>
+              </div>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -202,10 +202,10 @@ export function UsageEventsScreen() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event stream</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Recent raw events</h2>
-            </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event inventory</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Recent raw events</h2>
+              </div>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -269,33 +269,29 @@ function UsageEventRow({
       onClick={onSelect}
       aria-pressed={selected}
       aria-label={`View details for usage event ${item.id}`}
-      className={`w-full rounded-xl border p-4 text-left transition ${
+      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
         selected
           ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
           : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
       }`}
     >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h3 className="truncate text-base font-semibold text-slate-950">{item.customer_id}</h3>
-            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-              {item.quantity} units
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-slate-600">
-            Meter <span className="font-mono text-slate-700">{item.meter_id}</span>
-            {item.subscription_id ? (
-              <>
-                {" "}
-                · Subscription <span className="font-mono text-slate-700">{item.subscription_id}</span>
-              </>
-            ) : null}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm text-slate-500">Observed {formatRelativeTimestamp(item.timestamp)}</p>
-          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">View details</p>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_170px_90px] lg:items-center">
+        <InventoryCell label="Customer">
+          <p className="truncate text-sm font-semibold text-slate-950">{item.customer_id}</p>
+        </InventoryCell>
+        <InventoryCell label="Meter and subscription">
+          <p className="truncate font-mono text-sm text-slate-700">{item.meter_id}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">{item.subscription_id || "No subscription attached"}</p>
+        </InventoryCell>
+        <InventoryCell label="Quantity">
+          <p className="text-sm font-semibold text-slate-950">{item.quantity}</p>
+        </InventoryCell>
+        <InventoryCell label="Observed">
+          <p className="text-sm text-slate-950">{formatRelativeTimestamp(item.timestamp)}</p>
+          <p className="mt-1 text-xs text-slate-500">{formatExactTimestamp(item.timestamp)}</p>
+        </InventoryCell>
+        <div className="text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
         </div>
       </div>
     </button>
@@ -306,7 +302,7 @@ function UsageEventDetail({ item }: { item: UsageEvent | null }) {
   if (!item) {
     return (
       <aside className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-        Select an event to inspect raw identifiers and ingestion detail.
+        Select an event to inspect identifiers, timestamps, and ingestion detail.
       </aside>
     );
   }
@@ -337,11 +333,11 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusCell({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function InventoryCell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+    <div className="min-w-0">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 break-all text-sm text-slate-950 ${mono ? "font-mono" : ""}`}>{value}</p>
+      <div className="mt-2 min-w-0">{children}</div>
     </div>
   );
 }
@@ -396,7 +392,7 @@ function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
       <p className="font-semibold text-slate-950">No usage events matched the current filters.</p>
-      <p className="mt-2">Narrowing by customer, meter, and time window is expected for this operational view.</p>
+      <p className="mt-2">Use customer, meter, and time filters to narrow the operational inventory.</p>
     </div>
   );
 }

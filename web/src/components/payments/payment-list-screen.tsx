@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -291,7 +291,7 @@ function PaymentRow({ item }: { item: PaymentSummary }) {
   return (
     <Link
       href={`/payments/${encodeURIComponent(item.invoice_id)}`}
-      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.62fr))_auto] lg:items-start"
+      className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_110px] lg:items-start"
     >
       <div className="min-w-0">
         <h3 className="truncate text-base font-semibold text-slate-950">{item.invoice_number || item.invoice_id}</h3>
@@ -307,13 +307,12 @@ function PaymentRow({ item }: { item: PaymentSummary }) {
           <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.summary}</p>
         </div>
       </div>
-      <StatusCell label="Payment" value={formatState(item.payment_status)} />
-      <StatusCell label="Due state" value={item.payment_overdue ? "Overdue" : "Current"} />
-      <StatusCell label="Last event" value={formatExactTimestamp(item.last_event_at)} />
-      <span className="inline-flex items-center gap-2 self-center text-sm font-medium text-slate-700">
-        Open
-        <ChevronRight className="h-4 w-4" />
-      </span>
+      <InventoryCell label="Payment" value={formatState(item.payment_status)} />
+      <InventoryCell label="Due state" value={item.payment_overdue ? "Overdue" : "Current"} />
+      <InventoryCell label="Last event" value={formatExactTimestamp(item.last_event_at)} />
+      <div className="flex items-center justify-between gap-3 lg:justify-end">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
+      </div>
     </Link>
   );
 }
@@ -327,7 +326,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function StatusCell({ label, value }: { label: string; value: string }) {
+function InventoryCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>

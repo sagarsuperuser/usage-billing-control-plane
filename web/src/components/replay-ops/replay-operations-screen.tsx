@@ -192,7 +192,7 @@ export function ReplayOperationsScreen() {
               <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Replay Recovery Console</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Replay + Reprocess Operations</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Coordinate replay jobs, inspect diagnostics, and recover failed usage processing without dropping into raw backend tooling.
+                Queue replay jobs, inspect diagnostics, and recover failed processing from one workspace console.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
@@ -205,18 +205,9 @@ export function ReplayOperationsScreen() {
           </div>
 
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <InfoCard
-              title="Queue work"
-              body="Create replay jobs with deterministic idempotency keys so operational retries do not fork duplicate workflow runs."
-            />
-            <InfoCard
-              title="Inspect telemetry"
-              body="Open diagnostics before retrying a failed job."
-            />
-            <InfoCard
-              title="Operator posture"
-              body="Filter first, inspect second, retry last."
-            />
+            <CompactRule title="Queue once" body="Use deterministic idempotency keys to avoid duplicate recovery runs." />
+            <CompactRule title="Inspect first" body="Open diagnostics before retrying or creating another replay job." />
+            <CompactRule title="Recover narrowly" body="Keep customer, meter, and time window scope as small as possible." />
           </div>
         </section>
 
@@ -227,7 +218,7 @@ export function ReplayOperationsScreen() {
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Recovery Workbench</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">Inspect queued, running, done, and failed jobs</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                  Filter the replay queue before opening diagnostics so recovery decisions stay scoped to the exact customer or meter issue.
+                  Filter the queue first, then open diagnostics on the exact job that needs recovery.
                 </p>
               </div>
               <button
@@ -391,7 +382,7 @@ export function ReplayOperationsScreen() {
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Queue policy</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">Recovery guardrails</h2>
                 <p className="mt-2 text-sm text-slate-600">
-                  Queue a replay only after diagnostics confirm the exact customer, meter, and time window that needs reprocessing.
+                  Queue a replay only after diagnostics confirm the exact customer, meter, and time window that need reprocessing.
                 </p>
               </div>
 
@@ -640,7 +631,7 @@ export function ReplayOperationsScreen() {
   );
 }
 
-function InfoCard({ title, body }: { title: string; body: string }) {
+function CompactRule({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
