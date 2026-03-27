@@ -309,6 +309,22 @@ export function TenantWorkspaceAccessScreen() {
               <p className="mt-3 text-sm text-slate-600">Manage people through membership and automation through service accounts.</p>
             </section>
 
+            <section className="grid gap-4 md:grid-cols-4">
+              <SummaryMetric label="Members" value={String(members.length)} />
+              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} />
+              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} />
+              <SummaryMetric
+                label="Active credentials"
+                value={String(serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0))}
+              />
+            </section>
+
+            <section className="grid gap-3 xl:grid-cols-3">
+              <OperatorGuidanceCard title="Access posture" body="Use membership for people and service accounts for automation. Keep the boundary explicit so operator review stays clean." />
+              <OperatorGuidanceCard title="Credential rule" body="Review machine credentials like operational inventory: one purpose, minimal scope, clear rotation history." />
+              <OperatorGuidanceCard title="Audit posture" body="Open service-account audit when credentials change, then export evidence only when operators need a durable record." />
+            </section>
+
             <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
@@ -924,6 +940,24 @@ function ServiceAccountAuditRow({
       <p className="mt-2 text-sm text-slate-700">{presentation.summary}</p>
       <p className="mt-2 text-xs text-slate-500">{presentation.supporting}</p>
     </button>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function OperatorGuidanceCard({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+    </section>
   );
 }
 

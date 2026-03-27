@@ -102,6 +102,12 @@ export function TenantAuditScreen() {
           <MetricCard label="Result window" value={String(auditQuery.data?.limit ?? DEFAULT_LIMIT)} />
         </section>
 
+        <section className="grid gap-3 xl:grid-cols-3">
+          <OperatorCard title="Operator posture" body="Use this surface to review cross-workspace changes without opening each workspace separately." />
+          <OperatorCard title="Filter rule" body="Start broad, then narrow by workspace or event code only when the event stream is too large to review safely." />
+          <OperatorCard title="Detail rule" body="Rows should explain the business action first. Use metadata only when the operator needs the exact before-and-after record." />
+        </section>
+
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
             <label className="grid gap-2 text-sm text-slate-700">
@@ -345,6 +351,15 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
     </div>
+  );
+}
+
+function OperatorCard({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+    </section>
   );
 }
 
