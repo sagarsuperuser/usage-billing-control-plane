@@ -39,13 +39,16 @@ const platformItems: NavItem[] = [
   { href: "/workspaces/new", label: "Workspace Setup", scope: "platform", icon: Layers3 },
 ];
 
-const tenantItems: NavItem[] = [
+const tenantRevenueItems: NavItem[] = [
   { href: "/pricing", label: "Pricing", scope: "tenant", icon: CircleDollarSign },
   { href: "/customers", label: "Customers", scope: "tenant", icon: UserRoundPlus },
   { href: "/subscriptions", label: "Subscriptions", scope: "tenant", icon: ArrowRightLeft },
   { href: "/invoices", label: "Invoices", scope: "tenant", icon: ReceiptText },
-  { href: "/workspace-access", label: "Access", scope: "tenant", icon: ShieldCheck },
   { href: "/payments", label: "Payments", scope: "tenant", icon: CreditCard },
+];
+
+const tenantOperationsItems: NavItem[] = [
+  { href: "/workspace-access", label: "Access", scope: "tenant", icon: ShieldCheck },
   { href: "/usage-events", label: "Usage", scope: "tenant", icon: Activity },
   { href: "/dunning", label: "Dunning", scope: "tenant", icon: BellRing },
   { href: "/replay-operations", label: "Recovery", scope: "tenant", icon: Workflow },
@@ -132,8 +135,8 @@ export function ControlPlaneNav() {
     : scope === "platform"
       ? "Platform operator"
       : session?.tenant_id
-        ? `Workspace ${session.tenant_id}`
-        : "Workspace operator";
+        ? `Workspace console · ${session.tenant_id}`
+        : "Workspace console";
 
   const showPlatform = !isLoading && (!isAuthenticated || scope === "platform");
   const showTenant = !isLoading && (!isAuthenticated || scope === "tenant");
@@ -154,7 +157,9 @@ export function ControlPlaneNav() {
                 </span>
               </div>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                Product-owned billing administration for platform and workspace operations. Platform configures reusable billing assets. Workspaces run pricing, customer, and subscription operations.
+                {scope === "tenant"
+                  ? "Pricing, customers, subscriptions, payments, and access for one workspace."
+                  : "Product-owned billing administration for platform and workspace operations. Platform configures reusable billing assets. Workspaces run pricing, customer, and subscription operations."}
               </p>
               {isLoading ? (
                 <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">
@@ -177,7 +182,12 @@ export function ControlPlaneNav() {
         ) : (
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             {showPlatform ? <NavSection title="Platform" items={platformItems} pathname={pathname} /> : null}
-            {showTenant ? <NavSection title="Workspace" items={tenantItems} pathname={pathname} /> : null}
+            {showTenant ? (
+              <div className="grid gap-4">
+                <NavSection title="Revenue" items={tenantRevenueItems} pathname={pathname} />
+                <NavSection title="Operations" items={tenantOperationsItems} pathname={pathname} />
+              </div>
+            ) : null}
           </div>
         )}
       </div>

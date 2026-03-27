@@ -235,6 +235,23 @@ export function ControlPlaneOverviewScreen() {
     },
   ].filter((item) => item.scope === scopeKey);
 
+  const tenantConsoleItems = [
+    ...actionItems.map((item) => ({
+      href: item.href,
+      title: item.title,
+      body: item.body,
+      icon: item.icon,
+      kind: "Next step",
+    })),
+    ...moduleItems.map((item) => ({
+      href: item.href,
+      title: item.title,
+      body: item.body,
+      icon: item.icon,
+      kind: "Surface",
+    })),
+  ];
+
   const primaryAction = actionItems[0] ?? moduleItems[0] ?? null;
 
   return (
@@ -309,33 +326,51 @@ export function ControlPlaneOverviewScreen() {
           </div>
 
           <div className="grid gap-6">
-            <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Primary actions</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Primary actions</h2>
+            {scope === "tenant" ? (
+              <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace console</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Next steps and operating surfaces</h2>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-5 divide-y divide-stone-200">
-                {actionItems.map((item) => (
-                  <ActionRow key={item.href} href={item.href} title={item.title} body={item.body} icon={item.icon} />
-                ))}
-              </div>
-            </section>
+                <div className="mt-5 divide-y divide-stone-200">
+                  {tenantConsoleItems.map((item) => (
+                    <ConsoleRow key={`${item.kind}-${item.href}`} href={item.href} title={item.title} body={item.body} icon={item.icon} kind={item.kind} />
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <>
+                <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Primary actions</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Primary actions</h2>
+                    </div>
+                  </div>
+                  <div className="mt-5 divide-y divide-stone-200">
+                    {actionItems.map((item) => (
+                      <ActionRow key={item.href} href={item.href} title={item.title} body={item.body} icon={item.icon} />
+                    ))}
+                  </div>
+                </section>
 
-            <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">All areas</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Open an operating surface</h2>
-                </div>
-              </div>
-              <div className="mt-5 divide-y divide-stone-200">
-                {moduleItems.map((item) => (
-                  <ActionRow key={item.href} href={item.href} title={item.title} body={item.body} icon={item.icon} />
-                ))}
-              </div>
-            </section>
+                <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">All areas</p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Open an operating surface</h2>
+                    </div>
+                  </div>
+                  <div className="mt-5 divide-y divide-stone-200">
+                    {moduleItems.map((item) => (
+                      <ActionRow key={item.href} href={item.href} title={item.title} body={item.body} icon={item.icon} />
+                    ))}
+                  </div>
+                </section>
+              </>
+            )}
           </div>
         </section>
       </main>
@@ -416,6 +451,40 @@ function ActionRow({
           <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</span>
         </div>
         <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
+      </div>
+    </Link>
+  );
+}
+
+function ConsoleRow({
+  href,
+  title,
+  body,
+  icon,
+  kind,
+}: {
+  href: string;
+  title: string;
+  body: string;
+  icon: ReactNode;
+  kind: string;
+}) {
+  return (
+    <Link href={href} className="grid gap-3 py-4 first:pt-0 last:pb-0 md:grid-cols-[40px_minmax(0,1fr)_100px] md:items-start">
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-slate-950">{title}</p>
+          <span className="rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+            {kind}
+          </span>
+        </div>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
+      </div>
+      <div className="text-left md:text-right">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</span>
       </div>
     </Link>
   );
