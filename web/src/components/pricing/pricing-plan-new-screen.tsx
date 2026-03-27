@@ -86,7 +86,7 @@ export function PricingPlanNewScreen() {
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Plans are workspace-scoped. Sign in with a workspace account to create one." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing plan</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create plan</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">Keep the first version opinionated: one base price, one cadence, and explicit linked metrics.</p>
         </section>
@@ -94,7 +94,14 @@ export function PricingPlanNewScreen() {
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="grid gap-5">
+              <div className="grid gap-3 lg:grid-cols-3">
+                <OperatorCard title="Commercial scope" body="Keep the first plan opinionated: one base price, one cadence, and explicit linked metrics." />
+                <OperatorCard title="Dependencies" body="Plans require at least one metric. Add-ons and coupons are optional attachments." />
+                <OperatorCard title="After create" body="Use plan detail for tax assignment, activation review, and commercial attachment changes." />
+              </div>
+
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Commercial record</p>
                 <h2 className="text-lg font-semibold text-slate-950">Commercial basics</h2>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <Field label="Plan name" value={name} onChange={setName} placeholder="Growth" testID="pricing-plan-name" />
@@ -168,6 +175,16 @@ export function PricingPlanNewScreen() {
                 </div>
               </section>
 
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <ChecklistLine done={name.trim().length > 0} text="Plan name is set" />
+                  <ChecklistLine done={code.trim().length > 0} text="Plan code is set" />
+                  <ChecklistLine done={selectedMetricIDs.length > 0} text="At least one metric is attached" />
+                  <ChecklistLine done={Boolean(csrfToken)} text="Writable workspace session present" />
+                </div>
+              </section>
+
               {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
 
               <div className="flex flex-wrap gap-3">
@@ -182,12 +199,21 @@ export function PricingPlanNewScreen() {
 
           <aside className="grid gap-5 self-start">
             <InfoCard title="Before you start" body="You need at least one metric before a plan can be created." />
-            <InfoCard title="Design rule" body="Keep the first version simple: stable naming, one base price, and explicit linked metrics." />
+            <InfoCard title="Operator guidance" body="This screen creates the commercial package. Use plan detail afterward for activation checks and attachment changes." />
             <InfoCard title="Current selection" body={`${selectedMetricIDs.length} metric(s), ${selectedAddOnIDs.length} add-on(s), ${selectedCouponIDs.length} coupon(s)`} />
           </aside>
         </div>
       </main>
     </div>
+  );
+}
+
+function OperatorCard({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+    </section>
   );
 }
 
@@ -217,5 +243,16 @@ function InfoCard({ title, body }: { title: string; body: string }) {
       <p className="text-sm font-semibold text-slate-950">{title}</p>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
     </section>
+  );
+}
+
+function ChecklistLine({ done, text }: { done: boolean; text: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
+      <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+        {done ? "OK" : "!"}
+      </span>
+      <p className="text-sm text-slate-800">{text}</p>
+    </div>
   );
 }
