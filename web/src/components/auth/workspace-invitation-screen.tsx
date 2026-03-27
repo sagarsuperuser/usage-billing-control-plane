@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle, MailCheck, PanelsTopLeft } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { acceptWorkspaceInvitation, fetchUIAuthProviders, fetchWorkspaceInvitationPreview, registerWorkspaceInvitation } from "@/lib/api";
+import { acceptWorkspaceInvitation, fetchPendingWorkspaceSelection, fetchUIAuthProviders, fetchWorkspaceInvitationPreview, registerWorkspaceInvitation } from "@/lib/api";
 import { buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import { useUISession } from "@/hooks/use-ui-session";
 import { useSessionStore } from "@/store/use-session-store";
@@ -32,13 +32,20 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
     enabled: Boolean(apiBaseURL),
     staleTime: 60_000,
   });
+  const pendingSelectionQuery = useQuery({
+    queryKey: ["ui-workspace-selection", apiBaseURL],
+    queryFn: () => fetchPendingWorkspaceSelection({ runtimeBaseURL: apiBaseURL }),
+    enabled: Boolean(apiBaseURL) && !isAuthenticated && Boolean(previewQuery.data?.authenticated),
+    retry: false,
+  });
 
   const invitePath = useMemo(() => `/invite/${encodeURIComponent(token)}`, [token]);
+  const effectiveCSRFToken = csrfToken || pendingSelectionQuery.data?.csrf_token || "";
   const acceptMutation = useMutation({
     mutationFn: () =>
       acceptWorkspaceInvitation({
         runtimeBaseURL: apiBaseURL,
-        csrfToken,
+        csrfToken: effectiveCSRFToken,
         token,
       }),
     onSuccess: (payload) => {
@@ -69,7 +76,8 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   };
 
   useEffect(() => {
-    if (!isAuthenticated || !previewQuery.data?.can_accept || !csrfToken) {
+    const canAutoAccept = previewQuery.data?.can_accept && (isAuthenticated || Boolean(pendingSelectionQuery.data));
+    if (!canAutoAccept || !effectiveCSRFToken) {
       autoAcceptStartedRef.current = false;
       return;
     }
@@ -78,7 +86,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
     }
     autoAcceptStartedRef.current = true;
     acceptMutation.mutate();
-  }, [acceptMutation, csrfToken, isAuthenticated, previewQuery.data]);
+  }, [acceptMutation, effectiveCSRFToken, isAuthenticated, pendingSelectionQuery.data, previewQuery.data]);
 
   if (isLoading || previewQuery.isLoading) {
     return (
@@ -227,7 +235,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
               <button
                 type="button"
                 onClick={() => acceptMutation.mutate()}
-                disabled={!preview.can_accept || acceptMutation.isPending || !csrfToken}
+                disabled={!preview.can_accept || acceptMutation.isPending || !effectiveCSRFToken}
                 className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {acceptMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
