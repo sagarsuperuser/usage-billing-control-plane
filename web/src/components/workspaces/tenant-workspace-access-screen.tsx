@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Copy,
   Download,
@@ -22,7 +22,6 @@ import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import {
   createTenantWorkspaceInvitation,
-  createTenantWorkspaceServiceAccountAuditExport,
   createTenantWorkspaceServiceAccount,
   fetchTenantWorkspaceServiceAccountAudit,
   fetchTenantWorkspaceServiceAccountAuditExports,
@@ -44,6 +43,7 @@ import { type APIKeyAuditEvent } from "@/lib/types";
 export function TenantWorkspaceAccessScreen() {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope, role, isAdmin, session } = useUISession();
+  const auditSectionRef = useRef<HTMLElement | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("writer");
   const [serviceAccountName, setServiceAccountName] = useState("");
@@ -258,20 +258,26 @@ export function TenantWorkspaceAccessScreen() {
       setSelectedAuditEventID("");
     }
   }, [serviceAccountAuditQuery.data, selectedAuditEventID]);
-  const createAuditExportMutation = useMutation({
-    mutationFn: () =>
-      createTenantWorkspaceServiceAccountAuditExport({
-        runtimeBaseURL: apiBaseURL,
-        csrfToken,
-        serviceAccountID: selectedAuditServiceAccountIDValue,
-        idempotencyKey: `svcacct-${selectedAuditServiceAccountIDValue}-${Date.now()}`,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["tenant-workspace-service-account-audit-exports", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
-      });
-    },
-  });
+  const openAudit = (serviceAccountID: string) => {
+    setSelectedAuditServiceAccountID(serviceAccountID);
+    window.requestAnimationFrame(() => {
+      auditSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const downloadAuditCSV = (serviceAccountID: string) => {
+    const path = `/v1/workspace/service-accounts/${encodeURIComponent(serviceAccountID)}/audit`;
+    const url = new URL(path, apiBaseURL || window.location.origin);
+    url.searchParams.set("limit", "500");
+    url.searchParams.set("format", "csv");
+
+    const link = document.createElement("a");
+    link.href = url.toString();
+    link.download = `service-account-${serviceAccountID}-audit.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
 
   const isSelfMember = (userID: string): boolean => currentUserID !== "" && currentUserID === userID;
   const isLastActiveAdmin = (member: { role: string; status: string }): boolean =>
@@ -517,7 +523,7 @@ export function TenantWorkspaceAccessScreen() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSelectedAuditServiceAccountID(selectedServiceAccount.id)}
+                          onClick={() => openAudit(selectedServiceAccount.id)}
                           className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
                         >
                           <ShieldCheck className="h-3.5 w-3.5" />
@@ -622,7 +628,7 @@ export function TenantWorkspaceAccessScreen() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <section ref={auditSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Credential audit</p>
@@ -643,12 +649,12 @@ export function TenantWorkspaceAccessScreen() {
                   </select>
                   <button
                     type="button"
-                    onClick={() => createAuditExportMutation.mutate()}
-                    disabled={!csrfToken || !selectedAuditServiceAccountIDValue || createAuditExportMutation.isPending}
+                    onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
+                    disabled={!selectedAuditServiceAccountIDValue}
                     className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {createAuditExportMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                    Export audit CSV
+                    <Download className="h-3.5 w-3.5" />
+                    Download audit CSV
                   </button>
                 </div>
               </div>
@@ -687,7 +693,7 @@ export function TenantWorkspaceAccessScreen() {
                   <div className="grid gap-4">
                     <ServiceAccountAuditDetail event={selectedAuditEvent} />
                     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Audit exports</p>
+                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Scheduled exports</p>
                       <div className="mt-3 grid gap-3">
                         {(serviceAccountAuditExportsQuery.data?.items ?? []).length > 0 ? (
                           (serviceAccountAuditExportsQuery.data?.items ?? []).map((item) => (
