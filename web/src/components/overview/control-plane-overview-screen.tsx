@@ -252,6 +252,23 @@ export function ControlPlaneOverviewScreen() {
     })),
   ];
 
+  const platformConsoleItems = [
+    ...actionItems.map((item) => ({
+      href: item.href,
+      title: item.title,
+      body: item.body,
+      icon: item.icon,
+      kind: "Action",
+    })),
+    ...moduleItems.map((item) => ({
+      href: item.href,
+      title: item.title,
+      body: item.body,
+      icon: item.icon,
+      kind: "Surface",
+    })),
+  ];
+
   const primaryAction = actionItems[0] ?? moduleItems[0] ?? null;
 
   return (
@@ -267,6 +284,28 @@ export function ControlPlaneOverviewScreen() {
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 Start with the highest-priority items, then open the matching area.
               </p>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <OperatorLine
+                  title={scope === "platform" ? "Platform posture" : "Workspace posture"}
+                  body={
+                    scope === "platform"
+                      ? "Use this overview as the platform triage surface: credential health, workspace readiness, and handoff blockers."
+                      : "Use this overview as the workspace entry point: customer readiness, payment setup, and operating surfaces."
+                  }
+                />
+                <OperatorLine
+                  title="Inventory rule"
+                  body="Use the counters for fleet posture. Open the matching surface only after you know which area needs action."
+                />
+                <OperatorLine
+                  title="Action rule"
+                  body={
+                    scope === "platform"
+                      ? "Create reusable billing assets first, then complete workspace handoff from the platform side."
+                      : "Work inside one workspace boundary. Keep pricing, customers, subscriptions, and recovery together."
+                  }
+                />
+              </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {summaryCards.map((item) => (
                   <SummaryCard key={item.label} label={item.label} value={item.value} tone={item.tone} />
@@ -341,35 +380,19 @@ export function ControlPlaneOverviewScreen() {
                 </div>
               </section>
             ) : (
-              <>
-                <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-                  <div className="flex items-end justify-between gap-4">
-                    <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Primary actions</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Primary actions</h2>
-                    </div>
+              <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Platform console</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Actions and operating surfaces</h2>
                   </div>
-                  <div className="mt-5 divide-y divide-stone-200">
-                    {actionItems.map((item) => (
-                      <ActionRow key={item.href} href={item.href} title={item.title} body={item.body} icon={item.icon} />
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-                  <div className="flex items-end justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">All areas</p>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Open an operating surface</h2>
-                    </div>
-                  </div>
-                  <div className="mt-5 divide-y divide-stone-200">
-                    {moduleItems.map((item) => (
-                      <ActionRow key={item.href} href={item.href} title={item.title} body={item.body} icon={item.icon} />
-                    ))}
-                  </div>
-                </section>
-              </>
+                </div>
+                <div className="mt-5 divide-y divide-stone-200">
+                  {platformConsoleItems.map((item) => (
+                    <ConsoleRow key={`${item.kind}-${item.href}`} href={item.href} title={item.title} body={item.body} icon={item.icon} kind={item.kind} />
+                  ))}
+                </div>
+              </section>
             )}
           </div>
         </section>
@@ -400,6 +423,15 @@ function SummaryCard({
     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className={`mt-2 text-3xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function OperatorLine({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

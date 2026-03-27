@@ -131,6 +131,11 @@ export function WorkspaceListScreen() {
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 This directory should show which workspace is ready, which one is blocked, and which operational step still belongs to the platform before the workspace can run on its own.
               </p>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <OperatorLine title="Directory rule" body="Use this list as the platform handoff inventory. Open detail only after the row tells you which area is blocked." />
+                <OperatorLine title="Readiness rule" body="Treat billing, pricing, and first-customer setup as separate readiness tracks. One green badge does not cover the rest." />
+                <OperatorLine title="Handoff rule" body="A workspace is truly ready only when platform setup is complete and the remaining action belongs to the workspace operator." />
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
               <Link
@@ -171,6 +176,7 @@ export function WorkspaceListScreen() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Workspace inventory</h2>
+              <p className="mt-2 text-sm text-slate-600">Read the row summary first, then open the workspace only when the platform needs to intervene.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
@@ -261,6 +267,15 @@ function MetricCard({
     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className={`mt-2 text-3xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function OperatorLine({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

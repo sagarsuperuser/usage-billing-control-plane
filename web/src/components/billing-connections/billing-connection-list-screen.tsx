@@ -81,6 +81,11 @@ export function BillingConnectionListScreen() {
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 Manage Stripe connections here. Verify the connection first, then assign it to a workspace.
               </p>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <OperatorLine title="Inventory rule" body="Use this list as the platform credential inventory. Open detail only when the row shows a real provider or assignment issue." />
+                <OperatorLine title="Verification rule" body="Separate provider verification from workspace provisioning. A healthy Stripe check is not the same as a completed workspace handoff." />
+                <OperatorLine title="Assignment rule" body="Treat linked workspaces as dependency count. The more workspaces attached, the stricter the change control for that connection." />
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
               <Link
@@ -122,6 +127,7 @@ export function BillingConnectionListScreen() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Connection inventory</h2>
+              <p className="mt-2 text-sm text-slate-600">Read provider health, assignment readiness, and dependency count from the row before opening detail.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
@@ -206,6 +212,15 @@ function MetricCard({
     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className={`mt-2 text-3xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function OperatorLine({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

@@ -112,7 +112,7 @@ export function TenantOnboardingScreen() {
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operator setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Workspace provisioning</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">This page creates the workspace. Review readiness and billing from workspace detail.</p>
               </div>
@@ -122,14 +122,14 @@ export function TenantOnboardingScreen() {
             </div>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
-              <StepCard index="1" title="Name the workspace" body="Use a stable ID and clear display name." />
-              <StepCard index="2" title="Attach billing later" body="Attach an active billing connection now or later." />
-              <StepCard index="3" title="Bootstrap admin access" body="Generate the first admin credential now or do it later." />
+              <OperatorLine title="Workspace record" body="Create a durable workspace ID and a clear operator-facing name." />
+              <OperatorLine title="Billing handoff" body="Attach a billing connection now only when platform setup is already ready. Otherwise finish it later from workspace detail." />
+              <OperatorLine title="Access bootstrap" body="Create the first admin credential only when the platform needs an immediate machine identity for handoff." />
             </div>
 
             <div className="mt-5 grid gap-5">
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 1</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace record</p>
                 <h3 className="mt-2 text-lg font-semibold text-slate-950">Workspace identity</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <InputField label="Workspace ID" value={tenantID} onChange={setTenantID} placeholder="tenant_acme" />
@@ -138,7 +138,7 @@ export function TenantOnboardingScreen() {
               </section>
 
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 2</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Billing handoff</p>
                 <h3 className="mt-2 text-lg font-semibold text-slate-950">Billing connection</h3>
                 <p className="mt-2 text-sm text-slate-600">You can leave this empty and attach billing after the workspace is created.</p>
                 {billingConnectionsQuery.isLoading ? (
@@ -190,7 +190,7 @@ export function TenantOnboardingScreen() {
               </section>
 
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 3</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Access bootstrap</p>
                 <h3 className="mt-2 text-lg font-semibold text-slate-950">Admin bootstrap service account</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
                   <InputField label="Bootstrap service account name" value={adminKeyName} onChange={setAdminKeyName} placeholder="bootstrap-admin-tenant_acme" />
@@ -210,7 +210,7 @@ export function TenantOnboardingScreen() {
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Ready to run</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ChecklistLine done={tenantID.trim().length > 0} text="Workspace ID is set" />
                 <ChecklistLine done={tenantName.trim().length > 0} text="Workspace name is set" />
@@ -315,22 +315,21 @@ export function TenantOnboardingScreen() {
   );
 }
 
-function StepCard({ index, title, body }: { index: string; title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Step {index}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm text-slate-600">{body}</p>
-    </div>
-  );
-}
-
 function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{formatReadinessStatus(value)}</p>
       <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
+    </div>
+  );
+}
+
+function OperatorLine({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

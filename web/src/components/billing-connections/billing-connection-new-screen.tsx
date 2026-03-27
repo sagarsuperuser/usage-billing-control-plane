@@ -87,7 +87,7 @@ export function BillingConnectionNewScreen() {
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided setup</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operator setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Connect Stripe</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">
                   Add the Stripe secret and let Alpha check the connection before any workspace uses it.
@@ -99,14 +99,14 @@ export function BillingConnectionNewScreen() {
             </div>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
-              <StepCard index="1" title="Name the connection" body="Use a durable display name your operators will recognize later." />
-              <StepCard index="2" title="Store the Stripe secret" body="Alpha keeps the secret outside normal database rows." />
-              <StepCard index="3" title="Check Stripe" body="Alpha verifies the credentials before the connection is marked ready." />
+              <OperatorLine title="Connection record" body="Use a durable display name your operators will recognize later." />
+              <OperatorLine title="Secret handling" body="Alpha stores the Stripe secret and keeps it outside normal workspace records." />
+              <OperatorLine title="Verification path" body="Create the record first, then let Alpha run an explicit provider check before workspace assignment." />
             </div>
 
             <div className="mt-5 grid gap-5">
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Step 1</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Connection record</p>
                 <h3 className="mt-2 text-lg font-semibold text-slate-950">Connection details</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <InputField label="Connection name" value={displayName} onChange={setDisplayName} placeholder="Stripe Sandbox" />
@@ -128,7 +128,7 @@ export function BillingConnectionNewScreen() {
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Before you run</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ChecklistLine done={displayName.trim().length > 0} text="Connection name is set" />
                 <ChecklistLine done={stripeSecretKey.trim().length > 0} text="Stripe secret key is set" />
@@ -155,12 +155,11 @@ export function BillingConnectionNewScreen() {
 
           <aside className="min-w-0 grid gap-5 self-start">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What Alpha owns</p>
-              <div className="mt-4 grid gap-2">
-                <ChecklistLine done text="Secret stays out of tenant rows" />
-                <ChecklistLine done text="Provider check is explicit and observable" />
-                <ChecklistLine done text="Workspaces link a stable connection record" />
-                <ChecklistLine done text="Internal billing routing stays behind the product" />
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Alpha posture</p>
+              <div className="mt-4 grid gap-3">
+                <OperatorSideCard title="Credential scope" body="Secret stays out of workspace rows and remains platform-owned." />
+                <OperatorSideCard title="Verification scope" body="Provider check is explicit and observable before workspace use." />
+                <OperatorSideCard title="Routing scope" body="Workspace assignment uses the stable connection record while internal billing routing stays hidden." />
               </div>
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-600">
@@ -174,12 +173,20 @@ export function BillingConnectionNewScreen() {
   );
 }
 
-function StepCard({ index, title, body }: { index: string; title: string; body: string }) {
+function OperatorLine({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Step {index}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm text-slate-600">{body}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
+    </div>
+  );
+}
+
+function OperatorSideCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
     </div>
   );
 }

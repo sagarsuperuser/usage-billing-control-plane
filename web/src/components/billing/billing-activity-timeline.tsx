@@ -104,6 +104,11 @@ export function BillingActivityTimeline({
           <p className="mt-2 text-sm text-slate-600">
             Follow webhook projection, dunning state changes, and reminder delivery in one operator sequence.
           </p>
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <OperatorHint title="Read order" body="Start with the newest operational signal, then compare the source and summary before drilling into detail." />
+            <OperatorHint title="Source split" body="Webhook rows explain payment projection. Dunning and reminder rows explain recovery workflow and outreach." />
+            <OperatorHint title="Escalation rule" body="Escalate only after the timeline disagrees with the diagnosis or the underlying lifecycle record." />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
@@ -163,5 +168,14 @@ export function BillingActivityTimeline({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function OperatorHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
+    </div>
   );
 }

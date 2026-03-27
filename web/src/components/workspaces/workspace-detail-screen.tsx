@@ -357,6 +357,20 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   </Link>
                 </div>
               </div>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <OperatorPanel
+                  title="Operator posture"
+                  body="Use this page for platform-side handoff: clear blockers, attach billing, and confirm that the next action belongs to the workspace."
+                />
+                <OperatorPanel
+                  title="Access rule"
+                  body="Invite or repair membership only when the workspace is crossing the handoff boundary. Keep support overrides rare and auditable."
+                />
+                <OperatorPanel
+                  title="Billing rule"
+                  body="Treat billing attachment and workspace defaults as platform-owned setup. Provider health belongs to billing connections, not this page."
+                />
+              </div>
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -402,6 +416,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace access</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Members and pending invites</h2>
+                      <p className="mt-2 text-sm text-slate-600">Keep this section focused on workspace operators and audited support actions.</p>
                     </div>
                     <div className="grid w-full gap-2 text-sm text-slate-600 sm:min-w-[180px] sm:w-auto">
                       <InlineStat label="Members" value={String(workspaceMembers.length)} />
@@ -670,6 +685,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace billing</p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-950">Active billing path</h2>
+                      <p className="mt-2 text-sm text-slate-600">Attach the correct connection, review current diagnosis, then set workspace billing defaults for rollout.</p>
                     </div>
                     <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${readinessTone(workspaceBilling?.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}`}>
                       {formatReadinessStatus(workspaceBilling?.status || selectedReadiness.billing_integration.workspace_billing_status || selectedReadiness.billing_integration.status)}
@@ -914,6 +930,15 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{formatReadinessStatus(value)}</p>
       <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
+    </div>
+  );
+}
+
+function OperatorPanel({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

@@ -423,6 +423,11 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   </Link>
                 </div>
               </div>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <OperatorPanel title="Provider posture" body="Use this page to confirm Stripe verification state, not to reason about workspace billing readiness in the abstract." />
+                <OperatorPanel title="Assignment posture" body="Read linked workspaces as dependency count. Refresh, rotate, or disable this connection with that blast radius in mind." />
+                <OperatorPanel title="Action rule" body="Provider verification belongs here. Workspace provisioning belongs to workspace attachment and billing setup flows." />
+              </div>
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -575,6 +580,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
               <aside className="min-w-0 grid gap-5 self-start">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</p>
+                  <p className="mt-2 text-sm text-slate-600">Run provider checks, rotate the secret, or retire the connection here. Use workspace setup when the next step is assignment.</p>
                   <div className="mt-4 grid gap-3">
                       <button
                         type="button"
@@ -665,6 +671,15 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
       <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
+    </div>
+  );
+}
+
+function OperatorPanel({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

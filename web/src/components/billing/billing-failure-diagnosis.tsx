@@ -38,6 +38,16 @@ export function BillingFailureDiagnosisCard({
           <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-80">{label}</p>
           <h2 className="mt-2 text-lg font-semibold">{diagnosis.title}</h2>
           <p className="mt-2 text-sm opacity-90">{diagnosis.summary}</p>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
+              <p className="font-semibold">Operator rule</p>
+              <p className="mt-2">Use this diagnosis as the current operational stance, then verify it against evidence and timeline before taking recovery action.</p>
+            </div>
+            <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
+              <p className="font-semibold">Decision posture</p>
+              <p className="mt-2">Do not treat a payment failure message as sufficient by itself. The next step should follow the combined billing evidence.</p>
+            </div>
+          </div>
           <div className="mt-4 rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
             <p className="font-semibold">Next step</p>
             <p className="mt-2">{diagnosis.nextStep}</p>
