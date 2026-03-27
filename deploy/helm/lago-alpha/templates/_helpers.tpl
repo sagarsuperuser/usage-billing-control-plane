@@ -102,3 +102,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default "default" .Values.serviceAccounts.web.name -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "lago-alpha.runtimeEnvFrom" -}}
+envFrom:
+  - configMapRef:
+      name: {{ include "lago-alpha.fullname" . }}-env
+  - secretRef:
+      name: {{ .Values.secretEnv.secretRefName }}
+  {{- if .Values.dbSecretEnv.enabled }}
+  - secretRef:
+      name: {{ .Values.dbSecretEnv.secretRefName }}
+  {{- end }}
+{{- end -}}

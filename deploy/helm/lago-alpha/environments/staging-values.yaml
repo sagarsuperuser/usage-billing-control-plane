@@ -137,6 +137,10 @@ ingress:
 secretEnv:
   secretRefName: "lago-alpha-runtime-staging"
 
+dbSecretEnv:
+  enabled: true
+  secretRefName: "lago-alpha-db-staging"
+
 externalSecrets:
   enabled: true
   refreshInterval: "1m"
@@ -145,3 +149,10 @@ externalSecrets:
     kind: "ClusterSecretStore"
     name: "aws-secretsmanager"
   createClusterSecretStore: true
+  database:
+    enabled: true
+    secretId: "arn:aws:secretsmanager:us-east-1:139831607173:secret:rds!db-441872d8-c78b-460d-a66e-bdd80c86e363-hlJU5x"
+    host: "lagoalphastagingdb.cmvmkmokybgs.us-east-1.rds.amazonaws.com"
+    port: "5432"
+    name: "lago_alpha"
+    sslmode: "require"

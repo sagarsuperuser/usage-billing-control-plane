@@ -34,11 +34,7 @@ spec:
         - name: replay-dispatcher
           image: "{{ .Values.replayDispatcher.image.repository }}:{{ .Values.replayDispatcher.image.tag }}"
           imagePullPolicy: {{ .Values.replayDispatcher.image.pullPolicy }}
-          envFrom:
-            - configMapRef:
-                name: {{ include "lago-alpha.fullname" . }}-env
-            - secretRef:
-                name: {{ .Values.secretEnv.secretRefName }}
+          {{- include "lago-alpha.runtimeEnvFrom" . | nindent 10 }}
           env:
             - name: RUN_API_SERVER
               value: "false"

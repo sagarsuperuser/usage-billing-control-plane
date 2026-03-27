@@ -33,11 +33,7 @@ spec:
         - name: api
           image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
-          envFrom:
-            - configMapRef:
-                name: {{ include "lago-alpha.fullname" . }}-env
-            - secretRef:
-                name: {{ .Values.secretEnv.secretRefName }}
+          {{- include "lago-alpha.runtimeEnvFrom" . | nindent 10 }}
           env:
             - name: RUN_API_SERVER
               value: "true"

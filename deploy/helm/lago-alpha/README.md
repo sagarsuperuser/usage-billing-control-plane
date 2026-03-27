@@ -40,12 +40,17 @@ helm upgrade --install lago-alpha deploy/helm/lago-alpha \
 `ExternalSecret` syncs AWS Secrets Manager object `externalSecrets.runtimeSecretName`
 into Kubernetes secret `secretEnv.secretRefName`.
 
+Optionally, a separate DB secret can be synced into `dbSecretEnv.secretRefName`
+from `externalSecrets.database.secretId`. When present, runtime pods load
+`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and `DB_SSLMODE`
+from that dedicated secret and prefer them over any copied `DATABASE_URL`.
+
 Configure a `ClusterSecretStore` named by `externalSecrets.secretStoreRef.name`
 (or set `externalSecrets.createClusterSecretStore=true` to let this chart create one).
 
 The runtime secret JSON must include:
 
-- `DATABASE_URL`
+- `DATABASE_URL` or dedicated `DB_*` keys from `dbSecretEnv`
 - `LAGO_API_URL`
 - `LAGO_API_KEY`
 - `TEMPORAL_ADDRESS`

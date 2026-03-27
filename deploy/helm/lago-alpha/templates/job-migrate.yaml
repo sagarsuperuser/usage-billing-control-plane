@@ -30,11 +30,7 @@ spec:
           image: "{{ default .Values.api.image.repository .Values.migrations.image.repository }}:{{ default .Values.api.image.tag .Values.migrations.image.tag }}"
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
           command: ["/app/migrate"]
-          envFrom:
-            - configMapRef:
-                name: {{ include "lago-alpha.fullname" . }}-env
-            - secretRef:
-                name: {{ .Values.secretEnv.secretRefName }}
+          {{- include "lago-alpha.runtimeEnvFrom" . | nindent 10 }}
           resources:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
 {{- end }}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
+	neturl "net/url"
 	"os"
 	"strings"
 	"time"
@@ -12,9 +14,9 @@ import (
 )
 
 func LoadDBConfigFromEnv() (DBConfig, error) {
-	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if databaseURL == "" {
-		return DBConfig{}, fmt.Errorf("DATABASE_URL is required")
+	databaseURL, err := loadDatabaseURLFromEnv()
+	if err != nil {
+		return DBConfig{}, err
 	}
 
 	return DBConfig{
@@ -27,6 +29,46 @@ func LoadDBConfigFromEnv() (DBConfig, error) {
 		MigrationTimeout:    time.Duration(getIntEnv("DB_MIGRATION_TIMEOUT_SEC", 60)) * time.Second,
 		RunMigrationsOnBoot: getBoolEnv("RUN_MIGRATIONS_ON_BOOT", false),
 	}, nil
+}
+
+func loadDatabaseURLFromEnv() (string, error) {
+	host := strings.TrimSpace(os.Getenv("DB_HOST"))
+	name := strings.TrimSpace(os.Getenv("DB_NAME"))
+	user := strings.TrimSpace(os.Getenv("DB_USER"))
+	password := strings.TrimSpace(os.Getenv("DB_PASSWORD"))
+
+	if host != "" || name != "" || user != "" || password != "" {
+		if host == "" || name == "" || user == "" || password == "" {
+			return "", fmt.Errorf("DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD are required when using discrete DB env vars")
+		}
+
+		port := strings.TrimSpace(os.Getenv("DB_PORT"))
+		if port == "" {
+			port = "5432"
+		}
+
+		sslMode := strings.TrimSpace(os.Getenv("DB_SSLMODE"))
+		if sslMode == "" {
+			sslMode = "require"
+		}
+
+		query := neturl.Values{}
+		query.Set("sslmode", sslMode)
+		return (&neturl.URL{
+			Scheme:   "postgres",
+			User:     neturl.UserPassword(user, password),
+			Host:     net.JoinHostPort(host, port),
+			Path:     name,
+			RawQuery: query.Encode(),
+		}).String(), nil
+	}
+
+	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if databaseURL == "" {
+		return "", fmt.Errorf("DATABASE_URL or DB_HOST/DB_NAME/DB_USER/DB_PASSWORD is required")
+	}
+
+	return databaseURL, nil
 }
 
 func OpenPostgres(cfg DBConfig) (*sql.DB, error) {

@@ -299,9 +299,14 @@ env:
 
 secretEnv:
   # secretRefName must contain these keys after ExternalSecret sync:
-  # DATABASE_URL, LAGO_API_URL, LAGO_API_KEY, TEMPORAL_ADDRESS, AUDIT_EXPORT_S3_BUCKET, RATE_LIMIT_REDIS_URL
+  # runtime configuration such as LAGO_API_URL, LAGO_API_KEY, TEMPORAL_ADDRESS, AUDIT_EXPORT_S3_BUCKET, RATE_LIMIT_REDIS_URL
   # optional keys: AUDIT_EXPORT_S3_ENDPOINT, LAGO_ORG_TENANT_MAP
   secretRefName: "lago-alpha-runtime"
+
+dbSecretEnv:
+  enabled: false
+  # secretRefName should contain DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SSLMODE
+  secretRefName: "lago-alpha-db"
 
 externalSecrets:
   enabled: true
@@ -317,3 +322,12 @@ externalSecrets:
     roleArn: ""
     serviceAccountName: "external-secrets"
     serviceAccountNamespace: "external-secrets"
+  database:
+    enabled: false
+    secretId: ""
+    usernameProperty: "username"
+    passwordProperty: "password"
+    host: ""
+    port: "5432"
+    name: ""
+    sslmode: "require"
