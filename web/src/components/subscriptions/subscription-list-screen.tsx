@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, LoaderCircle, Plus } from "lucide-react";
+import { LoaderCircle, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -119,22 +119,19 @@ function SubscriptionRow({ item }: { item: SubscriptionSummary }) {
   return (
     <Link
       href={`/subscriptions/${encodeURIComponent(item.id)}`}
-      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.2fr)_repeat(5,minmax(0,0.48fr))_auto] lg:items-center"
+      className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_110px] lg:items-start"
     >
       <div className="min-w-0">
         <h3 className="truncate text-base font-semibold text-slate-950">{item.display_name}</h3>
         <p className="mt-1 break-all font-mono text-xs text-slate-500">{item.code}</p>
         <p className="mt-2 text-sm text-slate-600">{item.customer_display_name} on {item.plan_name}</p>
       </div>
-      <StatusCell label="Lifecycle" value={item.status} />
-      <StatusCell label="Payment setup" value={formatSubscriptionPaymentSetupStatus(item.payment_setup_status)} />
-      <StatusCell label="Plan" value={item.plan_name} />
-      <StatusCell label="Billing" value={`${item.billing_interval} · ${(item.base_amount_cents / 100).toFixed(2)} ${item.currency}`} />
-      <StatusCell label="Customer" value={item.customer_external_id} mono />
-      <StatusCell label="Currency" value={item.currency.toUpperCase()} />
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-        Open <ChevronRight className="h-4 w-4" />
-      </span>
+      <InventoryCell label="Lifecycle" value={item.status} />
+      <InventoryCell label="Payment setup" value={formatSubscriptionPaymentSetupStatus(item.payment_setup_status)} />
+      <InventoryCell label="Billing" value={`${item.billing_interval} · ${(item.base_amount_cents / 100).toFixed(2)} ${item.currency}`} />
+      <div className="flex items-center justify-between gap-3 lg:justify-end">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
+      </div>
     </Link>
   );
 }
@@ -148,11 +145,11 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function StatusCell({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function InventoryCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 break-all text-sm font-semibold text-slate-950 ${mono ? "font-mono" : ""}`}>{value}</p>
+      <p className="mt-2 break-all text-sm font-semibold text-slate-950">{value}</p>
     </div>
   );
 }

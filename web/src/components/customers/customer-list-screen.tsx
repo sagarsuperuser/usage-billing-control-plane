@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, LoaderCircle, Plus } from "lucide-react";
+import { LoaderCircle, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
@@ -167,7 +167,7 @@ function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: 
   return (
     <Link
       href={`/customers/${encodeURIComponent(customer.external_id)}`}
-      className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.52fr))_auto] lg:items-center"
+      className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_110px] lg:items-start"
     >
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -190,10 +190,9 @@ function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: 
           {diagnosis?.summary || (nextStep ? `Next action: ${describeCustomerMissingStep(nextStep)}` : "No immediate customer blocker is shown.")}
         </p>
       </div>
-      <StatusCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
-      <StatusCell label="Profile" value={readiness ? formatReadinessStatus(readiness.billing_profile_status) : "Loading"} />
-      <StatusCell label="Payments" value={readiness ? formatReadinessStatus(readiness.payment_setup_status) : "Loading"} />
-      <StatusCell
+      <InventoryCell label="Readiness" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
+      <InventoryCell label="Profile" value={readiness ? formatReadinessStatus(readiness.billing_profile_status) : "Loading"} />
+      <InventoryCell
         label="Collection"
         value={
           diagnosis
@@ -205,16 +204,14 @@ function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: 
             : "Review"
         }
       />
-      <StatusCell label="Status" value={customer.status} />
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-        Open
-        <ChevronRight className="h-4 w-4" />
-      </span>
+      <div className="flex items-center justify-between gap-3 lg:justify-end">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
+      </div>
     </Link>
   );
 }
 
-function StatusCell({ label, value }: { label: string; value: string }) {
+function InventoryCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
