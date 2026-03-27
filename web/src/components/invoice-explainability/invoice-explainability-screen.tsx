@@ -108,12 +108,12 @@ export function InvoiceExplainabilityScreen() {
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Invoice Explainability</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Invoice explainability</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
                 Line Item Computation Trace
               </h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Review the deterministic digest behind each invoice line before escalating billing disputes or replay work.
+                Review the computation digest behind each invoice line before escalating a billing dispute or replay issue.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
@@ -128,18 +128,9 @@ export function InvoiceExplainabilityScreen() {
           </div>
 
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <InfoCard
-              title="Trace source"
-              body="Load one invoice and inspect how each line item was produced."
-            />
-            <InfoCard
-              title="Operational use"
-              body="Use this before escalating billing questions or replay work."
-            />
-            <InfoCard
-              title="Output shape"
-              body="The list stays compact. Full properties appear after selecting a line item."
-            />
+            <CompactRule title="Trace source" body="Load one invoice and inspect how each line item was produced." />
+            <CompactRule title="Operational use" body="Use this before escalating a billing question or replay issue." />
+            <CompactRule title="Output shape" body="Keep the list compact and open one line item when you need raw properties." />
           </div>
         </section>
 
@@ -165,13 +156,13 @@ export function InvoiceExplainabilityScreen() {
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Trace Query</p>
               <h2 className="mt-1 text-lg font-semibold text-slate-900">Control the invoice slice you want to inspect</h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Narrow the digest by fee type, sort order, and pagination before loading or refreshing the computation trace.
+                Narrow the digest by fee type, sort order, and pagination before loading or refreshing the trace.
               </p>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-slate-600 xl:max-w-sm">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current target</p>
               <p className="mt-2 font-medium text-slate-900">{submittedInvoiceID || invoiceID.trim() || "No invoice selected"}</p>
-              <p className="mt-1 text-xs text-slate-500">Load an invoice first, then use refresh to re-run the same trace parameters.</p>
+              <p className="mt-1 text-xs text-slate-500">Load an invoice first, then use refresh to rerun the same trace parameters.</p>
             </div>
           </div>
 
@@ -257,9 +248,9 @@ export function InvoiceExplainabilityScreen() {
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Use this view</p>
               <h3 className="mt-1 text-base font-semibold text-slate-900">Check the invoice before escalating</h3>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>Confirm the invoice scope and fee filters before reading the raw properties payload.</li>
+                <li>Confirm invoice scope and fee filters before reading the raw properties payload.</li>
                 <li>Use the digest and generated timestamp to verify the exact computation snapshot under review.</li>
-                <li>Escalate to replay or payment recovery only after validating that the billing logic itself is incorrect.</li>
+                <li>Escalate to replay or payment recovery only after validating the billing logic itself.</li>
               </ul>
             </div>
           </div>
@@ -272,7 +263,7 @@ export function InvoiceExplainabilityScreen() {
               <h2 className="mt-1 text-lg font-semibold text-slate-900">Invoice metadata and trace fingerprint</h2>
             </div>
             <p className="max-w-xl text-sm text-slate-600">
-              Validate the invoice identity, currency totals, and digest version before using the detailed line-item breakdown.
+              Validate invoice identity, currency totals, and digest version before using the line-item breakdown.
             </p>
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-2">
@@ -309,7 +300,7 @@ export function InvoiceExplainabilityScreen() {
               <h2 className="mt-1 text-lg font-semibold text-slate-900">Line items, rules, and raw properties</h2>
             </div>
             <p className="max-w-2xl text-sm text-slate-600">
-              Review the billable item, rule reference, units, and raw properties together so debugging stays tied to the actual amount outcome.
+              Review the billable item, rule reference, units, and raw properties together so debugging stays tied to the amount outcome.
             </p>
           </div>
           <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -440,7 +431,7 @@ function MetricCard({
   );
 }
 
-function InfoCard({ title, body }: { title: string; body: string }) {
+function CompactRule({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>

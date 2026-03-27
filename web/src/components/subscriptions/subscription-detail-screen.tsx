@@ -187,7 +187,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial controls</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Change plan or cancel billing</h2>
                   <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    Change the billed plan here or cancel the subscription when billing should stop. Alpha applies the billing change and keeps the subscription state aligned.
+                    Change the billed plan here or cancel the subscription when billing should stop.
                   </p>
                   <div className="mt-5 grid gap-4">
                     <div className="grid gap-2">
@@ -241,14 +241,14 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment setup</p>
                   <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    Operators request the hosted setup link. The payer completes card or bank setup outside Alpha. Once the default payment method is verified, the subscription becomes active.
+                    Request the setup path here, then verify that the payer completed it before treating the subscription as ready.
                   </p>
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Operator action</p>
                         <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                          Use one setup request action here. If the payer already received a setup email, resend that path instead of showing a second competing button.
+                          Use one setup request action here. If the payer already received a setup email, resend that same path.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-3">
@@ -288,7 +288,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing state</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment setup state</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Payment setup status" value={formatSubscriptionPaymentSetupStatus(subscription.payment_setup_status)} />
                     <MetaItem label="Last verified" value={formatExactTimestamp(subscription.payment_setup.last_verified_at)} />
