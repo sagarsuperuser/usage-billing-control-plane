@@ -92,6 +92,11 @@ export function WorkspaceSelectionScreen() {
           <p className="mt-3 text-sm text-slate-600">
             {selectionQuery.data.user_email || "This account"} has access to more than one workspace. Pick the workspace you want for this browser session.
           </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <OperatorHint title="Selection rule" body="Pick the workspace you need for this session. Alpha scopes navigation and permissions to that choice." />
+            <OperatorHint title="Role signal" body="Read the role chip before entering. It tells you the access level for that workspace only." />
+            <OperatorHint title="Start-over rule" body="Use start over only when the current session choice is wrong or the requested path needs a different account." />
+          </div>
 
           <div className="mt-5 grid gap-3">
             {selectionQuery.data.items.map((item) => (
@@ -129,6 +134,15 @@ export function WorkspaceSelectionScreen() {
           </div>
         </section>
       </main>
+    </div>
+  );
+}
+
+function OperatorHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

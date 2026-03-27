@@ -83,6 +83,11 @@ export function SessionLoginCard({
             <p className="mt-1 leading-6">Customers, payments, recovery, and explainability inside assigned workspaces.</p>
           </div>
         </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <OperatorHint title="SSO posture" body="Use single sign-on when the identity provider is available and the account is already provisioned." />
+          <OperatorHint title="Password posture" body="Use password login for direct operator access and fallback when SSO is unavailable." />
+          <OperatorHint title="Routing posture" body="Alpha will resolve platform, workspace, or selection flow after the account is authenticated." />
+        </div>
       </div>
 
       {ssoProviders && ssoProviders.length > 0 ? (
@@ -174,6 +179,15 @@ export function SessionLoginCard({
         <p className="mt-3 text-xs text-rose-700">{errorMessage || loginError?.message}</p>
       ) : null}
     </section>
+  );
+}
+
+function OperatorHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-xs leading-6 text-slate-700">{body}</p>
+    </div>
   );
 }
 

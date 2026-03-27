@@ -60,6 +60,11 @@ export function SessionLoginScreen() {
           <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
             Sign in with your account credentials to open the correct control surface. Platform accounts cover billing connections and workspaces. Tenant accounts cover customers, payments, recovery, and explainability inside assigned workspaces.
           </p>
+          <div className="mt-6 grid gap-3 lg:grid-cols-3">
+            <OperatorHint title="Identity rule" body="Browser login is only for human operators. API keys stay on API and integration traffic." />
+            <OperatorHint title="Scope rule" body="Platform accounts open cross-workspace administration. Workspace accounts open one assigned workspace surface at a time." />
+            <OperatorHint title="Session rule" body="Use the requested path when present. Alpha will route the session to the correct surface after authentication." />
+          </div>
 
           <section className="mt-8 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Operating surfaces</p>
@@ -110,6 +115,15 @@ export function SessionLoginScreen() {
           />
         </section>
       </main>
+    </div>
+  );
+}
+
+function OperatorHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

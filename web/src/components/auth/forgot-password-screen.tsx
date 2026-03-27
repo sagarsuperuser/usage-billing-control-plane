@@ -36,6 +36,11 @@ export function ForgotPasswordScreen() {
           <p className="mt-3 text-sm text-slate-600">
             Enter the email for your Alpha browser account. If that account supports password login, we will send reset instructions.
           </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <OperatorHint title="Recovery rule" body="Use this only for browser accounts that authenticate with password. SSO-only accounts recover through the identity provider." />
+            <OperatorHint title="Delivery rule" body="Alpha sends instructions only when password login is enabled for the environment and the account supports it." />
+            <OperatorHint title="Security rule" body="The response stays neutral so this flow does not disclose whether an account exists." />
+          </div>
 
           {!enabled && authProvidersQuery.isSuccess ? (
             <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -77,6 +82,15 @@ export function ForgotPasswordScreen() {
           </div>
         </section>
       </main>
+    </div>
+  );
+}
+
+function OperatorHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

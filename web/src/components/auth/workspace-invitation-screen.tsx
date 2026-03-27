@@ -139,6 +139,11 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
           <p className="mt-3 text-sm text-slate-600">
             This invite grants <span className="font-semibold text-slate-950">{preview.invitation.role}</span> access to the workspace.
           </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <OperatorHint title="Invite rule" body="Use the invited email exactly. Alpha ties the invitation to that identity before granting workspace access." />
+            <OperatorHint title="Auth rule" body="Continue with SSO or password only through this invite flow so Alpha can preserve the invitation context." />
+            <OperatorHint title="Acceptance rule" body="If the account and email already match, Alpha should accept the invitation and route you into the workspace." />
+          </div>
 
           <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4">
             <p className="flex items-center gap-2 text-sm font-semibold text-slate-950">
@@ -260,4 +265,13 @@ function buildSSOStartURL(apiBaseURL: string, providerKey: string, nextPath: str
   const url = new URL(`${baseURL}/v1/ui/auth/sso/${encodeURIComponent(providerKey)}/start`);
   url.searchParams.set("next", normalizeNextPath(nextPath, "/"));
   return url.toString();
+}
+
+function OperatorHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
+    </div>
+  );
 }

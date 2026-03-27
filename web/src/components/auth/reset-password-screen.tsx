@@ -41,6 +41,11 @@ export function ResetPasswordScreen() {
           <p className="mt-3 text-sm text-slate-600">
             Reset tokens are single-use and expire automatically.
           </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <OperatorHint title="Token rule" body="Open the reset link directly from the email so Alpha receives the signed token intact." />
+            <OperatorHint title="Password rule" body="Set the new password here only after confirming the token is valid and the repeated value matches." />
+            <OperatorHint title="Completion rule" body="After success, Alpha returns you to login so the new password is exercised through a fresh browser session." />
+          </div>
 
           {!token ? (
             <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -88,6 +93,15 @@ export function ResetPasswordScreen() {
           </div>
         </section>
       </main>
+    </div>
+  );
+}
+
+function OperatorHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }
