@@ -57,7 +57,7 @@ export function PricingHomeScreen() {
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Workspace" }, { label: "Pricing" }]} />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Pricing foundation</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">
             Define what gets measured and how customers are charged without leaving Alpha. Start with stable metrics, then compose plans on top of them.
@@ -92,11 +92,28 @@ export function PricingHomeScreen() {
             </div>
           </section>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-5">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operating posture</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Pricing inventory</h2>
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3">
+                <InventoryRow label="Metrics" summary={metricCount > 0 ? `${metricCount} configured` : "Create the first metric"} href="/pricing/metrics" action="Open" />
+                <InventoryRow label="Taxes" summary={taxCount > 0 ? `${taxCount} reusable rules` : "Create the first tax rule"} href="/pricing/taxes" action="Open" />
+                <InventoryRow label="Add-ons" summary={addOnCount > 0 ? `${addOnCount} recurring extras` : "Create the first add-on"} href="/pricing/add-ons" action="Open" />
+                <InventoryRow label="Coupons" summary={couponCount > 0 ? `${couponCount} discount rules` : "Create the first coupon"} href="/pricing/coupons" action="Open" />
+                <InventoryRow label="Plans" summary={planCount > 0 ? `${activePlanCount} active / ${draftPlanCount} draft` : "Create the first commercial package"} href="/pricing/plans" action="Open" />
+              </div>
+            </section>
+
+            <section className="grid gap-5 xl:grid-cols-2">
             <DomainPanel
               eyebrow="Metrics"
               title="What gets measured"
-              body="Create usage metrics that describe the commercial signal you want to track, such as API calls, seats, or spendable units."
+              body="Stable usage records that plans can reuse."
               href="/pricing/metrics"
               cta="Open metrics"
               secondaryHref="/pricing/metrics/new"
@@ -109,7 +126,7 @@ export function PricingHomeScreen() {
             <DomainPanel
               eyebrow="Taxes"
               title="Tax catalog and application"
-              body="Define reusable tax codes and rates, then attach them to customer billing profiles and workspace billing settings."
+              body="Reusable tax rules for customer and workspace billing settings."
               href="/pricing/taxes"
               cta="Open taxes"
               secondaryHref="/pricing/taxes/new"
@@ -122,7 +139,7 @@ export function PricingHomeScreen() {
             <DomainPanel
               eyebrow="Add-ons"
               title="Package recurring extras"
-              body="Define reusable fixed-price add-ons such as premium support, onboarding, or compliance bundles, then attach them to plans."
+              body="Reusable fixed-price extras that can be attached to plans."
               href="/pricing/add-ons"
               cta="Open add-ons"
               secondaryHref="/pricing/add-ons/new"
@@ -135,7 +152,7 @@ export function PricingHomeScreen() {
             <DomainPanel
               eyebrow="Coupons"
               title="Model commercial relief"
-              body="Create reusable amount-off or percent-off coupons that can be attached to plans for launches, promotions, or negotiated offers."
+              body="Reusable discount rules for launches, promotions, and negotiated offers."
               href="/pricing/coupons"
               cta="Open coupons"
               secondaryHref="/pricing/coupons/new"
@@ -148,7 +165,7 @@ export function PricingHomeScreen() {
             <DomainPanel
               eyebrow="Plans"
               title="How customers are charged"
-              body="Create plans that combine a base price with one or more metrics. Keep the first version easy to review and safe to launch."
+              body="Commercial packages built from a base price plus reusable pricing inputs."
               href="/pricing/plans"
               cta="Open plans"
               secondaryHref="/pricing/plans/new"
@@ -158,6 +175,7 @@ export function PricingHomeScreen() {
                 { label: "Drafts", value: String(draftPlanCount) },
               ]}
             />
+            </section>
           </div>
         )}
       </main>
@@ -220,5 +238,18 @@ function MetricCard({ label, value }: { label: string; value: number }) {
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
     </div>
+  );
+}
+
+function InventoryRow({ label, summary, href, action }: { label: string; summary: string; href: string; action: string }) {
+  return (
+    <Link href={href} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300 hover:bg-slate-100 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-center">
+      <p className="text-sm font-semibold text-slate-950">{label}</p>
+      <p className="text-sm text-slate-600">{summary}</p>
+      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+        {action}
+        <ArrowRight className="h-4 w-4" />
+      </span>
+    </Link>
   );
 }

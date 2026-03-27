@@ -41,7 +41,7 @@ export function PricingCouponListScreen() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Coupons</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
                 Model amount-off and percent-off commercial relief for launches, promotions, and negotiated offers.
@@ -63,6 +63,12 @@ export function PricingCouponListScreen() {
           <MetricCard label="Total coupons" value={String(couponsQuery.data?.length ?? 0)} />
           <MetricCard label="Draft coupons" value={String(draftCount)} />
           <MetricCard label="Search results" value={String(filtered.length)} />
+        </section>
+
+        <section className="grid gap-3 xl:grid-cols-3">
+          <OperatorCard title="Commercial rule" body="Coupons are discount rules, not one-off adjustments. Keep their scope and expiry easy to explain." />
+          <OperatorCard title="Inventory rule" body="Review discount type, runtime frequency, and expiration from the list before attaching a rule to active commercial packages." />
+          <OperatorCard title="Next action" body="Open coupon detail to confirm commercial posture, then apply it through plans or customer follow-up." />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -124,6 +130,10 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 
 function StatusCell({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border border-slate-200 bg-white px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p><p className="mt-2 text-sm font-semibold text-slate-950">{value}</p></div>;
+}
+
+function OperatorCard({ title, body }: { title: string; body: string }) {
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-950">{title}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p></section>;
 }
 
 function LoadingState() {

@@ -60,7 +60,7 @@ export function PricingPlanListScreen() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Plans</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
                 Plans define how customers are charged. Keep the first version simple: a base price, a cadence, and one or more linked metrics.
@@ -82,6 +82,12 @@ export function PricingPlanListScreen() {
           <MetricCard label="Total plans" value={String(plansQuery.data?.length ?? 0)} />
           <MetricCard label="Draft plans" value={String(draftCount)} />
           <MetricCard label="Search results" value={String(filtered.length)} />
+        </section>
+
+        <section className="grid gap-3 xl:grid-cols-3">
+          <OperatorCard title="Commercial posture" body="Plans are the final packaged offer. Keep the first version simple and easy to explain before launch." />
+          <OperatorCard title="Inventory rule" body="Review linked metrics, add-ons, and coupons from this list before opening plan detail for deeper inspection." />
+          <OperatorCard title="Next action" body="Use draft plans for review, then activate only once the full commercial package is stable." />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -155,6 +161,15 @@ function StatusCell({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
     </div>
+  );
+}
+
+function OperatorCard({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+    </section>
   );
 }
 
