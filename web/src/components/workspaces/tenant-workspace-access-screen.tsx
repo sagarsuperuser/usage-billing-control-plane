@@ -968,8 +968,6 @@ function OperatorGuidanceCard({ title, body }: { title: string; body: string }) 
 }
 
 function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }) {
-  const entries = Object.entries(event?.metadata ?? {}).sort(([left], [right]) => left.localeCompare(right));
-
   if (!event) {
     return (
       <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-6 text-sm text-slate-600">
@@ -978,30 +976,69 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
     );
   }
 
+  const metadata = event.metadata ?? {};
+  const presentation = describeAuditEvent(event);
+  const createdByUserID = readAuditMetadataString(metadata, "created_by_user_id");
+  const environment = readAuditMetadataString(metadata, "environment");
+  const credentialName = readAuditMetadataString(metadata, "name");
+  const ownerID = readAuditMetadataString(metadata, "owner_id");
+  const ownerType = readAuditMetadataString(metadata, "owner_type");
+  const purpose = readAuditMetadataString(metadata, "purpose");
+  const role = readAuditMetadataString(metadata, "role");
+  const actorLabel = event.actor_api_key_id ? "Credential session" : "Admin session";
+  const actorValue = event.actor_api_key_id || createdByUserID || "Workspace operator";
+  const groupedKeys = new Set(["created_by_user_id", "environment", "name", "owner_id", "owner_type", "purpose", "role"]);
+  const remainingEntries = Object.entries(metadata)
+    .filter(([key]) => !groupedKeys.has(key))
+    .sort(([left], [right]) => left.localeCompare(right));
+
   return (
     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
       <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected event</p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{describeAuditEvent(event).title}</p>
-      <p className="mt-2 text-sm text-slate-700">{describeAuditEvent(event).summary}</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <DetailField label="Event" value={describeAuditEvent(event).title} />
+      <p className="mt-2 text-lg font-semibold text-slate-950">{presentation.title}</p>
+      <p className="mt-2 text-sm text-slate-700">{presentation.summary}</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <DetailField label="What happened" value={presentation.title} />
         <DetailField label="Created at" value={formatExactTimestamp(event.created_at)} />
-        <DetailField label="Credential" value={event.api_key_id} mono />
-        <DetailField label="Actor credential" value={event.actor_api_key_id || "Admin session"} mono />
-        <DetailField label="Event ID" value={event.id} mono className="sm:col-span-2" />
+        <DetailField label="Who did it" value={actorLabel} />
+        <DetailField label="Actor reference" value={actorValue} mono={Boolean(event.actor_api_key_id || createdByUserID)} />
       </div>
-      {entries.length > 0 ? (
-        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-          {entries.map(([key, value]) => (
-            <div key={key} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{formatAuditMetadataKey(key)}</dt>
-              <dd className="mt-2 break-words text-sm text-slate-800">{formatAuditMetadataValue(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p className="mt-3 text-sm text-slate-500">No metadata attached.</p>
-      )}
+
+      <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Credential record</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <DetailField label="Credential name" value={credentialName || "No display name recorded"} />
+          <DetailField label="Access role" value={role ? formatServiceAccountRole(role as "reader" | "writer" | "admin") : "Not recorded"} />
+          <DetailField label="Intended use" value={purpose || "Not recorded"} />
+          <DetailField label="Environment" value={environment ? environment.toUpperCase() : "Not recorded"} />
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Internal references</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <DetailField label="Event ID" value={event.id} mono />
+          <DetailField label="Credential ID" value={event.api_key_id} mono />
+          <DetailField label="Owner type" value={ownerType || "Not recorded"} />
+          <DetailField label="Owner ID" value={ownerID || "Not recorded"} mono={Boolean(ownerID)} />
+          {createdByUserID ? <DetailField label="Created by user ID" value={createdByUserID} mono /> : null}
+          {event.actor_api_key_id ? <DetailField label="Actor credential ID" value={event.actor_api_key_id} mono /> : null}
+        </div>
+      </div>
+
+      {remainingEntries.length > 0 ? (
+        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Additional metadata</p>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+            {remainingEntries.map(([key, value]) => (
+              <div key={key} className="rounded-lg border border-stone-200 bg-white px-3 py-3">
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{formatAuditMetadataKey(key)}</dt>
+                <dd className="mt-2 break-words text-sm text-slate-800">{formatAuditMetadataValue(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1037,6 +1074,11 @@ function formatAuditMetadataValue(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function readAuditMetadataString(metadata: Record<string, unknown>, key: string): string {
+  const value = metadata[key];
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function describeServiceAccountActivity(account: {
