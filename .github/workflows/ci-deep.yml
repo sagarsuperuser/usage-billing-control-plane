@@ -1,33 +1,66 @@
-name: CI
+name: CI Deep
 
 on:
+  pull_request:
   push:
     branches:
       - main
-  pull_request:
 
 jobs:
-  test:
-    name: test
+  changes:
+    name: detect-changes
     runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      integration_smoke: ${{ steps.filter.outputs.integration_smoke }}
+      integration_full: ${{ steps.filter.outputs.integration_full }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-          cache: true
+          fetch-depth: 0
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Detect relevant path changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'web/**'
+              - 'internal/api/**'
+              - 'internal/service/**'
+              - 'internal/appconfig/**'
+              - '.github/workflows/ci-deep.yml'
+            integration_smoke:
+              - 'internal/**'
+              - 'cmd/**'
+              - 'migrations/**'
+              - 'scripts/test_integration.sh'
+              - 'scripts/test_real_env_smoke.sh'
+              - 'docker-compose*.yml'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/ci-deep.yml'
+            integration_full:
+              - 'internal/api/**'
+              - 'internal/service/**'
+              - 'internal/replay/**'
+              - 'internal/dunningflow/**'
+              - 'internal/paymentsync/**'
+              - 'internal/billingcheck/**'
+              - 'cmd/**'
+              - 'migrations/**'
+              - 'scripts/test_integration.sh'
+              - 'docker-compose*.yml'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/ci-deep.yml'
 
-      - name: Run test suite
-        run: make test
-
-  web-e2e:
-    name: web-e2e
+  web-ui-e2e:
+    name: web-ui-e2e
+    needs:
+      - changes
+    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,67 +84,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint + typecheck
-        run: |
-          pnpm lint
-          pnpm typecheck
-
-      - name: Build UI
-        run: pnpm build
-
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run Playwright e2e
+      - name: Run Playwright browser suite
         run: pnpm e2e
 
-  migration-verify:
-    name: migration-verify
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
-
-    env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run migration apply/verify checks
-        run: |
-          make migrate
-          make migrate-verify
-          make migrate
-          make migrate-verify
-
-      - name: Run migration integration tests
-        run: go test ./migrations -run TestRunnerAppliesMigrationsIdempotently -v
-
-  integration-real-env-smoke:
-    name: integration-real-env-smoke
+  integration-smoke:
+    name: integration-smoke
+    needs:
+      - changes
+    if: github.event_name == 'push' || needs.changes.outputs.integration_smoke == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -123,7 +106,6 @@ jobs:
       BOOTSTRAP_LAGO_FOR_TESTS: 1
       CLEANUP_LAGO_ON_EXIT: 1
       CLEANUP_ON_EXIT: 1
-
     steps:
       - name: Checkout alpha repo
         uses: actions/checkout@v4
@@ -148,16 +130,18 @@ jobs:
           ALLOW_CODEOWNERS_PLACEHOLDERS: 1
         run: ./scripts/verify_codeowners.sh
 
-      - name: Run real-env smoke suite
+      - name: Run composed integration smoke suite
         env:
           LAGO_REPO_PATH: ${{ github.workspace }}/lago
           LAGO_COMPOSE_FILE: docker-compose.yml
         run: make test-real-env-smoke
 
-  integration-temporal:
-    name: integration-temporal
+  integration-full:
+    name: integration-full
     needs:
-      - integration-real-env-smoke
+      - changes
+      - integration-smoke
+    if: github.event_name == 'push' || needs.changes.outputs.integration_full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -173,7 +157,6 @@ jobs:
       BOOTSTRAP_LAGO_FOR_TESTS: 1
       CLEANUP_LAGO_ON_EXIT: 1
       CLEANUP_ON_EXIT: 1
-
     steps:
       - name: Checkout alpha repo
         uses: actions/checkout@v4
@@ -198,7 +181,7 @@ jobs:
           ALLOW_CODEOWNERS_PLACEHOLDERS: 1
         run: ./scripts/verify_codeowners.sh
 
-      - name: Run real Temporal + Lago integration suite
+      - name: Run full composed integration suite
         env:
           LAGO_REPO_PATH: ${{ github.workspace }}/lago
           LAGO_COMPOSE_FILE: docker-compose.yml
