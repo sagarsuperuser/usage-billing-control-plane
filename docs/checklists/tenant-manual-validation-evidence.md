@@ -4,6 +4,11 @@ This checklist is the manual proof record for tenant-scope product validation in
 
 Use it when you want evidence that core workspace journeys work in a real environment, not just that pages render.
 
+Run it together with:
+
+- [Manual End-to-End Validation Runbook](../runbooks/manual-end-to-end-validation-runbook.md)
+- [End-to-End Product Journeys](../runbooks/end-to-end-product-journeys.md)
+
 ## Purpose
 
 This document exists to prove three things:
@@ -13,6 +18,10 @@ This document exists to prove three things:
 3. a specific staging or release build has been manually verified with retained evidence
 
 This is not a generic QA note. It is a release and signoff artifact.
+
+It is tenant-scoped by design.
+
+For the full product pass, execute the platform and cross-role steps from the manual E2E runbook, then record the tenant portions here.
 
 ---
 
@@ -377,6 +386,73 @@ Prove that the tenant-side operator tooling is usable for investigation and reme
 | Dunning screenshot | |
 | Replay screenshot | |
 | Explainability screenshot | |
+| Notes | |
+
+---
+
+## Manual-Only Tenant Checks
+
+These checks are required for a full manual pass even when automated journeys already cover the main backend state changes.
+
+### A. Authorization Guards
+
+Verify:
+
+1. tenant writer cannot administer `/workspace-access`
+2. reader-only identities cannot perform write actions
+3. only the right actor sees the right workspace actions
+
+| Field | Value |
+| --- | --- |
+| Result | |
+| Writer guard screenshot | |
+| Reader guard screenshot | |
+| Notes | |
+
+### B. Navigation and Refresh Resilience
+
+Verify on the highest-value tenant screens:
+
+1. hard refresh keeps the operator in a valid state
+2. browser back returns to a sensible inventory page
+3. direct deep links into detail pages load without hidden intermediate steps
+
+| Field | Value |
+| --- | --- |
+| Result | |
+| Screens exercised | |
+| Deep-link URLs captured | |
+| Screenshots | |
+| Notes | |
+
+### C. Exports and Downloaded Artifacts
+
+Verify:
+
+1. audit CSV downloads immediately
+2. any invoice document or export action produces a real file if enabled
+3. downloaded artifacts correspond to the selected record
+
+| Field | Value |
+| --- | --- |
+| Result | |
+| Audit CSV artifact | |
+| Invoice/export artifact | |
+| Notes | |
+
+### D. Empty and Partial States
+
+Verify:
+
+1. no-data states are understandable
+2. partial setup states explain what is missing
+3. disabled actions do not mislead the operator
+
+| Field | Value |
+| --- | --- |
+| Result | |
+| Screens reviewed | |
+| Screenshots | |
 | Notes | |
 
 ---

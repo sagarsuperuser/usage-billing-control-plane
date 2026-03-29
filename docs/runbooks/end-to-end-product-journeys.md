@@ -11,6 +11,10 @@ The purpose is not to turn every test into a giant staging drill. The purpose is
 
 If a product area does not map cleanly to one of these journeys, the current testing model is incomplete.
 
+For manual execution of these same journeys, plus the operator-facing checks that automation still does not fully prove, use:
+
+- [Manual End-to-End Validation Runbook](./manual-end-to-end-validation-runbook.md)
+
 ---
 
 ## Core Rule
@@ -34,6 +38,16 @@ Use these terms consistently:
 - `implemented`: automated and already usable as a staging journey
 - `partial`: some critical parts are automated, but the full user journey is not
 - `planned`: product journey is defined here, but automation is not complete yet
+
+These coverage terms describe automation only.
+
+A release-quality manual pass still needs to execute:
+
+- the matching journey manually
+- cross-role authorization checks
+- refresh and deep-link resilience checks
+- export and downloaded artifact checks
+- terminology and abstraction review
 
 ---
 
