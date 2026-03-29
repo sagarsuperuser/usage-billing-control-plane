@@ -18,18 +18,24 @@ run_migrations_integration_test="${INTEGRATION_RUN_MIGRATIONS_TEST:-1}"
 bootstrap_lago="${BOOTSTRAP_LAGO_FOR_TESTS:-1}"
 lago_repo_path="${LAGO_REPO_PATH:-$repo_root/../lago}"
 lago_compose_file="${LAGO_COMPOSE_FILE:-docker-compose.yml}"
+lago_env_file="${LAGO_ENV_FILE:-$lago_repo_path/.env}"
 cleanup_lago="${CLEANUP_LAGO_ON_EXIT:-0}"
 cleanup="${CLEANUP_ON_EXIT:-1}"
 verify_lago_backend="${VERIFY_LAGO_BACKEND_FOR_TESTS:-0}"
 lago_verify_compose_file="${LAGO_VERIFY_COMPOSE_FILE:-docker-compose.dev.yml}"
 debug_on_failure="${DEBUG_ON_FAILURE:-1}"
 
+lago_compose_args=()
+if [[ -f "$lago_env_file" ]]; then
+  lago_compose_args+=(--env-file "$lago_env_file")
+fi
+
 cleanup_fn() {
   if [[ "$cleanup" == "1" ]]; then
     docker compose -f "$repo_root/$compose_file" down >/dev/null 2>&1 || true
   fi
   if [[ "$cleanup_lago" == "1" && "$bootstrap_lago" == "1" ]]; then
-    (cd "$lago_repo_path" && docker compose -f "$lago_compose_file" down >/dev/null 2>&1 || true)
+    (cd "$lago_repo_path" && docker compose "${lago_compose_args[@]}" -f "$lago_compose_file" down >/dev/null 2>&1 || true)
   fi
 }
 trap cleanup_fn EXIT
@@ -49,11 +55,11 @@ dump_diagnostics_on_error() {
   if [[ "$bootstrap_lago" == "1" ]]; then
     echo "---- lago compose ps ----" >&2
     (
-      cd "$lago_repo_path" && docker compose -f "$lago_compose_file" ps
+      cd "$lago_repo_path" && docker compose "${lago_compose_args[@]}" -f "$lago_compose_file" ps
     ) >&2 || true
     echo "---- lago compose logs (tail=200) ----" >&2
     (
-      cd "$lago_repo_path" && docker compose -f "$lago_compose_file" logs --tail=200
+      cd "$lago_repo_path" && docker compose "${lago_compose_args[@]}" -f "$lago_compose_file" logs --tail=200
     ) >&2 || true
   fi
 }
@@ -65,7 +71,7 @@ resolve_lago_api_url_from_compose() {
   local port_line
   if ! port_line="$(
     cd "$lago_repo_path"
-    docker compose -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
+    docker compose "${lago_compose_args[@]}" -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
   )"; then
     return 1
   fi

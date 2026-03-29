@@ -11,6 +11,7 @@ lago_org_name="${LAGO_ORG_NAME:-Lago Alpha Test Org}"
 lago_org_user_email="${LAGO_ORG_USER_EMAIL:-alpha-test@getlago.local}"
 lago_org_user_password="${LAGO_ORG_USER_PASSWORD:-AlphaTest123!}"
 startup_lago_api_url="${test_lago_api_url:-http://localhost:3000}"
+lago_env_file="${LAGO_ENV_FILE:-$lago_repo_path/.env}"
 
 if [[ ! -f "$lago_repo_path/$lago_compose_file" ]]; then
   echo "Lago compose file not found: $lago_repo_path/$lago_compose_file" >&2
@@ -18,9 +19,13 @@ if [[ ! -f "$lago_repo_path/$lago_compose_file" ]]; then
 fi
 
 echo "Bootstrapping Lago from: $lago_repo_path/$lago_compose_file"
+compose_env_args=()
+if [[ -f "$lago_env_file" ]]; then
+  compose_env_args+=(--env-file "$lago_env_file")
+fi
 available_services="$(
   cd "$lago_repo_path"
-  docker compose -f "$lago_compose_file" config --services
+  docker compose "${compose_env_args[@]}" -f "$lago_compose_file" config --services
 )"
 
 has_service() {
@@ -53,7 +58,7 @@ discover_lago_api_url() {
   local port_line
   if ! port_line="$(
     cd "$lago_repo_path"
-    docker compose -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
+    docker compose "${compose_env_args[@]}" -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
   )"; then
     return 1
   fi
@@ -66,7 +71,7 @@ discover_lago_api_url() {
 
 (
   cd "$lago_repo_path"
-  docker compose -f "$lago_compose_file" down --remove-orphans >/dev/null 2>&1 || true
+  docker compose "${compose_env_args[@]}" -f "$lago_compose_file" down --remove-orphans >/dev/null 2>&1 || true
 )
 
 (
@@ -77,7 +82,7 @@ discover_lago_api_url() {
   LAGO_ORG_USER_EMAIL="$lago_org_user_email" \
   LAGO_ORG_USER_PASSWORD="$lago_org_user_password" \
   LAGO_ORG_API_KEY="$test_lago_api_key" \
-  docker compose -f "$lago_compose_file" up -d --force-recreate "${startup_services[@]}"
+  docker compose "${compose_env_args[@]}" -f "$lago_compose_file" up -d --force-recreate "${startup_services[@]}"
 )
 
 resolved_lago_api_url="$test_lago_api_url"
