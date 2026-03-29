@@ -241,6 +241,8 @@ export function TenantWorkspaceAccessScreen() {
   const disabledMembers = members.filter((member) => member.status !== "active");
   const disabledServiceAccounts = serviceAccounts.filter((account) => account.status === "disabled");
   const activeCredentialCount = serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0);
+  const serviceAccountsWithoutActiveCredentials = serviceAccounts.filter((account) => account.active_credential_count === 0).length;
+  const reviewQueueCount = pendingInvitations.length + disabledMembers.length + disabledServiceAccounts.length;
   const selectedServiceAccountCredentials = selectedServiceAccount?.credentials ?? [];
 
   useEffect(() => {
@@ -421,17 +423,15 @@ export function TenantWorkspaceAccessScreen() {
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current posture</p>
                       <p className="mt-2 text-lg font-semibold text-slate-950">
-                        {pendingInvitations.length > 0 || disabledServiceAccounts.length > 0 || disabledMembers.length > 0
-                          ? "Attention required"
-                          : "Controlled"}
+                        {reviewQueueCount > 0 ? "Attention required" : "Controlled"}
                       </p>
                       <p className="mt-2 text-sm text-slate-600">
                         {pendingInvitations.length} pending invite{pendingInvitations.length === 1 ? "" : "s"} · {disabledServiceAccounts.length} disabled machine identit{disabledServiceAccounts.length === 1 ? "y" : "ies"} · {disabledMembers.length} inactive member{disabledMembers.length === 1 ? "" : "s"}
                       </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <DetailField label="Active members" value={`${activeMembers.length}`} className="bg-white" />
-                      <DetailField label="Credential inventory" value={`${activeCredentialCount} active`} className="bg-white" />
+                      <DetailField label="Admin coverage" value={`${activeAdminCount} active admin${activeAdminCount === 1 ? "" : "s"}`} className="bg-white" />
+                      <DetailField label="Review queue" value={`${reviewQueueCount} item${reviewQueueCount === 1 ? "" : "s"}`} className="bg-white" />
                     </div>
                   </div>
                 </div>
@@ -462,7 +462,7 @@ export function TenantWorkspaceAccessScreen() {
                 </div>
                 <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
                   <DetailField label="Active admins" value={`${activeAdminCount}`} className="bg-white" />
-                  <DetailField label="Pending onboarding" value={`${pendingInvitations.length}`} className="bg-white" />
+                  <DetailField label="Inactive members" value={`${disabledMembers.length}`} className="bg-white" />
                 </div>
               </div>
 
@@ -720,8 +720,8 @@ export function TenantWorkspaceAccessScreen() {
                   </p>
                 </div>
                 <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
-                  <DetailField label="Service accounts" value={`${serviceAccounts.length}`} className="bg-white" />
                   <DetailField label="Disabled identities" value={`${disabledServiceAccounts.length}`} className="bg-white" />
+                  <DetailField label="No active credential" value={`${serviceAccountsWithoutActiveCredentials}`} className="bg-white" />
                 </div>
               </div>
 
