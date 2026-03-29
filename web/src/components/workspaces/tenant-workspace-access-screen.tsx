@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -65,6 +65,12 @@ export function TenantWorkspaceAccessScreen() {
   const [invitePage, setInvitePage] = useState(1);
   const [serviceAccountPage, setServiceAccountPage] = useState(1);
   const [credentialPage, setCredentialPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditCursor, setAuditCursor] = useState<string | undefined>(undefined);
+  const [auditCursorHistory, setAuditCursorHistory] = useState<Array<string | undefined>>([]);
+  const [auditExportPage, setAuditExportPage] = useState(1);
+  const [auditExportCursor, setAuditExportCursor] = useState<string | undefined>(undefined);
+  const [auditExportCursorHistory, setAuditExportCursorHistory] = useState<Array<string | undefined>>([]);
 
   const workspaceQueryKey = ["tenant-workspace-members", apiBaseURL, session?.tenant_id];
   const invitationQueryKey = ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id];
@@ -237,13 +243,24 @@ export function TenantWorkspaceAccessScreen() {
   const activeCredentialCount = serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0);
   const selectedServiceAccountCredentials = selectedServiceAccount?.credentials ?? [];
 
+  useEffect(() => {
+    setSelectedAuditEventID("");
+    setAuditPage(1);
+    setAuditCursor(undefined);
+    setAuditCursorHistory([]);
+    setAuditExportPage(1);
+    setAuditExportCursor(undefined);
+    setAuditExportCursorHistory([]);
+  }, [selectedAuditServiceAccountIDValue]);
+
   const serviceAccountAuditQuery = useQuery({
     queryKey: ["tenant-workspace-service-account-audit", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
     queryFn: () =>
       fetchTenantWorkspaceServiceAccountAudit({
         runtimeBaseURL: apiBaseURL,
         serviceAccountID: selectedAuditServiceAccountIDValue,
-        limit: 10,
+        limit: 8,
+        cursor: auditCursor,
       }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
   });
@@ -253,7 +270,8 @@ export function TenantWorkspaceAccessScreen() {
       fetchTenantWorkspaceServiceAccountAuditExports({
         runtimeBaseURL: apiBaseURL,
         serviceAccountID: selectedAuditServiceAccountIDValue,
-        limit: 5,
+        limit: 4,
+        cursor: auditExportCursor,
       }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
   });
@@ -293,6 +311,52 @@ export function TenantWorkspaceAccessScreen() {
   const pagedInvitations = paginateItems(pendingInvitations, invitePage, 5);
   const pagedServiceAccounts = paginateItems(serviceAccounts, serviceAccountPage, 5);
   const pagedCredentials = paginateItems(selectedServiceAccountCredentials, credentialPage, 4);
+  const auditHasPreviousPage = auditCursorHistory.length > 0;
+  const auditHasNextPage = Boolean(serviceAccountAuditQuery.data?.next_cursor);
+  const auditExportHasPreviousPage = auditExportCursorHistory.length > 0;
+  const auditExportHasNextPage = Boolean(serviceAccountAuditExportsQuery.data?.next_cursor);
+
+  const goToNextAuditPage = () => {
+    const nextCursor = serviceAccountAuditQuery.data?.next_cursor;
+    if (!nextCursor) {
+      return;
+    }
+    setAuditCursorHistory((current) => [...current, auditCursor]);
+    setAuditCursor(nextCursor);
+    setAuditPage((current) => current + 1);
+    setSelectedAuditEventID("");
+  };
+
+  const goToPreviousAuditPage = () => {
+    if (auditCursorHistory.length === 0) {
+      return;
+    }
+    const previousCursor = auditCursorHistory[auditCursorHistory.length - 1];
+    setAuditCursorHistory((current) => current.slice(0, -1));
+    setAuditCursor(previousCursor);
+    setAuditPage((current) => Math.max(1, current - 1));
+    setSelectedAuditEventID("");
+  };
+
+  const goToNextAuditExportPage = () => {
+    const nextCursor = serviceAccountAuditExportsQuery.data?.next_cursor;
+    if (!nextCursor) {
+      return;
+    }
+    setAuditExportCursorHistory((current) => [...current, auditExportCursor]);
+    setAuditExportCursor(nextCursor);
+    setAuditExportPage((current) => current + 1);
+  };
+
+  const goToPreviousAuditExportPage = () => {
+    if (auditExportCursorHistory.length === 0) {
+      return;
+    }
+    const previousCursor = auditExportCursorHistory[auditExportCursorHistory.length - 1];
+    setAuditExportCursorHistory((current) => current.slice(0, -1));
+    setAuditExportCursor(previousCursor);
+    setAuditExportPage((current) => Math.max(1, current - 1));
+  };
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -980,7 +1044,20 @@ export function TenantWorkspaceAccessScreen() {
               {selectedAuditServiceAccount ? (
                 <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
+                        <p className="mt-1 text-sm text-slate-600">Page through the credential event timeline.</p>
+                      </div>
+                      <CursorPaginationControls
+                        page={auditPage}
+                        hasPreviousPage={auditHasPreviousPage}
+                        hasNextPage={auditHasNextPage}
+                        onPrevious={goToPreviousAuditPage}
+                        onNext={goToNextAuditPage}
+                        label="Audit events"
+                      />
+                    </div>
                     <div className="mt-3 grid gap-3">
                       {auditItems.length > 0 ? (
                         auditItems.map((event) => (
@@ -999,7 +1076,20 @@ export function TenantWorkspaceAccessScreen() {
                   <div className="grid gap-4">
                     <ServiceAccountAuditDetail event={selectedAuditEvent} />
                     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Scheduled exports</p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Scheduled exports</p>
+                          <p className="mt-1 text-sm text-slate-600">Review generated export jobs for this service account.</p>
+                        </div>
+                        <CursorPaginationControls
+                          page={auditExportPage}
+                          hasPreviousPage={auditExportHasPreviousPage}
+                          hasNextPage={auditExportHasNextPage}
+                          onPrevious={goToPreviousAuditExportPage}
+                          onNext={goToNextAuditExportPage}
+                          label="Audit exports"
+                        />
+                      </div>
                       <div className="mt-3 grid gap-3">
                         {(serviceAccountAuditExportsQuery.data?.items ?? []).length > 0 ? (
                           (serviceAccountAuditExportsQuery.data?.items ?? []).map((item) => (
@@ -1218,6 +1308,48 @@ function PaginationControls({
         type="button"
         onClick={() => onPageChange(page + 1)}
         disabled={page >= totalPages}
+        aria-label={`Next ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function CursorPaginationControls({
+  page,
+  hasPreviousPage,
+  hasNextPage,
+  onPrevious,
+  onNext,
+  label,
+}: {
+  page: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  label: string;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2 py-2">
+      <button
+        type="button"
+        onClick={onPrevious}
+        disabled={!hasPreviousPage}
+        aria-label={`Previous ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <span className="min-w-[84px] text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Page {page}
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={!hasNextPage}
         aria-label={`Next ${label} page`}
         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
