@@ -1,5 +1,7 @@
 SHELL := /bin/bash
 
+-include config/lago-baseline.env
+
 GO ?= go
 COMPOSE_FILE ?= docker-compose.postgres.yml
 DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha?sslmode=disable
@@ -14,6 +16,9 @@ BOOTSTRAP_LAGO_FOR_TESTS ?= 1
 CLEANUP_LAGO_ON_EXIT ?= 0
 VERIFY_LAGO_BACKEND_FOR_TESTS ?= 0
 LAGO_VERIFY_COMPOSE_FILE ?= docker-compose.dev.yml
+LAGO_RELEASE_LINE ?= release/v1.44.0-alpha.1
+LAGO_GIT_REF ?= be68660
+LAGO_COMPOSE_IMAGE_TAG ?= v1.43.0
 CHECK_GITHUB ?= 0
 RUN_GO_TESTS ?= 1
 RUN_TERRAFORM_VALIDATE ?= 0
@@ -31,10 +36,16 @@ LAGO_STAGING_BACKEND_IMAGE_OVERRIDE ?= 139831607173.dkr.ecr.us-east-1.amazonaws.
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-pricing-journey test-staging-subscription-journey test-staging-payment-setup-journey test-staging-browser-payment-setup-journey test-staging-access-invite-journey test-staging-customer-onboarding-journey test-staging-subscription-change-cancel-journey test-staging-usage-to-issued-invoice-journey test-staging-dunning-journey test-staging-replay-smoke test-staging-acceptance verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data cleanup-staging-flow-data-local lago-up lago-down lago-ps lago-verify lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install reloader-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-pricing-journey test-staging-subscription-journey test-staging-payment-setup-journey test-staging-browser-payment-setup-journey test-staging-access-invite-journey test-staging-customer-onboarding-journey test-staging-subscription-change-cancel-journey test-staging-usage-to-issued-invoice-journey test-staging-dunning-journey test-staging-replay-smoke test-staging-acceptance verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data cleanup-staging-flow-data-local lago-up lago-down lago-ps lago-verify lago-baseline lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install reloader-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
+
+lago-baseline: ## Print the Lago baseline used by integration CI and staging wiring
+	@printf 'LAGO_RELEASE_LINE=%s\n' '$(LAGO_RELEASE_LINE)'
+	@printf 'LAGO_GIT_REF=%s\n' '$(LAGO_GIT_REF)'
+	@printf 'LAGO_COMPOSE_IMAGE_TAG=%s\n' '$(LAGO_COMPOSE_IMAGE_TAG)'
+	@printf 'LAGO_STAGING_BACKEND_IMAGE_OVERRIDE=%s\n' '$(LAGO_STAGING_BACKEND_IMAGE_OVERRIDE)'
 
 fmt: ## Format Go code
 	@$(GO) fmt ./...
