@@ -19,11 +19,25 @@ bootstrap_lago="${BOOTSTRAP_LAGO_FOR_TESTS:-1}"
 lago_repo_path="${LAGO_REPO_PATH:-$repo_root/../lago}"
 lago_compose_file="${LAGO_COMPOSE_FILE:-docker-compose.yml}"
 lago_env_file="${LAGO_ENV_FILE:-$lago_repo_path/.env}"
+default_lago_env_file="$lago_repo_path/.env.development.default"
 cleanup_lago="${CLEANUP_LAGO_ON_EXIT:-0}"
 cleanup="${CLEANUP_ON_EXIT:-1}"
 verify_lago_backend="${VERIFY_LAGO_BACKEND_FOR_TESTS:-0}"
 lago_verify_compose_file="${LAGO_VERIFY_COMPOSE_FILE:-docker-compose.dev.yml}"
 debug_on_failure="${DEBUG_ON_FAILURE:-1}"
+
+if [[ ! -f "$lago_env_file" && -f "$default_lago_env_file" ]]; then
+  generated_lago_env_file="$(mktemp "${TMPDIR:-/tmp}/alpha-lago-env.XXXXXX")"
+  cp "$default_lago_env_file" "$generated_lago_env_file"
+  {
+    printf '\nSECRET_KEY_BASE=%s\n' "$(openssl rand -hex 32)"
+    printf 'LAGO_RSA_PRIVATE_KEY=%s\n' "$(openssl genrsa 2048 | openssl base64 -A)"
+    printf 'LAGO_ENCRYPTION_PRIMARY_KEY=%s\n' "$(openssl rand -hex 32)"
+    printf 'LAGO_ENCRYPTION_DETERMINISTIC_KEY=%s\n' "$(openssl rand -hex 32)"
+    printf 'LAGO_ENCRYPTION_KEY_DERIVATION_SALT=%s\n' "$(openssl rand -hex 32)"
+  } >>"$generated_lago_env_file"
+  lago_env_file="$generated_lago_env_file"
+fi
 
 lago_compose_args=()
 if [[ -f "$lago_env_file" ]]; then
@@ -84,6 +98,7 @@ resolve_lago_api_url_from_compose() {
 
 if [[ "$bootstrap_lago" == "1" ]]; then
   bootstrap_output="$(
+    LAGO_ENV_FILE="$lago_env_file" \
     LAGO_REPO_PATH="$lago_repo_path" \
     LAGO_COMPOSE_FILE="$lago_compose_file" \
     TEST_LAGO_API_URL="$test_lago_api_url" \

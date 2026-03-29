@@ -12,10 +12,24 @@ lago_org_user_email="${LAGO_ORG_USER_EMAIL:-alpha-test@getlago.local}"
 lago_org_user_password="${LAGO_ORG_USER_PASSWORD:-AlphaTest123!}"
 startup_lago_api_url="${test_lago_api_url:-http://localhost:3000}"
 lago_env_file="${LAGO_ENV_FILE:-$lago_repo_path/.env}"
+default_lago_env_file="$lago_repo_path/.env.development.default"
 
 if [[ ! -f "$lago_repo_path/$lago_compose_file" ]]; then
   echo "Lago compose file not found: $lago_repo_path/$lago_compose_file" >&2
   exit 1
+fi
+
+if [[ ! -f "$lago_env_file" && -f "$default_lago_env_file" ]]; then
+  generated_lago_env_file="$(mktemp "${TMPDIR:-/tmp}/alpha-lago-env.XXXXXX")"
+  cp "$default_lago_env_file" "$generated_lago_env_file"
+  {
+    printf '\nSECRET_KEY_BASE=%s\n' "$(openssl rand -hex 32)"
+    printf 'LAGO_RSA_PRIVATE_KEY=%s\n' "$(openssl genrsa 2048 | openssl base64 -A)"
+    printf 'LAGO_ENCRYPTION_PRIMARY_KEY=%s\n' "$(openssl rand -hex 32)"
+    printf 'LAGO_ENCRYPTION_DETERMINISTIC_KEY=%s\n' "$(openssl rand -hex 32)"
+    printf 'LAGO_ENCRYPTION_KEY_DERIVATION_SALT=%s\n' "$(openssl rand -hex 32)"
+  } >>"$generated_lago_env_file"
+  lago_env_file="$generated_lago_env_file"
 fi
 
 echo "Bootstrapping Lago from: $lago_repo_path/$lago_compose_file"
