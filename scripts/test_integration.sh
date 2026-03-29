@@ -73,15 +73,35 @@ if [[ -n "$lago_backend_image_override" ]]; then
   export LAGO_BACKEND_IMAGE_OVERRIDE="$lago_backend_image_override"
 fi
 
-if [[ -f "$repo_lago_env_file" ]] && ! grep -q '^LAGO_RSA_PRIVATE_KEY=' "$repo_lago_env_file"; then
-  {
-    printf '\nSECRET_KEY_BASE=%s\n' "$(openssl rand -hex 32)"
-    printf 'LAGO_RSA_PRIVATE_KEY=%s\n' "$(openssl genrsa 2048 | openssl base64 -A)"
-    printf 'LAGO_ENCRYPTION_PRIMARY_KEY=%s\n' "$(openssl rand -hex 32)"
-    printf 'LAGO_ENCRYPTION_DETERMINISTIC_KEY=%s\n' "$(openssl rand -hex 32)"
-    printf 'LAGO_ENCRYPTION_KEY_DERIVATION_SALT=%s\n' "$(openssl rand -hex 32)"
-  } >>"$repo_lago_env_file"
+if [[ ! -f "$repo_lago_env_file" ]]; then
+  : >"$repo_lago_env_file"
 fi
+
+set_env_var() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" "$repo_lago_env_file"; then
+    perl -0pi -e "s/^${key}=.*\$/${key}=${value}/m" "$repo_lago_env_file"
+  else
+    printf '%s=%s\n' "$key" "$value" >>"$repo_lago_env_file"
+  fi
+}
+
+ensure_non_empty_env_var() {
+  local key="$1"
+  local value="$2"
+  local current=""
+  current="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, "", $0); print $0; exit }' "$repo_lago_env_file")"
+  if [[ -z "$current" ]]; then
+    set_env_var "$key" "$value"
+  fi
+}
+
+ensure_non_empty_env_var "SECRET_KEY_BASE" "$(openssl rand -hex 32)"
+ensure_non_empty_env_var "LAGO_RSA_PRIVATE_KEY" "$(openssl genrsa 2048 | openssl base64 -A)"
+ensure_non_empty_env_var "LAGO_ENCRYPTION_PRIMARY_KEY" "$(openssl rand -hex 32)"
+ensure_non_empty_env_var "LAGO_ENCRYPTION_DETERMINISTIC_KEY" "$(openssl rand -hex 32)"
+ensure_non_empty_env_var "LAGO_ENCRYPTION_KEY_DERIVATION_SALT" "$(openssl rand -hex 32)"
 
 cleanup_fn() {
   if [[ "$cleanup" == "1" ]]; then
