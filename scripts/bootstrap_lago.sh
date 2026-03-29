@@ -14,6 +14,8 @@ startup_lago_api_url="${test_lago_api_url:-http://localhost:3000}"
 repo_lago_env_file="$lago_repo_path/.env"
 lago_env_file="${LAGO_ENV_FILE:-$repo_lago_env_file}"
 default_lago_env_file="$lago_repo_path/.env.development.default"
+lago_backend_image_override="${LAGO_BACKEND_IMAGE_OVERRIDE:-}"
+lago_compose_override_file=""
 
 if [[ ! -f "$lago_repo_path/$lago_compose_file" ]]; then
   echo "Lago compose file not found: $lago_repo_path/$lago_compose_file" >&2
@@ -42,11 +44,41 @@ if [[ -f "$repo_lago_env_file" ]] && ! grep -q '^LAGO_RSA_PRIVATE_KEY=' "$repo_l
   } >>"$repo_lago_env_file"
 fi
 
+cleanup_override_file() {
+  if [[ -n "$lago_compose_override_file" && -f "$lago_compose_override_file" ]]; then
+    rm -f "$lago_compose_override_file"
+  fi
+}
+trap cleanup_override_file EXIT
+
+compose_args=(-f "$lago_compose_file")
+
 echo "Bootstrapping Lago from: $lago_repo_path/$lago_compose_file"
 available_services="$(
   cd "$lago_repo_path"
-  docker compose -f "$lago_compose_file" config --services
+  docker compose "${compose_args[@]}" config --services
 )"
+
+if [[ -n "$lago_backend_image_override" ]]; then
+  lago_compose_override_file="$(mktemp /tmp/lago-compose-override.XXXXXX.yml)"
+  {
+    printf 'services:\n'
+    printf '  migrate:\n    image: %s\n' "$lago_backend_image_override"
+    if grep -qx "api" <<<"$available_services"; then
+      printf '  api:\n    image: %s\n' "$lago_backend_image_override"
+    fi
+    if grep -qx "api-worker" <<<"$available_services"; then
+      printf '  api-worker:\n    image: %s\n' "$lago_backend_image_override"
+    fi
+    if grep -qx "api-clock" <<<"$available_services"; then
+      printf '  api-clock:\n    image: %s\n' "$lago_backend_image_override"
+    fi
+    if grep -qx "clock" <<<"$available_services"; then
+      printf '  clock:\n    image: %s\n' "$lago_backend_image_override"
+    fi
+  } >"$lago_compose_override_file"
+  compose_args+=(-f "$lago_compose_override_file")
+fi
 
 has_service() {
   local name="$1"
@@ -78,7 +110,7 @@ discover_lago_api_url() {
   local port_line
   if ! port_line="$(
     cd "$lago_repo_path"
-    docker compose -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
+    docker compose "${compose_args[@]}" port api 3000 2>/dev/null | head -n1
   )"; then
     return 1
   fi
@@ -91,7 +123,7 @@ discover_lago_api_url() {
 
 (
   cd "$lago_repo_path"
-  docker compose -f "$lago_compose_file" down --remove-orphans >/dev/null 2>&1 || true
+  docker compose "${compose_args[@]}" down --remove-orphans >/dev/null 2>&1 || true
 )
 
 (
@@ -102,7 +134,7 @@ discover_lago_api_url() {
   LAGO_ORG_USER_EMAIL="$lago_org_user_email" \
   LAGO_ORG_USER_PASSWORD="$lago_org_user_password" \
   LAGO_ORG_API_KEY="$test_lago_api_key" \
-  docker compose -f "$lago_compose_file" up -d --force-recreate "${startup_services[@]}"
+  docker compose "${compose_args[@]}" up -d --force-recreate "${startup_services[@]}"
 )
 
 resolved_lago_api_url="$test_lago_api_url"

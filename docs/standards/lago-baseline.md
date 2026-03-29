@@ -12,9 +12,13 @@ If someone asks "what Lago do we use?", answer from that file.
   - `lago-fork-v1.44.0-alpha.1`
 - staging backend image:
   - `139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api:lago-fork-v1.44.0-alpha.1`
-- CI integration ref on the same line:
+- CI integration backend image:
+  - `139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api:lago-fork-v1.44.0-alpha.1`
+- CI integration ref for compose/scripts on the same line:
   - `release/v1.44.0-alpha.1`
   - ref `be68660`
+
+Deep CI pulls the Lago backend image from ECR and still uses the pinned Lago repo ref for compose/scripts.
 
 ## Rule
 
