@@ -108,6 +108,7 @@ jobs:
       TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
       TEST_TEMPORAL_NAMESPACE: default
       TEST_LAGO_API_KEY: lago_alpha_test_api_key
+      LAGO_GIT_REF: be68660
       BOOTSTRAP_LAGO_FOR_TESTS: 1
       CLEANUP_LAGO_ON_EXIT: 1
       CLEANUP_ON_EXIT: 1
@@ -116,7 +117,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout Lago backend
-        run: git clone --depth 1 https://github.com/getlago/lago.git "$GITHUB_WORKSPACE/lago"
+        run: |
+          git clone https://github.com/getlago/lago.git "$GITHUB_WORKSPACE/lago"
+          cd "$GITHUB_WORKSPACE/lago"
+          git checkout "$LAGO_GIT_REF"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -155,6 +159,7 @@ jobs:
       TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
       TEST_TEMPORAL_NAMESPACE: default
       TEST_LAGO_API_KEY: lago_alpha_test_api_key
+      LAGO_GIT_REF: be68660
       RUN_LARGE_REPLAY_DATASET: 1
       LARGE_REPLAY_EVENT_COUNT: 2000
       LARGE_REPLAY_MAX_MISMATCH_ROWS: 0
@@ -167,7 +172,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout Lago backend
-        run: git clone --depth 1 https://github.com/getlago/lago.git "$GITHUB_WORKSPACE/lago"
+        run: |
+          git clone https://github.com/getlago/lago.git "$GITHUB_WORKSPACE/lago"
+          cd "$GITHUB_WORKSPACE/lago"
+          git checkout "$LAGO_GIT_REF"
 
       - name: Setup Go
         uses: actions/setup-go@v5
