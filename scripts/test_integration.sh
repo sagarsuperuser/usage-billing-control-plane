@@ -2,6 +2,11 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+baseline_file="$repo_root/config/lago-baseline.env"
+if [[ -f "$baseline_file" ]]; then
+  # shellcheck disable=SC1090
+  source "$baseline_file"
+fi
 compose_file="${COMPOSE_FILE:-docker-compose.postgres.yml}"
 test_database_url="${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable}"
 test_s3_endpoint="${TEST_S3_ENDPOINT:-http://localhost:19000}"
@@ -18,14 +23,39 @@ run_migrations_integration_test="${INTEGRATION_RUN_MIGRATIONS_TEST:-1}"
 bootstrap_lago="${BOOTSTRAP_LAGO_FOR_TESTS:-1}"
 lago_repo_path="${LAGO_REPO_PATH:-$repo_root/../lago}"
 lago_compose_file="${LAGO_COMPOSE_FILE:-docker-compose.yml}"
-repo_lago_env_file="$lago_repo_path/.env"
-lago_env_file="${LAGO_ENV_FILE:-$repo_lago_env_file}"
-default_lago_env_file="$lago_repo_path/.env.development.default"
 cleanup_lago="${CLEANUP_LAGO_ON_EXIT:-0}"
 cleanup="${CLEANUP_ON_EXIT:-1}"
 verify_lago_backend="${VERIFY_LAGO_BACKEND_FOR_TESTS:-0}"
 lago_verify_compose_file="${LAGO_VERIFY_COMPOSE_FILE:-docker-compose.dev.yml}"
 debug_on_failure="${DEBUG_ON_FAILURE:-1}"
+lago_backend_image_override="${LAGO_BACKEND_IMAGE_OVERRIDE:-${LAGO_STAGING_BACKEND_IMAGE_OVERRIDE:-}}"
+lago_compose_path=""
+lago_stack_root=""
+repo_lago_env_file=""
+lago_env_file=""
+default_lago_env_file=""
+
+if [[ "$lago_compose_file" = /* ]]; then
+  lago_compose_path="$lago_compose_file"
+elif [[ -f "$lago_repo_path/$lago_compose_file" ]]; then
+  lago_compose_path="$lago_repo_path/$lago_compose_file"
+elif [[ -f "$repo_root/$lago_compose_file" ]]; then
+  lago_compose_path="$repo_root/$lago_compose_file"
+fi
+
+if [[ -z "$lago_compose_path" || ! -f "$lago_compose_path" ]]; then
+  echo "Lago compose file not found: $lago_compose_file" >&2
+  exit 1
+fi
+
+lago_stack_root="$(cd "$(dirname "$lago_compose_path")" && pwd)"
+repo_lago_env_file="$lago_stack_root/.env"
+lago_env_file="${LAGO_ENV_FILE:-$repo_lago_env_file}"
+default_lago_env_file="$lago_stack_root/.env.development.default"
+
+if [[ ! -f "$default_lago_env_file" && -f "$lago_repo_path/.env.development.default" ]]; then
+  default_lago_env_file="$lago_repo_path/.env.development.default"
+fi
 
 if [[ ! -f "$repo_lago_env_file" ]]; then
   if [[ -f "$lago_env_file" && "$lago_env_file" != "$repo_lago_env_file" ]]; then
@@ -37,6 +67,10 @@ fi
 
 if [[ ! -f "$repo_lago_env_file" && -f "$default_lago_env_file" ]]; then
   cp "$default_lago_env_file" "$repo_lago_env_file"
+fi
+
+if [[ -n "$lago_backend_image_override" ]]; then
+  export LAGO_BACKEND_IMAGE_OVERRIDE="$lago_backend_image_override"
 fi
 
 if [[ -f "$repo_lago_env_file" ]] && ! grep -q '^LAGO_RSA_PRIVATE_KEY=' "$repo_lago_env_file"; then
@@ -54,7 +88,7 @@ cleanup_fn() {
     docker compose -f "$repo_root/$compose_file" down >/dev/null 2>&1 || true
   fi
   if [[ "$cleanup_lago" == "1" && "$bootstrap_lago" == "1" ]]; then
-    (cd "$lago_repo_path" && docker compose -f "$lago_compose_file" down >/dev/null 2>&1 || true)
+    (cd "$lago_stack_root" && docker compose -f "$lago_compose_path" down >/dev/null 2>&1 || true)
   fi
 }
 trap cleanup_fn EXIT
@@ -74,11 +108,11 @@ dump_diagnostics_on_error() {
   if [[ "$bootstrap_lago" == "1" ]]; then
     echo "---- lago compose ps ----" >&2
     (
-      cd "$lago_repo_path" && docker compose -f "$lago_compose_file" ps
+      cd "$lago_stack_root" && docker compose -f "$lago_compose_path" ps
     ) >&2 || true
     echo "---- lago compose logs (tail=200) ----" >&2
     (
-      cd "$lago_repo_path" && docker compose -f "$lago_compose_file" logs --tail=200
+      cd "$lago_stack_root" && docker compose -f "$lago_compose_path" logs --tail=200
     ) >&2 || true
   fi
 }
@@ -89,8 +123,8 @@ cd "$repo_root"
 resolve_lago_api_url_from_compose() {
   local port_line
   if ! port_line="$(
-    cd "$lago_repo_path"
-    docker compose -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
+    cd "$lago_stack_root"
+    docker compose -f "$lago_compose_path" port api 3000 2>/dev/null | head -n1
   )"; then
     return 1
   fi
@@ -104,7 +138,7 @@ resolve_lago_api_url_from_compose() {
 if [[ "$bootstrap_lago" == "1" ]]; then
   bootstrap_output="$(
     LAGO_REPO_PATH="$lago_repo_path" \
-    LAGO_COMPOSE_FILE="$lago_compose_file" \
+    LAGO_COMPOSE_FILE="$lago_compose_path" \
     TEST_LAGO_API_URL="$test_lago_api_url" \
     TEST_LAGO_API_KEY="$test_lago_api_key" \
     bash "$repo_root/scripts/bootstrap_lago.sh"

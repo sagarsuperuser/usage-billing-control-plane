@@ -2,6 +2,11 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+baseline_file="$repo_root/config/lago-baseline.env"
+if [[ -f "$baseline_file" ]]; then
+  # shellcheck disable=SC1090
+  source "$baseline_file"
+fi
 lago_repo_path="${LAGO_REPO_PATH:-$repo_root/../lago}"
 lago_compose_file="${LAGO_COMPOSE_FILE:-docker-compose.yml}"
 start_lago_temporal="${START_LAGO_TEMPORAL:-0}"
@@ -11,15 +16,34 @@ lago_org_name="${LAGO_ORG_NAME:-Lago Alpha Test Org}"
 lago_org_user_email="${LAGO_ORG_USER_EMAIL:-alpha-test@getlago.local}"
 lago_org_user_password="${LAGO_ORG_USER_PASSWORD:-AlphaTest123!}"
 startup_lago_api_url="${test_lago_api_url:-http://localhost:3000}"
-repo_lago_env_file="$lago_repo_path/.env"
-lago_env_file="${LAGO_ENV_FILE:-$repo_lago_env_file}"
-default_lago_env_file="$lago_repo_path/.env.development.default"
-lago_backend_image_override="${LAGO_BACKEND_IMAGE_OVERRIDE:-}"
+lago_backend_image_override="${LAGO_BACKEND_IMAGE_OVERRIDE:-${LAGO_STAGING_BACKEND_IMAGE_OVERRIDE:-}}"
 lago_compose_override_file=""
+lago_compose_path=""
+lago_stack_root=""
+repo_lago_env_file=""
+lago_env_file=""
+default_lago_env_file=""
 
-if [[ ! -f "$lago_repo_path/$lago_compose_file" ]]; then
-  echo "Lago compose file not found: $lago_repo_path/$lago_compose_file" >&2
+if [[ "$lago_compose_file" = /* ]]; then
+  lago_compose_path="$lago_compose_file"
+elif [[ -f "$lago_repo_path/$lago_compose_file" ]]; then
+  lago_compose_path="$lago_repo_path/$lago_compose_file"
+elif [[ -f "$repo_root/$lago_compose_file" ]]; then
+  lago_compose_path="$repo_root/$lago_compose_file"
+fi
+
+if [[ -z "$lago_compose_path" || ! -f "$lago_compose_path" ]]; then
+  echo "Lago compose file not found: $lago_compose_file" >&2
   exit 1
+fi
+
+lago_stack_root="$(cd "$(dirname "$lago_compose_path")" && pwd)"
+repo_lago_env_file="$lago_stack_root/.env"
+lago_env_file="${LAGO_ENV_FILE:-$repo_lago_env_file}"
+default_lago_env_file="$lago_stack_root/.env.development.default"
+
+if [[ ! -f "$default_lago_env_file" && -f "$lago_repo_path/.env.development.default" ]]; then
+  default_lago_env_file="$lago_repo_path/.env.development.default"
 fi
 
 if [[ ! -f "$repo_lago_env_file" ]]; then
@@ -51,11 +75,15 @@ cleanup_override_file() {
 }
 trap cleanup_override_file EXIT
 
-compose_args=(-f "$lago_compose_file")
+if [[ -n "$lago_backend_image_override" ]]; then
+  export LAGO_BACKEND_IMAGE_OVERRIDE="$lago_backend_image_override"
+fi
 
-echo "Bootstrapping Lago from: $lago_repo_path/$lago_compose_file"
+compose_args=(-f "$lago_compose_path")
+
+echo "Bootstrapping Lago from: $lago_compose_path"
 available_services="$(
-  cd "$lago_repo_path"
+  cd "$lago_stack_root"
   docker compose "${compose_args[@]}" config --services
 )"
 
@@ -109,7 +137,7 @@ fi
 discover_lago_api_url() {
   local port_line
   if ! port_line="$(
-    cd "$lago_repo_path"
+    cd "$lago_stack_root"
     docker compose "${compose_args[@]}" port api 3000 2>/dev/null | head -n1
   )"; then
     return 1
@@ -122,12 +150,12 @@ discover_lago_api_url() {
 }
 
 (
-  cd "$lago_repo_path"
+  cd "$lago_stack_root"
   docker compose "${compose_args[@]}" down --remove-orphans >/dev/null 2>&1 || true
 )
 
 (
-  cd "$lago_repo_path"
+  cd "$lago_stack_root"
   LAGO_API_URL="$startup_lago_api_url" \
   LAGO_CREATE_ORG=true \
   LAGO_ORG_NAME="$lago_org_name" \

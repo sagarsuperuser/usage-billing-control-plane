@@ -9,7 +9,7 @@ TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha_tes
 TEST_TEMPORAL_ADDRESS ?= 127.0.0.1:17233
 TEST_TEMPORAL_NAMESPACE ?= default
 LAGO_REPO_PATH ?= ../lago
-LAGO_COMPOSE_FILE ?= docker-compose.yml
+LAGO_COMPOSE_FILE ?= fixtures/lago-ci/docker-compose.yml
 TEST_LAGO_API_URL ?=
 TEST_LAGO_API_KEY ?= lago_alpha_test_api_key
 BOOTSTRAP_LAGO_FOR_TESTS ?= 1
@@ -17,8 +17,6 @@ CLEANUP_LAGO_ON_EXIT ?= 0
 VERIFY_LAGO_BACKEND_FOR_TESTS ?= 0
 LAGO_VERIFY_COMPOSE_FILE ?= docker-compose.dev.yml
 LAGO_BASELINE ?= lago-fork-v1.44.0-alpha.1
-LAGO_BASELINE_RELEASE_LINE ?= release/v1.44.0-alpha.1
-LAGO_BASELINE_GIT_REF ?= be68660
 CHECK_GITHUB ?= 0
 RUN_GO_TESTS ?= 1
 RUN_TERRAFORM_VALIDATE ?= 0
@@ -44,8 +42,7 @@ help: ## Show available commands
 lago-baseline: ## Print the Lago baseline used by integration CI and staging wiring
 	@printf 'LAGO_BASELINE=%s\n' '$(LAGO_BASELINE)'
 	@printf 'LAGO_STAGING_BACKEND_IMAGE_OVERRIDE=%s\n' '$(LAGO_STAGING_BACKEND_IMAGE_OVERRIDE)'
-	@printf 'LAGO_BASELINE_RELEASE_LINE=%s\n' '$(LAGO_BASELINE_RELEASE_LINE)'
-	@printf 'LAGO_BASELINE_GIT_REF=%s\n' '$(LAGO_BASELINE_GIT_REF)'
+	@printf 'LAGO_COMPOSE_FILE=%s\n' '$(LAGO_COMPOSE_FILE)'
 
 fmt: ## Format Go code
 	@$(GO) fmt ./...
