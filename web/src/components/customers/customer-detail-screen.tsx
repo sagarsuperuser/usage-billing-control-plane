@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
@@ -43,9 +43,15 @@ function tone(status?: string): string {
 
 export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
-  const [profileDraft, setProfileDraft] = useState<CustomerBillingProfileInput>(emptyBillingProfileDraft());
-  const [profileDraftSourceKey, setProfileDraftSourceKey] = useState("");
-  const [profileFlash, setProfileFlash] = useState<string | null>(null);
+  const [profileDraftState, setProfileDraftState] = useState<{
+    sourceKey: string;
+    value: CustomerBillingProfileInput;
+    flash: string | null;
+  }>({
+    sourceKey: "",
+    value: emptyBillingProfileDraft(),
+    flash: null,
+  });
 
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, externalID],
@@ -104,7 +110,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
         body: profileDraft,
       }),
     onSuccess: async () => {
-      setProfileFlash("Billing profile saved.");
+      updateProfileFlash("Billing profile saved.");
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch(), billingProfileQuery.refetch()]);
     },
   });
@@ -128,17 +134,35 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const latestRequestedCheckoutURL = requestSetupMutation.data?.checkout_url || resendSetupMutation.data?.checkout_url;
   const profileBaseline = billingProfileDraftFromProfile(billingProfile, customer?.email);
   const profileSourceKey = [externalID, billingProfile?.updated_at || "", billingProfile?.last_synced_at || "", customer?.email || ""].join(":");
+  const profileDraft =
+    profileDraftState.sourceKey === profileSourceKey ? profileDraftState.value : profileBaseline;
+  const profileFlash =
+    profileDraftState.sourceKey === profileSourceKey ? profileDraftState.flash : null;
   const billingProfileDirty = serializeBillingProfileDraft(profileDraft) !== serializeBillingProfileDraft(profileBaseline);
   const billingProfileReady = requiredBillingProfileFields(profileDraft).every(Boolean);
 
-  useEffect(() => {
-    if (!profileSourceKey || profileSourceKey === profileDraftSourceKey) {
-      return;
-    }
-    setProfileDraft(profileBaseline);
-    setProfileDraftSourceKey(profileSourceKey);
-    setProfileFlash(null);
-  }, [profileBaseline, profileDraftSourceKey, profileSourceKey]);
+  const updateProfileDraft = (
+    next:
+      | CustomerBillingProfileInput
+      | ((current: CustomerBillingProfileInput) => CustomerBillingProfileInput),
+  ) => {
+    setProfileDraftState((current) => {
+      const currentValue = current.sourceKey === profileSourceKey ? current.value : profileBaseline;
+      return {
+        sourceKey: profileSourceKey,
+        value: typeof next === "function" ? next(currentValue) : next,
+        flash: null,
+      };
+    });
+  };
+
+  const updateProfileFlash = (message: string | null) => {
+    setProfileDraftState((current) => ({
+      sourceKey: profileSourceKey,
+      value: current.sourceKey === profileSourceKey ? current.value : profileBaseline,
+      flash: message,
+    }));
+  };
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -245,47 +269,47 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
 
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    <InputField label="Legal name" value={profileDraft.legal_name || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, legal_name: value }))} placeholder="Acme Billing LLC" />
-                    <InputField label="Billing email" value={profileDraft.email || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, email: value }))} placeholder="billing@acme.test" />
-                    <InputField label="Phone" value={profileDraft.phone || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, phone: value }))} placeholder="+1 415 555 0100" />
-                    <InputField label="Tax identifier" value={profileDraft.tax_identifier || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, tax_identifier: value }))} placeholder="VAT / GST / EIN" />
+                    <InputField label="Legal name" value={profileDraft.legal_name || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, legal_name: value }))} placeholder="Acme Billing LLC" />
+                    <InputField label="Billing email" value={profileDraft.email || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, email: value }))} placeholder="billing@acme.test" />
+                    <InputField label="Phone" value={profileDraft.phone || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, phone: value }))} placeholder="+1 415 555 0100" />
+                    <InputField label="Tax identifier" value={profileDraft.tax_identifier || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, tax_identifier: value }))} placeholder="VAT / GST / EIN" />
                     <InputField
                       label="Tax codes"
                       value={(profileDraft.tax_codes || []).join(", ")}
-                      onChange={(value) => setProfileDraft((current) => ({ ...current, tax_codes: parseCodeList(value) }))}
+                      onChange={(value) => updateProfileDraft((current) => ({ ...current, tax_codes: parseCodeList(value) }))}
                       placeholder="GST_IN, VAT_DE"
                     />
                     <InputField
                       label="Billing address line 1"
                       value={profileDraft.billing_address_line1 || ""}
-                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_address_line1: value }))}
+                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_address_line1: value }))}
                       placeholder="1 Billing Street"
                     />
                     <InputField
                       label="Billing address line 2"
                       value={profileDraft.billing_address_line2 || ""}
-                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_address_line2: value }))}
+                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_address_line2: value }))}
                       placeholder="Suite 200"
                     />
-                    <InputField label="Billing city" value={profileDraft.billing_city || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, billing_city: value }))} placeholder="Bengaluru" />
-                    <InputField label="Billing state" value={profileDraft.billing_state || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, billing_state: value }))} placeholder="Karnataka" />
+                    <InputField label="Billing city" value={profileDraft.billing_city || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_city: value }))} placeholder="Bengaluru" />
+                    <InputField label="Billing state" value={profileDraft.billing_state || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_state: value }))} placeholder="Karnataka" />
                     <InputField
                       label="Billing postal code"
                       value={profileDraft.billing_postal_code || ""}
-                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_postal_code: value }))}
+                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_postal_code: value }))}
                       placeholder="560001"
                     />
                     <InputField
                       label="Billing country"
                       value={profileDraft.billing_country || ""}
-                      onChange={(value) => setProfileDraft((current) => ({ ...current, billing_country: value }))}
+                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_country: value }))}
                       placeholder="IN"
                     />
-                    <InputField label="Currency" value={profileDraft.currency || ""} onChange={(value) => setProfileDraft((current) => ({ ...current, currency: value }))} placeholder="USD" />
+                    <InputField label="Currency" value={profileDraft.currency || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, currency: value }))} placeholder="USD" />
                     <InputField
                       label="Billing connection code"
                       value={profileDraft.provider_code || ""}
-                      onChange={(value) => setProfileDraft((current) => ({ ...current, provider_code: value }))}
+                      onChange={(value) => updateProfileDraft((current) => ({ ...current, provider_code: value }))}
                       placeholder="stripe_default"
                     />
                   </div>
@@ -309,7 +333,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setProfileFlash(null);
+                        updateProfileFlash(null);
                         billingProfileMutation.mutate();
                       }}
                       disabled={!canWrite || !csrfToken || billingProfileMutation.isPending || !billingProfileDirty}
@@ -321,8 +345,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setProfileDraft(profileBaseline);
-                        setProfileFlash(null);
+                        updateProfileDraft(profileBaseline);
                       }}
                       disabled={!billingProfileDirty || billingProfileMutation.isPending}
                       className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -72,24 +72,16 @@ export function UsageEventsScreen() {
     enabled: isAuthenticated && scope === "tenant",
   });
 
-  const items = query.data?.items || [];
-  const selectedEvent = items.find((item) => item.id === selectedEventID) ?? null;
+  const items = query.data?.items ?? [];
+  const selectedEventIDValue =
+    selectedEventID && items.some((item) => item.id === selectedEventID) ? selectedEventID : "";
+  const selectedEvent = items.find((item) => item.id === selectedEventIDValue) ?? null;
   const stats = useMemo(() => ({
     visible: items.length,
     quantity: items.reduce((sum, item) => sum + item.quantity, 0),
     customers: new Set(items.map((item) => item.customer_id)).size,
     meters: new Set(items.map((item) => item.meter_id)).size,
   }), [items]);
-
-  useEffect(() => {
-    if (items.length === 0) {
-      setSelectedEventID("");
-      return;
-    }
-    if (selectedEventID && !items.some((item) => item.id === selectedEventID)) {
-      setSelectedEventID("");
-    }
-  }, [items, selectedEventID]);
 
   const applyFilters = () => {
     setSubmitted(filters);
@@ -239,7 +231,7 @@ export function UsageEventsScreen() {
                     <UsageEventRow
                       key={item.id}
                       item={item}
-                      selected={item.id === selectedEventID}
+                      selected={item.id === selectedEventIDValue}
                       onSelect={() => setSelectedEventID(item.id)}
                     />
                   ))}

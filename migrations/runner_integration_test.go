@@ -23,8 +23,17 @@ func TestRunnerAppliesMigrationsIdempotently(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(`DROP TABLE IF EXISTS schema_migrations, lago_webhook_events, invoice_payment_status_views, api_key_audit_export_jobs, api_key_audit_events, api_keys, replay_jobs, billed_entries, usage_events, meters, rating_rule_versions CASCADE`); err != nil {
-		t.Fatalf("drop existing tables: %v", err)
+	if _, err := db.Exec(`DROP SCHEMA IF EXISTS public CASCADE`); err != nil {
+		t.Fatalf("drop public schema: %v", err)
+	}
+	if _, err := db.Exec(`CREATE SCHEMA public`); err != nil {
+		t.Fatalf("create public schema: %v", err)
+	}
+	if _, err := db.Exec(`GRANT ALL ON SCHEMA public TO postgres`); err != nil {
+		t.Fatalf("grant public schema to postgres: %v", err)
+	}
+	if _, err := db.Exec(`GRANT ALL ON SCHEMA public TO public`); err != nil {
+		t.Fatalf("grant public schema to public: %v", err)
 	}
 
 	runner := migrations.NewRunner(db)

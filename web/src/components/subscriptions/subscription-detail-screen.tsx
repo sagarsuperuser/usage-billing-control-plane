@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CreditCard, LoaderCircle, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -91,22 +91,20 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
   const setupActionLabel = showResend ? "Resend payment setup" : "Request payment setup";
   const latestSetupCheckoutURL = resendMutation.data?.checkout_url || requestMutation.data?.checkout_url;
 
-  useEffect(() => {
-    if (subscription?.plan_id) {
-      setSelectedPlanID(subscription.plan_id);
-    }
-  }, [subscription?.id, subscription?.plan_id]);
-
   const activePlans = useMemo(
     () => (plansQuery.data ?? []).filter((plan) => plan.status === "active"),
     [plansQuery.data],
   );
-  const selectedPlan = activePlans.find((plan) => plan.id === selectedPlanID) ?? null;
+  const selectedPlanIDValue =
+    selectedPlanID && activePlans.some((plan) => plan.id === selectedPlanID)
+      ? selectedPlanID
+      : subscription?.plan_id || "";
+  const selectedPlan = activePlans.find((plan) => plan.id === selectedPlanIDValue) ?? null;
   const canChangePlan = Boolean(
     subscription &&
       subscription.status !== "archived" &&
-      selectedPlanID.trim().length > 0 &&
-      selectedPlanID !== subscription.plan_id,
+      selectedPlanIDValue.trim().length > 0 &&
+      selectedPlanIDValue !== subscription.plan_id,
   );
   const canArchive = Boolean(subscription && subscription.status !== "archived");
 
@@ -195,7 +193,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                       <select
                         id="subscription-plan-select"
                         data-testid="subscription-plan-select"
-                        value={selectedPlanID}
+                        value={selectedPlanIDValue}
                         onChange={(event) => setSelectedPlanID(event.target.value)}
                         disabled={!canWrite || !csrfToken || updateMutation.isPending || plansQuery.isLoading || subscription.status === "archived"}
                         className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50"
@@ -213,7 +211,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                         <button
                           type="button"
                           data-testid="subscription-change-plan"
-                          onClick={() => updateMutation.mutate({ plan_id: selectedPlanID })}
+                          onClick={() => updateMutation.mutate({ plan_id: selectedPlanIDValue })}
                           disabled={!canWrite || !csrfToken || updateMutation.isPending || !canChangePlan}
                           className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >

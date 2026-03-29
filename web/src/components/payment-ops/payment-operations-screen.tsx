@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import {
   AlertCircle,
   ChevronLeft,
@@ -196,7 +196,12 @@ export function PaymentOperationsScreen() {
   const attentionRequiredCount = summary?.attention_required_count ?? 0;
   const staleAttentionCount = summary?.stale_attention_required ?? 0;
   const selectedItem = items.find((item) => item.invoice_id === selectedInvoiceID);
-  const selectedEvent = (eventsQuery.data?.items || []).find((item) => item.id === selectedEventID) ?? null;
+  const timelineItems = eventsQuery.data?.items ?? [];
+  const selectedEventIDValue =
+    timelineOpen && selectedEventID && timelineItems.some((item) => item.id === selectedEventID)
+      ? selectedEventID
+      : "";
+  const selectedEvent = timelineItems.find((item) => item.id === selectedEventIDValue) ?? null;
 
   const canGoNextStatuses = items.length === statusLimit;
   const canGoPrevStatuses = statusOffset > 0;
@@ -210,19 +215,6 @@ export function PaymentOperationsScreen() {
     setSelectedEventID("");
     setTimelineOpen(true);
   };
-
-  useEffect(() => {
-    const items = eventsQuery.data?.items || [];
-    if (!timelineOpen || items.length === 0) {
-      if (!timelineOpen) {
-        setSelectedEventID("");
-      }
-      return;
-    }
-    if (selectedEventID && !items.some((item) => item.id === selectedEventID)) {
-      setSelectedEventID("");
-    }
-  }, [eventsQuery.data, selectedEventID, timelineOpen]);
 
   const resetStatusOffset = () => setStatusOffset(0);
 

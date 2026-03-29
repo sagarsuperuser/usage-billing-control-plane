@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -80,17 +80,9 @@ export function InvoiceExplainabilityScreen() {
   });
 
   const lineItems = explainabilityQuery.data?.line_items ?? [];
-  const selectedLineItem = lineItems.find((item) => item.fee_id === selectedLineItemID) ?? null;
-
-  useEffect(() => {
-    if (lineItems.length === 0) {
-      setSelectedLineItemID("");
-      return;
-    }
-    if (selectedLineItemID && !lineItems.some((item) => item.fee_id === selectedLineItemID)) {
-      setSelectedLineItemID("");
-    }
-  }, [lineItems, selectedLineItemID]);
+  const selectedLineItemIDValue =
+    selectedLineItemID && lineItems.some((item) => item.fee_id === selectedLineItemID) ? selectedLineItemID : "";
+  const selectedLineItem = lineItems.find((item) => item.fee_id === selectedLineItemIDValue) ?? null;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">

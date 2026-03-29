@@ -1283,15 +1283,20 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	}
 	orgFiltered := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?organization_id=org_test_2", "tenant-a-reader", http.StatusOK)
 	orgFilteredItems := listItemsFromResponse(t, orgFiltered)
-	if len(orgFilteredItems) != 1 {
-		t.Fatalf("expected one row for organization filter org_test_2, got %d", len(orgFilteredItems))
+	if len(orgFilteredItems) != 0 {
+		t.Fatalf("expected tenant_a to see no rows for organization filter org_test_2, got %d", len(orgFilteredItems))
 	}
-	orgFilteredRow, ok := orgFilteredItems[0].(map[string]any)
+	tenantBOrgFiltered := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?organization_id=org_test_2", "tenant-b-reader", http.StatusOK)
+	tenantBOrgFilteredItems := listItemsFromResponse(t, tenantBOrgFiltered)
+	if len(tenantBOrgFilteredItems) != 1 {
+		t.Fatalf("expected tenant_b to see one row for organization filter org_test_2, got %d", len(tenantBOrgFilteredItems))
+	}
+	orgFilteredRow, ok := tenantBOrgFilteredItems[0].(map[string]any)
 	if !ok {
-		t.Fatalf("expected organization filtered row to be object")
+		t.Fatalf("expected tenant_b organization filtered row to be object")
 	}
 	if got, _ := orgFilteredRow["invoice_id"].(string); got != "inv_999" {
-		t.Fatalf("expected org_test_2 row invoice_id inv_999, got %q", got)
+		t.Fatalf("expected tenant_b org_test_2 row invoice_id inv_999, got %q", got)
 	}
 	ascendingList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?sort_by=last_event_at&order=asc&limit=1", "tenant-a-reader", http.StatusOK)
 	ascendingItems := listItemsFromResponse(t, ascendingList)
@@ -1302,8 +1307,8 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected ascending row to be object")
 	}
-	if got, _ := ascendingRow["invoice_id"].(string); got != "inv_999" {
-		t.Fatalf("expected ascending first row invoice_id inv_999, got %q", got)
+	if got, _ := ascendingRow["invoice_id"].(string); got != "inv_123" {
+		t.Fatalf("expected ascending first row invoice_id inv_123, got %q", got)
 	}
 	descendingList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?sort_by=last_event_at&order=desc&limit=1", "tenant-a-reader", http.StatusOK)
 	descendingItems := listItemsFromResponse(t, descendingList)
@@ -1327,15 +1332,15 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	}
 	overdueList := getJSON(t, ts.URL+"/v1/invoice-payment-statuses?payment_overdue=true", "tenant-a-reader", http.StatusOK)
 	overdueItems := listItemsFromResponse(t, overdueList)
-	if len(overdueItems) != 1 {
-		t.Fatalf("expected one currently overdue payment row (inv_999), got %d", len(overdueItems))
+	if len(overdueItems) != 0 {
+		t.Fatalf("expected tenant_a to see no currently overdue payment rows, got %d", len(overdueItems))
 	}
 	summary := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary", "tenant-a-reader", http.StatusOK)
-	if got, _ := summary["total_invoices"].(float64); int(got) != 2 {
-		t.Fatalf("expected summary total_invoices=2, got %v", summary["total_invoices"])
+	if got, _ := summary["total_invoices"].(float64); int(got) != 1 {
+		t.Fatalf("expected summary total_invoices=1, got %v", summary["total_invoices"])
 	}
-	if got, _ := summary["attention_required_count"].(float64); int(got) != 1 {
-		t.Fatalf("expected summary attention_required_count=1, got %v", summary["attention_required_count"])
+	if got, _ := summary["attention_required_count"].(float64); int(got) != 0 {
+		t.Fatalf("expected summary attention_required_count=0, got %v", summary["attention_required_count"])
 	}
 	paymentStatusCounts, ok := summary["payment_status_counts"].(map[string]any)
 	if !ok {
@@ -1344,22 +1349,22 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	if got, _ := paymentStatusCounts["succeeded"].(float64); int(got) != 1 {
 		t.Fatalf("expected summary payment_status_counts.succeeded=1, got %v", paymentStatusCounts["succeeded"])
 	}
-	if got, _ := paymentStatusCounts["failed"].(float64); int(got) != 1 {
-		t.Fatalf("expected summary payment_status_counts.failed=1, got %v", paymentStatusCounts["failed"])
+	if got, exists := paymentStatusCounts["failed"]; exists && int(got.(float64)) != 0 {
+		t.Fatalf("expected summary payment_status_counts.failed to be absent or 0, got %v", got)
 	}
 
 	var staleSummary map[string]any
 	staleMatched := false
 	for attempt := 0; attempt < 30; attempt++ {
 		staleSummary = getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary?stale_after_sec=1", "tenant-a-reader", http.StatusOK)
-		if got, _ := staleSummary["stale_attention_required"].(float64); int(got) == 1 {
+		if got, _ := staleSummary["stale_attention_required"].(float64); int(got) == 0 {
 			staleMatched = true
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	if !staleMatched {
-		t.Fatalf("expected stale summary stale_attention_required=1, got %v", staleSummary["stale_attention_required"])
+		t.Fatalf("expected stale summary stale_attention_required=0, got %v", staleSummary["stale_attention_required"])
 	}
 	badSummary := getJSON(t, ts.URL+"/v1/invoice-payment-statuses/summary?stale_after_sec=-1", "tenant-a-reader", http.StatusBadRequest)
 	if got, _ := badSummary["error"].(string); !strings.Contains(got, "stale_after_sec must be >= 0") {
@@ -1497,9 +1502,9 @@ func TestTenantIsolationAcrossAPIKeys(t *testing.T) {
 		"customer_id": "cust_tenant_b",
 		"meter_id":    meterID,
 		"quantity":    1,
-	}, "tenant-b-writer", http.StatusNotFound)
-	if usageErr["error"] == nil {
-		t.Fatalf("expected tenant isolation validation error")
+	}, "tenant-b-writer", http.StatusBadRequest)
+	if got, _ := usageErr["error"].(string); !strings.Contains(got, "meter not found") {
+		t.Fatalf("expected tenant isolation meter not found validation error, got %q", got)
 	}
 }
 

@@ -84,10 +84,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build web app
+        run: pnpm build
+
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Playwright browser suite
+        env:
+          PLAYWRIGHT_WEB_SERVER_MODE: production
         run: pnpm e2e
 
   integration-smoke:

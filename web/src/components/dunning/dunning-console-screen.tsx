@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { LoaderCircle, Save, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -14,7 +14,18 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningPolicy, fetchDunningRuns, updateDunningPolicy } from "@/lib/api";
 import { diagnoseDunningRun, dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
-import type { DunningRun } from "@/lib/types";
+import type { DunningPolicy, DunningRun } from "@/lib/types";
+
+type DunningPolicyDraftState = {
+  sourceKey: string;
+  policyName: string;
+  enabled: boolean;
+  retrySchedule: string;
+  collectSchedule: string;
+  maxRetryAttempts: string;
+  gracePeriodDays: string;
+  finalAction: "manual_review" | "pause" | "write_off_later";
+};
 
 const finalActionOptions = [
   { value: "manual_review", label: "Manual review" },
@@ -105,25 +116,15 @@ export function DunningConsoleScreen() {
     enabled: isTenantSession,
   });
 
-  const [policyName, setPolicyName] = useState("");
-  const [enabled, setEnabled] = useState(true);
-  const [retrySchedule, setRetrySchedule] = useState("");
-  const [collectSchedule, setCollectSchedule] = useState("");
-  const [maxRetryAttempts, setMaxRetryAttempts] = useState("3");
-  const [gracePeriodDays, setGracePeriodDays] = useState("0");
-  const [finalAction, setFinalAction] = useState<"manual_review" | "pause" | "write_off_later">("manual_review");
-
-  useEffect(() => {
-    const policy = policyQuery.data;
-    if (!policy) return;
-    setPolicyName(policy.name);
-    setEnabled(policy.enabled);
-    setRetrySchedule(policy.retry_schedule.join(", "));
-    setCollectSchedule(policy.collect_payment_reminder_schedule.join(", "));
-    setMaxRetryAttempts(String(policy.max_retry_attempts));
-    setGracePeriodDays(String(policy.grace_period_days));
-    setFinalAction(policy.final_action);
-  }, [policyQuery.data]);
+  const [policyDraftState, setPolicyDraftState] = useState<DunningPolicyDraftState>(defaultPolicyDraftState(""));
+  const policy = policyQuery.data ?? null;
+  const policySourceKey = policy ? `${policy.id}:${policy.updated_at}` : "";
+  const policyDraft =
+    policy && policyDraftState.sourceKey === policySourceKey
+      ? policyDraftState
+      : policy
+        ? policyDraftStateFromPolicy(policy, policySourceKey)
+        : defaultPolicyDraftState(policySourceKey);
 
   const filters = useMemo(
     () => ({
@@ -149,13 +150,13 @@ export function DunningConsoleScreen() {
         runtimeBaseURL: apiBaseURL,
         csrfToken,
         body: {
-          name: policyName.trim(),
-          enabled,
-          retry_schedule: retrySchedule.split(",").map((item) => item.trim()).filter(Boolean),
-          max_retry_attempts: Number(maxRetryAttempts),
-          collect_payment_reminder_schedule: collectSchedule.split(",").map((item) => item.trim()).filter(Boolean),
-          final_action: finalAction,
-          grace_period_days: Number(gracePeriodDays),
+          name: policyDraft.policyName.trim(),
+          enabled: policyDraft.enabled,
+          retry_schedule: policyDraft.retrySchedule.split(",").map((item) => item.trim()).filter(Boolean),
+          max_retry_attempts: Number(policyDraft.maxRetryAttempts),
+          collect_payment_reminder_schedule: policyDraft.collectSchedule.split(",").map((item) => item.trim()).filter(Boolean),
+          final_action: policyDraft.finalAction,
+          grace_period_days: Number(policyDraft.gracePeriodDays),
         },
       }),
     onSuccess: async () => {
@@ -164,6 +165,15 @@ export function DunningConsoleScreen() {
   });
 
   const runs = runsQuery.data?.items ?? [];
+  const updatePolicyDraft = (
+    patch: Partial<Omit<DunningPolicyDraftState, "sourceKey">>,
+  ) => {
+    setPolicyDraftState({
+      ...policyDraft,
+      ...patch,
+      sourceKey: policySourceKey,
+    });
+  };
   const stats = useMemo(
     () => ({
       total: runs.length,
@@ -236,8 +246,8 @@ export function DunningConsoleScreen() {
               <div className="grid gap-2">
                 <FieldLabel>Policy name</FieldLabel>
                 <input
-                  value={policyName}
-                  onChange={(event) => setPolicyName(event.target.value)}
+                  value={policyDraft.policyName}
+                  onChange={(event) => updatePolicyDraft({ policyName: event.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
                   className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
                 />
@@ -246,8 +256,8 @@ export function DunningConsoleScreen() {
               <label className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-slate-700">
                 <input
                   type="checkbox"
-                  checked={enabled}
-                  onChange={(event) => setEnabled(event.target.checked)}
+                  checked={policyDraft.enabled}
+                  onChange={(event) => updatePolicyDraft({ enabled: event.target.checked })}
                   disabled={!canWrite || policyMutation.isPending}
                   className="h-4 w-4 rounded border-stone-300"
                 />
@@ -257,8 +267,8 @@ export function DunningConsoleScreen() {
               <div className="grid gap-2">
                 <FieldLabel>Retry schedule</FieldLabel>
                 <input
-                  value={retrySchedule}
-                  onChange={(event) => setRetrySchedule(event.target.value)}
+                  value={policyDraft.retrySchedule}
+                  onChange={(event) => updatePolicyDraft({ retrySchedule: event.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
                   placeholder="1d, 3d, 5d"
                   className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
@@ -268,8 +278,8 @@ export function DunningConsoleScreen() {
               <div className="grid gap-2">
                 <FieldLabel>Collect-payment reminders</FieldLabel>
                 <input
-                  value={collectSchedule}
-                  onChange={(event) => setCollectSchedule(event.target.value)}
+                  value={policyDraft.collectSchedule}
+                  onChange={(event) => updatePolicyDraft({ collectSchedule: event.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
                   placeholder="0d, 2d, 5d"
                   className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
@@ -280,8 +290,8 @@ export function DunningConsoleScreen() {
                 <div className="grid gap-2">
                   <FieldLabel>Max retry attempts</FieldLabel>
                   <input
-                    value={maxRetryAttempts}
-                    onChange={(event) => setMaxRetryAttempts(event.target.value)}
+                    value={policyDraft.maxRetryAttempts}
+                    onChange={(event) => updatePolicyDraft({ maxRetryAttempts: event.target.value })}
                     disabled={!canWrite || policyMutation.isPending}
                     inputMode="numeric"
                     className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
@@ -290,8 +300,8 @@ export function DunningConsoleScreen() {
                 <div className="grid gap-2">
                   <FieldLabel>Grace period days</FieldLabel>
                   <input
-                    value={gracePeriodDays}
-                    onChange={(event) => setGracePeriodDays(event.target.value)}
+                    value={policyDraft.gracePeriodDays}
+                    onChange={(event) => updatePolicyDraft({ gracePeriodDays: event.target.value })}
                     disabled={!canWrite || policyMutation.isPending}
                     inputMode="numeric"
                     className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
@@ -302,8 +312,8 @@ export function DunningConsoleScreen() {
               <div className="grid gap-2">
                 <FieldLabel>Final action</FieldLabel>
                 <select
-                  value={finalAction}
-                  onChange={(event) => setFinalAction(event.target.value as "manual_review" | "pause" | "write_off_later")}
+                  value={policyDraft.finalAction}
+                  onChange={(event) => updatePolicyDraft({ finalAction: event.target.value as "manual_review" | "pause" | "write_off_later" })}
                   disabled={!canWrite || policyMutation.isPending}
                   className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
                 >
@@ -419,4 +429,30 @@ export function DunningConsoleScreen() {
       </main>
     </div>
   );
+}
+
+function defaultPolicyDraftState(sourceKey: string): DunningPolicyDraftState {
+  return {
+    sourceKey,
+    policyName: "",
+    enabled: true,
+    retrySchedule: "",
+    collectSchedule: "",
+    maxRetryAttempts: "3",
+    gracePeriodDays: "0",
+    finalAction: "manual_review",
+  };
+}
+
+function policyDraftStateFromPolicy(policy: DunningPolicy, sourceKey: string): DunningPolicyDraftState {
+  return {
+    sourceKey,
+    policyName: policy.name,
+    enabled: policy.enabled,
+    retrySchedule: policy.retry_schedule.join(", "),
+    collectSchedule: policy.collect_payment_reminder_schedule.join(", "),
+    maxRetryAttempts: String(policy.max_retry_attempts),
+    gracePeriodDays: String(policy.grace_period_days),
+    finalAction: policy.final_action,
+  };
 }

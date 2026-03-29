@@ -203,8 +203,9 @@ async function createConnectionFromNewScreen(page: Page) {
   const secretInput = page.getByLabel("Stripe secret key");
   const submitButton = page.getByRole("button", { name: "Create and check connection" });
 
-  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
   await expect(page.getByRole("heading", { name: "New billing connection" })).toBeVisible();
+  await expect(page.getByText("Restoring your browser session")).not.toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
   await expect(nameInput).toBeEditable();
   await nameInput.click();
   await nameInput.pressSequentially("Stripe Sandbox");
@@ -282,9 +283,11 @@ test("platform admin can edit billing connection detail metadata", async ({ page
   await connectionNameInput.click();
   await connectionNameInput.press("Meta+A");
   await connectionNameInput.pressSequentially("Stripe Sandbox Updated");
+  await expect(connectionNameInput).toHaveValue("Stripe Sandbox Updated");
+  await connectionNameInput.press("Tab");
   const saveButton = page.getByRole("button", { name: "Save changes" });
   await expect(saveButton).toBeEnabled();
-  await saveButton.click({ force: true });
+  await saveButton.click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-platform-123");
   await expect(page.getByRole("heading", { name: "Stripe Sandbox Updated" })).toBeVisible();

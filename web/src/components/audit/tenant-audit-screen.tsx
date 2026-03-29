@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 
@@ -57,19 +57,10 @@ export function TenantAuditScreen() {
     return out;
   }, [tenantsQuery.data]);
 
-  const selectedEvent =
-    (auditQuery.data?.items ?? []).find((item) => item.id === selectedEventID) ?? null;
-
-  useEffect(() => {
-    const items = auditQuery.data?.items ?? [];
-    if (items.length === 0) {
-      setSelectedEventID("");
-      return;
-    }
-    if (selectedEventID && !items.some((item) => item.id === selectedEventID)) {
-      setSelectedEventID("");
-    }
-  }, [auditQuery.data, selectedEventID]);
+  const auditItems = auditQuery.data?.items ?? [];
+  const selectedEventIDValue =
+    selectedEventID && auditItems.some((item) => item.id === selectedEventID) ? selectedEventID : "";
+  const selectedEvent = auditItems.find((item) => item.id === selectedEventIDValue) ?? null;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -162,15 +153,15 @@ export function TenantAuditScreen() {
           <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.85fr)]">
             {auditQuery.isLoading ? <LoadingState /> : null}
             {!auditQuery.isLoading && (auditQuery.data?.items.length ?? 0) === 0 ? <EmptyState /> : null}
-            {!auditQuery.isLoading && (auditQuery.data?.items.length ?? 0) > 0 ? (
+            {!auditQuery.isLoading && auditItems.length > 0 ? (
               <>
                 <div className="grid gap-3">
-                  {(auditQuery.data?.items ?? []).map((event) => (
+                  {auditItems.map((event) => (
                     <AuditRow
                       key={event.id}
                       event={event}
                       workspaceName={workspaceNames.get(event.tenant_id)}
-                      selected={event.id === selectedEventID}
+                      selected={event.id === selectedEventIDValue}
                       onSelect={() => setSelectedEventID(event.id)}
                     />
                   ))}

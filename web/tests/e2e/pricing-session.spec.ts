@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 type TenantSessionPayload = {
   authenticated: boolean;
@@ -347,7 +347,34 @@ async function installPricingMock(context: BrowserContext, session: TenantSessio
   });
 }
 
+async function fillUntilValue(locator: Locator, value: string) {
+  await expect
+    .poll(async () => {
+      await locator.fill(value);
+      return locator.inputValue();
+    })
+    .toBe(value);
+}
+
+async function waitForTenantSession(page: Page) {
+  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
+}
+
+async function waitForCreatedResource(page: Page, pathFragment: string, action: () => Promise<void>) {
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes(pathFragment) &&
+        response.status() === 201,
+    ),
+    action(),
+  ]);
+}
+
 test("tenant writer can create pricing metric tax add-on coupon and plan", async ({ page, context }) => {
+  test.slow();
+
   await installPricingMock(context, {
     authenticated: true,
     subject_type: "user",
@@ -360,31 +387,34 @@ test("tenant writer can create pricing metric tax add-on coupon and plan", async
   });
 
   await page.goto("/pricing/metrics/new");
+  await waitForTenantSession(page);
   await page.getByTestId("pricing-metric-name").fill("API Calls");
   await page.getByTestId("pricing-metric-code").fill("api_calls");
   await expect(page.getByTestId("pricing-metric-submit")).toBeEnabled();
-  await page.getByTestId("pricing-metric-submit").click();
+  await waitForCreatedResource(page, "/v1/pricing/metrics", () => page.getByTestId("pricing-metric-submit").click());
 
   await expect(page).toHaveURL(/\/pricing\/metrics\/mtr_metric_1$/);
   await expect(page.getByRole("heading", { name: "API Calls" })).toBeVisible();
 
   await page.goto("/pricing/add-ons/new");
+  await waitForTenantSession(page);
   await page.getByTestId("pricing-addon-name").fill("Priority support");
   await page.getByTestId("pricing-addon-code").fill("priority_support");
   await page.getByTestId("pricing-addon-amount").fill("15");
   await expect(page.getByTestId("pricing-addon-submit")).toBeEnabled();
-  await page.getByTestId("pricing-addon-submit").click();
+  await waitForCreatedResource(page, "/v1/add-ons", () => page.getByTestId("pricing-addon-submit").click());
 
   await expect(page).toHaveURL(/\/pricing\/add-ons\/aon_support_1$/);
   await expect(page.getByRole("heading", { name: "Priority support" })).toBeVisible();
   await expect(page.getByText("15.00 USD")).toBeVisible();
 
   await page.goto("/pricing/coupons/new");
-  await page.getByTestId("pricing-coupon-name").fill("Launch 20");
-  await page.getByTestId("pricing-coupon-code").fill("launch_20");
+  await waitForTenantSession(page);
+  await fillUntilValue(page.getByTestId("pricing-coupon-name"), "Launch 20");
+  await fillUntilValue(page.getByTestId("pricing-coupon-code"), "launch_20");
   await expect(page.getByTestId("pricing-coupon-frequency")).toBeVisible();
   await expect(page.getByTestId("pricing-coupon-submit")).toBeEnabled();
-  await page.getByTestId("pricing-coupon-submit").click();
+  await waitForCreatedResource(page, "/v1/coupons", () => page.getByTestId("pricing-coupon-submit").click());
 
   await expect(page).toHaveURL(/\/pricing\/coupons\/cpn_launch_20$/);
   await expect(page.getByRole("heading", { name: "Launch 20" })).toBeVisible();
@@ -392,27 +422,33 @@ test("tenant writer can create pricing metric tax add-on coupon and plan", async
   await expect(page.getByText("Forever")).toBeVisible();
 
   await page.goto("/pricing/taxes/new");
+  await waitForTenantSession(page);
   await page.getByTestId("pricing-tax-name").fill("India GST 18");
   await page.getByTestId("pricing-tax-code").fill("gst_in_18");
   await page.getByTestId("pricing-tax-rate").fill("18");
   await expect(page.getByTestId("pricing-tax-submit")).toBeEnabled();
-  await page.getByTestId("pricing-tax-submit").click();
+  await waitForCreatedResource(page, "/v1/taxes", () => page.getByTestId("pricing-tax-submit").click());
 
   await expect(page).toHaveURL(/\/pricing\/taxes\/tax_gst_in_18$/);
   await expect(page.getByRole("heading", { name: "India GST 18" })).toBeVisible();
   await expect(page.getByText("18.00%", { exact: false })).toBeVisible();
 
   await page.goto("/pricing/plans/new");
-  await page.getByTestId("pricing-plan-name").fill("Growth");
-  await page.getByTestId("pricing-plan-code").fill("growth");
-  await page.getByTestId("pricing-plan-base-price").fill("49");
+  await waitForTenantSession(page);
+  await fillUntilValue(page.getByTestId("pricing-plan-name"), "Growth");
+  await fillUntilValue(page.getByTestId("pricing-plan-code"), "growth");
+  await fillUntilValue(page.getByTestId("pricing-plan-base-price"), "49");
   await page.getByTestId("pricing-plan-metric-mtr_metric_1").check();
+  await expect(page.getByTestId("pricing-plan-metric-mtr_metric_1")).toBeChecked();
   await page.getByTestId("pricing-plan-addon-aon_support_1").check();
+  await expect(page.getByTestId("pricing-plan-addon-aon_support_1")).toBeChecked();
   await page.getByTestId("pricing-plan-coupon-cpn_launch_20").check();
+  await expect(page.getByTestId("pricing-plan-coupon-cpn_launch_20")).toBeChecked();
   await expect(page.getByTestId("pricing-plan-submit")).toBeEnabled();
-  await page.getByTestId("pricing-plan-submit").click();
+  await waitForCreatedResource(page, "/v1/plans", () => page.getByTestId("pricing-plan-submit").click());
 
   await expect(page).toHaveURL(/\/pricing\/plans\/pln_growth_1$/);
+  await expect(page.getByText("Loading plan detail")).not.toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("heading", { name: "Growth" })).toBeVisible();
   await expect(page.getByText("49.00 USD")).toBeVisible();
   await expect(page.getByText("Priority support")).toBeVisible();

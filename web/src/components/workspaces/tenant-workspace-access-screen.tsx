@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Copy,
   Download,
@@ -245,19 +245,10 @@ export function TenantWorkspaceAccessScreen() {
       }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
   });
-  const selectedAuditEvent =
-    (serviceAccountAuditQuery.data?.items ?? []).find((item) => item.id === selectedAuditEventID) ?? null;
-
-  useEffect(() => {
-    const items = serviceAccountAuditQuery.data?.items ?? [];
-    if (items.length === 0) {
-      setSelectedAuditEventID("");
-      return;
-    }
-    if (selectedAuditEventID && !items.some((item) => item.id === selectedAuditEventID)) {
-      setSelectedAuditEventID("");
-    }
-  }, [serviceAccountAuditQuery.data, selectedAuditEventID]);
+  const auditItems = serviceAccountAuditQuery.data?.items ?? [];
+  const selectedAuditEventIDValue =
+    selectedAuditEventID && auditItems.some((item) => item.id === selectedAuditEventID) ? selectedAuditEventID : "";
+  const selectedAuditEvent = auditItems.find((item) => item.id === selectedAuditEventIDValue) ?? null;
   const openAudit = (serviceAccountID: string) => {
     setSelectedAuditServiceAccountID(serviceAccountID);
     window.requestAnimationFrame(() => {

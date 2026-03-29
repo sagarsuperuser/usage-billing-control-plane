@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import type { Locator } from "@playwright/test";
 
 type SessionPayload = {
   authenticated: boolean;
@@ -147,6 +148,15 @@ async function installExplainabilityMock(page: Page, session: SessionPayload, pa
   }, { session, payload });
 }
 
+async function fillUntilValue(locator: Locator, value: string) {
+  await expect
+    .poll(async () => {
+      await locator.fill(value);
+      return locator.inputValue();
+    })
+    .toBe(value);
+}
+
 test.beforeEach(async ({ page }) => {
   await installExplainabilityMock(page, sessionPayload, explainabilityPayload);
 });
@@ -157,12 +167,13 @@ test("reader session can load invoice explainability and inspect line items", as
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
   await expect(page.getByText("Line Item Computation Trace")).toBeVisible();
-  await page.getByTestId("explainability-invoice-id").fill("inv_explain_123");
+  await fillUntilValue(page.getByTestId("explainability-invoice-id"), "inv_explain_123");
   await page.getByTestId("explainability-fee-types").fill("charge,subscription");
   await page.getByTestId("explainability-sort").selectOption("amount_cents_desc");
   await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
 
+  await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();
   await expect(page.getByTestId("explainability-meta-invoice")).toContainText("INV-EX-123");
   await expect(page.getByTestId("explainability-meta-digest")).toContainText("digest_abc123");
   await expect(page.getByTestId("explainability-line-item-fee_1")).toContainText("API Calls");
@@ -178,7 +189,7 @@ test("refresh keeps explainability data loaded", async ({ page }) => {
 
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
-  await page.getByTestId("explainability-invoice-id").fill("inv_explain_123");
+  await fillUntilValue(page.getByTestId("explainability-invoice-id"), "inv_explain_123");
   await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
   await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();
@@ -193,7 +204,7 @@ test("reader sees empty state when explainability returns no line items", async 
 
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
-  await page.getByTestId("explainability-invoice-id").fill("inv_explain_123");
+  await fillUntilValue(page.getByTestId("explainability-invoice-id"), "inv_explain_123");
   await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
   await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();

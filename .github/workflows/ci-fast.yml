@@ -54,11 +54,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Typecheck
-        run: pnpm typecheck
-
       - name: Build UI
         run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
 
   migration-verify:
     name: migration-verify
