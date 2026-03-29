@@ -66,13 +66,18 @@ discover_lago_api_url() {
 
 (
   cd "$lago_repo_path"
+  docker compose -f "$lago_compose_file" down --remove-orphans >/dev/null 2>&1 || true
+)
+
+(
+  cd "$lago_repo_path"
   LAGO_API_URL="$startup_lago_api_url" \
   LAGO_CREATE_ORG=true \
   LAGO_ORG_NAME="$lago_org_name" \
   LAGO_ORG_USER_EMAIL="$lago_org_user_email" \
   LAGO_ORG_USER_PASSWORD="$lago_org_user_password" \
   LAGO_ORG_API_KEY="$test_lago_api_key" \
-  docker compose -f "$lago_compose_file" up -d "${startup_services[@]}"
+  docker compose -f "$lago_compose_file" up -d --force-recreate "${startup_services[@]}"
 )
 
 resolved_lago_api_url="$test_lago_api_url"
