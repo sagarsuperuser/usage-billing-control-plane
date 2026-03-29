@@ -21,6 +21,7 @@ function connectionLabel(connection: BillingProviderConnection): string {
 export function TenantOnboardingScreen() {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
 
   const [tenantID, setTenantID] = useState("");
   const [tenantName, setTenantName] = useState("");
@@ -80,7 +81,7 @@ export function TenantOnboardingScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: "New" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace setup</p>
@@ -94,7 +95,7 @@ export function TenantOnboardingScreen() {
               <Link href="/workspaces" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open workspaces</Link>
             </div>
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
@@ -106,9 +107,9 @@ export function TenantOnboardingScreen() {
           />
         ) : null}
 
-        {flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
+        {canViewPlatformSurface && flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+        {canViewPlatformSurface ? <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -309,7 +310,7 @@ export function TenantOnboardingScreen() {
               </section>
             )}
           </aside>
-        </div>
+        </div> : null}
       </main>
     </div>
   );

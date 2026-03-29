@@ -16,6 +16,7 @@ const DEFAULT_LIMIT = 50;
 
 export function TenantAuditScreen() {
   const { apiBaseURL, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [tenantID, setTenantID] = useState("");
   const [action, setAction] = useState("");
   const [actorAPIKeyID, setActorAPIKeyID] = useState("");
@@ -78,28 +79,28 @@ export function TenantAuditScreen() {
           />
         ) : null}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Platform audit</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace audit trail</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">
             Review workspace, billing, customer, and access changes from one operator surface.
           </p>
-        </section>
+        </section> : null}
 
-        <section className="grid gap-4 md:grid-cols-4">
+        {canViewPlatformSurface ? <section className="grid gap-4 md:grid-cols-4">
           <MetricCard label="Events loaded" value={String(auditQuery.data?.items.length ?? 0)} />
           <MetricCard label="Matching workspaces" value={tenantID ? "1" : String(tenantsQuery.data?.length ?? 0)} />
           <MetricCard label="Actions" value={String(actionOptions.length)} />
           <MetricCard label="Result window" value={String(auditQuery.data?.limit ?? DEFAULT_LIMIT)} />
-        </section>
+        </section> : null}
 
-        <section className="grid gap-3 xl:grid-cols-3">
+        {canViewPlatformSurface ? <section className="grid gap-3 xl:grid-cols-3">
           <OperatorCard title="Operator posture" body="Use this surface to review cross-workspace changes without opening each workspace separately." />
           <OperatorCard title="Filter rule" body="Start broad, then narrow by workspace or event code only when the event stream is too large to review safely." />
           <OperatorCard title="Detail rule" body="Rows should explain the business action first. Use metadata only when the operator needs the exact before-and-after record." />
-        </section>
+        </section> : null}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
             <label className="grid gap-2 text-sm text-slate-700">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace</span>
@@ -141,9 +142,9 @@ export function TenantAuditScreen() {
               />
             </label>
           </div>
-        </section>
+        </section> : null}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent workspace events</p>
             <h2 className="text-xl font-semibold text-slate-950">Audit history</h2>
@@ -170,7 +171,7 @@ export function TenantAuditScreen() {
               </>
             ) : null}
           </div>
-        </section>
+        </section> : null}
       </main>
     </div>
   );

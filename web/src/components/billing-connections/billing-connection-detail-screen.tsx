@@ -264,6 +264,7 @@ function buildConnectionHealthChecks(connection: {
 export function BillingConnectionDetailScreen({ connectionID }: { connectionID: string }) {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [environment, setEnvironment] = useState<"test" | "live">("test");
@@ -382,7 +383,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
           />
         ) : null}
 
-        {connectionQuery.isLoading ? (
+        {canViewPlatformSurface ? (connectionQuery.isLoading ? (
           <LoadingPanel label="Loading billing connection detail" />
         ) : connectionQuery.isError || !connection ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -648,7 +649,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
               </aside>
             </div>
           </>
-        )}
+        )) : null}
       </main>
     </div>
   );

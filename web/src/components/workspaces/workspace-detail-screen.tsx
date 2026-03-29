@@ -86,6 +86,7 @@ function formatWorkspaceBillingDiagnosisCode(code?: string): string {
 export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope, session } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [selectedConnectionID, setSelectedConnectionID] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("admin");
@@ -308,7 +309,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
           />
         ) : null}
 
-        {tenantStatusQuery.isLoading ? (
+        {canViewPlatformSurface ? (tenantStatusQuery.isLoading ? (
           <LoadingPanel label="Loading workspace detail" />
         ) : tenantStatusQuery.isError || !selectedTenant || !selectedReadiness ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -907,7 +908,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
               </aside>
             </div>
           </>
-        )}
+        )) : null}
       </main>
     </div>
   );

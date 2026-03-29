@@ -17,6 +17,7 @@ export function BillingConnectionNewScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [displayName, setDisplayName] = useState("");
   const [environment, setEnvironment] = useState<"test" | "live">("test");
   const [stripeSecretKey, setStripeSecretKey] = useState("");
@@ -56,7 +57,7 @@ export function BillingConnectionNewScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/billing-connections", label: "Billing Connections" }, { label: "New" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing connection</p>
@@ -69,7 +70,7 @@ export function BillingConnectionNewScreen() {
               Back to billing connections
             </Link>
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
@@ -81,9 +82,9 @@ export function BillingConnectionNewScreen() {
           />
         ) : null}
 
-        {flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
+        {canViewPlatformSurface && flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+        {canViewPlatformSurface ? <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -167,7 +168,7 @@ export function BillingConnectionNewScreen() {
               <p className="mt-3">Rotate the secret, refresh the connection, or disable the connection later from the detail page.</p>
             </section>
           </aside>
-        </div>
+        </div> : null}
       </main>
     </div>
   );

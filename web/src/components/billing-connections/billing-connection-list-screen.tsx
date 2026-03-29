@@ -31,6 +31,7 @@ function statusTone(status?: string): string {
 
 export function BillingConnectionListScreen() {
   const { apiBaseURL, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
@@ -73,7 +74,7 @@ export function BillingConnectionListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { label: "Billing Connections" }]} />
 
-        <section className="rounded-3xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        {canViewPlatformSurface ? <section className="rounded-3xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Billing Connections</p>
@@ -110,7 +111,7 @@ export function BillingConnectionListScreen() {
             <MetricCard label="Disabled" value={summary.disabled} />
             <MetricCard label="Linked workspaces" value={summary.linkedWorkspaces} />
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
@@ -122,7 +123,7 @@ export function BillingConnectionListScreen() {
           />
         ) : null}
 
-        <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+        {canViewPlatformSurface ? <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
@@ -159,7 +160,7 @@ export function BillingConnectionListScreen() {
               filteredConnections.map((connection) => <ConnectionRow key={connection.id} connection={connection} />)
             )}
           </div>
-        </section>
+        </section> : null}
       </main>
     </div>
   );
