@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   KeyRound,
@@ -18,15 +20,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { useUISession } from "@/hooks/use-ui-session";
 import {
   createTenantWorkspaceInvitation,
   createTenantWorkspaceServiceAccount,
-  fetchTenantWorkspaceServiceAccountAudit,
-  fetchTenantWorkspaceServiceAccountAuditExports,
   fetchTenantWorkspaceInvitations,
   fetchTenantWorkspaceMembers,
+  fetchTenantWorkspaceServiceAccountAudit,
+  fetchTenantWorkspaceServiceAccountAuditExports,
   fetchTenantWorkspaceServiceAccounts,
   issueTenantWorkspaceServiceAccountCredential,
   removeTenantWorkspaceMember,
@@ -37,12 +40,13 @@ import {
   updateTenantWorkspaceServiceAccountStatus,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
-import { useUISession } from "@/hooks/use-ui-session";
 import { type APIKeyAuditEvent } from "@/lib/types";
 
 export function TenantWorkspaceAccessScreen() {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope, role, isAdmin, session } = useUISession();
+  const peopleSectionRef = useRef<HTMLElement | null>(null);
+  const machineSectionRef = useRef<HTMLElement | null>(null);
   const auditSectionRef = useRef<HTMLElement | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("writer");
@@ -57,6 +61,10 @@ export function TenantWorkspaceAccessScreen() {
   const [selectedAuditEventID, setSelectedAuditEventID] = useState("");
   const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
   const [confirmingMemberAction, setConfirmingMemberAction] = useState<{ userID: string; action: "suspend" } | null>(null);
+  const [memberPage, setMemberPage] = useState(1);
+  const [invitePage, setInvitePage] = useState(1);
+  const [serviceAccountPage, setServiceAccountPage] = useState(1);
+  const [credentialPage, setCredentialPage] = useState(1);
 
   const workspaceQueryKey = ["tenant-workspace-members", apiBaseURL, session?.tenant_id];
   const invitationQueryKey = ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id];
@@ -216,14 +224,18 @@ export function TenantWorkspaceAccessScreen() {
   const selectedServiceAccountIDValue = selectedServiceAccountID || serviceAccounts[0]?.id || "";
   const selectedServiceAccount =
     serviceAccounts.find((item) => item.id === selectedServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
-  const selectedAuditServiceAccountIDValue =
-    selectedAuditServiceAccountID || serviceAccounts[0]?.id || "";
+  const selectedAuditServiceAccountIDValue = selectedAuditServiceAccountID || serviceAccounts[0]?.id || "";
   const selectedAuditServiceAccount =
     serviceAccounts.find((item) => item.id === selectedAuditServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
   const pendingInvitations = invitations.filter((item) => item.status === "pending");
   const latestInviteURL = createInvitationMutation.data?.accept_url ?? "";
   const currentUserID = session?.subject_id ?? "";
   const activeAdminCount = members.filter((member) => member.status === "active" && member.role === "admin").length;
+  const activeMembers = members.filter((member) => member.status === "active");
+  const disabledMembers = members.filter((member) => member.status !== "active");
+  const disabledServiceAccounts = serviceAccounts.filter((account) => account.status === "disabled");
+  const activeCredentialCount = serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0);
+  const selectedServiceAccountCredentials = selectedServiceAccount?.credentials ?? [];
 
   const serviceAccountAuditQuery = useQuery({
     queryKey: ["tenant-workspace-service-account-audit", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
@@ -249,11 +261,14 @@ export function TenantWorkspaceAccessScreen() {
   const selectedAuditEventIDValue =
     selectedAuditEventID && auditItems.some((item) => item.id === selectedAuditEventID) ? selectedAuditEventID : "";
   const selectedAuditEvent = auditItems.find((item) => item.id === selectedAuditEventIDValue) ?? null;
+  const scrollToSection = (ref: { current: HTMLElement | null }) => {
+    window.requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
   const openAudit = (serviceAccountID: string) => {
     setSelectedAuditServiceAccountID(serviceAccountID);
-    window.requestAnimationFrame(() => {
-      auditSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    scrollToSection(auditSectionRef);
   };
 
   const downloadAuditCSV = (serviceAccountID: string) => {
@@ -273,6 +288,11 @@ export function TenantWorkspaceAccessScreen() {
   const isSelfMember = (userID: string): boolean => currentUserID !== "" && currentUserID === userID;
   const isLastActiveAdmin = (member: { role: string; status: string }): boolean =>
     member.status === "active" && member.role === "admin" && activeAdminCount <= 1;
+
+  const pagedMembers = paginateItems(members, memberPage, 6);
+  const pagedInvitations = paginateItems(pendingInvitations, invitePage, 5);
+  const pagedServiceAccounts = paginateItems(serviceAccounts, serviceAccountPage, 5);
+  const pagedCredentials = paginateItems(selectedServiceAccountCredentials, credentialPage, 4);
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -300,206 +320,494 @@ export function TenantWorkspaceAccessScreen() {
 
         {isAuthenticated && scope === "tenant" && isAdmin ? (
           <>
-            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
-              <h1 className="mt-2 text-3xl font-semibold text-slate-950">Members, invitations, and machine credentials</h1>
-              <p className="mt-3 text-sm text-slate-600">Manage people through membership and automation through service accounts.</p>
+            <section className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_42%,#e2e8f0_42%,#f8fafc_100%)] p-[1px] shadow-sm">
+              <div className="rounded-[27px] bg-white">
+                <div className="grid gap-5 rounded-[27px] bg-[radial-gradient(circle_at_top_left,rgba(15,23,42,0.06),transparent_34%),linear-gradient(180deg,#ffffff,rgba(248,250,252,0.98))] p-6 lg:grid-cols-[1.15fr_0.85fr]">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Workspace access governance</p>
+                    <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Identity, credentials, and audit evidence in one operating console</h1>
+                    <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+                      Keep human access, machine credentials, and credential evidence under one review path. Use people access for operators, service accounts for automation, and audit events for evidence.
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => scrollToSection(peopleSectionRef)}
+                        className="inline-flex h-10 items-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800"
+                      >
+                        People access
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => scrollToSection(machineSectionRef)}
+                        className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
+                      >
+                        Machine access
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => scrollToSection(auditSectionRef)}
+                        className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
+                      >
+                        Audit evidence
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current posture</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950">
+                        {pendingInvitations.length > 0 || disabledServiceAccounts.length > 0 || disabledMembers.length > 0
+                          ? "Attention required"
+                          : "Controlled"}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {pendingInvitations.length} pending invite{pendingInvitations.length === 1 ? "" : "s"} · {disabledServiceAccounts.length} disabled machine identit{disabledServiceAccounts.length === 1 ? "y" : "ies"} · {disabledMembers.length} inactive member{disabledMembers.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <DetailField label="Active members" value={`${activeMembers.length}`} className="bg-white" />
+                      <DetailField label="Credential inventory" value={`${activeCredentialCount} active`} className="bg-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </section>
 
             <section className="grid gap-4 md:grid-cols-4">
-              <SummaryMetric label="Members" value={String(members.length)} />
-              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} />
-              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} />
-              <SummaryMetric
-                label="Active credentials"
-                value={String(serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0))}
-              />
+              <SummaryMetric label="Members" value={String(members.length)} hint={`${activeMembers.length} active operators`} />
+              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} hint="People waiting for workspace entry" />
+              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} hint={`${disabledServiceAccounts.length} disabled identities`} />
+              <SummaryMetric label="Active credentials" value={String(activeCredentialCount)} hint="Machine secrets currently usable" />
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorGuidanceCard title="Access posture" body="Use membership for people and service accounts for automation. Keep the boundary explicit so operator review stays clean." />
-              <OperatorGuidanceCard title="Credential rule" body="Review machine credentials like operational inventory: one purpose, minimal scope, clear rotation history." />
-              <OperatorGuidanceCard title="Audit posture" body="Open service-account audit when credentials change, then export evidence only when operators need a durable record." />
+              <OperatorGuidanceCard title="Human access" body="Keep role changes, suspensions, and invitations in one review lane. Avoid mixing person access with credential inventory." />
+              <OperatorGuidanceCard title="Machine access" body="Each service account should map to one automation job, clear purpose, and explicit environment." />
+              <OperatorGuidanceCard title="Evidence path" body="Review the event trail before exporting CSV. Evidence should follow the service account you are changing." />
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <input
-                    type="text"
-                    value={serviceAccountName}
-                    onChange={(event) => setServiceAccountName(event.target.value)}
-                    placeholder="Acme ERP Sync"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <select
-                    aria-label="Service account role"
-                    value={serviceAccountRole}
-                    onChange={(event) => setServiceAccountRole(event.target.value as "reader" | "writer" | "admin")}
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="writer">Writer</option>
-                    <option value="reader">Reader</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={serviceAccountPurpose}
-                    onChange={(event) => setServiceAccountPurpose(event.target.value)}
-                    placeholder="erp-sync"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <input
-                    type="text"
-                    value={serviceAccountEnvironment}
-                    onChange={(event) => setServiceAccountEnvironment(event.target.value)}
-                    placeholder="prod"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <textarea
-                    value={serviceAccountDescription}
-                    onChange={(event) => setServiceAccountDescription(event.target.value)}
-                    placeholder="What this credential is for"
-                    rows={3}
-                    className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => createServiceAccountMutation.mutate()}
-                    disabled={!csrfToken || !serviceAccountName.trim() || createServiceAccountMutation.isPending}
-                    className="md:col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
-                    Create and issue first credential
-                  </button>
-                </div>
-                {latestCredentialSecret ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-700">New secret</p>
-                    <p className="mt-2 text-xs font-medium text-slate-800">{latestCredentialSecret.label}</p>
-                    <p className="mt-2 break-all font-mono text-xs text-slate-700">{latestCredentialSecret.secret}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(latestCredentialSecret.secret);
-                      }}
-                      className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs text-emerald-700 transition hover:bg-emerald-100"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy secret
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Invite member</p>
-                <div className="mt-4 grid gap-3">
-                  <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(event) => setInviteEmail(event.target.value)}
-                    placeholder="teammate@example.com"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <select
-                    aria-label="Workspace role"
-                    value={inviteRole}
-                    onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="writer">Writer</option>
-                    <option value="reader">Reader</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => createInvitationMutation.mutate()}
-                    disabled={!csrfToken || !inviteEmail.trim() || createInvitationMutation.isPending}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
-                    Send invite
-                  </button>
-                </div>
-                {latestInviteURL ? (
-                  <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">New invite link</p>
-                    <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(latestInviteURL);
-                      }}
-                      className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy invite link
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <section ref={peopleSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
-                  <p className="mt-2 text-sm text-slate-600">Keep machine access scoped, rotated, and easy to review.</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Human access</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Membership and invitation control</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                    Invite operators, adjust effective role, and suspend stale membership from one review surface.
+                  </p>
+                </div>
+                <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
+                  <DetailField label="Active admins" value={`${activeAdminCount}`} className="bg-white" />
+                  <DetailField label="Pending onboarding" value={`${pendingInvitations.length}`} className="bg-white" />
                 </div>
               </div>
-              <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                <div className="grid gap-3">
-                  {serviceAccounts.length > 0 ? (
-                    serviceAccounts.map((account) => (
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Invite operator</p>
+                  <div className="mt-4 grid gap-3">
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="teammate@example.com"
+                      className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                    />
+                    <select
+                      aria-label="Workspace role"
+                      value={inviteRole}
+                      onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
+                      className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="writer">Writer</option>
+                      <option value="reader">Reader</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => createInvitationMutation.mutate()}
+                      disabled={!csrfToken || !inviteEmail.trim() || createInvitationMutation.isPending}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
+                      Send invite
+                    </button>
+                  </div>
+                  {latestInviteURL ? (
+                    <div className="mt-4 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">New invite link</p>
+                      <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
                       <button
-                        key={account.id}
                         type="button"
-                        onClick={() => setSelectedServiceAccountID(account.id)}
-                        aria-pressed={selectedServiceAccountIDValue === account.id}
-                        className={`rounded-2xl border px-4 py-4 text-left transition ${
-                          selectedServiceAccountIDValue === account.id
-                            ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
-                            : "border-stone-200 bg-stone-50 hover:border-stone-300 hover:bg-stone-100"
-                        }`}
+                        onClick={() => {
+                          void navigator.clipboard.writeText(latestInviteURL);
+                        }}
+                        className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                              <ServerCog className="h-4 w-4 text-emerald-700" />
-                              <span className="truncate">{account.name}</span>
-                            </p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">
-                              {formatServiceAccountRole(account.role)} · {formatServiceAccountStatus(account.status)} · {(account.environment || "unspecified").toUpperCase()}
-                            </p>
-                            <p className="mt-2 text-sm text-slate-700">
-                              {account.active_credential_count} active credential{account.active_credential_count === 1 ? "" : "s"} · {describeServiceAccountActivity(account)}
-                            </p>
-                            {account.description ? <p className="mt-2 text-xs text-slate-500">{account.description}</p> : null}
-                          </div>
-                          <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                            {account.credentials.length} total
-                          </span>
-                        </div>
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy invite link
                       </button>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-500">No service accounts yet.</p>
-                  )}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Pending invites</p>
+                        <p className="mt-1 text-sm text-slate-600">Temporary access awaiting acceptance.</p>
+                      </div>
+                      <PaginationControls page={pagedInvitations.page} totalPages={pagedInvitations.totalPages} onPageChange={setInvitePage} label="Pending invites" />
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      {pagedInvitations.items.length > 0 ? (
+                        pagedInvitations.items.map((invite) => (
+                          <div key={invite.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                                  <ShieldCheck className="h-4 w-4 text-amber-600" />
+                                  <span className="truncate">{invite.email}</span>
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {invite.role} · expires {formatExactTimestamp(invite.expires_at)}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => revokeInvitationMutation.mutate(invite.id)}
+                                disabled={!csrfToken || revokeInvitationMutation.isPending}
+                                className="inline-flex h-9 items-center justify-center rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Revoke
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No pending workspace invites.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current members</p>
+                        <p className="mt-1 text-sm text-slate-600">Review effective role and active operator footprint.</p>
+                      </div>
+                      <PaginationControls page={pagedMembers.page} totalPages={pagedMembers.totalPages} onPageChange={setMemberPage} label="Current members" />
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      {pagedMembers.items.length > 0 ? (
+                        pagedMembers.items.map((member) => {
+                          const draftRole = memberDraftRoles[member.user_id] ?? (member.role as "reader" | "writer" | "admin");
+                          const roleDirty = draftRole !== member.role;
+                          const selfMember = isSelfMember(member.user_id);
+                          const lastAdminProtected = isLastActiveAdmin(member);
+                          const showSuspendConfirm =
+                            confirmingMemberAction?.userID === member.user_id && confirmingMemberAction.action === "suspend";
+                          const roleSelectDisabled =
+                            member.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
+                          const canApplyRole = roleDirty && !roleSelectDisabled && Boolean(csrfToken);
+                          const canSuspend =
+                            member.status === "active" &&
+                            Boolean(csrfToken) &&
+                            !removeMemberMutation.isPending &&
+                            !selfMember &&
+                            !lastAdminProtected;
+                          const canReactivate =
+                            member.status !== "active" && Boolean(csrfToken) && !updateMemberMutation.isPending && !selfMember;
+
+                          return (
+                            <div key={member.user_id} className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="min-w-0">
+                                  <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                                    <UserRound className="h-4 w-4 text-emerald-700" />
+                                    <span className="truncate">{member.display_name}</span>
+                                  </p>
+                                  <p className="mt-1 break-all text-xs text-slate-500">{member.email}</p>
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                                      {member.status}
+                                    </span>
+                                    {selfMember ? (
+                                      <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                                        You
+                                      </span>
+                                    ) : null}
+                                    {lastAdminProtected ? (
+                                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                                        Last active admin
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  {selfMember ? (
+                                    <p className="mt-2 text-xs text-slate-500">You cannot change your own membership from this screen.</p>
+                                  ) : null}
+                                  {lastAdminProtected ? (
+                                    <p className="mt-2 text-xs text-slate-500">Promote another active admin before changing this member&apos;s role or status.</p>
+                                  ) : null}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <select
+                                    aria-label={`Role for ${member.email}`}
+                                    value={draftRole}
+                                    onChange={(event) =>
+                                      setMemberDraftRoles((current) => ({
+                                        ...current,
+                                        [member.user_id]: event.target.value as "reader" | "writer" | "admin",
+                                      }))
+                                    }
+                                    disabled={roleSelectDisabled}
+                                    className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
+                                  >
+                                    <option value="admin">Admin</option>
+                                    <option value="writer">Writer</option>
+                                    <option value="reader">Reader</option>
+                                  </select>
+                                  {roleDirty ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: draftRole })}
+                                        disabled={!canApplyRole}
+                                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Apply
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setMemberDraftRoles((current) => {
+                                            const next = { ...current };
+                                            delete next[member.user_id];
+                                            return next;
+                                          })
+                                        }
+                                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : member.status === "active" ? (
+                                    showSuspendConfirm ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeMemberMutation.mutate(member.user_id)}
+                                          disabled={!canSuspend}
+                                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-700 bg-rose-700 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                          Confirm suspend
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmingMemberAction(null)}
+                                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmingMemberAction({ userID: member.user_id, action: "suspend" })}
+                                        disabled={!canSuspend}
+                                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        <UserX className="h-3.5 w-3.5" />
+                                        Suspend
+                                      </button>
+                                    )
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: member.role as "reader" | "writer" | "admin" })}
+                                      disabled={!canReactivate}
+                                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Reactivate
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm text-slate-500">No active members yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section ref={machineSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Machine access</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Service-account inventory and credential posture</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                    Keep automation identities reviewable: clear owner, explicit purpose, controlled rotation, and visible disable state.
+                  </p>
+                </div>
+                <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
+                  <DetailField label="Service accounts" value={`${serviceAccounts.length}`} className="bg-white" />
+                  <DetailField label="Disabled identities" value={`${disabledServiceAccounts.length}`} className="bg-white" />
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="grid gap-4">
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Create service account</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <input
+                        type="text"
+                        value={serviceAccountName}
+                        onChange={(event) => setServiceAccountName(event.target.value)}
+                        placeholder="Acme ERP Sync"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <select
+                        aria-label="Service account role"
+                        value={serviceAccountRole}
+                        onChange={(event) => setServiceAccountRole(event.target.value as "reader" | "writer" | "admin")}
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="writer">Writer</option>
+                        <option value="reader">Reader</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={serviceAccountPurpose}
+                        onChange={(event) => setServiceAccountPurpose(event.target.value)}
+                        placeholder="erp-sync"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <input
+                        type="text"
+                        value={serviceAccountEnvironment}
+                        onChange={(event) => setServiceAccountEnvironment(event.target.value)}
+                        placeholder="prod"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <textarea
+                        value={serviceAccountDescription}
+                        onChange={(event) => setServiceAccountDescription(event.target.value)}
+                        placeholder="What this credential is for"
+                        rows={3}
+                        className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => createServiceAccountMutation.mutate()}
+                        disabled={!csrfToken || !serviceAccountName.trim() || createServiceAccountMutation.isPending}
+                        className="md:col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
+                        Create and issue first credential
+                      </button>
+                    </div>
+                    {latestCredentialSecret ? (
+                      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-700">Latest issued secret</p>
+                        <p className="mt-2 text-xs font-medium text-slate-800">{latestCredentialSecret.label}</p>
+                        <p className="mt-2 break-all font-mono text-xs text-slate-700">{latestCredentialSecret.secret}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(latestCredentialSecret.secret);
+                          }}
+                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy secret
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Service-account inventory</p>
+                        <p className="mt-1 text-sm text-slate-600">Select an automation identity to inspect its credential posture.</p>
+                      </div>
+                      <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      {pagedServiceAccounts.items.length > 0 ? (
+                        pagedServiceAccounts.items.map((account) => (
+                          <button
+                            key={account.id}
+                            type="button"
+                            onClick={() => setSelectedServiceAccountID(account.id)}
+                            aria-pressed={selectedServiceAccountIDValue === account.id}
+                            className={`rounded-2xl border px-4 py-4 text-left transition ${
+                              selectedServiceAccountIDValue === account.id
+                                ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
+                                : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-medium text-slate-950">{account.name}</p>
+                                  <span
+                                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                                      account.status === "active"
+                                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        : "border border-stone-200 bg-white text-slate-500"
+                                    }`}
+                                  >
+                                    {formatServiceAccountStatus(account.status)}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {formatServiceAccountRole(account.role)} · {(account.environment || "unspecified").toUpperCase()}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-700">{account.description || "No description recorded."}</p>
+                                <p className="mt-2 text-xs text-slate-500">
+                                  {account.active_credential_count} active credential{account.active_credential_count === 1 ? "" : "s"} · {describeServiceAccountActivity(account)}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openAudit(account.id);
+                                }}
+                                className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
+                              >
+                                Audit
+                              </button>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-6 text-sm text-slate-600">
+                          No service accounts yet. Create one to issue a machine credential and track its audit history.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {selectedServiceAccount ? (
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected service account</p>
                         <p className="mt-2 text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
-                        <p className="mt-2 text-sm text-slate-700">
-                          {selectedServiceAccount.description || "Use this identity for a single automation or integration path."}
-                        </p>
+                        <p className="mt-1 text-sm text-slate-700">{selectedServiceAccount.description || "No description recorded."}</p>
                         <p className="mt-2 text-xs text-slate-500">
-                          {selectedServiceAccount.purpose || "No purpose recorded"} · created {formatExactTimestamp(selectedServiceAccount.created_at)}
+                          Purpose: {selectedServiceAccount.purpose || "Not recorded"} · Environment: {(selectedServiceAccount.environment || "unspecified").toUpperCase()}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -545,10 +853,16 @@ export function TenantWorkspaceAccessScreen() {
                     </div>
 
                     <div className="mt-4">
-                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Current credentials</p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Current credentials</p>
+                          <p className="mt-1 text-sm text-slate-600">Review issue, rotation, and revocation state.</p>
+                        </div>
+                        <PaginationControls page={pagedCredentials.page} totalPages={pagedCredentials.totalPages} onPageChange={setCredentialPage} label="Credentials" />
+                      </div>
                       <div className="mt-3 grid gap-3">
-                        {selectedServiceAccount.credentials.length > 0 ? (
-                          selectedServiceAccount.credentials.map((credential) => {
+                        {pagedCredentials.items.length > 0 ? (
+                          pagedCredentials.items.map((credential) => {
                             const isRevoked = Boolean(credential.revoked_at);
                             return (
                               <div key={credential.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
@@ -622,8 +936,9 @@ export function TenantWorkspaceAccessScreen() {
             <section ref={auditSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Credential audit</p>
-                  <p className="mt-2 text-sm text-slate-600">Review credential lifecycle events and export evidence when needed.</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Audit evidence</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Credential event timeline and export record</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Review credential lifecycle events and export evidence only when operators need a durable record.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <select
@@ -667,12 +982,12 @@ export function TenantWorkspaceAccessScreen() {
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
                     <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
                     <div className="mt-3 grid gap-3">
-                      {(serviceAccountAuditQuery.data?.items ?? []).length > 0 ? (
-                        (serviceAccountAuditQuery.data?.items ?? []).map((event) => (
+                      {auditItems.length > 0 ? (
+                        auditItems.map((event) => (
                           <ServiceAccountAuditRow
                             key={event.id}
                             event={event}
-                            selected={event.id === selectedAuditEventID}
+                            selected={event.id === selectedAuditEventIDValue}
                             onSelect={() => setSelectedAuditEventID(event.id)}
                           />
                         ))
@@ -716,190 +1031,6 @@ export function TenantWorkspaceAccessScreen() {
                 </div>
               ) : null}
             </section>
-
-            <section className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pending invites</p>
-                <div className="mt-4 grid gap-3">
-                  {pendingInvitations.length > 0 ? (
-                    pendingInvitations.map((invite) => (
-                      <div key={invite.id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                              <ShieldCheck className="h-4 w-4 text-amber-600" />
-                              <span className="truncate">{invite.email}</span>
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {invite.role} · expires {formatExactTimestamp(invite.expires_at)}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => revokeInvitationMutation.mutate(invite.id)}
-                            disabled={!csrfToken || revokeInvitationMutation.isPending}
-                            className="inline-flex h-9 items-center justify-center rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Revoke
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-500">No pending workspace invites.</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current members</p>
-                <div className="mt-4 grid gap-3">
-                  {members.length > 0 ? (
-                    members.map((member) => (
-                      <div key={member.user_id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                        {(() => {
-                          const draftRole = memberDraftRoles[member.user_id] ?? (member.role as "reader" | "writer" | "admin");
-                          const roleDirty = draftRole !== member.role;
-                          const selfMember = isSelfMember(member.user_id);
-                          const lastAdminProtected = isLastActiveAdmin(member);
-                          const showSuspendConfirm =
-                            confirmingMemberAction?.userID === member.user_id && confirmingMemberAction.action === "suspend";
-                          const roleSelectDisabled =
-                            member.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
-                          const canApplyRole =
-                            roleDirty && !roleSelectDisabled && Boolean(csrfToken);
-                          const canSuspend =
-                            member.status === "active" &&
-                            Boolean(csrfToken) &&
-                            !removeMemberMutation.isPending &&
-                            !selfMember &&
-                            !lastAdminProtected;
-                          const canReactivate =
-                            member.status !== "active" && Boolean(csrfToken) && !updateMemberMutation.isPending && !selfMember;
-
-                          return (
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                              <UserRound className="h-4 w-4 text-emerald-700" />
-                              <span className="truncate">{member.display_name}</span>
-                            </p>
-                            <p className="mt-1 break-all text-xs text-slate-500">{member.email}</p>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                                {member.status}
-                              </span>
-                              {selfMember ? (
-                                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
-                                  You
-                                </span>
-                              ) : null}
-                              {lastAdminProtected ? (
-                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-                                  Last active admin
-                                </span>
-                              ) : null}
-                            </div>
-                            {selfMember ? (
-                              <p className="mt-2 text-xs text-slate-500">You cannot change your own membership from this screen.</p>
-                            ) : null}
-                            {lastAdminProtected ? (
-                              <p className="mt-2 text-xs text-slate-500">Promote another active admin before changing this member&apos;s role or status.</p>
-                            ) : null}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              aria-label={`Role for ${member.email}`}
-                              value={draftRole}
-                              onChange={(event) =>
-                                setMemberDraftRoles((current) => ({
-                                  ...current,
-                                  [member.user_id]: event.target.value as "reader" | "writer" | "admin",
-                                }))
-                              }
-                              disabled={roleSelectDisabled}
-                              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
-                            >
-                              <option value="admin">Admin</option>
-                              <option value="writer">Writer</option>
-                              <option value="reader">Reader</option>
-                            </select>
-                            {roleDirty ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: draftRole })}
-                                  disabled={!canApplyRole}
-                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Apply
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setMemberDraftRoles((current) => {
-                                      const next = { ...current };
-                                      delete next[member.user_id];
-                                      return next;
-                                    })
-                                  }
-                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : member.status === "active" ? (
-                              showSuspendConfirm ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeMemberMutation.mutate(member.user_id)}
-                                    disabled={!canSuspend}
-                                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-700 bg-rose-700 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Confirm suspend
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfirmingMemberAction(null)}
-                                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
-                                  >
-                                    Cancel
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmingMemberAction({ userID: member.user_id, action: "suspend" })}
-                                  disabled={!canSuspend}
-                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <UserX className="h-3.5 w-3.5" />
-                                  Suspend
-                                </button>
-                              )
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: member.role as "reader" | "writer" | "admin" })}
-                                disabled={!canReactivate}
-                                className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Reactivate
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                          );
-                        })()}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-500">No active members yet.</p>
-                  )}
-                </div>
-              </div>
-            </section>
           </>
         ) : null}
       </main>
@@ -940,11 +1071,12 @@ function ServiceAccountAuditRow({
   );
 }
 
-function SummaryMetric({ label, value }: { label: string; value: string }) {
+function SummaryMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
   );
 }
@@ -1053,6 +1185,59 @@ function DetailField({
   );
 }
 
+function PaginationControls({
+  page,
+  totalPages,
+  onPageChange,
+  label,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  label: string;
+}) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2 py-2">
+      <button
+        type="button"
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 1}
+        aria-label={`Previous ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <span className="min-w-[84px] text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Page {page} / {totalPages}
+      </span>
+      <button
+        type="button"
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages}
+        aria-label={`Next ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function paginateItems<T>(items: T[], requestedPage: number, pageSize: number): { items: T[]; page: number; totalPages: number } {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const page = Math.min(Math.max(requestedPage, 1), totalPages);
+  const start = (page - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    page,
+    totalPages,
+  };
+}
+
 function formatAuditMetadataValue(value: unknown): string {
   if (value === null || value === undefined) {
     return "-";
@@ -1122,8 +1307,7 @@ function describeAuditEvent(event: APIKeyAuditEvent): { title: string; summary: 
   const context = [purpose, environment].filter(Boolean).join(" · ");
   const contextSuffix = context ? ` for ${context}` : "";
   const actorSummary = event.actor_api_key_id ? "Changed by another credential" : "Changed from the workspace access console";
-  const metadataSummary =
-    metadataCount > 0 ? `${metadataCount} supporting field${metadataCount === 1 ? "" : "s"}` : "No supporting fields";
+  const metadataSummary = metadataCount > 0 ? `${metadataCount} supporting field${metadataCount === 1 ? "" : "s"}` : "No supporting fields";
 
   switch (event.action) {
     case "created":
