@@ -15,12 +15,13 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingTaxListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
 
   const taxesQuery = useQuery({
     queryKey: ["pricing-taxes", apiBaseURL],
     queryFn: () => fetchTaxes({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const filtered = useMemo(() => {
@@ -38,56 +39,60 @@ export function PricingTaxListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Taxes" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Taxes</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Maintain reusable tax codes and rates, then assign them to customer billing profiles and workspace billing settings.
-              </p>
-            </div>
-            <Link href="/pricing/taxes/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-              <Plus className="h-4 w-4" />
-              New tax
-            </Link>
-          </div>
-        </section>
-
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to manage them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <MetricCard label="Total taxes" value={String(taxesQuery.data?.length ?? 0)} />
-          <MetricCard label="Active taxes" value={String(activeCount)} />
-          <MetricCard label="Search results" value={String(filtered.length)} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Taxes</h1>
+                  <p className="mt-3 max-w-3xl text-sm text-slate-600">
+                    Maintain reusable tax codes and rates, then assign them to customer billing profiles and workspace billing settings.
+                  </p>
+                </div>
+                <Link href="/pricing/taxes/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <Plus className="h-4 w-4" />
+                  New tax
+                </Link>
+              </div>
+            </section>
 
-        <section className="grid gap-3 xl:grid-cols-3">
-          <OperatorCard title="Assignment rule" body="Keep tax codes stable and rates deliberate so invoice behavior stays explainable." />
-          <OperatorCard title="Inventory rule" body="This list is for reusable tax rules. Use it to verify readiness before applying a rule to customer or workspace billing settings." />
-          <OperatorCard title="Next action" body="Open tax detail to confirm availability, then assign active rules through billing settings." />
-        </section>
+            <section className="grid gap-4 md:grid-cols-3">
+              <MetricCard label="Total taxes" value={String(taxesQuery.data?.length ?? 0)} />
+              <MetricCard label="Active taxes" value={String(activeCount)} />
+              <MetricCard label="Search results" value={String(filtered.length)} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax inventory</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
-            </div>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name or code"
-              className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-            />
-          </div>
-          <div className="mt-5 grid gap-3">
-            {taxesQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((tax) => <TaxRow key={tax.id} tax={tax} />)}
-          </div>
-        </section>
+            <section className="grid gap-3 xl:grid-cols-3">
+              <OperatorCard title="Assignment rule" body="Keep tax codes stable and rates deliberate so invoice behavior stays explainable." />
+              <OperatorCard title="Inventory rule" body="This list is for reusable tax rules. Use it to verify readiness before applying a rule to customer or workspace billing settings." />
+              <OperatorCard title="Next action" body="Open tax detail to confirm availability, then assign active rules through billing settings." />
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax inventory</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
+                </div>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name or code"
+                  className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+              </div>
+              <div className="mt-5 grid gap-3">
+                {taxesQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((tax) => <TaxRow key={tax.id} tax={tax} />)}
+              </div>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

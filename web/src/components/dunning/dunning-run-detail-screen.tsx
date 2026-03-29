@@ -104,6 +104,8 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
           />
         ) : null}
 
+        {isTenantSession ? (
+          <>
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -335,6 +337,8 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
                 </section>
               </aside>
             </section>
+          </>
+        ) : null}
           </>
         ) : null}
       </main>

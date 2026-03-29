@@ -50,6 +50,7 @@ function toISOOrUndefined(value: string): string | undefined {
 
 export function UsageEventsScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [submitted, setSubmitted] = useState<FilterState>(defaultFilters);
   const [cursor, setCursor] = useState("");
@@ -69,7 +70,7 @@ export function UsageEventsScreen() {
         limit: defaultLimit,
         cursor: cursor || undefined,
       }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const items = query.data?.items ?? [];
@@ -143,14 +144,16 @@ export function UsageEventsScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Visible events" value={String(stats.visible)} />
-          <MetricCard label="Visible quantity" value={String(stats.quantity)} />
-          <MetricCard label="Customers on page" value={String(stats.customers)} />
-          <MetricCard label="Meters on page" value={String(stats.meters)} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Visible events" value={String(stats.visible)} />
+              <MetricCard label="Visible quantity" value={String(stats.quantity)} />
+              <MetricCard label="Customers on page" value={String(stats.customers)} />
+              <MetricCard label="Meters on page" value={String(stats.meters)} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Filters</p>
@@ -190,9 +193,9 @@ export function UsageEventsScreen() {
               </select>
             </label>
           </div>
-        </section>
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event inventory</p>
@@ -240,7 +243,9 @@ export function UsageEventsScreen() {
               </>
             ) : null}
           </div>
-        </section>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

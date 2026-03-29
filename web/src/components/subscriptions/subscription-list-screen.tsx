@@ -30,12 +30,13 @@ function formatSubscriptionPaymentSetupStatus(status: SubscriptionSummary["payme
 
 export function SubscriptionListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
 
   const subscriptionsQuery = useQuery({
     queryKey: ["subscriptions", apiBaseURL],
     queryFn: () => fetchSubscriptions({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const filtered = useMemo(() => {
@@ -69,10 +70,12 @@ export function SubscriptionListScreen() {
                 Track what the customer is signing up for, whether payment setup has been requested, and whether the payer has completed billing readiness.
               </p>
             </div>
-            <Link href="/subscriptions/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-              <Plus className="h-4 w-4" />
-              New subscription
-            </Link>
+            {isTenantSession ? (
+              <Link href="/subscriptions/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                <Plus className="h-4 w-4" />
+                New subscription
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -86,14 +89,16 @@ export function SubscriptionListScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Subscriptions" value={stats.total} />
-          <MetricCard label="Active" value={stats.active} />
-          <MetricCard label="Pending setup" value={stats.pending} />
-          <MetricCard label="Action required" value={stats.actionRequired} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Subscriptions" value={stats.total} />
+              <MetricCard label="Active" value={stats.active} />
+              <MetricCard label="Pending setup" value={stats.pending} />
+              <MetricCard label="Action required" value={stats.actionRequired} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription inventory</p>
@@ -106,10 +111,12 @@ export function SubscriptionListScreen() {
               className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
             />
           </div>
-          <div className="mt-5 grid gap-3">
-            {subscriptionsQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((item) => <SubscriptionRow key={item.id} item={item} />)}
-          </div>
-        </section>
+              <div className="mt-5 grid gap-3">
+                {subscriptionsQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((item) => <SubscriptionRow key={item.id} item={item} />)}
+              </div>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

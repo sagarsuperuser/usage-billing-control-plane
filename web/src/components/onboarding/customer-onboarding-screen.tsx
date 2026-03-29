@@ -17,6 +17,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 export function CustomerOnboardingScreen() {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, role, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [externalID, setExternalID] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -102,7 +103,7 @@ export function CustomerOnboardingScreen() {
             actionLabel="Open platform home"
           />
         ) : null}
-        {isAuthenticated && scope === "tenant" && !canWrite ? (
+        {isTenantSession && !canWrite ? (
           <ScopeNotice
             title="Read-only session"
             body={`Current session role ${role ?? "reader"} can inspect customer detail pages, but a writer or admin account is required to run setup.`}
@@ -111,9 +112,9 @@ export function CustomerOnboardingScreen() {
           />
         ) : null}
 
-        {flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
+        {isTenantSession && flash ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{flash}</section> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+        {isTenantSession ? <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -273,7 +274,7 @@ export function CustomerOnboardingScreen() {
               </section>
             )}
           </aside>
-        </div>
+        </div> : null}
       </main>
     </div>
   );

@@ -43,6 +43,7 @@ function tone(status?: string): string {
 
 export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [profileDraftState, setProfileDraftState] = useState<{
     sourceKey: string;
     value: CustomerBillingProfileInput;
@@ -56,18 +57,18 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, externalID],
     queryFn: () => fetchCustomers({ runtimeBaseURL: apiBaseURL, externalID, limit: 1 }),
-    enabled: isAuthenticated && scope === "tenant" && externalID.trim().length > 0,
+    enabled: isTenantSession && externalID.trim().length > 0,
   });
 
   const readinessQuery = useQuery({
     queryKey: ["customer-readiness", apiBaseURL, externalID],
     queryFn: () => fetchCustomerReadiness({ runtimeBaseURL: apiBaseURL, externalID }),
-    enabled: isAuthenticated && scope === "tenant" && externalID.trim().length > 0,
+    enabled: isTenantSession && externalID.trim().length > 0,
   });
   const billingProfileQuery = useQuery({
     queryKey: ["customer-billing-profile", apiBaseURL, externalID],
     queryFn: () => fetchCustomerBillingProfile({ runtimeBaseURL: apiBaseURL, externalID }),
-    enabled: isAuthenticated && scope === "tenant" && externalID.trim().length > 0,
+    enabled: isTenantSession && externalID.trim().length > 0,
   });
 
   const retryMutation = useMutation({
@@ -180,19 +181,20 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
           />
         ) : null}
 
-        {customersQuery.isLoading || readinessQuery.isLoading ? (
-          <LoadingPanel label="Loading customer detail" />
-        ) : customersQuery.isError || readinessQuery.isError || billingProfileQuery.isError || !customer || !readiness ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Customer not available</h1>
-            <p className="mt-3 text-sm text-slate-600">The requested customer could not be loaded from the workspace APIs.</p>
-            <Link href="/customers" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-              <ArrowLeft className="h-4 w-4" />
-              Back to customers
-            </Link>
-          </section>
-        ) : (
+        {isTenantSession ? (
+          customersQuery.isLoading || readinessQuery.isLoading ? (
+            <LoadingPanel label="Loading customer detail" />
+          ) : customersQuery.isError || readinessQuery.isError || billingProfileQuery.isError || !customer || !readiness ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
+              <h1 className="mt-2 text-2xl font-semibold text-slate-950">Customer not available</h1>
+              <p className="mt-3 text-sm text-slate-600">The requested customer could not be loaded from the workspace APIs.</p>
+              <Link href="/customers" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                <ArrowLeft className="h-4 w-4" />
+                Back to customers
+              </Link>
+            </section>
+          ) : (
           <>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -558,7 +560,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               </aside>
             </div>
           </>
-        )}
+          )
+        ) : null}
       </main>
     </div>
   );

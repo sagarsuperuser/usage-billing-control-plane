@@ -50,6 +50,7 @@ function diagnosisToneClass(tone: "healthy" | "warning" | "danger"): string {
 export function PaymentListScreen() {
   const searchParams = useSearchParams();
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [customerExternalID, setCustomerExternalID] = useState(searchParams.get("customer_external_id") || "");
   const [invoiceID, setInvoiceID] = useState(searchParams.get("invoice_id") || "");
@@ -99,7 +100,7 @@ export function PaymentListScreen() {
   const paymentsQuery = useQuery({
     queryKey: ["payments", apiBaseURL, filters],
     queryFn: () => fetchPayments({ runtimeBaseURL: apiBaseURL, filters }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const items = useMemo(() => paymentsQuery.data?.items ?? [], [paymentsQuery.data?.items]);
@@ -141,14 +142,16 @@ export function PaymentListScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Visible payments" value={stats.total} />
-          <MetricCard label="Failed" value={stats.failed} />
-          <MetricCard label="Overdue" value={stats.overdue} />
-          <MetricCard label="Need operator action" value={stats.actionRequired} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Visible payments" value={stats.total} />
+              <MetricCard label="Failed" value={stats.failed} />
+              <MetricCard label="Overdue" value={stats.overdue} />
+              <MetricCard label="Need operator action" value={stats.actionRequired} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment inventory</p>
@@ -269,16 +272,18 @@ export function PaymentListScreen() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3">
-            {paymentsQuery.isLoading ? (
-              <LoadingState />
-            ) : items.length === 0 ? (
-              <EmptyState />
-            ) : (
-              items.map((item) => <PaymentRow key={item.invoice_id} item={item} />)
-            )}
-          </div>
-        </section>
+              <div className="mt-5 grid gap-3">
+                {paymentsQuery.isLoading ? (
+                  <LoadingState />
+                ) : items.length === 0 ? (
+                  <EmptyState />
+                ) : (
+                  items.map((item) => <PaymentRow key={item.invoice_id} item={item} />)
+                )}
+              </div>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

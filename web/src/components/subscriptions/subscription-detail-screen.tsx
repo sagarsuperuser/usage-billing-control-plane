@@ -47,18 +47,19 @@ function formatSubscriptionPaymentSetupStatus(status: string): string {
 
 export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [selectedPlanID, setSelectedPlanID] = useState("");
 
   const detailQuery = useQuery({
     queryKey: ["subscription", apiBaseURL, subscriptionID],
     queryFn: () => fetchSubscription({ runtimeBaseURL: apiBaseURL, subscriptionID }),
-    enabled: isAuthenticated && scope === "tenant" && subscriptionID.trim().length > 0,
+    enabled: isTenantSession && subscriptionID.trim().length > 0,
   });
 
   const plansQuery = useQuery({
     queryKey: ["plans", apiBaseURL],
     queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const requestMutation = useMutation({
@@ -124,19 +125,20 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
           />
         ) : null}
 
-        {detailQuery.isLoading ? (
-          <LoadingPanel label="Loading subscription detail" />
-        ) : detailQuery.isError || !subscription ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Subscription not available</h1>
-            <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the workspace APIs.</p>
-            <Link href="/subscriptions" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-              <ArrowLeft className="h-4 w-4" />
-              Back to subscriptions
-            </Link>
-          </section>
-        ) : (
+        {isTenantSession ? (
+          detailQuery.isLoading ? (
+            <LoadingPanel label="Loading subscription detail" />
+          ) : detailQuery.isError || !subscription ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
+              <h1 className="mt-2 text-2xl font-semibold text-slate-950">Subscription not available</h1>
+              <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the workspace APIs.</p>
+              <Link href="/subscriptions" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                <ArrowLeft className="h-4 w-4" />
+                Back to subscriptions
+              </Link>
+            </section>
+          ) : (
           <>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -299,7 +301,8 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
               </aside>
             </div>
           </>
-        )}
+          )
+        ) : null}
       </main>
     </div>
   );

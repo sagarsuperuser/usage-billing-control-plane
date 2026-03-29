@@ -18,12 +18,20 @@ if [[ -z "$job_name" ]]; then
   exit 1
 fi
 
-image="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.containers[0].image}')"
-service_account="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.serviceAccountName}')"
-config_map_ref="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.containers[0].envFrom[?(@.configMapRef)].configMapRef.name}')"
-secret_ref="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.containers[0].envFrom[?(@.secretRef)].secretRef.name}')"
+deployment_json="$(kubectl -n "$namespace" get deploy "$api_deployment" -o json)"
+image="$(jq -r '.spec.template.spec.containers[0].image // empty' <<<"$deployment_json")"
+service_account="$(jq -r '.spec.template.spec.serviceAccountName // empty' <<<"$deployment_json")"
+config_map_refs=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && config_map_refs+=("$line")
+done < <(jq -r '.spec.template.spec.containers[0].envFrom[]? | select(has("configMapRef")) | .configMapRef.name' <<<"$deployment_json")
 
-if [[ -z "$image" || -z "$service_account" || -z "$config_map_ref" || -z "$secret_ref" ]]; then
+secret_refs=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && secret_refs+=("$line")
+done < <(jq -r '.spec.template.spec.containers[0].envFrom[]? | select(has("secretRef")) | .secretRef.name' <<<"$deployment_json")
+
+if [[ -z "$image" || -z "$service_account" || "${#config_map_refs[@]}" -eq 0 || "${#secret_refs[@]}" -eq 0 ]]; then
   echo "failed to derive runtime wiring from deployment $api_deployment" >&2
   exit 1
 fi
@@ -107,11 +115,15 @@ done
 
 cat >>"$manifest_file" <<EOF
           envFrom:
-            - configMapRef:
-                name: ${config_map_ref}
-            - secretRef:
-                name: ${secret_ref}
 EOF
+
+for config_map_ref in "${config_map_refs[@]}"; do
+  printf '            - configMapRef:\n                name: %s\n' "$config_map_ref" >>"$manifest_file"
+done
+
+for secret_ref in "${secret_refs[@]}"; do
+  printf '            - secretRef:\n                name: %s\n' "$secret_ref" >>"$manifest_file"
+done
 
 kubectl apply -f "$manifest_file" >/dev/null
 

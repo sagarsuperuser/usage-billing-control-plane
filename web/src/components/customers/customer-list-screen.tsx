@@ -33,13 +33,14 @@ function tone(status?: string): string {
 
 export function CustomerListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, statusFilter],
     queryFn: () => fetchCustomers({ runtimeBaseURL: apiBaseURL, status: statusFilter || undefined, limit: 100 }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const filteredCustomers = useMemo(() => {
@@ -53,7 +54,7 @@ export function CustomerListScreen() {
     queries: filteredCustomers.map((customer) => ({
       queryKey: ["customer-readiness", apiBaseURL, customer.external_id],
       queryFn: () => fetchCustomerReadiness({ runtimeBaseURL: apiBaseURL, externalID: customer.external_id }),
-      enabled: isAuthenticated && scope === "tenant",
+      enabled: isTenantSession,
     })),
   });
 
@@ -94,10 +95,12 @@ export function CustomerListScreen() {
                 Browse billing readiness, payment setup state, and recovery needs. Customer creation stays in the dedicated setup flow.
               </p>
             </div>
-            <Link href="/customers/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-              <Plus className="h-4 w-4" />
-              New customer
-            </Link>
+            {isTenantSession ? (
+              <Link href="/customers/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                <Plus className="h-4 w-4" />
+                New customer
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -111,51 +114,55 @@ export function CustomerListScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Visible customers" value={summary.total} />
-          <MetricCard label="Billing ready" value={summary.ready} />
-          <MetricCard label="Collection blocked" value={summary.pendingPayment} />
-          <MetricCard label="Sync recovery" value={summary.syncErrors} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Visible customers" value={summary.total} />
+              <MetricCard label="Billing ready" value={summary.ready} />
+              <MetricCard label="Collection blocked" value={summary.pendingPayment} />
+              <MetricCard label="Sync recovery" value={summary.syncErrors} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer inventory</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by name or customer ID"
-                className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-              />
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-              >
-                <option value="">All statuses</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-          </div>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer inventory</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search by name or customer ID"
+                    className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  />
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  >
+                    <option value="">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
 
-          <div className="mt-5 grid gap-3">
-            {customersQuery.isLoading ? (
-              <LoadingState />
-            ) : filteredCustomers.length === 0 ? (
-              <EmptyState />
-            ) : (
-              filteredCustomers.map((customer) => (
-                <CustomerRow key={customer.external_id} customer={customer} readiness={readinessByCustomer.get(customer.external_id)} />
-              ))
-            )}
-          </div>
-        </section>
+              <div className="mt-5 grid gap-3">
+                {customersQuery.isLoading ? (
+                  <LoadingState />
+                ) : filteredCustomers.length === 0 ? (
+                  <EmptyState />
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <CustomerRow key={customer.external_id} customer={customer} readiness={readinessByCustomer.get(customer.external_id)} />
+                  ))
+                )}
+              </div>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

@@ -15,12 +15,13 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingAddOnListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
 
   const addOnsQuery = useQuery({
     queryKey: ["pricing-add-ons", apiBaseURL],
     queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const filtered = useMemo(() => {
@@ -38,56 +39,60 @@ export function PricingAddOnListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Add-ons" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Add-ons</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Create reusable recurring extras like premium support, onboarding, or compliance bundles and attach them to plans.
-              </p>
-            </div>
-            <Link href="/pricing/add-ons/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-              <Plus className="h-4 w-4" />
-              New add-on
-            </Link>
-          </div>
-        </section>
-
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice title="Workspace session required" body="Add-ons are workspace-scoped. Sign in with a workspace account to manage them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <MetricCard label="Total add-ons" value={String(addOnsQuery.data?.length ?? 0)} />
-          <MetricCard label="Draft add-ons" value={String(draftCount)} />
-          <MetricCard label="Search results" value={String(filtered.length)} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Add-ons</h1>
+                  <p className="mt-3 max-w-3xl text-sm text-slate-600">
+                    Create reusable recurring extras like premium support, onboarding, or compliance bundles and attach them to plans.
+                  </p>
+                </div>
+                <Link href="/pricing/add-ons/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <Plus className="h-4 w-4" />
+                  New add-on
+                </Link>
+              </div>
+            </section>
 
-        <section className="grid gap-3 xl:grid-cols-3">
-          <OperatorCard title="Commercial rule" body="Use add-ons only for recurring extras that operators can explain cleanly on top of the base plan." />
-          <OperatorCard title="Inventory rule" body="This list is for reusable extras. Attach them through plans rather than rebuilding the same charge repeatedly." />
-          <OperatorCard title="Next action" body="Open add-on detail to review the record, then confirm which plans should carry it." />
-        </section>
+            <section className="grid gap-4 md:grid-cols-3">
+              <MetricCard label="Total add-ons" value={String(addOnsQuery.data?.length ?? 0)} />
+              <MetricCard label="Draft add-ons" value={String(draftCount)} />
+              <MetricCard label="Search results" value={String(filtered.length)} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Add-on inventory</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
-            </div>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, code, or currency"
-              className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-            />
-          </div>
-          <div className="mt-5 grid gap-3">
-            {addOnsQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((addOn) => <AddOnRow key={addOn.id} addOn={addOn} />)}
-          </div>
-        </section>
+            <section className="grid gap-3 xl:grid-cols-3">
+              <OperatorCard title="Commercial rule" body="Use add-ons only for recurring extras that operators can explain cleanly on top of the base plan." />
+              <OperatorCard title="Inventory rule" body="This list is for reusable extras. Attach them through plans rather than rebuilding the same charge repeatedly." />
+              <OperatorCard title="Next action" body="Open add-on detail to review the record, then confirm which plans should carry it." />
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Add-on inventory</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
+                </div>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name, code, or currency"
+                  className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+              </div>
+              <div className="mt-5 grid gap-3">
+                {addOnsQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((addOn) => <AddOnRow key={addOn.id} addOn={addOn} />)}
+              </div>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

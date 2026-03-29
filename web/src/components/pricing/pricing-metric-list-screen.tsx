@@ -15,12 +15,13 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingMetricListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
 
   const metricsQuery = useQuery({
     queryKey: ["pricing-metrics", apiBaseURL],
     queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const filtered = useMemo(() => {
@@ -36,56 +37,60 @@ export function PricingMetricListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Metrics" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Metrics</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Metrics define what gets measured commercially. Keep them simple and stable so plans can reuse them later.
-              </p>
-            </div>
-            <Link href="/pricing/metrics/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-              <Plus className="h-4 w-4" />
-              New metric
-            </Link>
-          </div>
-        </section>
-
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice title="Workspace session required" body="Pricing metrics are workspace-scoped. Sign in with a workspace account to manage them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <MetricCard label="Total metrics" value={String(metricsQuery.data?.length ?? 0)} />
-          <MetricCard label="Distinct units" value={String(new Set((metricsQuery.data ?? []).map((item) => item.unit)).size)} />
-          <MetricCard label="Search results" value={String(filtered.length)} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Metrics</h1>
+                  <p className="mt-3 max-w-3xl text-sm text-slate-600">
+                    Metrics define what gets measured commercially. Keep them simple and stable so plans can reuse them later.
+                  </p>
+                </div>
+                <Link href="/pricing/metrics/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <Plus className="h-4 w-4" />
+                  New metric
+                </Link>
+              </div>
+            </section>
 
-        <section className="grid gap-3 xl:grid-cols-3">
-          <OperatorCard title="Commercial rule" body="Keep metric keys stable so plans and reporting can rely on them." />
-          <OperatorCard title="Review posture" body="Use this list for inventory review. Open detail when an operator needs aggregation or usage context." />
-          <OperatorCard title="Next action" body="Create new metrics only when the commercial signal is genuinely different from existing usage records." />
-        </section>
+            <section className="grid gap-4 md:grid-cols-3">
+              <MetricCard label="Total metrics" value={String(metricsQuery.data?.length ?? 0)} />
+              <MetricCard label="Distinct units" value={String(new Set((metricsQuery.data ?? []).map((item) => item.unit)).size)} />
+              <MetricCard label="Search results" value={String(filtered.length)} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metric inventory</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
-            </div>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, code, or unit"
-              className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-            />
-          </div>
-          <div className="mt-5 grid gap-3">
-            {metricsQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((metric) => <MetricRow key={metric.id} metric={metric} />)}
-          </div>
-        </section>
+            <section className="grid gap-3 xl:grid-cols-3">
+              <OperatorCard title="Commercial rule" body="Keep metric keys stable so plans and reporting can rely on them." />
+              <OperatorCard title="Review posture" body="Use this list for inventory review. Open detail when an operator needs aggregation or usage context." />
+              <OperatorCard title="Next action" body="Create new metrics only when the commercial signal is genuinely different from existing usage records." />
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metric inventory</p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
+                </div>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name, code, or unit"
+                  className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+              </div>
+              <div className="mt-5 grid gap-3">
+                {metricsQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((metric) => <MetricRow key={metric.id} metric={metric} />)}
+              </div>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

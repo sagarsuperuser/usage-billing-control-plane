@@ -13,11 +13,12 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingCouponDetailScreen({ couponID }: { couponID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const couponQuery = useQuery({
     queryKey: ["pricing-coupon", apiBaseURL, couponID],
     queryFn: () => fetchCoupon({ runtimeBaseURL: apiBaseURL, couponID }),
-    enabled: isAuthenticated && scope === "tenant" && couponID.trim().length > 0,
+    enabled: isTenantSession && couponID.trim().length > 0,
   });
 
   const coupon = couponQuery.data ?? null;
@@ -31,7 +32,7 @@ export function PricingCouponDetailScreen({ couponID }: { couponID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Coupons are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
-        {couponQuery.isLoading ? (
+        {isTenantSession ? couponQuery.isLoading ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading coupon detail</div></section>
         ) : !coupon ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -82,7 +83,7 @@ export function PricingCouponDetailScreen({ couponID }: { couponID: string }) {
               </aside>
             </div>
           </>
-        )}
+        ) : null}
       </main>
     </div>
   );

@@ -11,6 +11,14 @@ type TenantSessionPayload = {
   csrf_token: string;
 };
 
+type PlatformSessionPayload = {
+  authenticated: boolean;
+  scope: "platform";
+  platform_role: "platform_admin";
+  api_key_id: string;
+  csrf_token: string;
+};
+
 type PricingMetric = {
   id: string;
   key: string;
@@ -371,6 +379,41 @@ async function waitForCreatedResource(page: Page, pathFragment: string, action: 
     action(),
   ]);
 }
+
+test("platform admin sees a clean workspace gate on pricing home", async ({ page, context }) => {
+  await context.route("**/runtime-config", async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseURL: url.origin }),
+    });
+  });
+
+  const session: PlatformSessionPayload = {
+    authenticated: true,
+    scope: "platform",
+    platform_role: "platform_admin",
+    api_key_id: "apk_platform_admin",
+    csrf_token: "csrf-platform-123",
+  };
+
+  await context.route("**/v1/ui/sessions/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(session),
+    });
+  });
+
+  await page.goto("/pricing");
+
+  await expect(page.getByRole("heading", { name: "Pricing catalog" })).toBeVisible();
+  await expect(page.getByText("Workspace session required")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pricing records" })).not.toBeVisible();
+  await expect(page.getByText("Catalog records")).not.toBeVisible();
+  await expect(page.getByText("Commercial setup sequence")).not.toBeVisible();
+});
 
 test("tenant writer can create pricing metric tax add-on coupon and plan", async ({ page, context }) => {
   test.slow();

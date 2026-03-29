@@ -16,6 +16,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function SubscriptionNewScreen() {
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [displayName, setDisplayName] = useState("");
   const [code, setCode] = useState("");
   const [customerExternalID, setCustomerExternalID] = useState("");
@@ -26,12 +27,12 @@ export function SubscriptionNewScreen() {
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, "subscriptions-new"],
     queryFn: () => fetchCustomers({ runtimeBaseURL: apiBaseURL, limit: 100 }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
   const plansQuery = useQuery({
     queryKey: ["plans", apiBaseURL, "subscriptions-new"],
     queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const customers = useMemo(() => customersQuery.data ?? [], [customersQuery.data]);
@@ -72,7 +73,7 @@ export function SubscriptionNewScreen() {
           <ScopeNotice title="Workspace session required" body="Subscriptions are workspace-scoped. Sign in with a workspace account to create them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
-        {mutation.isSuccess ? (
+        {isTenantSession && mutation.isSuccess ? (
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-700" />
@@ -98,7 +99,7 @@ export function SubscriptionNewScreen() {
           </section>
         ) : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        {isTenantSession ? <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <form
             className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
             onSubmit={(event) => {
@@ -187,7 +188,7 @@ export function SubscriptionNewScreen() {
             <InfoCard title="Operator guidance" body="Use this screen to create the commercial record. Use subscription detail after submit for state changes and payment setup follow-up." />
             <InfoCard title="Hosted setup rule" body="Operators should not collect card details directly. Send the generated setup link and let the payer complete the step." />
           </aside>
-        </div>
+        </div> : null}
       </main>
     </div>
   );

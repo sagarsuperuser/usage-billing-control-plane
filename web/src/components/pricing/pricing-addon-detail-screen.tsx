@@ -13,11 +13,12 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const addOnQuery = useQuery({
     queryKey: ["pricing-add-on", apiBaseURL, addOnID],
     queryFn: () => fetchAddOn({ runtimeBaseURL: apiBaseURL, addOnID }),
-    enabled: isAuthenticated && scope === "tenant" && addOnID.trim().length > 0,
+    enabled: isTenantSession && addOnID.trim().length > 0,
   });
 
   const addOn = addOnQuery.data ?? null;
@@ -31,7 +32,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Add-ons are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
-        {addOnQuery.isLoading ? (
+        {isTenantSession ? addOnQuery.isLoading ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading add-on detail</div></section>
         ) : !addOn ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -80,7 +81,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
               </aside>
             </div>
           </>
-        )}
+        ) : null}
       </main>
     </div>
   );

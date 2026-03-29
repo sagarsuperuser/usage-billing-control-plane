@@ -16,6 +16,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 export function PricingMetricNewScreen() {
   const router = useRouter();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [unit, setUnit] = useState("request");
@@ -38,60 +39,64 @@ export function PricingMetricNewScreen() {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Metrics are workspace-scoped. Sign in with a workspace account to create one." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create metric</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-600">Define the usage record plans will price against. Keep the key stable and the aggregation obvious.</p>
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create metric</h1>
+              <p className="mt-3 max-w-3xl text-sm text-slate-600">Define the usage record plans will price against. Keep the key stable and the aggregation obvious.</p>
+            </section>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="grid gap-5">
-              <div className="grid gap-3 lg:grid-cols-3">
-                <OperatorCard title="Operator input" body="Use a stable code and a unit that operators will still recognize six months from now." />
-                <OperatorCard title="Aggregation rule" body="Sum is the safest default for most metered event flows. Only use count or max when the billing rule is explicit." />
-                <OperatorCard title="After create" body="Open the metric record to inspect the generated pricing draft and attach it to plans." />
-              </div>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="grid gap-5">
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    <OperatorCard title="Operator input" body="Use a stable code and a unit that operators will still recognize six months from now." />
+                    <OperatorCard title="Aggregation rule" body="Sum is the safest default for most metered event flows. Only use count or max when the billing rule is explicit." />
+                    <OperatorCard title="After create" body="Open the metric record to inspect the generated pricing draft and attach it to plans." />
+                  </div>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Usage definition</p>
-                <h2 className="mt-2 text-lg font-semibold text-slate-950">Metric basics</h2>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <Field label="Metric name" value={name} onChange={setName} placeholder="API Calls" testID="pricing-metric-name" />
-                  <Field label="Metric code" value={key} onChange={setKey} placeholder="api_calls" testID="pricing-metric-code" />
-                  <Field label="Unit" value={unit} onChange={setUnit} placeholder="request" testID="pricing-metric-unit" />
-                  <SelectField label="Aggregation" value={aggregation} onChange={setAggregation} options={["sum", "count", "max"]} />
-                  <Field label="Currency" value={currency} onChange={setCurrency} placeholder="USD" testID="pricing-metric-currency" />
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Usage definition</p>
+                    <h2 className="mt-2 text-lg font-semibold text-slate-950">Metric basics</h2>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <Field label="Metric name" value={name} onChange={setName} placeholder="API Calls" testID="pricing-metric-name" />
+                      <Field label="Metric code" value={key} onChange={setKey} placeholder="api_calls" testID="pricing-metric-code" />
+                      <Field label="Unit" value={unit} onChange={setUnit} placeholder="request" testID="pricing-metric-unit" />
+                      <SelectField label="Aggregation" value={aggregation} onChange={setAggregation} options={["sum", "count", "max"]} />
+                      <Field label="Currency" value={currency} onChange={setCurrency} placeholder="USD" testID="pricing-metric-currency" />
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      <ChecklistLine done={name.trim().length > 0} text="Metric name is set" />
+                      <ChecklistLine done={key.trim().length > 0} text="Metric code is set" />
+                      <ChecklistLine done={unit.trim().length > 0} text="Usage unit is set" />
+                      <ChecklistLine done={Boolean(csrfToken)} text="Writable workspace session present" />
+                    </div>
+                  </section>
+
+                  {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button data-testid="pricing-metric-submit" type="button" onClick={() => mutation.mutate()} disabled={!csrfToken || mutation.isPending} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+                      {mutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                      Create metric
+                    </button>
+                    <Link href="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                  </div>
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  <ChecklistLine done={name.trim().length > 0} text="Metric name is set" />
-                  <ChecklistLine done={key.trim().length > 0} text="Metric code is set" />
-                  <ChecklistLine done={unit.trim().length > 0} text="Usage unit is set" />
-                  <ChecklistLine done={Boolean(csrfToken)} text="Writable workspace session present" />
-                </div>
-              </section>
-
-              {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
-
-              <div className="flex flex-wrap gap-3">
-                <button data-testid="pricing-metric-submit" type="button" onClick={() => mutation.mutate()} disabled={!csrfToken || mutation.isPending} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                  {mutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                  Create metric
-                </button>
-                <Link href="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
-              </div>
+              <aside className="grid gap-5 self-start">
+                <InfoCard title="Design rule" body="Keep metrics simple and stable so plans can reuse them safely later." />
+                <InfoCard title="Operator guidance" body="This screen defines the usage record only. Use metric detail after submit to inspect the generated pricing draft." />
+              </aside>
             </div>
-          </section>
-
-          <aside className="grid gap-5 self-start">
-            <InfoCard title="Design rule" body="Keep metrics simple and stable so plans can reuse them safely later." />
-            <InfoCard title="Operator guidance" body="This screen defines the usage record only. Use metric detail after submit to inspect the generated pricing draft." />
-          </aside>
-        </div>
+          </>
+        ) : null}
       </main>
     </div>
   );

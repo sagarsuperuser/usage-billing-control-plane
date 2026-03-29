@@ -14,27 +14,28 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const planQuery = useQuery({
     queryKey: ["pricing-plan", apiBaseURL, planID],
     queryFn: () => fetchPlan({ runtimeBaseURL: apiBaseURL, planID }),
-    enabled: isAuthenticated && scope === "tenant" && planID.trim().length > 0,
+    enabled: isTenantSession && planID.trim().length > 0,
   });
 
   const metricsQuery = useQuery({
     queryKey: ["pricing-metrics", apiBaseURL],
     queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
   const addOnsQuery = useQuery({
     queryKey: ["pricing-add-ons", apiBaseURL],
     queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
   const couponsQuery = useQuery({
     queryKey: ["pricing-coupons", apiBaseURL],
     queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const plan = planQuery.data ?? null;
@@ -65,7 +66,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
           <ScopeNotice title="Workspace session required" body="Plans are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
-        {planQuery.isLoading ? (
+        {isTenantSession ? planQuery.isLoading ? (
           <LoadingPanel label="Loading plan detail" />
         ) : !plan ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -206,7 +207,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </div>
             </section>
           </>
-        )}
+        ) : null}
       </main>
     </div>
   );

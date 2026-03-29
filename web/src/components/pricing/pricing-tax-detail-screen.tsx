@@ -13,11 +13,12 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const taxQuery = useQuery({
     queryKey: ["pricing-tax", apiBaseURL, taxID],
     queryFn: () => fetchTax({ runtimeBaseURL: apiBaseURL, taxID }),
-    enabled: isAuthenticated && scope === "tenant" && taxID.trim().length > 0,
+    enabled: isTenantSession && taxID.trim().length > 0,
   });
 
   const tax = taxQuery.data ?? null;
@@ -31,7 +32,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
-        {taxQuery.isLoading ? (
+        {isTenantSession ? taxQuery.isLoading ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading tax detail</div></section>
         ) : !tax ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -83,7 +84,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
               </aside>
             </div>
           </>
-        )}
+        ) : null}
       </main>
     </div>
   );

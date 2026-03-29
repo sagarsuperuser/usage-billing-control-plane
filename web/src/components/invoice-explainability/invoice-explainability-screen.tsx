@@ -142,7 +142,7 @@ export function InvoiceExplainabilityScreen() {
           </section>
         ) : null}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Trace Query</p>
@@ -246,9 +246,9 @@ export function InvoiceExplainabilityScreen() {
               </ul>
             </div>
           </div>
-        </section>
+        </section> : null}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Digest Summary</p>
@@ -283,7 +283,7 @@ export function InvoiceExplainabilityScreen() {
               dataTestID="explainability-meta-digest"
             />
           </div>
-        </section>
+        </section> : null}
 
         <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 border-b border-stone-200 px-3 pb-4 pt-1 md:flex-row md:items-end md:justify-between">

@@ -13,10 +13,11 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const query = useQuery({
     queryKey: ["pricing-metric", apiBaseURL, metricID],
     queryFn: () => fetchPricingMetric({ runtimeBaseURL: apiBaseURL, metricID }),
-    enabled: isAuthenticated && scope === "tenant" && metricID.trim().length > 0,
+    enabled: isTenantSession && metricID.trim().length > 0,
   });
 
   const metric = query.data ?? null;
@@ -32,7 +33,7 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
           <ScopeNotice title="Workspace session required" body="Metrics are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
-        {query.isLoading ? (
+        {isTenantSession ? query.isLoading ? (
           <LoadingPanel label="Loading metric detail" />
         ) : !metric ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -86,7 +87,7 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
               </aside>
             </div>
           </>
-        )}
+        ) : null}
       </main>
     </div>
   );
