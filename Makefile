@@ -16,8 +16,9 @@ BOOTSTRAP_LAGO_FOR_TESTS ?= 1
 CLEANUP_LAGO_ON_EXIT ?= 0
 VERIFY_LAGO_BACKEND_FOR_TESTS ?= 0
 LAGO_VERIFY_COMPOSE_FILE ?= docker-compose.dev.yml
+LAGO_AUTHORITATIVE_BASELINE ?= lago-fork-v1.44.0-alpha.1
 LAGO_RELEASE_LINE ?= release/v1.44.0-alpha.1
-LAGO_GIT_REF ?= be68660
+LAGO_CI_COMPAT_REF ?= be68660
 LAGO_COMPOSE_IMAGE_TAG ?= v1.43.0
 CHECK_GITHUB ?= 0
 RUN_GO_TESTS ?= 1
@@ -42,10 +43,11 @@ help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
 
 lago-baseline: ## Print the Lago baseline used by integration CI and staging wiring
-	@printf 'LAGO_RELEASE_LINE=%s\n' '$(LAGO_RELEASE_LINE)'
-	@printf 'LAGO_GIT_REF=%s\n' '$(LAGO_GIT_REF)'
-	@printf 'LAGO_COMPOSE_IMAGE_TAG=%s\n' '$(LAGO_COMPOSE_IMAGE_TAG)'
+	@printf 'LAGO_AUTHORITATIVE_BASELINE=%s\n' '$(LAGO_AUTHORITATIVE_BASELINE)'
 	@printf 'LAGO_STAGING_BACKEND_IMAGE_OVERRIDE=%s\n' '$(LAGO_STAGING_BACKEND_IMAGE_OVERRIDE)'
+	@printf 'LAGO_RELEASE_LINE=%s\n' '$(LAGO_RELEASE_LINE)'
+	@printf 'LAGO_CI_COMPAT_REF=%s\n' '$(LAGO_CI_COMPAT_REF)'
+	@printf 'LAGO_COMPOSE_IMAGE_TAG=%s\n' '$(LAGO_COMPOSE_IMAGE_TAG)'
 
 fmt: ## Format Go code
 	@$(GO) fmt ./...

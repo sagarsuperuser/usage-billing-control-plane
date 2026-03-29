@@ -119,7 +119,7 @@ jobs:
         id: lago_baseline
         run: |
           source config/lago-baseline.env
-          echo "lago_git_ref=$LAGO_GIT_REF" >> "$GITHUB_OUTPUT"
+          echo "lago_git_ref=$LAGO_CI_COMPAT_REF" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Lago backend
         run: |
@@ -179,7 +179,7 @@ jobs:
         id: lago_baseline
         run: |
           source config/lago-baseline.env
-          echo "lago_git_ref=$LAGO_GIT_REF" >> "$GITHUB_OUTPUT"
+          echo "lago_git_ref=$LAGO_CI_COMPAT_REF" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Lago backend
         run: |
