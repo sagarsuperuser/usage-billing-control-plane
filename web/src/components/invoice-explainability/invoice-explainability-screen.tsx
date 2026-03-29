@@ -285,7 +285,7 @@ export function InvoiceExplainabilityScreen() {
           </div>
         </section> : null}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 border-b border-stone-200 px-3 pb-4 pt-1 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Computation Breakdown</p>
@@ -356,7 +356,7 @@ export function InvoiceExplainabilityScreen() {
               No line items yet. Load an invoice to inspect explainability.
             </div>
           ) : null}
-        </section>
+        </section> : null}
       </main>
     </div>
   );
