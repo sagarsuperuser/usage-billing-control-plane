@@ -141,3 +141,5 @@ Update this file when:
 - a document type folder gains a new durable reference
 
 Do not update this file for temporary notes or drafts unless they become part of the durable docs set.
+
+Branch protection smoke check.
