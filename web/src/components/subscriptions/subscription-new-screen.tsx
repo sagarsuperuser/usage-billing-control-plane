@@ -62,11 +62,11 @@ export function SubscriptionNewScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: "New" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create subscription</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">Choose the customer and plan, then decide whether Alpha should start hosted payment setup immediately.</p>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (

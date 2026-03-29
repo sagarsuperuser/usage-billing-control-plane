@@ -83,7 +83,7 @@ export function CustomerOnboardingScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { href: "/customers", label: "Customers" }, { label: "New" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer setup</p>
@@ -92,7 +92,7 @@ export function CustomerOnboardingScreen() {
             </div>
             <Link href="/customers" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open customers</Link>
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (

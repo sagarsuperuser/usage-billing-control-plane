@@ -93,7 +93,7 @@ export function InvoiceListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Invoices" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoices</p>
@@ -103,7 +103,7 @@ export function InvoiceListScreen() {
               </p>
             </div>
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (

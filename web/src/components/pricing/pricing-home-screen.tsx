@@ -118,7 +118,7 @@ export function PricingHomeScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Workspace" }, { label: "Pricing" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
@@ -140,7 +140,7 @@ export function PricingHomeScreen() {
               </div>
             ) : null}
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {requiresTenantSession ? (
