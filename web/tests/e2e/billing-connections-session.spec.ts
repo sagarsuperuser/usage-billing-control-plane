@@ -280,9 +280,7 @@ test("platform admin can edit billing connection detail metadata", async ({ page
   const connectionNameInput = page.getByLabel("Connection name");
 
   await expect(connectionNameInput).toBeEditable();
-  await connectionNameInput.click();
-  await connectionNameInput.press("Meta+A");
-  await connectionNameInput.pressSequentially("Stripe Sandbox Updated");
+  await connectionNameInput.fill("Stripe Sandbox Updated");
   await expect(connectionNameInput).toHaveValue("Stripe Sandbox Updated");
   await connectionNameInput.press("Tab");
   const saveButton = page.getByRole("button", { name: "Save changes" });
