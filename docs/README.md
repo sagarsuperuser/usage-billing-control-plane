@@ -38,7 +38,7 @@ If you are starting cold, read in this order:
 
 - [Production Architecture](./models/production-architecture.md)
 - [Engineering Standards](./standards/engineering-standards.md)
-- [Lago Baseline Release Policy](./standards/lago-baseline-release-policy.md)
+- [Lago Baseline](./standards/lago-baseline.md)
 - [Alpha Lago Boundary](./models/alpha-lago-boundary.md)
 - [Alpha Capability Ownership Map](./models/alpha_capability_ownership_map.md)
 - [Alpha Billing Execution Model](./models/alpha-billing-execution-model.md)
@@ -125,7 +125,7 @@ Read before adding or changing docs or core architecture:
 
 - [Documentation Standards](./standards/documentation-standards.md)
 - [Engineering Standards](./standards/engineering-standards.md)
-- [Lago Baseline Release Policy](./standards/lago-baseline-release-policy.md)
+- [Lago Baseline](./standards/lago-baseline.md)
 - [Testing Strategy](./standards/testing-strategy.md)
 - [End-to-End Product Journeys](./runbooks/end-to-end-product-journeys.md)
 
