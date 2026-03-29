@@ -621,16 +621,37 @@ func resetTables(t *testing.T, db *sql.DB) {
 	if err != nil {
 		t.Fatalf("delete non-default tenants: %v", err)
 	}
-	_, err = db.Exec(`UPDATE tenants
-		SET name = 'Default Tenant',
-		    status = 'active',
-		    billing_provider_connection_id = NULL,
-		    lago_organization_id = NULL,
-		    lago_billing_provider_code = NULL,
-		    updated_at = NOW()
-		WHERE id = 'default'`)
+	_, err = db.Exec(`INSERT INTO tenants (
+			id,
+			name,
+			status,
+			billing_provider_connection_id,
+			lago_organization_id,
+			lago_billing_provider_code,
+			lago_api_key,
+			created_at,
+			updated_at
+		) VALUES (
+			'default',
+			'Default Tenant',
+			'active',
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NOW(),
+			NOW()
+		)
+		ON CONFLICT (id) DO UPDATE
+		SET name = EXCLUDED.name,
+		    status = EXCLUDED.status,
+		    billing_provider_connection_id = EXCLUDED.billing_provider_connection_id,
+		    lago_organization_id = EXCLUDED.lago_organization_id,
+		    lago_billing_provider_code = EXCLUDED.lago_billing_provider_code,
+		    lago_api_key = EXCLUDED.lago_api_key,
+		    updated_at = NOW()`)
 	if err != nil {
-		t.Fatalf("reset default tenant: %v", err)
+		t.Fatalf("upsert default tenant: %v", err)
 	}
 }
 
