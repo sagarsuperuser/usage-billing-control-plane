@@ -11,7 +11,8 @@ lago_org_name="${LAGO_ORG_NAME:-Lago Alpha Test Org}"
 lago_org_user_email="${LAGO_ORG_USER_EMAIL:-alpha-test@getlago.local}"
 lago_org_user_password="${LAGO_ORG_USER_PASSWORD:-AlphaTest123!}"
 startup_lago_api_url="${test_lago_api_url:-http://localhost:3000}"
-lago_env_file="${LAGO_ENV_FILE:-$lago_repo_path/.env}"
+repo_lago_env_file="$lago_repo_path/.env"
+lago_env_file="${LAGO_ENV_FILE:-$repo_lago_env_file}"
 default_lago_env_file="$lago_repo_path/.env.development.default"
 
 if [[ ! -f "$lago_repo_path/$lago_compose_file" ]]; then
@@ -19,27 +20,32 @@ if [[ ! -f "$lago_repo_path/$lago_compose_file" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$lago_env_file" && -f "$default_lago_env_file" ]]; then
-  generated_lago_env_file="$(mktemp "${TMPDIR:-/tmp}/alpha-lago-env.XXXXXX")"
-  cp "$default_lago_env_file" "$generated_lago_env_file"
+if [[ ! -f "$repo_lago_env_file" ]]; then
+  if [[ -f "$lago_env_file" && "$lago_env_file" != "$repo_lago_env_file" ]]; then
+    cp "$lago_env_file" "$repo_lago_env_file"
+  elif [[ -f "$default_lago_env_file" ]]; then
+    cp "$default_lago_env_file" "$repo_lago_env_file"
+  fi
+fi
+
+if [[ ! -f "$repo_lago_env_file" && -f "$default_lago_env_file" ]]; then
+  cp "$default_lago_env_file" "$repo_lago_env_file"
+fi
+
+if [[ -f "$repo_lago_env_file" ]] && ! grep -q '^LAGO_RSA_PRIVATE_KEY=' "$repo_lago_env_file"; then
   {
     printf '\nSECRET_KEY_BASE=%s\n' "$(openssl rand -hex 32)"
     printf 'LAGO_RSA_PRIVATE_KEY=%s\n' "$(openssl genrsa 2048 | openssl base64 -A)"
     printf 'LAGO_ENCRYPTION_PRIMARY_KEY=%s\n' "$(openssl rand -hex 32)"
     printf 'LAGO_ENCRYPTION_DETERMINISTIC_KEY=%s\n' "$(openssl rand -hex 32)"
     printf 'LAGO_ENCRYPTION_KEY_DERIVATION_SALT=%s\n' "$(openssl rand -hex 32)"
-  } >>"$generated_lago_env_file"
-  lago_env_file="$generated_lago_env_file"
+  } >>"$repo_lago_env_file"
 fi
 
 echo "Bootstrapping Lago from: $lago_repo_path/$lago_compose_file"
-compose_env_args=()
-if [[ -f "$lago_env_file" ]]; then
-  compose_env_args+=(--env-file "$lago_env_file")
-fi
 available_services="$(
   cd "$lago_repo_path"
-  docker compose "${compose_env_args[@]}" -f "$lago_compose_file" config --services
+  docker compose -f "$lago_compose_file" config --services
 )"
 
 has_service() {
@@ -72,7 +78,7 @@ discover_lago_api_url() {
   local port_line
   if ! port_line="$(
     cd "$lago_repo_path"
-    docker compose "${compose_env_args[@]}" -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
+    docker compose -f "$lago_compose_file" port api 3000 2>/dev/null | head -n1
   )"; then
     return 1
   fi
@@ -85,7 +91,7 @@ discover_lago_api_url() {
 
 (
   cd "$lago_repo_path"
-  docker compose "${compose_env_args[@]}" -f "$lago_compose_file" down --remove-orphans >/dev/null 2>&1 || true
+  docker compose -f "$lago_compose_file" down --remove-orphans >/dev/null 2>&1 || true
 )
 
 (
@@ -96,7 +102,7 @@ discover_lago_api_url() {
   LAGO_ORG_USER_EMAIL="$lago_org_user_email" \
   LAGO_ORG_USER_PASSWORD="$lago_org_user_password" \
   LAGO_ORG_API_KEY="$test_lago_api_key" \
-  docker compose "${compose_env_args[@]}" -f "$lago_compose_file" up -d --force-recreate "${startup_services[@]}"
+  docker compose -f "$lago_compose_file" up -d --force-recreate "${startup_services[@]}"
 )
 
 resolved_lago_api_url="$test_lago_api_url"
