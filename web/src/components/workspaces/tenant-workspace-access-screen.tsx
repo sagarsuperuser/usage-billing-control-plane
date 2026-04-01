@@ -741,10 +741,8 @@ export function TenantWorkspaceAccessScreen() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Machine access</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Service-account inventory and credential posture</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                    Keep automation identities reviewable: clear owner, explicit purpose, controlled rotation, and visible disable state.
-                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Machine identities</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Use one identity per automation path. Review posture here, then issue, rotate, or revoke credentials from the selected identity panel.</p>
                 </div>
                 <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
                   <DetailField label="Disabled identities" value={`${disabledServiceAccounts.length}`} className="bg-white" />
@@ -756,60 +754,58 @@ export function TenantWorkspaceAccessScreen() {
                 <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
                   <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Service-account inventory</p>
-                      <p className="mt-1 text-sm text-slate-600">Automation identities ordered for review and drill-in.</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Service accounts</p>
+                      <p className="mt-1 text-sm text-slate-600">Pick an identity to inspect its controls and credential history.</p>
                     </div>
                     <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
                   </div>
                   {pagedServiceAccounts.items.length > 0 ? (
                     <div className="divide-y divide-stone-200">
-                      <div className="hidden grid-cols-[minmax(0,2fr)_120px_140px_130px_120px] gap-4 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
-                        <span>Identity</span>
-                        <span>Role</span>
-                        <span>Environment</span>
-                        <span>Status</span>
-                        <span>Controls</span>
-                      </div>
                       {pagedServiceAccounts.items.map((account) => {
                         const selected = selectedServiceAccountIDValue === account.id;
                         return (
                           <div
                             key={account.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => setSelectedServiceAccountID(account.id)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                setSelectedServiceAccountID(account.id);
-                              }
-                            }}
-                            aria-pressed={selected}
-                            className={`grid cursor-pointer gap-3 px-5 py-4 text-left transition md:grid-cols-[minmax(0,2fr)_120px_140px_130px_120px] md:items-center ${
-                              selected ? "bg-sky-50/70" : "bg-white hover:bg-stone-50"
+                            className={`px-5 py-4 transition ${
+                              selected ? "bg-sky-50/70" : "bg-white"
                             }`}
                           >
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-slate-950">{account.name}</p>
-                              <p className="mt-1 truncate text-xs text-slate-500">{account.description || "No description recorded."}</p>
-                            </div>
-                            <span className="text-sm text-slate-700">{formatServiceAccountRole(account.role)}</span>
-                            <span className="text-sm text-slate-700">{(account.environment || "unspecified").toUpperCase()}</span>
-                            <div className="flex flex-wrap gap-2">
-                              <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
-                              {account.active_credential_count === 0 ? <StatusChip tone="warning">No credential</StatusChip> : null}
-                            </div>
-                            <div className="flex justify-start md:justify-end">
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openAudit(account.id);
-                                }}
-                                className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100"
-                              >
-                                Audit
-                              </button>
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="truncate text-sm font-semibold text-slate-950">{account.name}</p>
+                                  {selected ? <StatusChip tone="info">Selected</StatusChip> : null}
+                                </div>
+                                <p className="mt-1 break-words text-sm text-slate-600">{account.description || "No description recorded."}</p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <StatusChip tone="neutral">{formatServiceAccountRole(account.role)}</StatusChip>
+                                  <StatusChip tone="neutral">{(account.environment || "unspecified").toUpperCase()}</StatusChip>
+                                  <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
+                                  <StatusChip tone={account.active_credential_count === 0 ? "warning" : "info"}>
+                                    {account.active_credential_count} credential{account.active_credential_count === 1 ? "" : "s"}
+                                  </StatusChip>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2 xl:justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedServiceAccountID(account.id)}
+                                  className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition ${
+                                    selected
+                                      ? "border border-sky-200 bg-sky-100 text-sky-800"
+                                      : "border border-stone-200 bg-white text-slate-700 hover:bg-stone-100"
+                                  }`}
+                                >
+                                  {selected ? "Viewing" : "Inspect"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openAudit(account.id)}
+                                  className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100"
+                                >
+                                  Audit
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -893,15 +889,26 @@ export function TenantWorkspaceAccessScreen() {
 
                   {selectedServiceAccount ? (
                   <section className="rounded-2xl border border-stone-200 bg-white p-5">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-4">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected service account</p>
+                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected identity</p>
                         <p className="mt-2 text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
-                        <p className="mt-1 text-sm text-slate-700">{selectedServiceAccount.description || "No description recorded."}</p>
-                        <p className="mt-2 text-xs text-slate-500">
-                          Purpose: {selectedServiceAccount.purpose || "Not recorded"} · Environment: {(selectedServiceAccount.environment || "unspecified").toUpperCase()}
-                        </p>
+                        <p className="mt-1 break-words text-sm text-slate-600">{selectedServiceAccount.description || "No description recorded."}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <StatusChip tone={selectedServiceAccount.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(selectedServiceAccount.status)}</StatusChip>
+                          <StatusChip tone="neutral">{formatServiceAccountRole(selectedServiceAccount.role)}</StatusChip>
+                          <StatusChip tone="neutral">{(selectedServiceAccount.environment || "unspecified").toUpperCase()}</StatusChip>
+                          <StatusChip tone="info">
+                            {selectedServiceAccount.active_credential_count} active credential{selectedServiceAccount.active_credential_count === 1 ? "" : "s"}
+                          </StatusChip>
+                        </div>
                       </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <DetailField label="Purpose" value={selectedServiceAccount.purpose || "Not recorded"} />
+                        <DetailField label="Last activity" value={describeServiceAccountActivity(selectedServiceAccount)} />
+                      </div>
+
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -910,7 +917,7 @@ export function TenantWorkspaceAccessScreen() {
                           className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                          Issue credential
+                          Issue
                         </button>
                         <button
                           type="button"
@@ -918,7 +925,7 @@ export function TenantWorkspaceAccessScreen() {
                           className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
                         >
                           <ShieldCheck className="h-3.5 w-3.5" />
-                          Open audit
+                          Audit
                         </button>
                         <button
                           type="button"
@@ -937,14 +944,7 @@ export function TenantWorkspaceAccessScreen() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <DetailField label="Status" value={formatServiceAccountStatus(selectedServiceAccount.status)} />
-                      <DetailField label="Access role" value={formatServiceAccountRole(selectedServiceAccount.role)} />
-                      <DetailField label="Active credentials" value={`${selectedServiceAccount.active_credential_count}`} />
-                      <DetailField label="Last activity" value={describeServiceAccountActivity(selectedServiceAccount)} />
-                    </div>
-
-                    <div className="mt-4">
+                    <div className="mt-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Current credentials</p>
