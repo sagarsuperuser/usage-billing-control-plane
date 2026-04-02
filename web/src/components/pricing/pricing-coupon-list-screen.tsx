@@ -71,14 +71,14 @@ export function PricingCouponListScreen() {
 
             <section className="grid gap-3 xl:grid-cols-3">
               <OperatorCard title="Commercial rule" body="Coupons are discount rules, not one-off adjustments. Keep their scope and expiry easy to explain." />
-              <OperatorCard title="Inventory rule" body="Review discount type, runtime frequency, and expiration from the list before attaching a rule to active commercial packages." />
-              <OperatorCard title="Next action" body="Open coupon detail to confirm commercial posture, then apply it through plans or customer follow-up." />
+              <OperatorCard title="Review before attaching" body="Check discount type, frequency, and expiration before attaching a coupon to a plan or subscription." />
+              <OperatorCard title="Next action" body="Open the coupon to review it, then apply it through plans or customer subscriptions." />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Coupon inventory</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Coupons</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
                 </div>
                 <input

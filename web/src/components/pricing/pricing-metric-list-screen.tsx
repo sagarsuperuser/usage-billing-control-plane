@@ -69,14 +69,14 @@ export function PricingMetricListScreen() {
 
             <section className="grid gap-3 xl:grid-cols-3">
               <OperatorCard title="Commercial rule" body="Keep metric keys stable so plans and reporting can rely on them." />
-              <OperatorCard title="Review posture" body="Use this list for inventory review. Open detail when an operator needs aggregation or usage context." />
+              <OperatorCard title="When to open detail" body="Use this list to find metrics. Open detail when you need to check aggregation type or usage context." />
               <OperatorCard title="Next action" body="Create new metrics only when the commercial signal is genuinely different from existing usage records." />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metric inventory</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metrics</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
                 </div>
                 <input

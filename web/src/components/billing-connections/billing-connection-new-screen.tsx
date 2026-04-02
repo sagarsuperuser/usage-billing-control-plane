@@ -173,7 +173,7 @@ export function BillingConnectionNewScreen() {
 
             <aside className="min-w-0 grid gap-5 self-start">
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Alpha posture</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">How this works</p>
                 <div className="mt-4 grid gap-3">
                   <OperatorSideCard title="Credential scope" body="Secret stays out of workspace rows and remains platform-owned." />
                   <OperatorSideCard title="Verification scope" body="Provider check is explicit and observable before workspace use." />

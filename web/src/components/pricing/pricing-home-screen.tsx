@@ -63,7 +63,7 @@ export function PricingHomeScreen() {
       itemLabel: "metric",
       count: metricCount,
       summary: metricCount > 0 ? `${metricCount} reusable usage definitions` : "No metric definitions yet",
-      posture: metricCount > 0 ? "Ready for plan design" : "Required before plans can price usage",
+      posture: metricCount > 0 ? "Ready — attach to plans to price usage" : "Required before plans can price usage",
       href: "/pricing/metrics",
       createHref: "/pricing/metrics/new",
       createLabel: "New metric",
@@ -73,7 +73,7 @@ export function PricingHomeScreen() {
       itemLabel: "plan",
       count: planCount,
       summary: planCount > 0 ? `${activePlanCount} active / ${draftPlanCount} draft` : "No plans yet",
-      posture: metricCount > 0 ? (planCount > 0 ? "Review activation posture" : "Ready to create first plan") : "Blocked on metrics",
+      posture: metricCount > 0 ? (planCount > 0 ? "Review before activating" : "Ready to create your first plan") : "Create metrics first",
       href: "/pricing/plans",
       createHref: "/pricing/plans/new",
       createLabel: "New plan",
@@ -82,8 +82,8 @@ export function PricingHomeScreen() {
       label: "Add-ons",
       itemLabel: "add-on",
       count: addOnCount,
-      summary: addOnCount > 0 ? `${addOnCount} reusable recurring extras` : "No reusable extras yet",
-      posture: addOnCount > 0 ? "Attach through plan packages" : "Optional catalog extension",
+      summary: addOnCount > 0 ? `${addOnCount} recurring extras` : "No add-ons yet",
+      posture: addOnCount > 0 ? "Attach to plans where needed" : "Optional — use for recurring extras on top of a plan",
       href: "/pricing/add-ons",
       createHref: "/pricing/add-ons/new",
       createLabel: "New add-on",
@@ -92,8 +92,8 @@ export function PricingHomeScreen() {
       label: "Coupons",
       itemLabel: "coupon",
       count: couponCount,
-      summary: couponCount > 0 ? `${couponCount} commercial relief rules` : "No discount rules yet",
-      posture: couponCount > 0 ? "Apply through plans or follow-up" : "Optional launch or retention tool",
+      summary: couponCount > 0 ? `${couponCount} discount rules` : "No coupons yet",
+      posture: couponCount > 0 ? "Apply to plans or customer subscriptions" : "Optional — use for promotions or retention",
       href: "/pricing/coupons",
       createHref: "/pricing/coupons/new",
       createLabel: "New coupon",
@@ -103,7 +103,7 @@ export function PricingHomeScreen() {
       itemLabel: "tax",
       count: taxCount,
       summary: taxCount > 0 ? `${activeTaxCount} active / ${taxCount - activeTaxCount} inactive` : "No reusable tax rules yet",
-      posture: taxCount > 0 ? "Assign through billing settings" : "Optional until tax handling is needed",
+      posture: taxCount > 0 ? "Assign to customers via billing settings" : "Optional — add when tax compliance is needed",
       href: "/pricing/taxes",
       createHref: "/pricing/taxes/new",
       createLabel: "New tax",
@@ -158,14 +158,14 @@ export function PricingHomeScreen() {
               <SummaryCell label="Catalog records" value={catalogCount} hint="Metrics, plans, add-ons, coupons, and taxes" />
               <SummaryCell label="Active plans" value={activePlanCount} hint={planCount > 0 ? `${draftPlanCount} draft` : "No active plans yet"} />
               <SummaryCell label="Reusable rules" value={metricCount + addOnCount + couponCount + taxCount} hint="Reusable inputs before customer assignment" />
-              <SummaryCell label="Immediate gaps" value={setupQueue.length} hint={setupQueue.length > 0 ? "Domains still missing a first record" : "Core pricing inventory is present"} />
+              <SummaryCell label="Still needed" value={setupQueue.length} hint={setupQueue.length > 0 ? "Categories missing a first record" : "Core pricing is in place"} />
             </section>
 
             {loading ? (
               <section className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600 shadow-sm">
                 <div className="flex items-center gap-2">
                   <LoaderCircle className="h-4 w-4 animate-spin" />
-                  Loading pricing inventory
+                  Loading pricing…
                 </div>
               </section>
             ) : (
@@ -223,7 +223,7 @@ export function PricingHomeScreen() {
                         ))
                       ) : (
                         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
-                          Core pricing inventory is in place. Use the catalog table to review counts, open records, and create additional variants only when commercial scope changes.
+                          Core pricing is in place. Use the table below to review counts, open records, and add new variants when your offering changes.
                         </div>
                       )}
                     </div>

@@ -77,7 +77,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Use add-ons for fixed recurring extras that operators can explain clearly on top of the base plan." />
+                <GuidanceCard title="When to use add-ons" body="Use add-ons for fixed recurring extras you can clearly explain to customers on top of the base plan." />
                 <GuidanceCard title="Next action" body="Attach this record to plans that need the extra charge. Use plan detail to confirm where it is currently used." />
               </aside>
             </div>

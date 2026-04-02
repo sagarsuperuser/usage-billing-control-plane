@@ -133,7 +133,7 @@ export function ControlPlaneNav() {
   const contextLabel = isLoading
     ? "Restoring session"
     : scope === "platform"
-      ? "Platform operator"
+      ? "Platform admin"
       : session?.tenant_id
         ? `Workspace console · ${session.tenant_id}`
         : "Workspace console";

@@ -286,23 +286,23 @@ export function ControlPlaneOverviewScreen() {
               </p>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <OperatorLine
-                  title={scope === "platform" ? "Platform posture" : "Workspace posture"}
+                  title={scope === "platform" ? "Platform overview" : "Workspace overview"}
                   body={
                     scope === "platform"
-                      ? "Use this overview as the platform triage surface: credential health, workspace readiness, and handoff blockers."
-                      : "Use this overview as the workspace entry point: customer readiness, payment setup, and operating surfaces."
+                      ? "Start here for platform triage: check credential health, workspace setup, and what's blocking launch."
+                      : "Start here for workspace operations: customer setup, payment status, and quick access to key areas."
                   }
                 />
                 <OperatorLine
-                  title="Inventory rule"
-                  body="Use the counters for fleet posture. Open the matching surface only after you know which area needs action."
+                  title="How to read the counts"
+                  body="Use the numbers to find what needs attention. Open that section once you know where to focus."
                 />
                 <OperatorLine
                   title="Action rule"
                   body={
                     scope === "platform"
-                      ? "Create reusable billing assets first, then complete workspace handoff from the platform side."
-                      : "Work inside one workspace boundary. Keep pricing, customers, subscriptions, and recovery together."
+                      ? "Create reusable billing assets first, then finish workspace setup from the platform side."
+                      : "Work inside one workspace. Keep pricing, customers, subscriptions, and troubleshooting together."
                   }
                 />
               </div>
@@ -327,7 +327,7 @@ export function ControlPlaneOverviewScreen() {
               </p>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 {scope === "platform"
-                  ? "Manage reusable billing assets, launch workspaces, and control handoff."
+                  ? "Manage reusable billing assets and launch workspaces."
                   : "Run pricing, customers, subscriptions, and workspace operations inside one workspace boundary."}
               </p>
               {session?.tenant_id ? (

@@ -85,7 +85,7 @@ export function BillingConnectionListScreen() {
               </p>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <OperatorLine title="Verify first" body="Confirm the Stripe connection is healthy before assigning it to a workspace." />
-                <OperatorLine title="Verification rule" body="Separate provider verification from workspace provisioning. A healthy Stripe check is not the same as a completed workspace handoff." />
+                <OperatorLine title="Verification rule" body="Separate provider verification from workspace setup. A healthy Stripe check is not the same as a completed workspace setup." />
                 <OperatorLine title="Assignment rule" body="Treat linked workspaces as dependency count. The more workspaces attached, the stricter the change control for that connection." />
               </div>
             </div>

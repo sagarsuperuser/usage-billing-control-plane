@@ -107,8 +107,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial package</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Plan posture</h2>
+                  <h2 className="text-xl font-semibold text-slate-950">Plan details</h2>
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <InfoCell label="Plan code" value={plan.code} />
                     <InfoCell label="Status" value={plan.status} />
@@ -119,7 +118,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Use plan detail to inspect the full commercial package: priced usage, recurring extras, and any applied customer relief." />
+                <GuidanceCard title="What's on this page" body="Review the full plan: usage pricing, recurring add-ons, and any discounts applied to customers on this plan." />
                 <GuidanceCard title="Next action" body="Review linked metrics, add-ons, and coupons here before the plan is used in active subscriptions." />
               </aside>
             </div>

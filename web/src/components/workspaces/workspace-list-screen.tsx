@@ -129,14 +129,14 @@ export function WorkspaceListScreen() {
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Workspaces</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace handoff and readiness</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace setup and launch</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 This directory should show which workspace is ready, which one is blocked, and which operational step still belongs to the platform before the workspace can run on its own.
               </p>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <OperatorLine title="Directory rule" body="Use this list as the platform handoff inventory. Open detail only after the row tells you which area is blocked." />
+                <OperatorLine title="How to use this list" body="This is your workspace setup checklist. Open a workspace when you can see what area needs work." />
                 <OperatorLine title="Readiness rule" body="Treat billing, pricing, and first-customer setup as separate readiness tracks. One green badge does not cover the rest." />
-                <OperatorLine title="Handoff rule" body="A workspace is truly ready only when platform setup is complete and the remaining action belongs to the workspace operator." />
+                <OperatorLine title="Launch rule" body="A workspace is ready when platform setup is complete and the remaining steps belong to the workspace team." />
               </div>
             </div>
             <div className="flex flex-wrap gap-3">

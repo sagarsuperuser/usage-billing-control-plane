@@ -198,7 +198,7 @@ export function UsageEventsScreen() {
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event inventory</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage events</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Events</h2>
               </div>
             <div className="flex flex-wrap gap-3">
@@ -389,7 +389,7 @@ function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
       <p className="font-semibold text-slate-950">No usage events matched the current filters.</p>
-      <p className="mt-2">Use customer, meter, and time filters to narrow the operational inventory.</p>
+      <p className="mt-2">Try adjusting the customer, meter, or time filters.</p>
     </div>
   );
 }

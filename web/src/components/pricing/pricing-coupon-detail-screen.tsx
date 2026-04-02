@@ -79,7 +79,7 @@ export function PricingCouponDetailScreen({ couponID }: { couponID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Coupons are commercial relief rules. Keep their shape and expiry easy to explain before they are attached to plans or customer subscriptions." />
+                <GuidanceCard title="Keep coupons clear" body="Make sure the discount type and expiry are easy to explain to customers before attaching to plans or subscriptions." />
                 <GuidanceCard title="Next action" body="Use plan detail or subscription follow-up to confirm where this coupon is applied and when the relief should end." />
               </aside>
             </div>

@@ -155,8 +155,8 @@ export function TenantOnboardingScreen() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operator setup</p>
-                    <h2 className="mt-2 text-xl font-semibold text-slate-950">Workspace provisioning</h2>
-                    <p className="mt-2 max-w-2xl text-sm text-slate-600">This page creates the workspace. Review readiness and billing from workspace detail.</p>
+                    <h2 className="mt-2 text-xl font-semibold text-slate-950">New workspace</h2>
+                    <p className="mt-2 max-w-2xl text-sm text-slate-600">This page creates the workspace. Finish billing and access setup from workspace detail.</p>
                   </div>
                   <span className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-700">
                     <Building2 className="h-5 w-5" />
@@ -164,9 +164,9 @@ export function TenantOnboardingScreen() {
                 </div>
 
                 <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                  <OperatorLine title="Workspace record" body="Create a durable workspace ID and a clear operator-facing name." />
-                  <OperatorLine title="Billing handoff" body="Attach a billing connection now only when platform setup is already ready. Otherwise finish it later from workspace detail." />
-                  <OperatorLine title="Access bootstrap" body="Create the first admin credential only when the platform needs an immediate machine identity for handoff." />
+                  <OperatorLine title="Workspace identity" body="Choose a stable ID and a clear name — both are hard to change after setup." />
+                  <OperatorLine title="Billing connection" body="Attach a billing connection now only if it's already verified. Otherwise finish it from workspace detail." />
+                  <OperatorLine title="First API key" body="Create the first admin credential only if you need immediate API access. You can always add it later." />
                 </div>
 
                 <div className="mt-5 grid gap-5">
@@ -180,7 +180,7 @@ export function TenantOnboardingScreen() {
                   </section>
 
                   <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Billing handoff</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Billing connection</p>
                     <h3 className="mt-2 text-lg font-semibold text-slate-950">Billing connection</h3>
                     <p className="mt-2 text-sm text-slate-600">You can leave this empty and attach billing after the workspace is created.</p>
                     {billingConnectionsQuery.isLoading ? (

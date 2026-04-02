@@ -109,7 +109,7 @@ export function CustomerListScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Workspace session required"
-            body="Customer directory is workspace-scoped. Sign in with a workspace reader, writer, or admin account to browse customer readiness."
+            body="Customer directory is workspace-scoped. Sign in with a workspace reader, writer, or admin account to view customers."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
@@ -127,7 +127,7 @@ export function CustomerListScreen() {
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer inventory</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customers</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
@@ -198,7 +198,7 @@ function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: 
           {diagnosis?.summary || (nextStep ? `Next action: ${describeCustomerMissingStep(nextStep)}` : "No immediate customer blocker is shown.")}
         </p>
       </div>
-      <InventoryCell label="Readiness" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
+      <InventoryCell label="Status" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
       <InventoryCell label="Profile" value={readiness ? formatReadinessStatus(readiness.billing_profile_status) : "Loading"} />
       <InventoryCell
         label="Collection"

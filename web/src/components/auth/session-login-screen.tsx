@@ -70,12 +70,12 @@ export function SessionLoginScreen() {
               Usage billing<br />control plane
             </h1>
             <p className="mt-4 max-w-sm text-base leading-7 text-slate-400">
-              Pricing, customers, subscriptions, payments, and invoices — in one operator surface.
+              Pricing, customers, subscriptions, payments, and invoices — all in one place.
             </p>
             <div className="mt-10 grid gap-3">
               <Capability label="Billing connections" detail="Own provider records and assign them to workspaces." />
               <Capability label="Pricing catalog" detail="Metrics, rating rules, plans, coupons, and taxes." />
-              <Capability label="Customer operations" detail="Onboarding, payment setup, and readiness diagnostics." />
+              <Capability label="Customer operations" detail="Onboarding, payment setup, and status checks." />
               <Capability label="Invoices & recovery" detail="Usage billing, replay, dunning, and explainability." />
             </div>
           </div>

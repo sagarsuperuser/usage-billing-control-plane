@@ -365,12 +365,12 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
               </div>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <OperatorPanel
-                  title="Operator posture"
-                  body="Use this page for platform-side handoff: clear blockers, attach billing, and confirm that the next action belongs to the workspace."
+                  title="Platform setup"
+                  body="Use this page to finish platform-side setup: resolve blockers, attach billing, and confirm the workspace is ready to hand off."
                 />
                 <OperatorPanel
                   title="Access rule"
-                  body="Invite or repair membership only when the workspace is crossing the handoff boundary. Keep support overrides rare and auditable."
+                  body="Add or fix membership only when the workspace is ready to launch. Keep admin interventions rare and auditable."
                 />
                 <OperatorPanel
                   title="Billing rule"
@@ -408,7 +408,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     </div>
                   </div>
                   <div className="mt-5 grid gap-3">
-                    {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Workspace is ready for the next operational handoff." />}
+                    {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Workspace is ready to launch." />}
                   </div>
                   <div className="mt-5 grid gap-3 lg:grid-cols-3">
                     <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={tenantMissingSteps} />
@@ -643,7 +643,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                               </div>
                             ))
                           ) : (
-                            <EmptyPanel message="No members yet. Invite the first workspace admin to complete the handoff." />
+                            <EmptyPanel message="No members yet. Invite the first workspace admin to get started." />
                           )}
                         </div>
                       </section>

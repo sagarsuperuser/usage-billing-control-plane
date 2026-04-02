@@ -69,7 +69,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax rule</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Assignment posture</h2>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Tax rule details</h2>
                   <div className="mt-5 grid gap-3 md:grid-cols-2">
                     <InfoCell label="Tax code" value={tax.code} mono />
                     <InfoCell label="Status" value={tax.status} />
@@ -80,7 +80,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Use tax detail to confirm the reusable rule before it is assigned to customer billing profiles or workspace billing settings." />
+                <GuidanceCard title="Before assigning" body="Confirm the tax rule is active and correct before assigning it to a customer billing profile or workspace billing settings." />
                 <GuidanceCard title="Next action" body="Apply active taxes through billing settings and keep code changes deliberate so invoice behavior stays explainable." />
               </aside>
             </div>

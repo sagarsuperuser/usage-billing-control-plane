@@ -236,7 +236,7 @@ function buildConnectionHealthChecks(connection: {
     checks.push({
       label: "Workspace assignment",
       status: "Blocked",
-      detail: "Disabled connections cannot be used for new workspace handoff.",
+      detail: "Disabled connections cannot be assigned to workspaces.",
       tone: "bad",
     });
   } else if (connection.workspace_ready) {
@@ -445,7 +445,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <OperatorPanel title="Verification" body="Confirm the Stripe connection is verified here before assigning it to workspaces." />
                 <OperatorPanel title="Assignments" body="The more workspaces attached, the more careful you should be when rotating or disabling this connection." />
-                <OperatorPanel title="Action rule" body="Provider verification belongs here. Workspace provisioning belongs to workspace attachment and billing setup flows." />
+                <OperatorPanel title="Action rule" body="Verify the provider connection here. Workspace setup and billing attachment are handled in workspace detail." />
               </div>
             </section>
 

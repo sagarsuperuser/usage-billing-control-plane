@@ -71,14 +71,14 @@ export function PricingTaxListScreen() {
 
             <section className="grid gap-3 xl:grid-cols-3">
               <OperatorCard title="Assignment rule" body="Keep tax codes stable and rates deliberate so invoice behavior stays explainable." />
-              <OperatorCard title="Inventory rule" body="This list is for reusable tax rules. Use it to verify readiness before applying a rule to customer or workspace billing settings." />
+              <OperatorCard title="Check before assigning" body="Review tax rules here before applying one to a customer or workspace billing settings." />
               <OperatorCard title="Next action" body="Open tax detail to confirm availability, then assign active rules through billing settings." />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax inventory</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax rules</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
                 </div>
                 <input

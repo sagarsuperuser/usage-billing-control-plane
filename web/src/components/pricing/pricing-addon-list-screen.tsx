@@ -70,15 +70,15 @@ export function PricingAddOnListScreen() {
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorCard title="Commercial rule" body="Use add-ons only for recurring extras that operators can explain cleanly on top of the base plan." />
-              <OperatorCard title="Inventory rule" body="This list is for reusable extras. Attach them through plans rather than rebuilding the same charge repeatedly." />
+              <OperatorCard title="When to use add-ons" body="Use add-ons only for recurring extras you can clearly explain on top of the base plan." />
+              <OperatorCard title="Attach via plans" body="Add-ons are reusable. Attach them to plans rather than creating the same charge repeatedly." />
               <OperatorCard title="Next action" body="Open add-on detail to review the record, then confirm which plans should carry it." />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Add-on inventory</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Add-ons</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
                 </div>
                 <input

@@ -73,7 +73,7 @@ export function TenantAuditScreen() {
         {isAuthenticated && (scope !== "platform" || !isPlatformAdmin) ? (
           <ScopeNotice
             title="Platform session required"
-            body="Workspace audit is a platform operator surface. Sign in with a platform admin session to inspect cross-workspace changes."
+            body="Workspace audit is for platform admins. Sign in with a platform admin session to inspect cross-workspace changes."
             actionHref="/control-plane"
             actionLabel="Open platform home"
           />
@@ -83,7 +83,7 @@ export function TenantAuditScreen() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Platform audit</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace audit trail</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">
-            Review workspace, billing, customer, and access changes from one operator surface.
+            Review workspace, billing, customer, and access changes across all workspaces.
           </p>
         </section> : null}
 
@@ -95,9 +95,9 @@ export function TenantAuditScreen() {
         </section> : null}
 
         {canViewPlatformSurface ? <section className="grid gap-3 xl:grid-cols-3">
-          <OperatorCard title="Operator posture" body="Use this surface to review cross-workspace changes without opening each workspace separately." />
+          <OperatorCard title="How to use this page" body="Review cross-workspace changes here without opening each workspace separately." />
           <OperatorCard title="Filter rule" body="Start broad, then narrow by workspace or event code only when the event stream is too large to review safely." />
-          <OperatorCard title="Detail rule" body="Rows should explain the business action first. Use metadata only when the operator needs the exact before-and-after record." />
+          <OperatorCard title="Detail rule" body="Rows show the business action first. Show metadata only when you need to see the exact before-and-after record." />
         </section> : null}
 
         {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

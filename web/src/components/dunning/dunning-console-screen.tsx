@@ -343,7 +343,7 @@ export function DunningConsoleScreen() {
           <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Run inventory</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Dunning runs</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">Invoice-level dunning workflows</h2>
                 <p className="mt-2 text-sm text-slate-600">Filter by invoice, customer, or state before opening the detailed workflow record.</p>
               </div>

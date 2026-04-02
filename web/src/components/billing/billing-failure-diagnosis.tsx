@@ -44,8 +44,8 @@ export function BillingFailureDiagnosisCard({
               <p className="mt-2">Use this diagnosis as the current operational stance, then verify it against evidence and timeline before taking recovery action.</p>
             </div>
             <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
-              <p className="font-semibold">Decision posture</p>
-              <p className="mt-2">Do not treat a payment failure message as sufficient by itself. The next step should follow the combined billing evidence.</p>
+              <p className="font-semibold">Before acting</p>
+              <p className="mt-2">Don't act on the failure message alone. Verify the issue against the full billing evidence and timeline first.</p>
             </div>
           </div>
           <div className="mt-4 rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">

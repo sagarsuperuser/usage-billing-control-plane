@@ -121,7 +121,7 @@ export function PricingCouponNewScreen() {
                   <div className="grid gap-5">
                     <div className="grid gap-3 lg:grid-cols-3">
                       <OperatorCard title="Discount shape" body="Use percent-off for simple promotions and amount-off when commercial terms require fixed relief." />
-                      <OperatorCard title="Runtime scope" body="Set the frequency and expiration deliberately so operators can explain exactly when the relief stops." />
+                      <OperatorCard title="Expiration" body="Set the frequency and expiration deliberately so you can clearly tell customers when the discount ends." />
                       <OperatorCard title="After create" body="Apply the coupon through plan configuration or subscription-level commercial follow-up." />
                     </div>
 

@@ -89,15 +89,15 @@ export function PricingPlanListScreen() {
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorCard title="Commercial posture" body="Plans are the final packaged offer. Keep the first version simple and easy to explain before launch." />
-              <OperatorCard title="Inventory rule" body="Review linked metrics, add-ons, and coupons from this list before opening plan detail for deeper inspection." />
+              <OperatorCard title="Keep it simple" body="Plans are the packaged offer customers see. Keep the first version simple and easy to explain before launch." />
+              <OperatorCard title="Review before opening" body="Check linked metrics, add-ons, and coupons here before opening a plan for deeper inspection." />
               <OperatorCard title="Next action" body="Use draft plans for review, then activate only once the full commercial package is stable." />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan inventory</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plans</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
                 </div>
                 <input

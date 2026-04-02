@@ -183,12 +183,12 @@ export function SubscriptionNewScreen() {
 
                 <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Payment setup</p>
-                  <h2 className="mt-2 text-lg font-semibold text-slate-950">Hosted collection handoff</h2>
+                  <h2 className="mt-2 text-lg font-semibold text-slate-950">Collect payment from the customer</h2>
                   <label className="flex items-start gap-3 text-sm text-slate-700">
                     <input data-testid="subscription-request-payment-setup" type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300" {...register("request_payment_setup")} />
                     <span>
                       <span className="font-semibold text-slate-950">Request payment setup now</span>
-                      <span className="mt-1 block text-slate-600">Alpha will generate a hosted payer link. The operator initiates the step; the payer completes card or bank setup.</span>
+                      <span className="mt-1 block text-slate-600">Alpha generates a secure hosted link. Send it to the customer — they complete card or bank setup on their end.</span>
                     </span>
                   </label>
                   <div className="mt-4 max-w-sm">
@@ -221,9 +221,9 @@ export function SubscriptionNewScreen() {
             </form>
 
             <aside className="grid gap-5 self-start">
-              <InfoCard title="Current inventory" body={`${customers.length} customers available · ${plans.length} plans available`} />
-              <InfoCard title="Operator guidance" body="Use this screen to create the commercial record. Use subscription detail after submit for state changes and payment setup follow-up." />
-              <InfoCard title="Hosted setup rule" body="Operators should not collect card details directly. Send the generated setup link and let the payer complete the step." />
+              <InfoCard title="Available" body={`${customers.length} customers · ${plans.length} plans`} />
+              <InfoCard title="After creating" body="Open subscription detail to manage state changes, resend payment links, and troubleshoot." />
+              <InfoCard title="Payment rule" body="Never collect card details directly. Always send the generated hosted link for the customer to complete." />
             </aside>
           </div>
         ) : null}

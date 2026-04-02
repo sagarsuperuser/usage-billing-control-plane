@@ -83,8 +83,8 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Use this record when plans need a stable usage input. Keep the key and aggregation unchanged once commercial reporting depends on them." />
-                <GuidanceCard title="Next action" body="Attach the metric to plans that price this usage record. Metric detail is for inspection, not day-to-day operator changes." />
+                <GuidanceCard title="Stability matters" body="Keep the metric key and aggregation unchanged once plans depend on them — changing these affects billing reports." />
+                <GuidanceCard title="Next action" body="Attach the metric to plans that should price this usage. This page is for review, not regular edits." />
               </aside>
             </div>
           </SectionErrorBoundary>

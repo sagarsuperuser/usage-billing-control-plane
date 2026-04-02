@@ -168,7 +168,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current posture</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment status</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     <StatusCard label="Action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <StatusCard label="Requires action" value={payment.lifecycle.requires_action ? "Yes" : "No"} />

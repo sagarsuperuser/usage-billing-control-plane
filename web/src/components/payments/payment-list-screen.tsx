@@ -136,7 +136,7 @@ export function PaymentListScreen() {
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Workspace session required"
-            body="Payments are workspace-scoped. Sign in with a workspace account to inspect payment state, lifecycle signals, and recovery readiness."
+            body="Payments are workspace-scoped. Sign in with a workspace account to view payment status."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
@@ -148,13 +148,13 @@ export function PaymentListScreen() {
               <MetricCard label="Visible payments" value={stats.total} />
               <MetricCard label="Failed" value={stats.failed} />
               <MetricCard label="Overdue" value={stats.overdue} />
-              <MetricCard label="Need operator action" value={stats.actionRequired} />
+              <MetricCard label="Needs attention" value={stats.actionRequired} />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment inventory</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payments</p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">Filter and inspect</h2>
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
