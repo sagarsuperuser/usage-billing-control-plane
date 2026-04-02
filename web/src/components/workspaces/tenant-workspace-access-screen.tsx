@@ -764,6 +764,7 @@ export function TenantWorkspaceAccessScreen() {
                               <div className="flex flex-wrap gap-2 xl:justify-end">
                                 <button
                                   type="button"
+                                  data-testid={`inspect-service-account-${account.id}`}
                                   onClick={() => setSelectedServiceAccountID(account.id)}
                                   className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition ${
                                     selected
@@ -858,7 +859,7 @@ export function TenantWorkspaceAccessScreen() {
                   </section>
 
                   {selectedServiceAccount ? (
-                  <section className="rounded-xl border border-stone-200 bg-white p-5">
+                  <section data-testid="service-account-detail" className="rounded-xl border border-stone-200 bg-white p-5">
                     <div className="flex flex-col gap-4">
                       <div>
                         <p className="text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
