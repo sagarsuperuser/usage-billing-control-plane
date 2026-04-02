@@ -265,7 +265,7 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await page.goto("/workspace-access");
 
   await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
-  await expect(page.getByText("Keep machine access scoped, rotated, and easy to review.")).toBeVisible();
+  await expect(page.getByText("API identities for automation and integrations. Issue or rotate credentials as needed.")).toBeVisible();
   await expect(page.getByText("Selected service account")).toBeVisible();
   await expect(page.getByText("Current credentials")).toBeVisible();
   await expect(page.getByText("Credential issued")).toBeVisible();
