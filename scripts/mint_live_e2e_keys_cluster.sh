@@ -21,9 +21,12 @@ fi
 image="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.containers[0].image}')"
 service_account="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.serviceAccountName}')"
 config_map_ref="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.containers[0].envFrom[?(@.configMapRef)].configMapRef.name}')"
-secret_ref="$(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{.spec.template.spec.containers[0].envFrom[?(@.secretRef)].secretRef.name}')"
+secret_refs=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && secret_refs+=("$line")
+done < <(kubectl -n "$namespace" get deploy "$api_deployment" -o jsonpath='{range .spec.template.spec.containers[0].envFrom[?(@.secretRef)]}{.secretRef.name}{"\n"}{end}')
 
-if [[ -z "$image" || -z "$service_account" || -z "$config_map_ref" || -z "$secret_ref" ]]; then
+if [[ -z "$image" || -z "$service_account" || -z "$config_map_ref" || "${#secret_refs[@]}" -eq 0 ]]; then
   echo "failed to derive runtime wiring from deployment $api_deployment" >&2
   exit 1
 fi
@@ -94,9 +97,13 @@ cat >>"$manifest_file" <<EOF
           envFrom:
             - configMapRef:
                 name: ${config_map_ref}
-            - secretRef:
-                name: ${secret_ref}
 EOF
+for sr in "${secret_refs[@]}"; do
+  cat >>"$manifest_file" <<EOF
+            - secretRef:
+                name: ${sr}
+EOF
+done
 
 kubectl apply -f "$manifest_file" >/dev/null
 
