@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LoaderCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -47,6 +47,7 @@ function diagnosisToneClass(tone: "healthy" | "warning" | "danger"): string {
 export function InvoiceListScreen() {
   const searchParams = useSearchParams();
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [customerExternalID, setCustomerExternalID] = useState(searchParams.get("customer_external_id") || "");
   const [invoiceStatus, setInvoiceStatus] = useState(searchParams.get("invoice_status") || "");
@@ -72,7 +73,7 @@ export function InvoiceListScreen() {
   const invoicesQuery = useQuery({
     queryKey: ["invoices", apiBaseURL, filters],
     queryFn: () => fetchInvoices({ runtimeBaseURL: apiBaseURL, filters }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const items = useMemo(() => invoicesQuery.data?.items ?? [], [invoicesQuery.data?.items]);
@@ -92,39 +93,41 @@ export function InvoiceListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Invoices" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoices</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Invoice visibility</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Invoices</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Browse invoice state, payment state, due amounts, and linked customers without leaving the main invoice workflow.
+                View invoice status, amounts due, and payment state across all customers.
               </p>
             </div>
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
             title="Workspace session required"
-            body="Invoices are workspace-scoped. Sign in with a workspace account to browse invoice state and payment readiness."
+            body="Invoices are workspace-scoped. Sign in with a workspace account to view invoice and payment status."
             actionHref="/billing-connections"
             actionLabel="Open platform home"
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Visible invoices" value={stats.total} />
-          <MetricCard label="Paid" value={stats.paid} />
-          <MetricCard label="Overdue" value={stats.overdue} />
-          <MetricCard label="Need operator action" value={stats.actionRequired} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Visible invoices" value={stats.total} />
+              <MetricCard label="Paid" value={stats.paid} />
+              <MetricCard label="Overdue" value={stats.overdue} />
+              <MetricCard label="Needs attention" value={stats.actionRequired} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice inventory</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoices</p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">Filter and inspect</h2>
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
@@ -182,16 +185,18 @@ export function InvoiceListScreen() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3">
-            {invoicesQuery.isLoading ? (
-              <LoadingState />
-            ) : items.length === 0 ? (
-              <EmptyState />
-            ) : (
-              items.map((item) => <InvoiceRow key={item.invoice_id} item={item} />)
-            )}
-          </div>
-        </section>
+              <div className="mt-5 grid gap-3">
+                {invoicesQuery.isLoading ? (
+                  <LoadingState />
+                ) : items.length === 0 ? (
+                  <EmptyState />
+                ) : (
+                  items.map((item) => <InvoiceRow key={item.invoice_id} item={item} />)
+                )}
+              </div>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );
@@ -250,9 +255,34 @@ function InventoryCell({ label, value }: { label: string; value: string }) {
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading invoices
+    <div className="grid gap-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_110px] lg:items-start">
+          <div className="min-w-0">
+            <Skeleton className="h-5 w-44" />
+            <Skeleton className="mt-2 h-4 w-36" />
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="mt-2 h-3 w-52" />
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-4 w-20" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-4 w-20" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="flex items-center justify-end">
+            <Skeleton className="h-3.5 w-8" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -260,8 +290,12 @@ function LoadingState() {
 function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No invoices match the current filters.</p>
-      <p className="mt-2">Clear filters or wait for the first finalized invoice to appear in the workspace billing history.</p>
+      <p className="font-semibold text-slate-950">No invoices yet.</p>
+      <p className="mt-2">Invoices appear once a customer has an active subscription and a billing cycle completes. Make sure customers have a billing profile and payment setup done.</p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link href="/subscriptions" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">View subscriptions</Link>
+        <Link href="/customers" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">View customers</Link>
+      </div>
     </div>
   );
 }

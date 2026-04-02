@@ -407,7 +407,7 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
-  await expect(page.getByRole("heading", { name: "Workspace handoff and readiness" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
   await expect(page.getByRole("link", { name: "New workspace" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Tenant Alpha/i })).toBeVisible();
   await expect(page.getByText("Next action: pricing")).toBeVisible();
@@ -415,8 +415,8 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await page.getByRole("link", { name: /Tenant Alpha/i }).click();
   await expect(page).toHaveURL(/\/workspaces\/tenant_alpha$/);
   await expect(page.getByRole("heading", { name: "Tenant Alpha" })).toBeVisible();
-  await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
-  await expect(page.getByText("No billing-ready customer has been created yet").first()).toBeVisible();
+  await expect(page.getByText("Create at least one metric and plan before going live").first()).toBeVisible();
+  await expect(page.getByText("Add the first customer to complete workspace setup").first()).toBeVisible();
   await expect(page.getByText("Support and debug details")).toBeVisible();
   await page.getByText("Support and debug details").click();
   await expect(page.getByText("org_alpha")).toBeVisible();

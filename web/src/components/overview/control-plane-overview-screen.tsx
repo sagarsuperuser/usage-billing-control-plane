@@ -7,7 +7,6 @@ import {
   Activity,
   Building2,
   CreditCard,
-  LoaderCircle,
   ReceiptText,
   ShieldCheck,
   UserRoundPlus,
@@ -16,6 +15,7 @@ import {
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchBillingProviderConnections,
   fetchCustomerReadiness,
@@ -276,7 +276,7 @@ export function ControlPlaneOverviewScreen() {
       <main className="mx-auto flex max-w-[1360px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
-        <section className="rounded-3xl border border-stone-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        <section className="rounded-xl border border-stone-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Overview</p>
@@ -286,30 +286,37 @@ export function ControlPlaneOverviewScreen() {
               </p>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <OperatorLine
-                  title={scope === "platform" ? "Platform posture" : "Workspace posture"}
+                  title={scope === "platform" ? "Platform overview" : "Workspace overview"}
                   body={
                     scope === "platform"
-                      ? "Use this overview as the platform triage surface: credential health, workspace readiness, and handoff blockers."
-                      : "Use this overview as the workspace entry point: customer readiness, payment setup, and operating surfaces."
+                      ? "Start here for platform triage: check credential health, workspace setup, and what's blocking launch."
+                      : "Start here for workspace operations: customer setup, payment status, and quick access to key areas."
                   }
                 />
                 <OperatorLine
-                  title="Inventory rule"
-                  body="Use the counters for fleet posture. Open the matching surface only after you know which area needs action."
+                  title="How to read the counts"
+                  body="Use the numbers to find what needs attention. Open that section once you know where to focus."
                 />
                 <OperatorLine
                   title="Action rule"
                   body={
                     scope === "platform"
-                      ? "Create reusable billing assets first, then complete workspace handoff from the platform side."
-                      : "Work inside one workspace boundary. Keep pricing, customers, subscriptions, and recovery together."
+                      ? "Create reusable billing assets first, then finish workspace setup from the platform side."
+                      : "Work inside one workspace. Keep pricing, customers, subscriptions, and troubleshooting together."
                   }
                 />
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {summaryCards.map((item) => (
-                  <SummaryCard key={item.label} label={item.label} value={item.value} tone={item.tone} />
-                ))}
+                {attentionLoading || isLoading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="mt-3 h-8 w-12" />
+                      </div>
+                    ))
+                  : summaryCards.map((item) => (
+                      <SummaryCard key={item.label} label={item.label} value={item.value} tone={item.tone} />
+                    ))}
               </div>
             </div>
 
@@ -320,7 +327,7 @@ export function ControlPlaneOverviewScreen() {
               </p>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 {scope === "platform"
-                  ? "Manage reusable billing assets, launch workspaces, and control handoff."
+                  ? "Manage reusable billing assets and launch workspaces."
                   : "Run pricing, customers, subscriptions, and workspace operations inside one workspace boundary."}
               </p>
               {session?.tenant_id ? (
@@ -331,7 +338,7 @@ export function ControlPlaneOverviewScreen() {
               {primaryAction ? (
                 <Link
                   href={primaryAction.href}
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
                 >
                   Open {primaryAction.title}
                 </Link>
@@ -342,18 +349,39 @@ export function ControlPlaneOverviewScreen() {
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
+        {scope === "tenant" && !attentionLoading && tenantMetrics.total === 0 ? (
+          <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Get started</p>
+            <h2 className="mt-2 text-xl font-semibold text-slate-950">Set up your first billing flow</h2>
+            <p className="mt-1.5 text-sm text-slate-500">Follow these steps in order to go from zero to a live paying customer.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <GettingStartedStep step="1" title="Create a metric" description="Define what you'll charge for — API calls, seats, storage." href="/pricing/metrics/new" />
+              <GettingStartedStep step="2" title="Create a plan" description="Package the metric with a price and billing cadence." href="/pricing/plans/new" />
+              <GettingStartedStep step="3" title="Add a customer" description="Create a customer and fill in their billing profile." href="/customers/new" />
+              <GettingStartedStep step="4" title="Create a subscription" description="Attach the customer to the plan to start billing." href="/subscriptions/new" />
+            </div>
+          </section>
+        ) : null}
+
         <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+          <div className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Needs action</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">What needs action</h2>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Action required</h2>
               </div>
             </div>
             {isLoading || attentionLoading ? (
-              <div className="mt-5 flex items-center gap-2 text-sm text-slate-600">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading live attention data
+              <div className="mt-5 divide-y divide-stone-200">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div className="min-w-0 flex-1">
+                      <Skeleton className="h-3.5 w-40" />
+                      <Skeleton className="mt-2 h-3 w-56" />
+                    </div>
+                    <Skeleton className="h-7 w-10 shrink-0 rounded-2xl" />
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="mt-5 divide-y divide-stone-200">
@@ -366,11 +394,11 @@ export function ControlPlaneOverviewScreen() {
 
           <div className="grid gap-6">
             {scope === "tenant" ? (
-              <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+              <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace console</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Next steps and operating surfaces</h2>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Quick access</h2>
                   </div>
                 </div>
                 <div className="mt-5 divide-y divide-stone-200">
@@ -380,11 +408,11 @@ export function ControlPlaneOverviewScreen() {
                 </div>
               </section>
             ) : (
-              <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+              <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Platform console</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Actions and operating surfaces</h2>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Platform</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Quick access</h2>
                   </div>
                 </div>
                 <div className="mt-5 divide-y divide-stone-200">
@@ -455,7 +483,7 @@ function AttentionRow({
       </div>
       <div className="shrink-0 text-right">
         <p className="text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
-        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
+        <p className="mt-1 text-[11px] text-slate-400">View →</p>
       </div>
     </Link>
   );
@@ -474,14 +502,11 @@ function ActionRow({
 }) {
   return (
     <Link href={href} className="flex items-start gap-4 py-4 first:pt-0 last:pb-0">
-      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50">
+      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50">
         {icon}
       </span>
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-slate-950">{title}</p>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</span>
-        </div>
+        <p className="text-sm font-semibold text-slate-950">{title}</p>
         <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
       </div>
     </Link>
@@ -515,9 +540,19 @@ function ConsoleRow({
         </div>
         <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
       </div>
-      <div className="text-left md:text-right">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</span>
+    </Link>
+  );
+}
+
+function GettingStartedStep({ step, title, description, href }: { step: string; title: string; description: string; href: string }) {
+  return (
+    <Link href={href} className="group flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 transition hover:border-slate-300 hover:bg-white">
+      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">{step}</span>
+      <div>
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="mt-1 text-xs text-slate-500 leading-relaxed">{description}</p>
       </div>
+      <span className="mt-auto text-xs font-medium text-slate-400 transition group-hover:text-slate-700">Get started →</span>
     </Link>
   );
 }

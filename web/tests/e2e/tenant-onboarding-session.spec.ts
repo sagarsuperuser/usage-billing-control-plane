@@ -251,7 +251,7 @@ test("platform admin can onboard a tenant from the UI before selecting billing",
 
   await page.goto("/workspaces/tenant_acme");
   await expect(page.getByRole("heading", { name: "Acme Corp" })).toBeVisible();
-  await expect(page.getByText("Pricing rules still need to be configured").first()).toBeVisible();
+  await expect(page.getByText("Create at least one metric and plan before going live").first()).toBeVisible();
   await expect(page.getByText("Change active connection")).toBeVisible();
   await expect(page.getByLabel("Active billing connection")).toBeVisible();
 });

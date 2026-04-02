@@ -68,7 +68,7 @@ test.describe("access and invite live staging", () => {
     try {
       await registerFromInvite(adminPage, adminInviteURL, invitedAdminDisplayName, invitedAdminPassword);
       await adminPage.goto("/workspace-access");
-      await expect(adminPage.getByRole("heading", { name: "Members, invitations, and machine credentials" })).toBeVisible();
+      await expect(adminPage.getByRole("heading", { name: "Members" })).toBeVisible();
       await expect(adminPage.getByText("You cannot change your own membership from this screen.")).toBeVisible();
 
       await adminPage.getByPlaceholder("teammate@example.com").fill(invitedWriterEmail);

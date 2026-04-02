@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CreditCard, UserRoundPlus } from "lucide-react";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -21,6 +19,7 @@ export function SessionLoginScreen() {
   const searchParams = useSearchParams();
   const { session, isAuthenticated, apiBaseURL } = useUISession();
   const requestedNext = searchParams.get("next");
+  const accessSwitch = searchParams.get("switch") === "1";
   const providerKey = searchParams.get("provider");
   const authError = searchParams.get("error");
   const resetState = searchParams.get("reset");
@@ -32,17 +31,17 @@ export function SessionLoginScreen() {
   });
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !accessSwitch) {
       router.replace(resolveTarget(session, requestedNext));
     }
-  }, [isAuthenticated, requestedNext, router, session]);
+  }, [accessSwitch, isAuthenticated, requestedNext, router, session]);
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !accessSwitch) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-        <main className="mx-auto flex min-h-screen max-w-[1200px] items-center justify-center px-4 py-10 md:px-8 lg:px-10">
-          <div className="rounded-2xl border border-stone-200 bg-white px-6 py-5 text-sm text-slate-600 shadow-sm">
-            Redirecting to your workspace
+      <div className="min-h-screen bg-[#f5f7fb]">
+        <main className="flex min-h-screen items-center justify-center px-4">
+          <div className="rounded-xl border border-stone-200 bg-white px-6 py-4 text-sm text-slate-500 shadow-sm">
+            Redirecting…
           </div>
         </main>
       </div>
@@ -50,93 +49,96 @@ export function SessionLoginScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto grid min-h-screen max-w-[1360px] gap-10 px-4 py-10 md:px-8 xl:grid-cols-[minmax(0,1fr)_460px] xl:gap-12 xl:px-10">
-        <section className="flex flex-col justify-center xl:pr-8">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Alpha Control Plane</p>
-          <h1 className="mt-3 max-w-[11ch] text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl xl:text-6xl">
-            Role-aware billing operations without exposing the engine behind it
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-            Sign in with your account credentials to open the correct control surface. Platform accounts cover billing connections and workspaces. Tenant accounts cover customers, payments, recovery, and explainability inside assigned workspaces.
-          </p>
-          <div className="mt-6 grid gap-3 lg:grid-cols-3">
-            <OperatorHint title="Identity rule" body="Browser login is only for human operators. API keys stay on API and integration traffic." />
-            <OperatorHint title="Scope rule" body="Platform accounts open cross-workspace administration. Workspace accounts open one assigned workspace surface at a time." />
-            <OperatorHint title="Session rule" body="Use the requested path when present. Alpha will route the session to the correct surface after authentication." />
+    <div className="min-h-screen bg-[#f5f7fb]">
+      <main className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_480px]">
+
+        {/* Left — brand panel */}
+        <div className="hidden xl:flex flex-col justify-between bg-slate-950 px-14 py-12">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.4"/>
+                <rect x="7" y="5" width="3" height="11" rx="1" fill="white" fillOpacity="0.65"/>
+                <rect x="12" y="2" width="3" height="14" rx="1" fill="white"/>
+              </svg>
+            </div>
+            <span className="text-sm font-semibold text-white">Alpha</span>
           </div>
 
-          <section className="mt-8 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Operating surfaces</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-              <FeatureCard icon={<CreditCard className="h-5 w-5" />} title="Platform billing" body="Own Stripe connection records in Alpha, then assign those connections to workspaces." />
-              <FeatureCard icon={<Building2 className="h-5 w-5" />} title="Workspace setup" body="Create workspace boundaries, attach connected billing, and hand off the first admin credential." />
-              <FeatureCard icon={<UserRoundPlus className="h-5 w-5" />} title="Tenant operations" body="Run customer onboarding, payment setup, diagnostics, and recovery inside one workspace surface." />
+          <div>
+            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-white">
+              Usage billing<br />control plane
+            </h1>
+            <p className="mt-4 max-w-sm text-base leading-7 text-slate-400">
+              Pricing, customers, subscriptions, payments, and invoices — all in one place.
+            </p>
+            <div className="mt-10 grid gap-3">
+              <Capability label="Billing connections" detail="Own provider records and assign them to workspaces." />
+              <Capability label="Pricing catalog" detail="Metrics, rating rules, plans, coupons, and taxes." />
+              <Capability label="Customer operations" detail="Onboarding, payment setup, and status checks." />
+              <Capability label="Invoices & recovery" detail="Usage billing, replay, dunning, and explainability." />
             </div>
-          </section>
+          </div>
 
-          <p className="mt-6 text-xs uppercase tracking-[0.14em] text-slate-500">
-            API keys remain for API and integration traffic only. Browser sessions are now derived from human account credentials.
-          </p>
-          <Link
-            href="/control-plane"
-            prefetch={false}
-            className="mt-6 inline-flex h-10 w-fit items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:border-stone-300 hover:bg-white"
-          >
-            Open product overview
-          </Link>
-        </section>
+          <p className="text-xs text-slate-600">Staging environment</p>
+        </div>
 
-        <section className="flex flex-col justify-center gap-4 xl:max-w-[460px] xl:justify-center">
-          {resetState === "success" ? (
-            <div className="w-full rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-700 shadow-sm">
-              Password updated. Sign in with your new password.
+        {/* Right — login form */}
+        <div className="flex flex-col items-center justify-center px-6 py-12 sm:px-10">
+          <div className="w-full max-w-[400px]">
+            <div className="mb-8 xl:hidden flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.4"/>
+                  <rect x="7" y="5" width="3" height="11" rx="1" fill="white" fillOpacity="0.65"/>
+                  <rect x="12" y="2" width="3" height="14" rx="1" fill="white"/>
+                </svg>
+              </div>
+              <span className="text-sm font-semibold text-slate-900">Alpha</span>
             </div>
-          ) : null}
-          {authError ? (
-            <div className="sr-only">{authError}</div>
-          ) : null}
-          <SessionLoginCard
-            apiBaseURL={apiBaseURL}
-            passwordResetEnabled={Boolean(authProvidersQuery.data?.password_reset_enabled)}
-            ssoProviders={authProvidersQuery.data?.sso_providers ?? []}
-            providerKey={providerKey}
-            authErrorCode={authError}
-            nextPath={requestedNext}
-            onSuccess={(nextSession) => {
-              router.replace(resolveTarget(nextSession, requestedNext));
-            }}
-            onSelectionRequired={() => {
-              router.replace(buildWorkspaceSelectionPath(requestedNext));
-            }}
-            onInvitationPending={(nextPath) => {
-              router.replace(normalizeNextPath(nextPath, "/"));
-            }}
-          />
-        </section>
+
+            {accessSwitch ? (
+              <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Sign in with the account you want to switch to.
+              </div>
+            ) : null}
+            {resetState === "success" ? (
+              <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                Password updated. Sign in with your new password.
+              </div>
+            ) : null}
+
+            <SessionLoginCard
+              apiBaseURL={apiBaseURL}
+              passwordResetEnabled={Boolean(authProvidersQuery.data?.password_reset_enabled)}
+              ssoProviders={authProvidersQuery.data?.sso_providers ?? []}
+              providerKey={providerKey}
+              authErrorCode={authError}
+              nextPath={requestedNext}
+              onSuccess={(nextSession) => {
+                router.replace(resolveTarget(nextSession, requestedNext));
+              }}
+              onSelectionRequired={() => {
+                router.replace(buildWorkspaceSelectionPath(requestedNext));
+              }}
+              onInvitationPending={(nextPath) => {
+                router.replace(normalizeNextPath(nextPath, "/"));
+              }}
+            />
+          </div>
+        </div>
       </main>
     </div>
   );
 }
 
-function OperatorHint({ title, body }: { title: string; body: string }) {
+function Capability({ label, detail }: { label: string; detail: string }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
-    </div>
-  );
-}
-
-function FeatureCard({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-      <div className="flex items-start gap-3">
-        <span className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">{icon}</span>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-          <p className="mt-2 text-sm leading-7 text-slate-600">{body}</p>
-        </div>
+    <div className="flex items-start gap-3">
+      <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-500" />
+      <div>
+        <span className="text-sm font-medium text-slate-200">{label}</span>
+        <span className="ml-2 text-sm text-slate-500">{detail}</span>
       </div>
     </div>
   );

@@ -264,18 +264,16 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await installWorkspaceAccessMock(page);
   await page.goto("/workspace-access");
 
-  await expect(page.getByRole("heading", { name: "Members, invitations, and machine credentials" })).toBeVisible();
-  await expect(page.getByText("Keep machine access scoped, rotated, and easy to review.")).toBeVisible();
-  await expect(page.getByText("Selected service account")).toBeVisible();
-  await expect(page.getByText("Current credentials")).toBeVisible();
-  await expect(page.getByText("Credential issued")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
+  await expect(page.getByText("API identities for automation and integrations. Issue or rotate credentials as needed.")).toBeVisible();
+  await expect(page.getByText("Machine secrets currently usable")).toBeVisible();
   await expect(page.getByText("created", { exact: true })).not.toBeVisible();
 
-  await page.getByRole("button", { name: /erp-sync/i }).click();
-  await expect(page.getByText("Selected service account").locator("..").getByText("ERP export worker")).toBeVisible();
+  await page.getByTestId("inspect-service-account-svc_erp").click();
+  await expect(page.getByTestId("service-account-detail").getByText("ERP export worker")).toBeVisible();
   await expect(page.getByText(/last used/i).first()).toBeVisible();
 
-  await page.getByRole("button", { name: /Open audit/i }).click();
+  await page.getByRole("button", { name: "Audit log" }).first().click();
   await page.getByLabel("Audit service account").selectOption("svc_erp");
   await expect(page.getByText("Credential rotated")).toBeVisible();
   await page.getByRole("button", { name: /View service account audit details for Credential rotated/i }).click();
@@ -283,5 +281,5 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await expect(page.getByText("Selected event").locator("..").getByText("A credential was rotated and replaced for erp sync · prod.")).toBeVisible();
   await expect(page.getByText("Owner Type")).toBeVisible();
   await expect(page.getByText("Completed")).toBeVisible();
-  await expect(page.getByText("Download CSV")).toBeVisible();
+  await expect(page.getByText("Download")).toBeVisible();
 });

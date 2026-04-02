@@ -23,6 +23,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { type InvoiceStatusFilters } from "@/lib/types";
 import { useSessionStore } from "@/store/use-session-store";
 import { billingFailureDiagnosis, formatBillingState } from "@/lib/billing-lifecycle";
+import { showError, showSuccess } from "@/lib/toast";
 
 const statusSortOptions = [
   { value: "last_event_at", label: "Last event" },
@@ -180,11 +181,15 @@ export function PaymentOperationsScreen() {
         csrfToken,
       }),
     onSuccess: async (_, invoiceID) => {
+      showSuccess("Payment retry queued", "Invoice payment retry has been submitted.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["invoice-statuses"] }),
         queryClient.invalidateQueries({ queryKey: ["invoice-status-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["invoice-events", apiBaseURL, invoiceID] }),
       ]);
+    },
+    onError: (err: Error) => {
+      showError("Retry failed", err.message || "Could not retry invoice payment.");
     },
   });
 
@@ -223,157 +228,6 @@ export function PaymentOperationsScreen() {
       <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
 
-        <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Payment operations</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Failed payment triage</h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Review invoices that need attention, inspect the timeline, and trigger safe retries from one workspace console.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
-              <MetricCard label="Visible invoices" value={loadedCount} />
-              <MetricCard label="Failed" value={failedCount} tone="danger" />
-              <MetricCard label="Overdue" value={overdueCount} tone="danger" />
-              <MetricCard label="Attention" value={attentionRequiredCount} tone="danger" />
-              <MetricCard label="Stale >5m" value={staleAttentionCount} />
-              <MetricCard label="Timeline" value={timelineOpen ? "Open" : "Idle"} />
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-            <InputField
-              label="Organization ID"
-              placeholder="optional org filter"
-              value={organizationID}
-              onChange={(value) => {
-                setOrganizationID(value);
-                resetStatusOffset();
-              }}
-            />
-            <InputField
-              label="Invoice Status"
-              placeholder="finalized / draft / voided"
-              value={invoiceStatus}
-              onChange={(value) => {
-                setInvoiceStatus(value);
-                resetStatusOffset();
-              }}
-            />
-          </div>
-
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Payment Overdue</label>
-              <select
-                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
-                value={overdue}
-                onChange={(event) => {
-                  setOverdue(event.target.value as "all" | "true" | "false");
-                  resetStatusOffset();
-                }}
-              >
-                <option value="all">All</option>
-                <option value="true">Overdue only</option>
-                <option value="false">Not overdue</option>
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Sort By</label>
-              <select
-                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
-                value={statusSortBy}
-                onChange={(event) => {
-                  setStatusSortBy(event.target.value as (typeof statusSortOptions)[number]["value"]);
-                  resetStatusOffset();
-                }}
-              >
-                {statusSortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Order</label>
-              <select
-                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
-                value={statusOrder}
-                onChange={(event) => {
-                  setStatusOrder(event.target.value as (typeof orderOptions)[number]["value"]);
-                  resetStatusOffset();
-                }}
-              >
-                {orderOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Rows</label>
-              <select
-                className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
-                value={String(statusLimit)}
-                onChange={(event) => {
-                  setStatusLimit(Number(event.target.value));
-                  resetStatusOffset();
-                }}
-              >
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Refresh</label>
-              <button
-                type="button"
-                onClick={() => statusesQuery.refetch()}
-                disabled={statusesQuery.isFetching || !isAuthenticated}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {statusesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Refresh
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <QuickFilterChip
-              active={paymentStatus === "failed"}
-              label="Failed"
-              onClick={() => {
-                setPaymentStatus(paymentStatus === "failed" ? "" : "failed");
-                resetStatusOffset();
-              }}
-            />
-            <QuickFilterChip
-              active={paymentStatus === "pending"}
-              label="Pending"
-              onClick={() => {
-                setPaymentStatus(paymentStatus === "pending" ? "" : "pending");
-                resetStatusOffset();
-              }}
-            />
-            <QuickFilterChip
-              active={paymentStatus === "succeeded"}
-              label="Succeeded"
-              onClick={() => {
-                setPaymentStatus(paymentStatus === "succeeded" ? "" : "succeeded");
-                resetStatusOffset();
-              }}
-            />
-          </div>
-        </section>
-
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
@@ -384,14 +238,165 @@ export function PaymentOperationsScreen() {
           />
         ) : null}
 
-        {isTenantSession && statusesQuery.error ? (
+        {isTenantSession ? (
+          <>
+            <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Payment operations</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Failed payment triage</h1>
+                  <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
+                    Review invoices that need attention, inspect the timeline, and trigger safe retries from one workspace console.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
+                  <MetricCard label="Visible invoices" value={loadedCount} />
+                  <MetricCard label="Failed" value={failedCount} tone="danger" />
+                  <MetricCard label="Overdue" value={overdueCount} tone="danger" />
+                  <MetricCard label="Attention" value={attentionRequiredCount} tone="danger" />
+                  <MetricCard label="Stale >5m" value={staleAttentionCount} />
+                  <MetricCard label="Timeline" value={timelineOpen ? "Open" : "Idle"} />
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+                <InputField
+                  label="Organization ID"
+                  placeholder="optional org filter"
+                  value={organizationID}
+                  onChange={(value) => {
+                    setOrganizationID(value);
+                    resetStatusOffset();
+                  }}
+                />
+                <InputField
+                  label="Invoice Status"
+                  placeholder="finalized / draft / voided"
+                  value={invoiceStatus}
+                  onChange={(value) => {
+                    setInvoiceStatus(value);
+                    resetStatusOffset();
+                  }}
+                />
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid gap-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Payment Overdue</label>
+                  <select
+                    className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
+                    value={overdue}
+                    onChange={(event) => {
+                      setOverdue(event.target.value as "all" | "true" | "false");
+                      resetStatusOffset();
+                    }}
+                  >
+                    <option value="all">All</option>
+                    <option value="true">Overdue only</option>
+                    <option value="false">Not overdue</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Sort By</label>
+                  <select
+                    className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
+                    value={statusSortBy}
+                    onChange={(event) => {
+                      setStatusSortBy(event.target.value as (typeof statusSortOptions)[number]["value"]);
+                      resetStatusOffset();
+                    }}
+                  >
+                    {statusSortOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Order</label>
+                  <select
+                    className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
+                    value={statusOrder}
+                    onChange={(event) => {
+                      setStatusOrder(event.target.value as (typeof orderOptions)[number]["value"]);
+                      resetStatusOffset();
+                    }}
+                  >
+                    {orderOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Rows</label>
+                  <select
+                    className="h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm text-slate-700 outline-none ring-emerald-500 transition focus:ring-2"
+                    value={String(statusLimit)}
+                    onChange={(event) => {
+                      setStatusLimit(Number(event.target.value));
+                      resetStatusOffset();
+                    }}
+                  >
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Refresh</label>
+                  <button
+                    type="button"
+                    onClick={() => statusesQuery.refetch()}
+                    disabled={statusesQuery.isFetching}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {statusesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <QuickFilterChip
+                  active={paymentStatus === "failed"}
+                  label="Failed"
+                  onClick={() => {
+                    setPaymentStatus(paymentStatus === "failed" ? "" : "failed");
+                    resetStatusOffset();
+                  }}
+                />
+                <QuickFilterChip
+                  active={paymentStatus === "pending"}
+                  label="Pending"
+                  onClick={() => {
+                    setPaymentStatus(paymentStatus === "pending" ? "" : "pending");
+                    resetStatusOffset();
+                  }}
+                />
+                <QuickFilterChip
+                  active={paymentStatus === "succeeded"}
+                  label="Succeeded"
+                  onClick={() => {
+                    setPaymentStatus(paymentStatus === "succeeded" ? "" : "succeeded");
+                    resetStatusOffset();
+                  }}
+                />
+              </div>
+            </section>
+
+            {statusesQuery.error ? (
           <section className="rounded-2xl border border-rose-200 bg-rose-500/10 p-4 text-sm text-rose-700">
             {(statusesQuery.error as Error).message}
           </section>
-        ) : null}
+            ) : null}
 
-        {isTenantSession ? (
-          <>
         <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
           <div className="overflow-auto">
             <table className="w-full min-w-[1140px] border-separate border-spacing-y-2 text-sm">

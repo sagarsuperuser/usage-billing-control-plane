@@ -50,6 +50,7 @@ function toISOOrUndefined(value: string): string | undefined {
 
 export function UsageEventsScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [submitted, setSubmitted] = useState<FilterState>(defaultFilters);
   const [cursor, setCursor] = useState("");
@@ -69,7 +70,7 @@ export function UsageEventsScreen() {
         limit: defaultLimit,
         cursor: cursor || undefined,
       }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const items = query.data?.items ?? [];
@@ -121,17 +122,17 @@ export function UsageEventsScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Usage Events" }]} />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage Events</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Raw operational event view</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Usage events</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Review recent raw usage events for support and billing disputes from one workspace event inventory.
+                Inspect raw metering events for billing disputes, support, or audit.
               </p>
             </div>
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -143,18 +144,20 @@ export function UsageEventsScreen() {
           />
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Visible events" value={String(stats.visible)} />
-          <MetricCard label="Visible quantity" value={String(stats.quantity)} />
-          <MetricCard label="Customers on page" value={String(stats.customers)} />
-          <MetricCard label="Meters on page" value={String(stats.meters)} />
-        </section>
+        {isTenantSession ? (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Visible events" value={String(stats.visible)} />
+              <MetricCard label="Visible quantity" value={String(stats.quantity)} />
+              <MetricCard label="Customers on page" value={String(stats.customers)} />
+              <MetricCard label="Meters on page" value={String(stats.meters)} />
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Filters</p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">Bound the inventory before reviewing events</h2>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Filters</h2>
               </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -190,13 +193,13 @@ export function UsageEventsScreen() {
               </select>
             </label>
           </div>
-        </section>
+            </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event inventory</p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">Recent raw events</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage events</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Events</h2>
               </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -240,7 +243,9 @@ export function UsageEventsScreen() {
               </>
             ) : null}
           </div>
-        </section>
+            </section>
+          </>
+        ) : null}
       </main>
     </div>
   );
@@ -384,7 +389,7 @@ function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
       <p className="font-semibold text-slate-950">No usage events matched the current filters.</p>
-      <p className="mt-2">Use customer, meter, and time filters to narrow the operational inventory.</p>
+      <p className="mt-2">Try adjusting the customer, meter, or time filters.</p>
     </div>
   );
 }

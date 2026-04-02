@@ -30,6 +30,8 @@ runtime_secret_name              = "lago-alpha/staging/runtime"
 create_runtime_secret            = true
 runtime_secret_recovery_window_in_days = 30
 
+github_repo = "owner/repo"
+
 tags = {
   Owner = "billing-platform"
 }

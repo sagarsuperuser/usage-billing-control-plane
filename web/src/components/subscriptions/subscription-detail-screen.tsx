@@ -9,9 +9,11 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchPlans, fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup, updateSubscription } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function tone(status?: string): string {
@@ -47,31 +49,40 @@ function formatSubscriptionPaymentSetupStatus(status: string): string {
 
 export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
   const [selectedPlanID, setSelectedPlanID] = useState("");
 
   const detailQuery = useQuery({
     queryKey: ["subscription", apiBaseURL, subscriptionID],
     queryFn: () => fetchSubscription({ runtimeBaseURL: apiBaseURL, subscriptionID }),
-    enabled: isAuthenticated && scope === "tenant" && subscriptionID.trim().length > 0,
+    enabled: isTenantSession && subscriptionID.trim().length > 0,
   });
 
   const plansQuery = useQuery({
     queryKey: ["plans", apiBaseURL],
     queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const requestMutation = useMutation({
     mutationFn: () => requestSubscriptionPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, subscriptionID }),
     onSuccess: async () => {
+      showSuccess("Payment setup requested", "The customer will receive an email with the checkout link.");
       await detailQuery.refetch();
+    },
+    onError: (err: Error) => {
+      showError("Request failed", err.message || "Could not request payment setup.");
     },
   });
 
   const resendMutation = useMutation({
     mutationFn: () => resendSubscriptionPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, subscriptionID }),
     onSuccess: async () => {
+      showSuccess("Payment setup request resent", "A new checkout link has been sent to the customer.");
       await detailQuery.refetch();
+    },
+    onError: (err: Error) => {
+      showError("Resend failed", err.message || "Could not resend payment setup request.");
     },
   });
 
@@ -124,20 +135,21 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
           />
         ) : null}
 
-        {detailQuery.isLoading ? (
-          <LoadingPanel label="Loading subscription detail" />
-        ) : detailQuery.isError || !subscription ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Subscription not available</h1>
-            <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the workspace APIs.</p>
-            <Link href="/subscriptions" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-              <ArrowLeft className="h-4 w-4" />
-              Back to subscriptions
-            </Link>
-          </section>
-        ) : (
-          <>
+        {isTenantSession ? (
+          detailQuery.isLoading ? (
+            <LoadingPanel label="Loading subscription detail" />
+          ) : detailQuery.isError || !subscription ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
+              <h1 className="mt-2 text-2xl font-semibold text-slate-950">Subscription not available</h1>
+              <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the workspace APIs.</p>
+              <Link href="/subscriptions" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                <ArrowLeft className="h-4 w-4" />
+                Back to subscriptions
+              </Link>
+            </section>
+          ) : (
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -298,8 +310,9 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                 </section>
               </aside>
             </div>
-          </>
-        )}
+          </SectionErrorBoundary>
+          )
+        ) : null}
       </main>
     </div>
   );

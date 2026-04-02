@@ -54,7 +54,7 @@ test.describe("payment operations live staging", () => {
     if (await recoveryLink.count()) {
       await recoveryLink.click();
       await expect(page).toHaveURL(/\/replay-operations(?:\?.*)?$/);
-      await expect(page.getByText("Replay + Reprocess Operations")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Replay operations" })).toBeVisible();
       return;
     }
 

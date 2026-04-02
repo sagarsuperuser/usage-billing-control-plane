@@ -8,16 +8,18 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchAddOn } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const addOnQuery = useQuery({
     queryKey: ["pricing-add-on", apiBaseURL, addOnID],
     queryFn: () => fetchAddOn({ runtimeBaseURL: apiBaseURL, addOnID }),
-    enabled: isAuthenticated && scope === "tenant" && addOnID.trim().length > 0,
+    enabled: isTenantSession && addOnID.trim().length > 0,
   });
 
   const addOn = addOnQuery.data ?? null;
@@ -31,7 +33,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Add-ons are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
-        {addOnQuery.isLoading ? (
+        {isTenantSession ? addOnQuery.isLoading ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading add-on detail</div></section>
         ) : !addOn ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -40,7 +42,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
             <Link href="/pricing/add-ons" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"><ArrowLeft className="h-4 w-4" />Back to add-ons</Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -75,12 +77,12 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Use add-ons for fixed recurring extras that operators can explain clearly on top of the base plan." />
+                <GuidanceCard title="When to use add-ons" body="Use add-ons for fixed recurring extras you can clearly explain to customers on top of the base plan." />
                 <GuidanceCard title="Next action" body="Attach this record to plans that need the extra charge. Use plan detail to confirm where it is currently used." />
               </aside>
             </div>
-          </>
-        )}
+          </SectionErrorBoundary>
+        ) : null}
       </main>
     </div>
   );

@@ -97,7 +97,7 @@ export function InvoiceExplainabilityScreen() {
           ]}
         />
 
-        <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Invoice explainability</p>
@@ -124,7 +124,7 @@ export function InvoiceExplainabilityScreen() {
             <CompactRule title="Operational use" body="Use this before escalating a billing question or replay issue." />
             <CompactRule title="Output shape" body="Keep the list compact and open one line item when you need raw properties." />
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -142,7 +142,7 @@ export function InvoiceExplainabilityScreen() {
           </section>
         ) : null}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Trace Query</p>
@@ -246,9 +246,9 @@ export function InvoiceExplainabilityScreen() {
               </ul>
             </div>
           </div>
-        </section>
+        </section> : null}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Digest Summary</p>
@@ -283,9 +283,9 @@ export function InvoiceExplainabilityScreen() {
               dataTestID="explainability-meta-digest"
             />
           </div>
-        </section>
+        </section> : null}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
+        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 border-b border-stone-200 px-3 pb-4 pt-1 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Computation Breakdown</p>
@@ -356,7 +356,7 @@ export function InvoiceExplainabilityScreen() {
               No line items yet. Load an invoice to inspect explainability.
             </div>
           ) : null}
-        </section>
+        </section> : null}
       </main>
     </div>
   );

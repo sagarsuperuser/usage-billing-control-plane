@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LoaderCircle, LogOut, PanelsTopLeft, UserRoundCog } from "lucide-react";
 
 import { useUISession } from "@/hooks/use-ui-session";
@@ -9,6 +10,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 export function SessionMenu() {
   const { session, scope, platformRole, csrfToken, logout, loggingOut } = useUISession();
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -52,50 +54,50 @@ export function SessionMenu() {
     <details ref={detailsRef} className="group relative">
       <summary
         data-testid="session-menu-toggle"
-        className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-left transition hover:border-stone-300 hover:bg-white"
+        className="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-left transition hover:border-stone-300 hover:bg-white"
       >
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700">
-          <UserRoundCog className="h-4 w-4" />
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-white">
+          <UserRoundCog className="h-3.5 w-3.5" />
         </span>
-        <span className="min-w-0">
-          <span className="block text-[10px] uppercase tracking-[0.16em] text-slate-500">Current access</span>
-          <span className="block truncate text-xs font-semibold uppercase tracking-[0.12em] text-slate-900">{accessLabel}</span>
-          <span className="block truncate text-[11px] text-slate-600">{identityLabel}</span>
+        <span className="min-w-0 hidden sm:block">
+          <span className="block truncate text-xs font-semibold text-slate-900">{accessLabel}</span>
+          <span className="block truncate text-[11px] text-slate-500">{identityLabel}</span>
         </span>
       </summary>
-      <div className="absolute right-0 z-30 mt-2 w-[300px] rounded-3xl border border-stone-200 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
-        <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Signed in surface</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">{scope === "platform" ? "Platform administration" : "Workspace operations"}</p>
-          <p className="mt-1 text-xs text-slate-600">{identityLabel}</p>
-          <p className="mt-2 text-xs text-slate-500">{contextLabel}</p>
+      <div className="absolute right-0 z-30 mt-2 w-[260px] rounded-xl border border-stone-200 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.10)]">
+        <div className="px-4 py-3.5">
+          <p className="text-sm font-semibold text-slate-900 truncate">{identityLabel}</p>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+              {accessLabel}
+            </span>
+            {scope !== "platform" && contextLabel && (
+              <span className="text-[11px] text-slate-400 truncate">{contextLabel}</span>
+            )}
+          </div>
         </div>
-        <div className="mt-3 grid gap-2">
+        <div className="border-t border-stone-100" />
+        <div className="p-1.5">
           <Link
             href={homeHref}
             prefetch={false}
             onClick={closeMenu}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-800 transition hover:border-stone-300 hover:bg-white"
+            className="flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm text-slate-700 transition hover:bg-stone-50"
           >
-            <PanelsTopLeft className="h-3.5 w-3.5 text-slate-500" />
-            Open role home
+            <PanelsTopLeft className="h-3.5 w-3.5 text-slate-400" />
+            Home
           </Link>
           <Link
             href={secondaryHref}
             prefetch={false}
             onClick={closeMenu}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-800 transition hover:border-stone-300 hover:bg-white"
+            className="flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm text-slate-700 transition hover:bg-stone-50"
           >
             {secondaryLabel}
           </Link>
-          <Link
-            href="/login"
-            prefetch={false}
-            onClick={closeMenu}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 transition hover:bg-amber-100"
-          >
-            Sign in with different access
-          </Link>
+        </div>
+        <div className="border-t border-stone-100" />
+        <div className="p-1.5">
           <button
             type="button"
             data-testid="session-logout"
@@ -104,10 +106,10 @@ export function SessionMenu() {
               closeMenu();
               void logout(csrfToken);
             }}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-800 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loggingOut ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
-            End session
+            Sign out
           </button>
         </div>
       </div>

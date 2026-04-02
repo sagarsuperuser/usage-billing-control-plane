@@ -7,7 +7,7 @@ import { LoaderCircle, MailCheck, PanelsTopLeft } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { acceptWorkspaceInvitation, fetchPendingWorkspaceSelection, fetchUIAuthProviders, fetchWorkspaceInvitationPreview, registerWorkspaceInvitation } from "@/lib/api";
-import { buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
+import { buildAccessSwitchPath, buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import { useUISession } from "@/hooks/use-ui-session";
 import { useSessionStore } from "@/store/use-session-store";
 
@@ -127,6 +127,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
 
   const preview = previewQuery.data;
   const loginHref = buildLoginPath(invitePath);
+  const accessSwitchHref = buildAccessSwitchPath(invitePath);
   const emailMismatch = isAuthenticated && preview.authenticated && !preview.email_matches_session;
   const showRegistrationForm = preview.requires_login && !isAuthenticated && !preview.account_exists;
 
@@ -247,7 +248,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
                 Accept invitation
               </button>
               <Link
-                href="/login"
+                href={accessSwitchHref}
                 className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
               >
                 Switch account

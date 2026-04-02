@@ -1,7 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   KeyRound,
@@ -18,15 +23,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { useUISession } from "@/hooks/use-ui-session";
 import {
   createTenantWorkspaceInvitation,
   createTenantWorkspaceServiceAccount,
-  fetchTenantWorkspaceServiceAccountAudit,
-  fetchTenantWorkspaceServiceAccountAuditExports,
   fetchTenantWorkspaceInvitations,
   fetchTenantWorkspaceMembers,
+  fetchTenantWorkspaceServiceAccountAudit,
+  fetchTenantWorkspaceServiceAccountAuditExports,
   fetchTenantWorkspaceServiceAccounts,
   issueTenantWorkspaceServiceAccountCredential,
   removeTenantWorkspaceMember,
@@ -37,26 +43,45 @@ import {
   updateTenantWorkspaceServiceAccountStatus,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
-import { useUISession } from "@/hooks/use-ui-session";
 import { type APIKeyAuditEvent } from "@/lib/types";
 
 export function TenantWorkspaceAccessScreen() {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope, role, isAdmin, session } = useUISession();
+  const peopleSectionRef = useRef<HTMLElement | null>(null);
+  const machineSectionRef = useRef<HTMLElement | null>(null);
   const auditSectionRef = useRef<HTMLElement | null>(null);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("writer");
-  const [serviceAccountName, setServiceAccountName] = useState("");
-  const [serviceAccountDescription, setServiceAccountDescription] = useState("");
-  const [serviceAccountRole, setServiceAccountRole] = useState<"reader" | "writer" | "admin">("writer");
-  const [serviceAccountPurpose, setServiceAccountPurpose] = useState("");
-  const [serviceAccountEnvironment, setServiceAccountEnvironment] = useState("prod");
+  const { register: registerInvite, handleSubmit: handleInviteSubmit, reset: resetInvite } = useForm({
+    resolver: zodResolver(z.object({ email: z.string().email(), role: z.enum(["reader", "writer", "admin"]) })),
+    defaultValues: { email: "", role: "writer" as const },
+  });
+  const { register: registerSA, handleSubmit: handleSASubmit, reset: resetSA } = useForm({
+    resolver: zodResolver(z.object({
+      name: z.string().min(1),
+      description: z.string(),
+      role: z.enum(["reader", "writer", "admin"]),
+      purpose: z.string().min(1),
+      environment: z.string().min(1),
+    })),
+    defaultValues: { name: "", description: "", role: "writer" as const, purpose: "", environment: "prod" },
+  });
   const [latestCredentialSecret, setLatestCredentialSecret] = useState<{ label: string; secret: string } | null>(null);
+  const [selectedMemberID, setSelectedMemberID] = useState("");
   const [selectedServiceAccountID, setSelectedServiceAccountID] = useState("");
   const [selectedAuditServiceAccountID, setSelectedAuditServiceAccountID] = useState("");
   const [selectedAuditEventID, setSelectedAuditEventID] = useState("");
   const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
   const [confirmingMemberAction, setConfirmingMemberAction] = useState<{ userID: string; action: "suspend" } | null>(null);
+  const [memberPage, setMemberPage] = useState(1);
+  const [invitePage, setInvitePage] = useState(1);
+  const [serviceAccountPage, setServiceAccountPage] = useState(1);
+  const [credentialPage, setCredentialPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditCursor, setAuditCursor] = useState<string | undefined>(undefined);
+  const [auditCursorHistory, setAuditCursorHistory] = useState<Array<string | undefined>>([]);
+  const [auditExportPage, setAuditExportPage] = useState(1);
+  const [auditExportCursor, setAuditExportCursor] = useState<string | undefined>(undefined);
+  const [auditExportCursorHistory, setAuditExportCursorHistory] = useState<Array<string | undefined>>([]);
 
   const workspaceQueryKey = ["tenant-workspace-members", apiBaseURL, session?.tenant_id];
   const invitationQueryKey = ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id];
@@ -79,15 +104,15 @@ export function TenantWorkspaceAccessScreen() {
   });
 
   const createInvitationMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { email: string; role: "reader" | "writer" | "admin" }) =>
       createTenantWorkspaceInvitation({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
-        email: inviteEmail,
-        role: inviteRole,
+        email: data.email,
+        role: data.role,
       }),
     onSuccess: async () => {
-      setInviteEmail("");
+      resetInvite();
       await queryClient.invalidateQueries({ queryKey: invitationQueryKey });
     },
   });
@@ -133,22 +158,19 @@ export function TenantWorkspaceAccessScreen() {
     },
   });
   const createServiceAccountMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { name: string; description: string; role: "reader" | "writer" | "admin"; purpose: string; environment: string }) =>
       createTenantWorkspaceServiceAccount({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
-        name: serviceAccountName,
-        description: serviceAccountDescription,
-        role: serviceAccountRole,
-        purpose: serviceAccountPurpose,
-        environment: serviceAccountEnvironment,
+        name: data.name,
+        description: data.description,
+        role: data.role,
+        purpose: data.purpose,
+        environment: data.environment,
         issueInitialCredential: true,
       }),
     onSuccess: async (payload) => {
-      setServiceAccountName("");
-      setServiceAccountDescription("");
-      setServiceAccountPurpose("");
-      setServiceAccountEnvironment("prod");
+      resetSA();
       setSelectedServiceAccountID(payload.service_account.id);
       setSelectedAuditServiceAccountID(payload.service_account.id);
       if (payload.secret) {
@@ -216,14 +238,33 @@ export function TenantWorkspaceAccessScreen() {
   const selectedServiceAccountIDValue = selectedServiceAccountID || serviceAccounts[0]?.id || "";
   const selectedServiceAccount =
     serviceAccounts.find((item) => item.id === selectedServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
-  const selectedAuditServiceAccountIDValue =
-    selectedAuditServiceAccountID || serviceAccounts[0]?.id || "";
+  const selectedAuditServiceAccountIDValue = selectedAuditServiceAccountID || serviceAccounts[0]?.id || "";
   const selectedAuditServiceAccount =
     serviceAccounts.find((item) => item.id === selectedAuditServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
   const pendingInvitations = invitations.filter((item) => item.status === "pending");
   const latestInviteURL = createInvitationMutation.data?.accept_url ?? "";
   const currentUserID = session?.subject_id ?? "";
   const activeAdminCount = members.filter((member) => member.status === "active" && member.role === "admin").length;
+  const activeMembers = members.filter((member) => member.status === "active");
+  const disabledMembers = members.filter((member) => member.status !== "active");
+  const disabledServiceAccounts = serviceAccounts.filter((account) => account.status === "disabled");
+  const activeCredentialCount = serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0);
+  const serviceAccountsWithoutActiveCredentials = serviceAccounts.filter((account) => account.active_credential_count === 0).length;
+  const selectedMemberIDValue = selectedMemberID || members[0]?.user_id || "";
+  const selectedMember = members.find((member) => member.user_id === selectedMemberIDValue) ?? members[0] ?? null;
+  const selectedServiceAccountCredentials = selectedServiceAccount?.credentials ?? [];
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setSelectedAuditEventID("");
+    setAuditPage(1);
+    setAuditCursor(undefined);
+    setAuditCursorHistory([]);
+    setAuditExportPage(1);
+    setAuditExportCursor(undefined);
+    setAuditExportCursorHistory([]);
+  }, [selectedAuditServiceAccountIDValue]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const serviceAccountAuditQuery = useQuery({
     queryKey: ["tenant-workspace-service-account-audit", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],
@@ -231,7 +272,8 @@ export function TenantWorkspaceAccessScreen() {
       fetchTenantWorkspaceServiceAccountAudit({
         runtimeBaseURL: apiBaseURL,
         serviceAccountID: selectedAuditServiceAccountIDValue,
-        limit: 10,
+        limit: 8,
+        cursor: auditCursor,
       }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
   });
@@ -241,19 +283,24 @@ export function TenantWorkspaceAccessScreen() {
       fetchTenantWorkspaceServiceAccountAuditExports({
         runtimeBaseURL: apiBaseURL,
         serviceAccountID: selectedAuditServiceAccountIDValue,
-        limit: 5,
+        limit: 4,
+        cursor: auditExportCursor,
       }),
     enabled: isAuthenticated && scope === "tenant" && isAdmin && selectedAuditServiceAccountIDValue !== "",
   });
   const auditItems = serviceAccountAuditQuery.data?.items ?? [];
+  const auditExportItems = serviceAccountAuditExportsQuery.data?.items ?? [];
   const selectedAuditEventIDValue =
     selectedAuditEventID && auditItems.some((item) => item.id === selectedAuditEventID) ? selectedAuditEventID : "";
   const selectedAuditEvent = auditItems.find((item) => item.id === selectedAuditEventIDValue) ?? null;
+  const scrollToSection = (ref: { current: HTMLElement | null }) => {
+    window.requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
   const openAudit = (serviceAccountID: string) => {
     setSelectedAuditServiceAccountID(serviceAccountID);
-    window.requestAnimationFrame(() => {
-      auditSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    scrollToSection(auditSectionRef);
   };
 
   const downloadAuditCSV = (serviceAccountID: string) => {
@@ -273,6 +320,57 @@ export function TenantWorkspaceAccessScreen() {
   const isSelfMember = (userID: string): boolean => currentUserID !== "" && currentUserID === userID;
   const isLastActiveAdmin = (member: { role: string; status: string }): boolean =>
     member.status === "active" && member.role === "admin" && activeAdminCount <= 1;
+
+  const pagedMembers = paginateItems(members, memberPage, 6);
+  const pagedInvitations = paginateItems(pendingInvitations, invitePage, 5);
+  const pagedServiceAccounts = paginateItems(serviceAccounts, serviceAccountPage, 5);
+  const pagedCredentials = paginateItems(selectedServiceAccountCredentials, credentialPage, 4);
+  const auditHasPreviousPage = auditCursorHistory.length > 0;
+  const auditHasNextPage = Boolean(serviceAccountAuditQuery.data?.next_cursor);
+  const auditExportHasPreviousPage = auditExportCursorHistory.length > 0;
+  const auditExportHasNextPage = Boolean(serviceAccountAuditExportsQuery.data?.next_cursor);
+
+  const goToNextAuditPage = () => {
+    const nextCursor = serviceAccountAuditQuery.data?.next_cursor;
+    if (!nextCursor) {
+      return;
+    }
+    setAuditCursorHistory((current) => [...current, auditCursor]);
+    setAuditCursor(nextCursor);
+    setAuditPage((current) => current + 1);
+    setSelectedAuditEventID("");
+  };
+
+  const goToPreviousAuditPage = () => {
+    if (auditCursorHistory.length === 0) {
+      return;
+    }
+    const previousCursor = auditCursorHistory[auditCursorHistory.length - 1];
+    setAuditCursorHistory((current) => current.slice(0, -1));
+    setAuditCursor(previousCursor);
+    setAuditPage((current) => Math.max(1, current - 1));
+    setSelectedAuditEventID("");
+  };
+
+  const goToNextAuditExportPage = () => {
+    const nextCursor = serviceAccountAuditExportsQuery.data?.next_cursor;
+    if (!nextCursor) {
+      return;
+    }
+    setAuditExportCursorHistory((current) => [...current, auditExportCursor]);
+    setAuditExportCursor(nextCursor);
+    setAuditExportPage((current) => current + 1);
+  };
+
+  const goToPreviousAuditExportPage = () => {
+    if (auditExportCursorHistory.length === 0) {
+      return;
+    }
+    const previousCursor = auditExportCursorHistory[auditExportCursorHistory.length - 1];
+    setAuditExportCursorHistory((current) => current.slice(0, -1));
+    setAuditExportCursor(previousCursor);
+    setAuditExportPage((current) => Math.max(1, current - 1));
+  };
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -300,214 +398,493 @@ export function TenantWorkspaceAccessScreen() {
 
         {isAuthenticated && scope === "tenant" && isAdmin ? (
           <>
-            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
-              <h1 className="mt-2 text-3xl font-semibold text-slate-950">Members, invitations, and machine credentials</h1>
-              <p className="mt-3 text-sm text-slate-600">Manage people through membership and automation through service accounts.</p>
+            <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Team &amp; access</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                  Manage members, service accounts, and API credentials for this workspace.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(peopleSectionRef)}
+                  className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+                >
+                  Members
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(machineSectionRef)}
+                  className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
+                >
+                  Service accounts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(auditSectionRef)}
+                  className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
+                >
+                  Audit log
+                </button>
+              </div>
             </section>
 
             <section className="grid gap-4 md:grid-cols-4">
-              <SummaryMetric label="Members" value={String(members.length)} />
-              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} />
-              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} />
-              <SummaryMetric
-                label="Active credentials"
-                value={String(serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0))}
-              />
+              <SummaryMetric label="Members" value={String(members.length)} hint={`${activeMembers.length} active operators`} />
+              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} hint="People waiting for workspace entry" />
+              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} hint={`${disabledServiceAccounts.length} disabled identities`} />
+              <SummaryMetric label="Active credentials" value={String(activeCredentialCount)} hint="Machine secrets currently usable" />
             </section>
 
-            <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorGuidanceCard title="Access posture" body="Use membership for people and service accounts for automation. Keep the boundary explicit so operator review stays clean." />
-              <OperatorGuidanceCard title="Credential rule" body="Review machine credentials like operational inventory: one purpose, minimal scope, clear rotation history." />
-              <OperatorGuidanceCard title="Audit posture" body="Open service-account audit when credentials change, then export evidence only when operators need a durable record." />
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <input
-                    type="text"
-                    value={serviceAccountName}
-                    onChange={(event) => setServiceAccountName(event.target.value)}
-                    placeholder="Acme ERP Sync"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <select
-                    aria-label="Service account role"
-                    value={serviceAccountRole}
-                    onChange={(event) => setServiceAccountRole(event.target.value as "reader" | "writer" | "admin")}
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="writer">Writer</option>
-                    <option value="reader">Reader</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={serviceAccountPurpose}
-                    onChange={(event) => setServiceAccountPurpose(event.target.value)}
-                    placeholder="erp-sync"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <input
-                    type="text"
-                    value={serviceAccountEnvironment}
-                    onChange={(event) => setServiceAccountEnvironment(event.target.value)}
-                    placeholder="prod"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <textarea
-                    value={serviceAccountDescription}
-                    onChange={(event) => setServiceAccountDescription(event.target.value)}
-                    placeholder="What this credential is for"
-                    rows={3}
-                    className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => createServiceAccountMutation.mutate()}
-                    disabled={!csrfToken || !serviceAccountName.trim() || createServiceAccountMutation.isPending}
-                    className="md:col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
-                    Create and issue first credential
-                  </button>
-                </div>
-                {latestCredentialSecret ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-700">New secret</p>
-                    <p className="mt-2 text-xs font-medium text-slate-800">{latestCredentialSecret.label}</p>
-                    <p className="mt-2 break-all font-mono text-xs text-slate-700">{latestCredentialSecret.secret}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(latestCredentialSecret.secret);
-                      }}
-                      className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs text-emerald-700 transition hover:bg-emerald-100"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy secret
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Invite member</p>
-                <div className="mt-4 grid gap-3">
-                  <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(event) => setInviteEmail(event.target.value)}
-                    placeholder="teammate@example.com"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  />
-                  <select
-                    aria-label="Workspace role"
-                    value={inviteRole}
-                    onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="writer">Writer</option>
-                    <option value="reader">Reader</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => createInvitationMutation.mutate()}
-                    disabled={!csrfToken || !inviteEmail.trim() || createInvitationMutation.isPending}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
-                    Send invite
-                  </button>
-                </div>
-                {latestInviteURL ? (
-                  <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">New invite link</p>
-                    <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(latestInviteURL);
-                      }}
-                      className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy invite link
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <section ref={peopleSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Service accounts</p>
-                  <p className="mt-2 text-sm text-slate-600">Keep machine access scoped, rotated, and easy to review.</p>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Members</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                    Invite people, manage roles, and remove access.
+                  </p>
+                </div>
+                <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
+                  <DetailField label="Active admins" value={`${activeAdminCount}`} className="bg-white" />
+                  <DetailField label="Inactive members" value={`${disabledMembers.length}`} className="bg-white" />
                 </div>
               </div>
-              <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                <div className="grid gap-3">
-                  {serviceAccounts.length > 0 ? (
-                    serviceAccounts.map((account) => (
-                      <button
-                        key={account.id}
-                        type="button"
-                        onClick={() => setSelectedServiceAccountID(account.id)}
-                        aria-pressed={selectedServiceAccountIDValue === account.id}
-                        className={`rounded-2xl border px-4 py-4 text-left transition ${
-                          selectedServiceAccountIDValue === account.id
-                            ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
-                            : "border-stone-200 bg-stone-50 hover:border-stone-300 hover:bg-stone-100"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                              <ServerCog className="h-4 w-4 text-emerald-700" />
-                              <span className="truncate">{account.name}</span>
-                            </p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">
-                              {formatServiceAccountRole(account.role)} · {formatServiceAccountStatus(account.status)} · {(account.environment || "unspecified").toUpperCase()}
-                            </p>
-                            <p className="mt-2 text-sm text-slate-700">
-                              {account.active_credential_count} active credential{account.active_credential_count === 1 ? "" : "s"} · {describeServiceAccountActivity(account)}
-                            </p>
-                            {account.description ? <p className="mt-2 text-xs text-slate-500">{account.description}</p> : null}
-                          </div>
-                          <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                            {account.credentials.length} total
-                          </span>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
+                <div className="grid gap-4">
+                  <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                    <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Members</p>
+                      </div>
+                      <PaginationControls page={pagedMembers.page} totalPages={pagedMembers.totalPages} onPageChange={setMemberPage} label="Current members" />
+                    </div>
+                    {pagedMembers.items.length > 0 ? (
+                      <div className="divide-y divide-stone-200">
+                        <div className="hidden grid-cols-[minmax(0,2.2fr)_120px_140px_140px] gap-4 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
+                          <span>Operator</span>
+                          <span>Role</span>
+                          <span>Status</span>
+                          <span>Control</span>
                         </div>
+                        {pagedMembers.items.map((member) => {
+                          const selected = selectedMemberIDValue === member.user_id;
+                          return (
+                            <button
+                              key={member.user_id}
+                              type="button"
+                              onClick={() => setSelectedMemberID(member.user_id)}
+                              className={`grid w-full gap-3 px-5 py-4 text-left transition md:grid-cols-[minmax(0,2.2fr)_120px_140px_140px] md:items-center ${
+                                selected ? "bg-sky-50/70" : "bg-white hover:bg-stone-50"
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-950">{member.display_name}</p>
+                                <p className="mt-1 truncate text-xs text-slate-500">{member.email}</p>
+                              </div>
+                              <span className="text-sm text-slate-700">{member.role}</span>
+                              <div className="flex flex-wrap gap-2">
+                                <StatusChip tone={member.status === "active" ? "success" : "neutral"}>{member.status}</StatusChip>
+                                {isSelfMember(member.user_id) ? <StatusChip tone="info">You</StatusChip> : null}
+                                {isLastActiveAdmin(member) ? <StatusChip tone="warning">Last admin</StatusChip> : null}
+                              </div>
+                              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                                {selected ? "Selected" : "Inspect"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="px-5 py-8 text-sm text-slate-500">No active members yet. Use the invite form above to add the first member.</div>
+                    )}
+                  </section>
+
+                  <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                    <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Pending invites</p>
+                      </div>
+                      <PaginationControls page={pagedInvitations.page} totalPages={pagedInvitations.totalPages} onPageChange={setInvitePage} label="Pending invites" />
+                    </div>
+                    {pagedInvitations.items.length > 0 ? (
+                      <div className="divide-y divide-stone-200">
+                        <div className="hidden grid-cols-[minmax(0,1.8fr)_120px_180px_110px] gap-4 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
+                          <span>Email</span>
+                          <span>Role</span>
+                          <span>Expires</span>
+                          <span>Action</span>
+                        </div>
+                        {pagedInvitations.items.map((invite) => (
+                          <div key={invite.id} className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1.8fr)_120px_180px_110px] md:items-center">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-slate-950">{invite.email}</p>
+                            </div>
+                            <span className="text-sm text-slate-700">{invite.role}</span>
+                            <span className="text-sm text-slate-600">{formatExactTimestamp(invite.expires_at)}</span>
+                            <button
+                              type="button"
+                              onClick={() => revokeInvitationMutation.mutate(invite.id)}
+                              disabled={!csrfToken || revokeInvitationMutation.isPending}
+                              className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Revoke
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="px-5 py-8 text-sm text-slate-500">No pending workspace invites.</div>
+                    )}
+                  </section>
+                </div>
+
+                <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
+                  <section className="rounded-xl border border-stone-200 bg-white p-5">
+                    <p className="text-sm font-semibold text-slate-900">Invite a member</p>
+                    <div className="mt-4 grid gap-3">
+                      <input
+                        {...registerInvite("email")}
+                        type="email"
+                        placeholder="teammate@example.com"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <select
+                        {...registerInvite("role")}
+                        aria-label="Workspace role"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="writer">Writer</option>
+                        <option value="reader">Reader</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleInviteSubmit((data) => createInvitationMutation.mutate(data))}
+                        disabled={!csrfToken || createInvitationMutation.isPending}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
+                        Send invite
                       </button>
-                    ))
+                    </div>
+                    {latestInviteURL ? (
+                      <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+                        <p className="text-xs font-medium text-slate-500">Invite link — share with the person you invited</p>
+                        <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(latestInviteURL);
+                          }}
+                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy invite link
+                        </button>
+                      </div>
+                    ) : null}
+                  </section>
+
+                  {selectedMember ? (
+                    <section className="rounded-xl border border-stone-200 bg-white p-5">
+                      {(() => {
+                        const draftRole = memberDraftRoles[selectedMember.user_id] ?? (selectedMember.role as "reader" | "writer" | "admin");
+                        const roleDirty = draftRole !== selectedMember.role;
+                        const selfMember = isSelfMember(selectedMember.user_id);
+                        const lastAdminProtected = isLastActiveAdmin(selectedMember);
+                        const showSuspendConfirm =
+                          confirmingMemberAction?.userID === selectedMember.user_id && confirmingMemberAction.action === "suspend";
+                        const roleSelectDisabled =
+                          selectedMember.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
+                        const canApplyRole = roleDirty && !roleSelectDisabled && Boolean(csrfToken);
+                        const canSuspend =
+                          selectedMember.status === "active" &&
+                          Boolean(csrfToken) &&
+                          !removeMemberMutation.isPending &&
+                          !selfMember &&
+                          !lastAdminProtected;
+                        const canReactivate =
+                          selectedMember.status !== "active" && Boolean(csrfToken) && !updateMemberMutation.isPending && !selfMember;
+
+                        return (
+                          <>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h3 className="truncate text-lg font-semibold text-slate-950">{selectedMember.display_name}</h3>
+                                <p className="mt-1 break-all text-sm text-slate-600">{selectedMember.email}</p>
+                              </div>
+                              <StatusChip tone={selectedMember.status === "active" ? "success" : "neutral"}>{selectedMember.status}</StatusChip>
+                            </div>
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                              <DetailField label="Current role" value={selectedMember.role} />
+                              <DetailField label="Notes" value={selfMember ? "This is you" : lastAdminProtected ? "Last active admin" : "—"} />
+                            </div>
+                            <div className="mt-4 grid gap-3">
+                              <select
+                                aria-label={`Role for ${selectedMember.email}`}
+                                value={draftRole}
+                                onChange={(event) =>
+                                  setMemberDraftRoles((current) => ({
+                                    ...current,
+                                    [selectedMember.user_id]: event.target.value as "reader" | "writer" | "admin",
+                                  }))
+                                }
+                                disabled={roleSelectDisabled}
+                                className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="writer">Writer</option>
+                                <option value="reader">Reader</option>
+                              </select>
+                              {roleDirty ? (
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: draftRole })}
+                                    disabled={!canApplyRole}
+                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Apply role
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setMemberDraftRoles((current) => {
+                                        const next = { ...current };
+                                        delete next[selectedMember.user_id];
+                                        return next;
+                                      })
+                                    }
+                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : selectedMember.status === "active" ? (
+                                showSuspendConfirm ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeMemberMutation.mutate(selectedMember.user_id)}
+                                      disabled={!canSuspend}
+                                      className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-700 bg-rose-700 px-4 text-sm font-medium text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Confirm suspend
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmingMemberAction(null)}
+                                      className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmingMemberAction({ userID: selectedMember.user_id, action: "suspend" })}
+                                    disabled={!canSuspend}
+                                    className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Suspend member
+                                  </button>
+                                )
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: selectedMember.role as "reader" | "writer" | "admin" })}
+                                  disabled={!canReactivate}
+                                  className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Reactivate
+                                </button>
+                              )}
+                              {selfMember ? <p className="text-xs text-slate-500">You cannot change your own membership from this screen.</p> : null}
+                              {lastAdminProtected ? <p className="text-xs text-slate-500">Promote another active admin before changing this member&apos;s access.</p> : null}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </section>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+
+            <section ref={machineSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Service accounts</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">API identities for automation and integrations. Issue or rotate credentials as needed.</p>
+                </div>
+                <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
+                  <DetailField label="Disabled identities" value={`${disabledServiceAccounts.length}`} className="bg-white" />
+                  <DetailField label="No active credential" value={`${serviceAccountsWithoutActiveCredentials}`} className="bg-white" />
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                  <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Service accounts</p>
+                      <p className="mt-1 text-sm text-slate-600">Select an identity to inspect controls, credentials, and audit history.</p>
+                    </div>
+                    <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
+                  </div>
+                  {pagedServiceAccounts.items.length > 0 ? (
+                    <div className="divide-y divide-stone-200">
+                      {pagedServiceAccounts.items.map((account) => {
+                        const selected = selectedServiceAccountIDValue === account.id;
+                        return (
+                          <div
+                            key={account.id}
+                            className={`px-5 py-4 transition ${
+                              selected ? "bg-sky-50/70" : "bg-white"
+                            }`}
+                          >
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="truncate text-sm font-semibold text-slate-950">{account.name}</p>
+                                  <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
+                                  {selected ? <StatusChip tone="info">Selected</StatusChip> : null}
+                                  {account.active_credential_count === 0 ? <StatusChip tone="warning">No active credential</StatusChip> : null}
+                                </div>
+                                <p className="mt-1 break-words text-sm text-slate-600">{account.description || "No description recorded."}</p>
+                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                                  <span>Role: {formatServiceAccountRole(account.role)}</span>
+                                  <span>Environment: {account.environment || "Unspecified"}</span>
+                                  <span>Credentials: {account.active_credential_count}</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2 xl:justify-end">
+                                <button
+                                  type="button"
+                                  data-testid={`inspect-service-account-${account.id}`}
+                                  onClick={() => setSelectedServiceAccountID(account.id)}
+                                  className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition ${
+                                    selected
+                                      ? "border border-sky-200 bg-sky-100 text-sky-800"
+                                      : "border border-stone-200 bg-white text-slate-700 hover:bg-stone-100"
+                                  }`}
+                                >
+                                  {selected ? "Viewing" : "Inspect"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openAudit(account.id)}
+                                  className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100"
+                                >
+                                  Audit
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
-                    <p className="text-sm text-slate-500">No service accounts yet.</p>
+                    <div className="px-5 py-8 text-sm text-slate-500">No service accounts yet. Create one to issue a machine credential and track its audit history.</div>
                   )}
                 </div>
 
-                {selectedServiceAccount ? (
-                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected service account</p>
-                        <p className="mt-2 text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
-                        <p className="mt-2 text-sm text-slate-700">
-                          {selectedServiceAccount.description || "Use this identity for a single automation or integration path."}
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">
-                          {selectedServiceAccount.purpose || "No purpose recorded"} · created {formatExactTimestamp(selectedServiceAccount.created_at)}
-                        </p>
+                <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
+                  <section className="rounded-xl border border-stone-200 bg-white p-5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Create service account</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <input
+                        {...registerSA("name")}
+                        type="text"
+                        placeholder="Acme ERP Sync"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <select
+                        {...registerSA("role")}
+                        aria-label="Service account role"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="writer">Writer</option>
+                        <option value="reader">Reader</option>
+                      </select>
+                      <input
+                        {...registerSA("purpose")}
+                        type="text"
+                        placeholder="erp-sync"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <input
+                        {...registerSA("environment")}
+                        type="text"
+                        placeholder="prod"
+                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <textarea
+                        {...registerSA("description")}
+                        placeholder="What this credential is for"
+                        rows={3}
+                        className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSASubmit((data) => createServiceAccountMutation.mutate(data))}
+                        disabled={!csrfToken || createServiceAccountMutation.isPending}
+                        className="md:col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
+                        Create and issue first credential
+                      </button>
+                    </div>
+                    {latestCredentialSecret ? (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                        <p className="text-xs font-semibold text-amber-800">Copy this secret now — it won&apos;t be shown again</p>
+                        <p className="mt-1.5 text-xs text-slate-600">{latestCredentialSecret.label}</p>
+                        <p className="mt-2 break-all rounded-lg border border-amber-100 bg-white px-3 py-2 font-mono text-xs text-slate-800">{latestCredentialSecret.secret}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(latestCredentialSecret.secret);
+                          }}
+                          className="mt-3 inline-flex h-8 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy
+                        </button>
                       </div>
+                    ) : null}
+                  </section>
+
+                  {selectedServiceAccount ? (
+                  <section data-testid="service-account-detail" className="rounded-xl border border-stone-200 bg-white p-5">
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <p className="text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
+                        <p className="mt-1 break-words text-sm text-slate-600">{selectedServiceAccount.description || "No description recorded."}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <StatusChip tone={selectedServiceAccount.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(selectedServiceAccount.status)}</StatusChip>
+                          <StatusChip tone="neutral">{formatServiceAccountRole(selectedServiceAccount.role)}</StatusChip>
+                          <StatusChip tone="neutral">{selectedServiceAccount.environment || "Unspecified"}</StatusChip>
+                          <StatusChip tone="info">
+                            {selectedServiceAccount.active_credential_count} active credential{selectedServiceAccount.active_credential_count === 1 ? "" : "s"}
+                          </StatusChip>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <DetailField label="Purpose" value={selectedServiceAccount.purpose || "Not recorded"} />
+                        <DetailField label="Last activity" value={describeServiceAccountActivity(selectedServiceAccount)} />
+                      </div>
+
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)}
                           disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
                           Issue credential
@@ -515,10 +892,10 @@ export function TenantWorkspaceAccessScreen() {
                         <button
                           type="button"
                           onClick={() => openAudit(selectedServiceAccount.id)}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
                         >
                           <ShieldCheck className="h-3.5 w-3.5" />
-                          Open audit
+                          Audit log
                         </button>
                         <button
                           type="button"
@@ -529,7 +906,7 @@ export function TenantWorkspaceAccessScreen() {
                             })
                           }
                           disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <ShieldOff className="h-3.5 w-3.5" />
                           {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
@@ -537,100 +914,96 @@ export function TenantWorkspaceAccessScreen() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <DetailField label="Status" value={formatServiceAccountStatus(selectedServiceAccount.status)} />
-                      <DetailField label="Access role" value={formatServiceAccountRole(selectedServiceAccount.role)} />
-                      <DetailField label="Active credentials" value={`${selectedServiceAccount.active_credential_count}`} />
-                      <DetailField label="Last activity" value={describeServiceAccountActivity(selectedServiceAccount)} />
-                    </div>
-
-                    <div className="mt-4">
-                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Current credentials</p>
-                      <div className="mt-3 grid gap-3">
-                        {selectedServiceAccount.credentials.length > 0 ? (
-                          selectedServiceAccount.credentials.map((credential) => {
+                    <div className="mt-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Credentials</p>
+                          <p className="mt-1 text-sm text-slate-500">Issue, rotate, or revoke access credentials.</p>
+                        </div>
+                        <PaginationControls page={pagedCredentials.page} totalPages={pagedCredentials.totalPages} onPageChange={setCredentialPage} label="Credentials" />
+                      </div>
+                      <div className="mt-3 overflow-hidden rounded-xl border border-stone-200">
+                        {pagedCredentials.items.length > 0 ? (
+                          <>
+                            <div className="hidden grid-cols-[minmax(0,1.5fr)_150px_160px_130px_170px] gap-4 bg-stone-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
+                              <span>Credential</span>
+                              <span>Prefix</span>
+                              <span>Issued</span>
+                              <span>Status</span>
+                              <span>Controls</span>
+                            </div>
+                          {pagedCredentials.items.map((credential) => {
                             const isRevoked = Boolean(credential.revoked_at);
                             return (
-                              <div key={credential.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <p className="text-sm font-medium text-slate-950">{credential.name}</p>
-                                      <span
-                                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
-                                          isRevoked
-                                            ? "border border-rose-200 bg-rose-50 text-rose-700"
-                                            : "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                                        }`}
-                                      >
-                                        {isRevoked ? "Revoked" : "Active"}
-                                      </span>
-                                    </div>
-                                    <p className="mt-1 text-xs text-slate-500">
-                                      {credential.key_prefix} · issued {formatExactTimestamp(credential.created_at)}
-                                    </p>
-                                    <p className="mt-1 text-sm text-slate-700">{describeCredentialActivity(credential)}</p>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        rotateCredentialMutation.mutate({
-                                          serviceAccountID: selectedServiceAccount.id,
-                                          credentialID: credential.id,
-                                        })
-                                      }
-                                      disabled={!csrfToken || isRevoked || rotateCredentialMutation.isPending}
-                                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      <RefreshCw className="h-3.5 w-3.5" />
-                                      Rotate
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        revokeCredentialMutation.mutate({
-                                          serviceAccountID: selectedServiceAccount.id,
-                                          credentialID: credential.id,
-                                        })
-                                      }
-                                      disabled={!csrfToken || isRevoked || revokeCredentialMutation.isPending}
-                                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      <UserX className="h-3.5 w-3.5" />
-                                      Revoke
-                                    </button>
-                                  </div>
+                              <div key={credential.id} className="grid gap-3 border-t border-stone-200 px-4 py-4 md:grid-cols-[minmax(0,1.5fr)_150px_160px_130px_170px] md:items-center md:first:border-t-0">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium text-slate-950">{credential.name}</p>
+                                  <p className="mt-1 text-xs text-slate-500">{describeCredentialActivity(credential)}</p>
+                                </div>
+                                <p className="font-mono text-sm text-slate-700">{credential.key_prefix}</p>
+                                <p className="text-sm text-slate-600">{formatExactTimestamp(credential.created_at)}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <StatusChip tone={isRevoked ? "danger" : "success"}>{isRevoked ? "Revoked" : "Active"}</StatusChip>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      rotateCredentialMutation.mutate({
+                                        serviceAccountID: selectedServiceAccount.id,
+                                        credentialID: credential.id,
+                                      })
+                                    }
+                                    disabled={!csrfToken || isRevoked || rotateCredentialMutation.isPending}
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Rotate
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      revokeCredentialMutation.mutate({
+                                        serviceAccountID: selectedServiceAccount.id,
+                                        credentialID: credential.id,
+                                      })
+                                    }
+                                    disabled={!csrfToken || isRevoked || revokeCredentialMutation.isPending}
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Revoke
+                                  </button>
                                 </div>
                               </div>
                             );
-                          })
+                          })}
+                          </>
                         ) : (
-                          <p className="text-sm text-slate-500">No credentials issued yet.</p>
+                          <div className="px-4 py-6 text-sm text-slate-500">No credentials issued yet.</div>
                         )}
                       </div>
                     </div>
-                  </div>
+                  </section>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
-                    Create a service account to review credential posture and machine access.
+                  <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
+                    Select or create a service account to manage its credentials.
                   </div>
                 )}
+                </div>
               </div>
             </section>
 
-            <section ref={auditSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <section ref={auditSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Credential audit</p>
-                  <p className="mt-2 text-sm text-slate-600">Review credential lifecycle events and export evidence when needed.</p>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Audit log</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Credential and access events. Export for compliance when needed.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <select
                     aria-label="Audit service account"
                     value={selectedAuditServiceAccountIDValue}
                     onChange={(event) => setSelectedAuditServiceAccountID(event.target.value)}
-                    className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
+                    className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
                   >
                     {serviceAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
@@ -642,263 +1015,125 @@ export function TenantWorkspaceAccessScreen() {
                     type="button"
                     onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
                     disabled={!selectedAuditServiceAccountIDValue}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Download audit CSV
+                    Export CSV
                   </button>
                 </div>
               </div>
               {selectedAuditServiceAccount ? (
-                <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                  <p className="text-sm font-medium text-slate-950">{selectedAuditServiceAccount.name}</p>
-                  <p className="mt-1 text-sm text-slate-700">
-                    {selectedAuditServiceAccount.active_credential_count} active credential{selectedAuditServiceAccount.active_credential_count === 1 ? "" : "s"} · {describeServiceAccountActivity(selectedAuditServiceAccount)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {formatServiceAccountRole(selectedAuditServiceAccount.role)} · {(selectedAuditServiceAccount.environment || "unspecified").toUpperCase()}
-                  </p>
+                <div className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 sm:grid-cols-3">
+                  <DetailField label="Service account" value={selectedAuditServiceAccount.name} className="bg-white" />
+                  <DetailField
+                    label="Active credentials"
+                    value={`${selectedAuditServiceAccount.active_credential_count} credential${selectedAuditServiceAccount.active_credential_count === 1 ? "" : "s"}`}
+                    className="bg-white"
+                  />
+                  <DetailField
+                    label="Last machine activity"
+                    value={describeServiceAccountActivity(selectedAuditServiceAccount)}
+                    className="bg-white"
+                  />
                 </div>
               ) : (
                 <p className="mt-4 text-sm text-slate-500">Create a service account first to inspect machine-credential audit.</p>
               )}
               {selectedAuditServiceAccount ? (
                 <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
-                    <div className="mt-3 grid gap-3">
-                      {(serviceAccountAuditQuery.data?.items ?? []).length > 0 ? (
-                        (serviceAccountAuditQuery.data?.items ?? []).map((event) => (
+                  <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="border-b border-stone-200 bg-stone-50 px-4 py-4 sm:flex-1 sm:border-b-0">
+                        <p className="text-sm font-semibold text-slate-900">Recent events</p>
+                        <p className="mt-1 text-sm text-slate-500">Credential issue, rotation, and revocation history.</p>
+                      </div>
+                      <div className="px-4 pb-4 sm:pb-0 sm:pr-4">
+                        <CursorPaginationControls
+                          page={auditPage}
+                          hasPreviousPage={auditHasPreviousPage}
+                          hasNextPage={auditHasNextPage}
+                          onPrevious={goToPreviousAuditPage}
+                          onNext={goToNextAuditPage}
+                          label="Audit events"
+                        />
+                      </div>
+                    </div>
+                    <div className="divide-y divide-stone-200">
+                      {auditItems.length > 0 ? (
+                        auditItems.map((event) => (
                           <ServiceAccountAuditRow
                             key={event.id}
                             event={event}
-                            selected={event.id === selectedAuditEventID}
+                            selected={event.id === selectedAuditEventIDValue}
                             onSelect={() => setSelectedAuditEventID(event.id)}
                           />
                         ))
                       ) : (
-                        <p className="text-sm text-slate-500">No audit events yet.</p>
+                        <p className="px-4 py-6 text-sm text-slate-500">No audit events yet.</p>
                       )}
                     </div>
                   </div>
                   <div className="grid gap-4">
                     <ServiceAccountAuditDetail event={selectedAuditEvent} />
-                    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Scheduled exports</p>
-                      <div className="mt-3 grid gap-3">
-                        {(serviceAccountAuditExportsQuery.data?.items ?? []).length > 0 ? (
-                          (serviceAccountAuditExportsQuery.data?.items ?? []).map((item) => (
-                            <div key={item.job.id} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm font-medium text-slate-950">{formatAuditExportStatus(item.job.status)}</p>
-                                <p className="text-xs text-slate-500">{formatExactTimestamp(item.job.created_at)}</p>
-                              </div>
-                              <p className="mt-2 text-sm text-slate-700">{item.job.row_count} row(s) prepared</p>
-                              {item.download_url ? (
-                                <a
-                                  href={item.download_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
-                                >
-                                  <Download className="h-3.5 w-3.5" />
-                                  Download CSV
-                                </a>
-                              ) : null}
+                    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="border-b border-stone-200 bg-stone-50 px-4 py-4 sm:flex-1 sm:border-b-0">
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Scheduled exports</p>
+                          <p className="mt-1 text-sm text-slate-600">Review generated export jobs for this service account.</p>
+                        </div>
+                        <div className="px-4 pb-4 sm:pb-0 sm:pr-4">
+                          <CursorPaginationControls
+                            page={auditExportPage}
+                            hasPreviousPage={auditExportHasPreviousPage}
+                            hasNextPage={auditExportHasNextPage}
+                            onPrevious={goToPreviousAuditExportPage}
+                            onNext={goToNextAuditExportPage}
+                            label="Audit exports"
+                          />
+                        </div>
+                      </div>
+                      <div className="divide-y divide-stone-200">
+                        {auditExportItems.length > 0 ? (
+                          <>
+                            <div className="hidden grid-cols-[140px_150px_120px_120px] gap-4 bg-stone-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
+                              <span>Status</span>
+                              <span>Created</span>
+                              <span>Rows</span>
+                              <span>Output</span>
                             </div>
-                          ))
+                            {auditExportItems.map((item) => (
+                              <div key={item.job.id} className="grid gap-3 px-4 py-4 md:grid-cols-[140px_150px_120px_120px] md:items-center">
+                                <div className="flex flex-wrap gap-2">
+                                  <StatusChip tone={item.download_url ? "success" : item.job.status === "failed" ? "danger" : "info"}>
+                                    {formatAuditExportStatus(item.job.status)}
+                                  </StatusChip>
+                                </div>
+                                <p className="text-sm text-slate-700">{formatExactTimestamp(item.job.created_at)}</p>
+                                <p className="text-sm text-slate-700">{item.job.row_count} row(s)</p>
+                                {item.download_url ? (
+                                  <a
+                                    href={item.download_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-slate-500">Pending</span>
+                                )}
+                              </div>
+                            ))}
+                          </>
                         ) : (
-                          <p className="text-sm text-slate-500">No audit exports created yet.</p>
+                          <p className="px-4 py-6 text-sm text-slate-500">No audit exports created yet.</p>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
               ) : null}
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pending invites</p>
-                <div className="mt-4 grid gap-3">
-                  {pendingInvitations.length > 0 ? (
-                    pendingInvitations.map((invite) => (
-                      <div key={invite.id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                              <ShieldCheck className="h-4 w-4 text-amber-600" />
-                              <span className="truncate">{invite.email}</span>
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {invite.role} · expires {formatExactTimestamp(invite.expires_at)}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => revokeInvitationMutation.mutate(invite.id)}
-                            disabled={!csrfToken || revokeInvitationMutation.isPending}
-                            className="inline-flex h-9 items-center justify-center rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Revoke
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-500">No pending workspace invites.</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current members</p>
-                <div className="mt-4 grid gap-3">
-                  {members.length > 0 ? (
-                    members.map((member) => (
-                      <div key={member.user_id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                        {(() => {
-                          const draftRole = memberDraftRoles[member.user_id] ?? (member.role as "reader" | "writer" | "admin");
-                          const roleDirty = draftRole !== member.role;
-                          const selfMember = isSelfMember(member.user_id);
-                          const lastAdminProtected = isLastActiveAdmin(member);
-                          const showSuspendConfirm =
-                            confirmingMemberAction?.userID === member.user_id && confirmingMemberAction.action === "suspend";
-                          const roleSelectDisabled =
-                            member.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
-                          const canApplyRole =
-                            roleDirty && !roleSelectDisabled && Boolean(csrfToken);
-                          const canSuspend =
-                            member.status === "active" &&
-                            Boolean(csrfToken) &&
-                            !removeMemberMutation.isPending &&
-                            !selfMember &&
-                            !lastAdminProtected;
-                          const canReactivate =
-                            member.status !== "active" && Boolean(csrfToken) && !updateMemberMutation.isPending && !selfMember;
-
-                          return (
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-2 text-sm font-medium text-slate-950">
-                              <UserRound className="h-4 w-4 text-emerald-700" />
-                              <span className="truncate">{member.display_name}</span>
-                            </p>
-                            <p className="mt-1 break-all text-xs text-slate-500">{member.email}</p>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                                {member.status}
-                              </span>
-                              {selfMember ? (
-                                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
-                                  You
-                                </span>
-                              ) : null}
-                              {lastAdminProtected ? (
-                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-                                  Last active admin
-                                </span>
-                              ) : null}
-                            </div>
-                            {selfMember ? (
-                              <p className="mt-2 text-xs text-slate-500">You cannot change your own membership from this screen.</p>
-                            ) : null}
-                            {lastAdminProtected ? (
-                              <p className="mt-2 text-xs text-slate-500">Promote another active admin before changing this member&apos;s role or status.</p>
-                            ) : null}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              aria-label={`Role for ${member.email}`}
-                              value={draftRole}
-                              onChange={(event) =>
-                                setMemberDraftRoles((current) => ({
-                                  ...current,
-                                  [member.user_id]: event.target.value as "reader" | "writer" | "admin",
-                                }))
-                              }
-                              disabled={roleSelectDisabled}
-                              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
-                            >
-                              <option value="admin">Admin</option>
-                              <option value="writer">Writer</option>
-                              <option value="reader">Reader</option>
-                            </select>
-                            {roleDirty ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: draftRole })}
-                                  disabled={!canApplyRole}
-                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Apply
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setMemberDraftRoles((current) => {
-                                      const next = { ...current };
-                                      delete next[member.user_id];
-                                      return next;
-                                    })
-                                  }
-                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : member.status === "active" ? (
-                              showSuspendConfirm ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeMemberMutation.mutate(member.user_id)}
-                                    disabled={!canSuspend}
-                                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-700 bg-rose-700 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Confirm suspend
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfirmingMemberAction(null)}
-                                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
-                                  >
-                                    Cancel
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmingMemberAction({ userID: member.user_id, action: "suspend" })}
-                                  disabled={!canSuspend}
-                                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <UserX className="h-3.5 w-3.5" />
-                                  Suspend
-                                </button>
-                              )
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => updateMemberMutation.mutate({ userID: member.user_id, role: member.role as "reader" | "writer" | "admin" })}
-                                disabled={!canReactivate}
-                                className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Reactivate
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                          );
-                        })()}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-500">No active members yet.</p>
-                  )}
-                </div>
-              </div>
             </section>
           </>
         ) : null}
@@ -924,44 +1159,64 @@ function ServiceAccountAuditRow({
       onClick={onSelect}
       aria-pressed={selected}
       aria-label={`View service account audit details for ${presentation.title}`}
-      className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-        selected
-          ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
-          : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"
+      className={`grid w-full gap-3 px-4 py-4 text-left transition md:grid-cols-[minmax(0,1.6fr)_150px_180px] md:items-center ${
+        selected ? "bg-sky-50/70" : "bg-white hover:bg-stone-50"
       }`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-slate-950">{presentation.title}</p>
-        <p className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</p>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-slate-950">{presentation.title}</p>
+        <p className="mt-1 text-sm text-slate-700">{presentation.summary}</p>
       </div>
-      <p className="mt-2 text-sm text-slate-700">{presentation.summary}</p>
-      <p className="mt-2 text-xs text-slate-500">{presentation.supporting}</p>
+      <p className="text-sm text-slate-600">{formatExactTimestamp(event.created_at)}</p>
+      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+        <StatusChip tone={event.action === "revoked" ? "danger" : event.action === "rotated" ? "warning" : "success"}>
+          {formatAuditActionLabel(event.action)}
+        </StatusChip>
+        <span className="text-xs text-slate-500">{presentation.supporting}</span>
+      </div>
     </button>
   );
 }
 
-function SummaryMetric({ label, value }: { label: string; value: string }) {
+function SummaryMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
+    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
   );
 }
 
-function OperatorGuidanceCard({ title, body }: { title: string; body: string }) {
+function StatusChip({
+  tone,
+  children,
+}: {
+  tone: "success" | "neutral" | "warning" | "danger" | "info";
+  children: ReactNode;
+}) {
+  const toneClassName =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : tone === "danger"
+          ? "border-rose-200 bg-rose-50 text-rose-700"
+          : tone === "info"
+            ? "border-sky-200 bg-sky-50 text-sky-700"
+            : "border-stone-200 bg-stone-100 text-slate-700";
+
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
+    <span className={`inline-flex h-7 items-center rounded-full border px-2.5 text-[11px] font-semibold ${toneClassName}`}>
+      {children}
+    </span>
   );
 }
 
 function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }) {
   if (!event) {
     return (
-      <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-6 text-sm text-slate-600">
+      <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-6 text-sm text-slate-600">
         Select an audit event to inspect the full credential record.
       </div>
     );
@@ -984,7 +1239,7 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
     .sort(([left], [right]) => left.localeCompare(right));
 
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
+    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
       <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected event</p>
       <p className="mt-2 text-lg font-semibold text-slate-950">{presentation.title}</p>
       <p className="mt-2 text-sm text-slate-700">{presentation.summary}</p>
@@ -1001,7 +1256,7 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
           <DetailField label="Credential name" value={credentialName || "No display name recorded"} />
           <DetailField label="Access role" value={role ? formatServiceAccountRole(role as "reader" | "writer" | "admin") : "Not recorded"} />
           <DetailField label="Intended use" value={purpose || "Not recorded"} />
-          <DetailField label="Environment" value={environment ? environment.toUpperCase() : "Not recorded"} />
+          <DetailField label="Environment" value={environment || "Not recorded"} />
         </div>
       </div>
 
@@ -1051,6 +1306,101 @@ function DetailField({
       <p className={`mt-2 break-words text-sm text-slate-900 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
     </div>
   );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  onPageChange,
+  label,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  label: string;
+}) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2 py-2">
+      <button
+        type="button"
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 1}
+        aria-label={`Previous ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <span className="min-w-[84px] text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Page {page} / {totalPages}
+      </span>
+      <button
+        type="button"
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages}
+        aria-label={`Next ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function CursorPaginationControls({
+  page,
+  hasPreviousPage,
+  hasNextPage,
+  onPrevious,
+  onNext,
+  label,
+}: {
+  page: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  label: string;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2 py-2">
+      <button
+        type="button"
+        onClick={onPrevious}
+        disabled={!hasPreviousPage}
+        aria-label={`Previous ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <span className="min-w-[84px] text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Page {page}
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={!hasNextPage}
+        aria-label={`Next ${label} page`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function paginateItems<T>(items: T[], requestedPage: number, pageSize: number): { items: T[]; page: number; totalPages: number } {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const page = Math.min(Math.max(requestedPage, 1), totalPages);
+  const start = (page - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    page,
+    totalPages,
+  };
 }
 
 function formatAuditMetadataValue(value: unknown): string {
@@ -1122,8 +1472,7 @@ function describeAuditEvent(event: APIKeyAuditEvent): { title: string; summary: 
   const context = [purpose, environment].filter(Boolean).join(" · ");
   const contextSuffix = context ? ` for ${context}` : "";
   const actorSummary = event.actor_api_key_id ? "Changed by another credential" : "Changed from the workspace access console";
-  const metadataSummary =
-    metadataCount > 0 ? `${metadataCount} supporting field${metadataCount === 1 ? "" : "s"}` : "No supporting fields";
+  const metadataSummary = metadataCount > 0 ? `${metadataCount} supporting field${metadataCount === 1 ? "" : "s"}` : "No supporting fields";
 
   switch (event.action) {
     case "created":

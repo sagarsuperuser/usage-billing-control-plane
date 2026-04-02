@@ -8,16 +8,18 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchTax } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const taxQuery = useQuery({
     queryKey: ["pricing-tax", apiBaseURL, taxID],
     queryFn: () => fetchTax({ runtimeBaseURL: apiBaseURL, taxID }),
-    enabled: isAuthenticated && scope === "tenant" && taxID.trim().length > 0,
+    enabled: isTenantSession && taxID.trim().length > 0,
   });
 
   const tax = taxQuery.data ?? null;
@@ -31,7 +33,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
-        {taxQuery.isLoading ? (
+        {isTenantSession ? taxQuery.isLoading ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading tax detail</div></section>
         ) : !tax ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -40,7 +42,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
             <Link href="/pricing/taxes" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"><ArrowLeft className="h-4 w-4" />Back to taxes</Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -67,7 +69,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax rule</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Assignment posture</h2>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Tax rule details</h2>
                   <div className="mt-5 grid gap-3 md:grid-cols-2">
                     <InfoCell label="Tax code" value={tax.code} mono />
                     <InfoCell label="Status" value={tax.status} />
@@ -78,12 +80,12 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Use tax detail to confirm the reusable rule before it is assigned to customer billing profiles or workspace billing settings." />
+                <GuidanceCard title="Before assigning" body="Confirm the tax rule is active and correct before assigning it to a customer billing profile or workspace billing settings." />
                 <GuidanceCard title="Next action" body="Apply active taxes through billing settings and keep code changes deliberate so invoice behavior stays explainable." />
               </aside>
             </div>
-          </>
-        )}
+          </SectionErrorBoundary>
+        ) : null}
       </main>
     </div>
   );

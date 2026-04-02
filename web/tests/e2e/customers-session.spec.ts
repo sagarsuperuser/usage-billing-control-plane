@@ -233,7 +233,7 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
-  await expect(page.getByRole("heading", { name: "Customer directory" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
   await expect(page.getByRole("link", { name: "New customer" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Customer Alpha/i })).toBeVisible();
   await expect(page.getByText("Collection is blocked until the customer completes the payment setup path and verification succeeds.")).toBeVisible();
@@ -241,7 +241,7 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await page.getByRole("link", { name: /Customer Alpha/i }).click();
   await expect(page).toHaveURL(/\/customers\/cust_alpha$/);
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
-  await expect(page.getByText("Customer has not completed payment setup").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Email setup request" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Awaiting customer payment setup" })).toBeVisible();
   await expect(page.getByText("Use one clear setup path, then refresh verification here before retrying collection elsewhere.")).toBeVisible();
 });

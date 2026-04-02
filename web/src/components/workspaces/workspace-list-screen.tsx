@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { LoaderCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
 import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type Tenant, type TenantOnboardingReadiness } from "@/lib/types";
@@ -72,6 +73,7 @@ function workspaceAccessLabel(tenant: Tenant): string {
 
 export function WorkspaceListScreen() {
   const { apiBaseURL, isAuthenticated, isPlatformAdmin, scope } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
@@ -123,18 +125,18 @@ export function WorkspaceListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { label: "Workspaces" }]} />
 
-        <section className="rounded-3xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Workspaces</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace handoff and readiness</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace setup and launch</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 This directory should show which workspace is ready, which one is blocked, and which operational step still belongs to the platform before the workspace can run on its own.
               </p>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <OperatorLine title="Directory rule" body="Use this list as the platform handoff inventory. Open detail only after the row tells you which area is blocked." />
+                <OperatorLine title="How to use this list" body="This is your workspace setup checklist. Open a workspace when you can see what area needs work." />
                 <OperatorLine title="Readiness rule" body="Treat billing, pricing, and first-customer setup as separate readiness tracks. One green badge does not cover the rest." />
-                <OperatorLine title="Handoff rule" body="A workspace is truly ready only when platform setup is complete and the remaining action belongs to the workspace operator." />
+                <OperatorLine title="Launch rule" body="A workspace is ready when platform setup is complete and the remaining steps belong to the workspace team." />
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -146,7 +148,7 @@ export function WorkspaceListScreen() {
               </Link>
               <Link
                 href="/workspaces/new"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
               >
                 <Plus className="h-4 w-4" />
                 New workspace
@@ -159,7 +161,7 @@ export function WorkspaceListScreen() {
             <MetricCard label="Needs attention" value={summary.needsAttention} tone="warn" />
             <MetricCard label="Billing not ready" value={summary.billingNotReady} tone="warn" />
           </div>
-        </section>
+        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
@@ -171,12 +173,12 @@ export function WorkspaceListScreen() {
           />
         ) : null}
 
-        <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Workspace inventory</h2>
-              <p className="mt-2 text-sm text-slate-600">Read the row summary first, then open the workspace only when the platform needs to intervene.</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Workspaces</h2>
+              <p className="mt-2 text-sm text-slate-600">Review setup status and billing readiness across all workspaces.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
@@ -209,7 +211,7 @@ export function WorkspaceListScreen() {
               ))
             )}
           </div>
-        </section>
+        </section> : null}
       </main>
     </div>
   );
@@ -282,9 +284,35 @@ function OperatorLine({ title, body }: { title: string; body: string }) {
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 py-6 text-sm text-slate-600">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading workspace inventory
+    <div className="divide-y divide-stone-200">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="grid gap-4 py-4 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1.35fr)_repeat(4,minmax(0,0.5fr))] lg:items-start">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+            <Skeleton className="mt-2 h-3 w-28" />
+            <Skeleton className="mt-2 h-4 w-56" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -295,7 +323,7 @@ function EmptyState() {
       <p className="font-semibold text-slate-950">No workspaces match the current filters.</p>
       <p className="mt-2">Clear filters or create a new workspace if you are bootstrapping a fresh tenant.</p>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link href="/workspaces/new" className="inline-flex h-10 items-center rounded-xl bg-emerald-700 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-emerald-800">Create workspace</Link>
+        <Link href="/workspaces/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New workspace</Link>
       </div>
     </div>
   );

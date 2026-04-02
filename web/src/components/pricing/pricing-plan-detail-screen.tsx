@@ -9,32 +9,34 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const isTenantSession = isAuthenticated && scope === "tenant";
 
   const planQuery = useQuery({
     queryKey: ["pricing-plan", apiBaseURL, planID],
     queryFn: () => fetchPlan({ runtimeBaseURL: apiBaseURL, planID }),
-    enabled: isAuthenticated && scope === "tenant" && planID.trim().length > 0,
+    enabled: isTenantSession && planID.trim().length > 0,
   });
 
   const metricsQuery = useQuery({
     queryKey: ["pricing-metrics", apiBaseURL],
     queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
   const addOnsQuery = useQuery({
     queryKey: ["pricing-add-ons", apiBaseURL],
     queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
   const couponsQuery = useQuery({
     queryKey: ["pricing-coupons", apiBaseURL],
     queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "tenant",
+    enabled: isTenantSession,
   });
 
   const plan = planQuery.data ?? null;
@@ -65,7 +67,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
           <ScopeNotice title="Workspace session required" body="Plans are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" />
         ) : null}
 
-        {planQuery.isLoading ? (
+        {isTenantSession ? planQuery.isLoading ? (
           <LoadingPanel label="Loading plan detail" />
         ) : !plan ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -77,7 +79,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
             </Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -105,8 +107,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial package</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Plan posture</h2>
+                  <h2 className="text-xl font-semibold text-slate-950">Plan details</h2>
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <InfoCell label="Plan code" value={plan.code} />
                     <InfoCell label="Status" value={plan.status} />
@@ -117,7 +118,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </div>
 
               <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Operator posture" body="Use plan detail to inspect the full commercial package: priced usage, recurring extras, and any applied customer relief." />
+                <GuidanceCard title="What's on this page" body="Review the full plan: usage pricing, recurring add-ons, and any discounts applied to customers on this plan." />
                 <GuidanceCard title="Next action" body="Review linked metrics, add-ons, and coupons here before the plan is used in active subscriptions." />
               </aside>
             </div>
@@ -205,8 +206,8 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                 )}
               </div>
             </section>
-          </>
-        )}
+          </SectionErrorBoundary>
+        ) : null}
       </main>
     </div>
   );

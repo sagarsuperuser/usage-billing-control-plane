@@ -94,8 +94,8 @@ type Tenant struct {
 	Name                        string       `json:"name"`
 	Status                      TenantStatus `json:"status"`
 	BillingProviderConnectionID string       `json:"billing_provider_connection_id,omitempty"`
-	LagoOrganizationID          string       `json:"lago_organization_id,omitempty"`
-	LagoBillingProviderCode     string       `json:"lago_billing_provider_code,omitempty"`
+	LagoOrganizationID          string       `json:"-"`
+	LagoBillingProviderCode     string       `json:"-"`
 	LagoAPIKey                  string       `json:"-"`
 	CreatedAt                   time.Time    `json:"created_at"`
 	UpdatedAt                   time.Time    `json:"updated_at"`
@@ -109,8 +109,8 @@ type BillingProviderConnection struct {
 	Scope              BillingProviderConnectionScope  `json:"scope"`
 	OwnerTenantID      string                          `json:"owner_tenant_id,omitempty"`
 	Status             BillingProviderConnectionStatus `json:"status"`
-	LagoOrganizationID string                          `json:"lago_organization_id,omitempty"`
-	LagoProviderCode   string                          `json:"lago_provider_code,omitempty"`
+	LagoOrganizationID string                          `json:"-"`
+	LagoProviderCode   string                          `json:"-"`
 	SecretRef          string                          `json:"secret_ref,omitempty"`
 	LastSyncedAt       *time.Time                      `json:"last_synced_at,omitempty"`
 	LastSyncError      string                          `json:"last_sync_error,omitempty"`
@@ -346,7 +346,7 @@ type Customer struct {
 	DisplayName    string         `json:"display_name"`
 	Email          string         `json:"email,omitempty"`
 	Status         CustomerStatus `json:"status"`
-	LagoCustomerID string         `json:"lago_customer_id,omitempty"`
+	LagoCustomerID string         `json:"-"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
@@ -811,7 +811,7 @@ type ReconciliationReport struct {
 type LagoWebhookEvent struct {
 	ID                   string         `json:"id"`
 	TenantID             string         `json:"tenant_id"`
-	OrganizationID       string         `json:"organization_id"`
+	OrganizationID       string         `json:"-"`
 	WebhookKey           string         `json:"webhook_key"`
 	WebhookType          string         `json:"webhook_type"`
 	ObjectType           string         `json:"object_type"`
@@ -835,7 +835,7 @@ type LagoWebhookEvent struct {
 
 type InvoicePaymentStatusView struct {
 	TenantID             string    `json:"tenant_id"`
-	OrganizationID       string    `json:"organization_id"`
+	OrganizationID       string    `json:"-"`
 	InvoiceID            string    `json:"invoice_id"`
 	CustomerExternalID   string    `json:"customer_external_id,omitempty"`
 	InvoiceNumber        string    `json:"invoice_number,omitempty"`
@@ -858,7 +858,7 @@ type InvoiceSummary struct {
 	InvoiceNumber        string     `json:"invoice_number,omitempty"`
 	CustomerExternalID   string     `json:"customer_external_id,omitempty"`
 	CustomerDisplayName  string     `json:"customer_display_name,omitempty"`
-	OrganizationID       string     `json:"organization_id,omitempty"`
+	OrganizationID       string     `json:"-"`
 	Currency             string     `json:"currency,omitempty"`
 	InvoiceStatus        string     `json:"invoice_status,omitempty"`
 	PaymentStatus        string     `json:"payment_status,omitempty"`
@@ -884,7 +884,7 @@ type InvoiceSummaryList struct {
 
 type InvoiceDetail struct {
 	InvoiceSummary
-	LagoID            string          `json:"lago_id,omitempty"`
+	LagoID            string          `json:"-"`
 	BillingEntityCode string          `json:"billing_entity_code,omitempty"`
 	SequentialID      any             `json:"sequential_id,omitempty"`
 	InvoiceType       string          `json:"invoice_type,omitempty"`

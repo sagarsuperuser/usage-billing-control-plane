@@ -191,13 +191,25 @@ export function DunningConsoleScreen() {
 
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Dunning" }]} />
 
-        <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        {isAuthenticated && scope !== "tenant" ? (
+          <ScopeNotice
+            title="Workspace session required"
+            body="Dunning is workspace-scoped. Sign in with a workspace account to inspect collection policy and invoice-level runs."
+            actionHref="/billing-connections"
+            actionLabel="Open platform home"
+          />
+        ) : null}
+
+        {isTenantSession ? (
+          <>
+        <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Collections</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning runs</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Collections</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Review collection policy, then open the exact invoice run that needs operator action.
+                Track payment retry runs and take action on overdue invoices.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -214,16 +226,6 @@ export function DunningConsoleScreen() {
             <CompactRule title="Manual actions" body="Use reminders only when you need to override the normal cadence." />
           </div>
         </section>
-
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Dunning is workspace-scoped. Sign in with a workspace account to inspect collection policy and invoice-level runs."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         <section className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
           <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -341,7 +343,7 @@ export function DunningConsoleScreen() {
           <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Run inventory</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Dunning runs</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">Invoice-level dunning workflows</h2>
                 <p className="mt-2 text-sm text-slate-600">Filter by invoice, customer, or state before opening the detailed workflow record.</p>
               </div>
@@ -426,6 +428,8 @@ export function DunningConsoleScreen() {
             ) : null}
           </section>
         </section>
+          </>
+        ) : null}
       </main>
     </div>
   );

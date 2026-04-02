@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { ArrowLeft, Building2, Copy, CreditCard, LoaderCircle, MailPlus, ShieldCheck, UserRound, UserX } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -9,6 +12,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   createWorkspaceInvitation,
   fetchBillingProviderConnection,
@@ -86,10 +90,13 @@ function formatWorkspaceBillingDiagnosisCode(code?: string): string {
 export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope, session } = useUISession();
+  const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [selectedConnectionID, setSelectedConnectionID] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("admin");
   const [latestInviteURL, setLatestInviteURL] = useState("");
+  const { register: registerInvite, handleSubmit: handleInviteSubmit, reset: resetInvite } = useForm({
+    resolver: zodResolver(z.object({ email: z.string().email(), role: z.enum(["reader", "writer", "admin"]) })),
+    defaultValues: { email: "", role: "admin" as const },
+  });
   const [overrideReason, setOverrideReason] = useState("");
   const [memberDraftRoles, setMemberDraftRoles] = useState<Record<string, "reader" | "writer" | "admin">>({});
   const [confirmingMemberAction, setConfirmingMemberAction] = useState<{ userID: string; action: "suspend" } | null>(null);
@@ -193,17 +200,16 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   });
 
   const createInvitationMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { email: string; role: "reader" | "writer" | "admin" }) =>
       createWorkspaceInvitation({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
         tenantID,
-        email: inviteEmail,
-        role: inviteRole,
+        email: data.email,
+        role: data.role,
       }),
     onSuccess: async () => {
-      setInviteEmail("");
-      setInviteRole("admin");
+      resetInvite();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["workspace-invitations", apiBaseURL, tenantID] }),
         queryClient.invalidateQueries({ queryKey: ["workspace-members", apiBaseURL, tenantID] }),
@@ -277,7 +283,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     !updateWorkspaceBillingMutation.isPending &&
     Boolean(selectedConnectionID) &&
     selectedConnectionID !== activeBillingConnectionID;
-  const canCreateInvitation = Boolean(csrfToken) && !createInvitationMutation.isPending && inviteEmail.trim().length > 0;
+  const canCreateInvitation = Boolean(csrfToken) && !createInvitationMutation.isPending;
   const canRunOverrideAction = Boolean(csrfToken) && overrideReason.trim().length > 0;
   const billingSettingsDirty = serializeWorkspaceBillingSettingsDraft(billingSettingsDraft) !== serializeWorkspaceBillingSettingsDraft(billingSettingsBaseline);
   const canSaveBillingSettings = Boolean(csrfToken) && !updateWorkspaceBillingSettingsMutation.isPending && billingSettingsDirty;
@@ -308,7 +314,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
           />
         ) : null}
 
-        {tenantStatusQuery.isLoading ? (
+        {canViewPlatformSurface ? (tenantStatusQuery.isLoading ? (
           <LoadingPanel label="Loading workspace detail" />
         ) : tenantStatusQuery.isError || !selectedTenant || !selectedReadiness ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -324,7 +330,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
             </Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -359,12 +365,12 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
               </div>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <OperatorPanel
-                  title="Operator posture"
-                  body="Use this page for platform-side handoff: clear blockers, attach billing, and confirm that the next action belongs to the workspace."
+                  title="Platform setup"
+                  body="Use this page to finish platform-side setup: resolve blockers, attach billing, and confirm the workspace is ready to hand off."
                 />
                 <OperatorPanel
                   title="Access rule"
-                  body="Invite or repair membership only when the workspace is crossing the handoff boundary. Keep support overrides rare and auditable."
+                  body="Add or fix membership only when the workspace is ready to launch. Keep admin interventions rare and auditable."
                 />
                 <OperatorPanel
                   title="Billing rule"
@@ -402,7 +408,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     </div>
                   </div>
                   <div className="mt-5 grid gap-3">
-                    {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Workspace is ready for the next operational handoff." />}
+                    {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Workspace is ready to launch." />}
                   </div>
                   <div className="mt-5 grid gap-3 lg:grid-cols-3">
                     <ReadinessCard title="Workspace" readiness={selectedReadiness.tenant.status} missing={tenantMissingSteps} />
@@ -430,16 +436,14 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                       <p className="mt-2 text-xs leading-relaxed text-slate-600">Invite the workspace operator here.</p>
                       <div className="mt-4 grid gap-3">
                         <input
+                          {...registerInvite("email")}
                           type="email"
-                          value={inviteEmail}
-                          onChange={(event) => setInviteEmail(event.target.value)}
                           placeholder="tenant-admin@example.com"
                           className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                         />
                         <select
+                          {...registerInvite("role")}
                           aria-label="Workspace role"
-                          value={inviteRole}
-                          onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
                           className="h-10 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                         >
                           <option value="admin">Admin</option>
@@ -448,7 +452,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                         </select>
                         <button
                           type="button"
-                          onClick={() => createInvitationMutation.mutate()}
+                          onClick={handleInviteSubmit((data) => createInvitationMutation.mutate(data))}
                           disabled={!canCreateInvitation}
                           className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -639,7 +643,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                               </div>
                             ))
                           ) : (
-                            <EmptyPanel message="No members yet. Invite the first workspace admin to complete the handoff." />
+                            <EmptyPanel message="No members yet. Invite the first workspace admin to get started." />
                           )}
                         </div>
                       </section>
@@ -906,8 +910,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                 </section>
               </aside>
             </div>
-          </>
-        )}
+          </SectionErrorBoundary>
+        )) : null}
       </main>
     </div>
   );

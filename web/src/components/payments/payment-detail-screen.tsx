@@ -13,6 +13,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchDunningRunDetail, fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
 import { billingActionConfig, billingFailureDiagnosis, billingFailureEvidence, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
@@ -96,23 +97,24 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
           />
         ) : null}
 
-        {paymentQuery.isLoading ? (
-          <LoadingPanel label="Loading payment detail" />
-        ) : paymentQuery.isError || !payment ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Payment not available</h1>
-            <p className="mt-3 text-sm text-slate-600">The requested payment detail could not be loaded from the workspace APIs.</p>
-            <Link
-              href="/payments"
-              className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to payments
-            </Link>
-          </section>
-        ) : (
-          <>
+        {isTenantSession ? (
+          paymentQuery.isLoading ? (
+            <LoadingPanel label="Loading payment detail" />
+          ) : paymentQuery.isError || !payment ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment</p>
+              <h1 className="mt-2 text-2xl font-semibold text-slate-950">Payment not available</h1>
+              <p className="mt-3 text-sm text-slate-600">The requested payment detail could not be loaded from the workspace APIs.</p>
+              <Link
+                href="/payments"
+                className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to payments
+              </Link>
+            </section>
+          ) : (
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -166,7 +168,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current posture</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment status</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     <StatusCard label="Action" value={formatBillingState(payment.lifecycle.recommended_action)} />
                     <StatusCard label="Requires action" value={payment.lifecycle.requires_action ? "Yes" : "No"} />
@@ -311,8 +313,9 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 </section>
               </aside>
             </div>
-          </>
-        )}
+          </SectionErrorBoundary>
+          )
+        ) : null}
       </main>
     </div>
   );

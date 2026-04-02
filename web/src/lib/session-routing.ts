@@ -26,6 +26,11 @@ export function buildLoginPath(nextPath: string): string {
   return `/login?next=${encodeURIComponent(safeNext)}`;
 }
 
+export function buildAccessSwitchPath(nextPath: string): string {
+  const safeNext = normalizeNextPath(nextPath, "/control-plane");
+  return `/login?switch=1&next=${encodeURIComponent(safeNext)}`;
+}
+
 export function buildWorkspaceSelectionPath(nextPath: string | null | undefined): string {
   const safeNext = normalizeNextPath(nextPath, "/customers");
   return `/workspace-select?next=${encodeURIComponent(safeNext)}`;
