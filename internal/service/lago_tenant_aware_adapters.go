@@ -140,6 +140,24 @@ func (a *TenantAwareLagoCustomerBillingAdapter) GenerateCustomerCheckoutURL(ctx 
 	return NewLagoCustomerBillingAdapter(transport).GenerateCustomerCheckoutURL(ctx, externalID)
 }
 
+func (a *TenantAwareLagoCustomerBillingAdapter) SyncCustomer(ctx context.Context, providerCode string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup, settings domain.WorkspaceBillingSettings) (CustomerSyncResult, error) {
+	scope := lagoScopeFromContext(ctx)
+	transport, err := resolveLagoTransport(ctx, nil, a.resolver, scope.TenantID, scope.OrganizationID)
+	if err != nil {
+		return CustomerSyncResult{}, err
+	}
+	return NewLagoCustomerBillingAdapter(transport).SyncCustomer(ctx, providerCode, customer, profile, setup, settings)
+}
+
+func (a *TenantAwareLagoCustomerBillingAdapter) GetCustomerCheckoutURL(ctx context.Context, externalID string) (string, error) {
+	scope := lagoScopeFromContext(ctx)
+	transport, err := resolveLagoTransport(ctx, nil, a.resolver, scope.TenantID, scope.OrganizationID)
+	if err != nil {
+		return "", err
+	}
+	return NewLagoCustomerBillingAdapter(transport).GetCustomerCheckoutURL(ctx, externalID)
+}
+
 func (a *TenantAwareLagoCustomerBillingAdapter) SyncBillingEntitySettings(ctx context.Context, settings domain.WorkspaceBillingSettings) error {
 	transport, err := resolveLagoTransport(ctx, nil, a.resolver, settings.WorkspaceID, "")
 	if err != nil {

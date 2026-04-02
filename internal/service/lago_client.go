@@ -59,11 +59,26 @@ type InvoiceBillingAdapter interface {
 	ResendCreditNoteEmail(ctx context.Context, creditNoteID string, input BillingDocumentEmail) error
 }
 
+// CustomerSyncResult holds the provider-neutral outcome of a Lago customer sync
+// and payment method verification. All Lago-specific field names are translated here.
+type CustomerSyncResult struct {
+	LagoCustomerID              string
+	ProviderCustomerID          string
+	PaymentMethodType           string
+	DefaultPaymentMethodPresent bool
+	ProviderPaymentMethodRef    string
+}
+
 type CustomerBillingAdapter interface {
 	UpsertCustomer(ctx context.Context, payload []byte) (int, []byte, error)
 	GetCustomer(ctx context.Context, externalID string) (int, []byte, error)
 	ListCustomerPaymentMethods(ctx context.Context, externalID string) (int, []byte, error)
 	GenerateCustomerCheckoutURL(ctx context.Context, externalID string) (int, []byte, error)
+	// SyncCustomer builds the Lago payload, upserts the customer, and verifies
+	// payment methods — returning a provider-neutral result.
+	SyncCustomer(ctx context.Context, providerCode string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup, settings domain.WorkspaceBillingSettings) (CustomerSyncResult, error)
+	// GetCustomerCheckoutURL generates a Stripe/provider checkout URL for the customer.
+	GetCustomerCheckoutURL(ctx context.Context, externalID string) (string, error)
 }
 
 type BillingEntitySettingsSyncAdapter interface {
@@ -407,6 +422,221 @@ func (a *LagoCustomerBillingAdapter) GenerateCustomerCheckoutURL(ctx context.Con
 		return 0, nil, fmt.Errorf("invalid non-json response from lago: %s", abbrevForLog(body))
 	}
 	return status, body, nil
+}
+
+// lagoCustomerResponse is the Lago-specific response envelope for customer upsert.
+// It is intentionally unexported — nothing above this adapter layer should see it.
+type lagoCustomerResponse struct {
+	Customer struct {
+		LagoID               string `json:"lago_id"`
+		ExternalID           string `json:"external_id"`
+		BillingConfiguration struct {
+			PaymentProvider        string   `json:"payment_provider"`
+			PaymentProviderCode    string   `json:"payment_provider_code"`
+			ProviderCustomerID     string   `json:"provider_customer_id"`
+			ProviderPaymentMethods []string `json:"provider_payment_methods"`
+		} `json:"billing_configuration"`
+	} `json:"customer"`
+}
+
+type lagoPaymentMethodsResponse struct {
+	PaymentMethods []struct {
+		LagoID           string `json:"lago_id"`
+		IsDefault        bool   `json:"is_default"`
+		ProviderMethodID string `json:"provider_method_id"`
+	} `json:"payment_methods"`
+}
+
+type lagoCustomerCheckoutResponse struct {
+	Customer struct {
+		CheckoutURL string `json:"checkout_url"`
+	} `json:"customer"`
+}
+
+func decodeLagoCustomerResponse(body []byte) (lagoCustomerResponse, error) {
+	var out lagoCustomerResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return lagoCustomerResponse{}, fmt.Errorf("%w: lago customer payload must be valid json", ErrValidation)
+	}
+	if strings.TrimSpace(out.Customer.ExternalID) == "" {
+		return lagoCustomerResponse{}, fmt.Errorf("%w: lago customer payload missing customer.external_id", ErrValidation)
+	}
+	return out, nil
+}
+
+func decodeLagoPaymentMethodsResponse(body []byte) (lagoPaymentMethodsResponse, error) {
+	var out lagoPaymentMethodsResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return lagoPaymentMethodsResponse{}, fmt.Errorf("%w: lago payment methods payload must be valid json", ErrValidation)
+	}
+	if out.PaymentMethods == nil {
+		out.PaymentMethods = []struct {
+			LagoID           string `json:"lago_id"`
+			IsDefault        bool   `json:"is_default"`
+			ProviderMethodID string `json:"provider_method_id"`
+		}{}
+	}
+	return out, nil
+}
+
+func decodeLagoCustomerCheckoutResponse(body []byte) (lagoCustomerCheckoutResponse, error) {
+	var out lagoCustomerCheckoutResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return lagoCustomerCheckoutResponse{}, fmt.Errorf("%w: lago customer checkout payload must be valid json", ErrValidation)
+	}
+	if strings.TrimSpace(out.Customer.CheckoutURL) == "" {
+		return lagoCustomerCheckoutResponse{}, fmt.Errorf("%w: lago customer checkout payload missing customer.checkout_url", ErrValidation)
+	}
+	return out, nil
+}
+
+// inferPaymentProviderFromCode maps a Lago provider code (e.g. "stripe_test_bpc_demo")
+// to a Lago payment_provider value (e.g. "stripe").
+func inferPaymentProviderFromCode(code string) (string, error) {
+	raw := strings.ToLower(strings.TrimSpace(code))
+	switch {
+	case raw == "":
+		return "", fmt.Errorf("%w: payment provider code is required", ErrValidation)
+	case strings.Contains(raw, "stripe"):
+		return "stripe", nil
+	case strings.Contains(raw, "gocardless"):
+		return "gocardless", nil
+	case strings.Contains(raw, "cashfree"):
+		return "cashfree", nil
+	case strings.Contains(raw, "adyen"):
+		return "adyen", nil
+	case strings.Contains(raw, "moneyhash"):
+		return "moneyhash", nil
+	case strings.Contains(raw, "flutterwave"):
+		return "flutterwave", nil
+	default:
+		return "", fmt.Errorf("%w: unsupported payment provider code %q", ErrValidation, code)
+	}
+}
+
+// buildLagoCustomerPayload constructs the Lago customer upsert request body.
+// All Lago field naming lives here and nowhere else.
+func buildLagoCustomerPayload(defaultProviderCode string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup, workspaceSettings domain.WorkspaceBillingSettings) ([]byte, error) {
+	providerCode := strings.TrimSpace(profile.ProviderCode)
+	if providerCode == "" {
+		providerCode = strings.TrimSpace(defaultProviderCode)
+	}
+	paymentProvider, err := inferPaymentProviderFromCode(providerCode)
+	if err != nil {
+		return nil, err
+	}
+	paymentMethodType := strings.TrimSpace(setup.PaymentMethodType)
+	if paymentMethodType == "" {
+		paymentMethodType = "card"
+	}
+	payload := map[string]any{
+		"customer": map[string]any{
+			"external_id":               customer.ExternalID,
+			"name":                      customer.DisplayName,
+			"legal_name":                profile.LegalName,
+			"email":                     profile.Email,
+			"currency":                  profile.Currency,
+			"country":                   profile.Country,
+			"tax_identification_number": profile.TaxIdentifier,
+			"address_line1":             profile.AddressLine1,
+			"address_line2":             profile.AddressLine2,
+			"city":                      profile.City,
+			"state":                     profile.State,
+			"zipcode":                   profile.PostalCode,
+			"billing_configuration": map[string]any{
+				"payment_provider":         paymentProvider,
+				"payment_provider_code":    providerCode,
+				"sync":                     true,
+				"sync_with_provider":       true,
+				"provider_payment_methods": []string{paymentMethodType},
+			},
+		},
+	}
+	if strings.TrimSpace(workspaceSettings.BillingEntityCode) != "" {
+		payload["customer"].(map[string]any)["billing_entity_code"] = workspaceSettings.BillingEntityCode
+	}
+	if workspaceSettings.NetPaymentTermDays != nil {
+		payload["customer"].(map[string]any)["net_payment_term"] = *workspaceSettings.NetPaymentTermDays
+	}
+	if codes := normalizeTaxCodes(profile.TaxCodes); len(codes) > 0 {
+		payload["customer"].(map[string]any)["tax_codes"] = codes
+	}
+	if setup.ProviderCustomerReference != "" {
+		payload["customer"].(map[string]any)["billing_configuration"].(map[string]any)["provider_customer_id"] = setup.ProviderCustomerReference
+	}
+	return json.Marshal(payload)
+}
+
+// SyncCustomer builds the Lago payload, upserts the customer, then verifies payment
+// methods — returning a provider-neutral CustomerSyncResult. All Lago field names
+// stay inside this method.
+func (a *LagoCustomerBillingAdapter) SyncCustomer(ctx context.Context, providerCode string, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup, settings domain.WorkspaceBillingSettings) (CustomerSyncResult, error) {
+	if a == nil || a.transport == nil {
+		return CustomerSyncResult{}, fmt.Errorf("%w: lago customer billing adapter is required", ErrValidation)
+	}
+	payload, err := buildLagoCustomerPayload(providerCode, customer, profile, setup, settings)
+	if err != nil {
+		return CustomerSyncResult{}, err
+	}
+	statusCode, body, err := a.UpsertCustomer(ctx, payload)
+	if err != nil {
+		return CustomerSyncResult{}, err
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return CustomerSyncResult{}, fmt.Errorf("%w: lago customer upsert returned status=%d body=%s", ErrDependency, statusCode, abbrevForLog(body))
+	}
+	remoteCustomer, err := decodeLagoCustomerResponse(body)
+	if err != nil {
+		return CustomerSyncResult{}, err
+	}
+
+	result := CustomerSyncResult{
+		LagoCustomerID:     strings.TrimSpace(remoteCustomer.Customer.LagoID),
+		ProviderCustomerID: strings.TrimSpace(remoteCustomer.Customer.BillingConfiguration.ProviderCustomerID),
+	}
+	if len(remoteCustomer.Customer.BillingConfiguration.ProviderPaymentMethods) > 0 {
+		result.PaymentMethodType = strings.TrimSpace(remoteCustomer.Customer.BillingConfiguration.ProviderPaymentMethods[0])
+	}
+
+	paymentStatusCode, paymentBody, paymentErr := a.ListCustomerPaymentMethods(ctx, customer.ExternalID)
+	if paymentErr != nil {
+		return CustomerSyncResult{}, paymentErr
+	}
+	if paymentStatusCode < 200 || paymentStatusCode >= 300 {
+		return CustomerSyncResult{}, fmt.Errorf("%w: lago customer payment method lookup returned status=%d body=%s", ErrDependency, paymentStatusCode, abbrevForLog(paymentBody))
+	}
+	paymentMethods, err := decodeLagoPaymentMethodsResponse(paymentBody)
+	if err != nil {
+		return CustomerSyncResult{}, err
+	}
+	for _, pm := range paymentMethods.PaymentMethods {
+		if pm.IsDefault {
+			result.DefaultPaymentMethodPresent = true
+			result.ProviderPaymentMethodRef = strings.TrimSpace(pm.ProviderMethodID)
+			break
+		}
+	}
+	return result, nil
+}
+
+// GetCustomerCheckoutURL generates a provider checkout URL and returns it as a plain
+// string, keeping all Lago response decoding inside the adapter.
+func (a *LagoCustomerBillingAdapter) GetCustomerCheckoutURL(ctx context.Context, externalID string) (string, error) {
+	if a == nil || a.transport == nil {
+		return "", fmt.Errorf("%w: lago customer billing adapter is required", ErrValidation)
+	}
+	statusCode, body, err := a.GenerateCustomerCheckoutURL(ctx, externalID)
+	if err != nil {
+		return "", err
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return "", fmt.Errorf("%w: lago checkout_url returned status=%d body=%s", ErrDependency, statusCode, abbrevForLog(body))
+	}
+	checkout, err := decodeLagoCustomerCheckoutResponse(body)
+	if err != nil {
+		return "", err
+	}
+	return checkout.Customer.CheckoutURL, nil
 }
 
 func (a *LagoCustomerBillingAdapter) SyncBillingEntitySettings(ctx context.Context, settings domain.WorkspaceBillingSettings) error {
