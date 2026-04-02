@@ -71,10 +71,10 @@ test.describe("customer onboarding live staging", () => {
     await expect(page.getByText("Synced to billing")).toBeVisible();
     await expect(page.getByText("Awaiting setup")).toBeVisible();
     await expect(page.getByText("What still needs action")).toBeVisible();
-    await expect(page.getByText("Customer has not completed payment setup").first()).toBeVisible();
+    await expect(page.getByText("Payment setup can be requested only after the customer is active and the billing profile is ready.").first()).toBeVisible();
 
     await page.goto("/customers");
-    await expect(page.getByRole("heading", { name: "Customer directory" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
     await expect(page.getByText(onboardingDisplayName)).toBeVisible();
     await expect(page.getByText(onboardingExternalID)).toBeVisible();
   });

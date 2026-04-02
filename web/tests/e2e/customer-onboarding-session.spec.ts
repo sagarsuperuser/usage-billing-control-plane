@@ -182,5 +182,5 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
 
   await page.goto("/customers/cust_acme_primary");
   await expect(page.getByRole("heading", { name: "Acme Primary Customer" })).toBeVisible();
-  await expect(page.getByText("Customer has not completed payment setup").first()).toBeVisible();
+  await expect(page.getByText("Payment setup can be requested only after the customer is active and the billing profile is ready.").first()).toBeVisible();
 });
