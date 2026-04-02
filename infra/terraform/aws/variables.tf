@@ -105,6 +105,12 @@ variable "eks_admin_role_trusted_principal_arns" {
   }
 }
 
+variable "github_repo" {
+  description = "GitHub repository slug (owner/repo) allowed to assume the GHA deploy role via OIDC. Leave empty to skip role creation."
+  type        = string
+  default     = ""
+}
+
 variable "eks_admin_role_name" {
   description = "Optional dedicated IAM role name for EKS admin access. Leave empty for the default generated name."
   type        = string

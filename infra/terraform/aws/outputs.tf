@@ -73,6 +73,11 @@ output "eks_admin_role_arn" {
   description = "Dedicated IAM role ARN for EKS admin access."
 }
 
+output "gha_deploy_role_arn" {
+  value       = try(aws_iam_role.gha_deploy[0].arn, null)
+  description = "IAM role ARN for GitHub Actions deploy. Set as AWS_ROLE_TO_ASSUME in GitHub repository secrets."
+}
+
 output "rate_limit_cache_endpoint" {
   value       = try(aws_elasticache_serverless_cache.rate_limit.endpoint[0].address, null)
   description = "Serverless cache endpoint address for alpha rate limiting."

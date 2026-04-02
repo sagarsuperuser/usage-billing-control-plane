@@ -130,6 +130,21 @@ module "eks" {
         }
       }
     } : {},
+    trimspace(var.github_repo) != "" ? {
+      gha_deploy = {
+        principal_arn = aws_iam_role.gha_deploy[0].arn
+
+        policy_associations = {
+          edit = {
+            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
+            access_scope = {
+              type       = "namespace"
+              namespaces = ["lago-alpha"]
+            }
+          }
+        }
+      }
+    } : {},
   )
 
   vpc_id                   = module.vpc.vpc_id
@@ -563,4 +578,88 @@ resource "aws_eks_addon" "ebs_csi" {
   resolve_conflicts_on_update = "OVERWRITE"
 
   depends_on = [aws_iam_role_policy_attachment.ebs_csi_driver]
+}
+
+# ── GitHub Actions deploy role ────────────────────────────────────────────────
+# Allows main-branch CI to push images to ECR and run helm upgrade against the
+# lago-alpha namespace. Uses GitHub's OIDC provider — no long-lived keys.
+
+data "aws_iam_openid_connect_provider" "github_actions" {
+  count = trimspace(var.github_repo) != "" ? 1 : 0
+  url   = "https://token.actions.githubusercontent.com"
+}
+
+data "aws_iam_policy_document" "gha_deploy_assume_role" {
+  count = trimspace(var.github_repo) != "" ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github_actions[0].arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
+    }
+  }
+}
+
+resource "aws_iam_role" "gha_deploy" {
+  count              = trimspace(var.github_repo) != "" ? 1 : 0
+  name               = "${local.name_prefix}-gha-deploy"
+  assume_role_policy = data.aws_iam_policy_document.gha_deploy_assume_role[0].json
+}
+
+data "aws_iam_policy_document" "gha_deploy" {
+  count = trimspace(var.github_repo) != "" ? 1 : 0
+
+  statement {
+    sid       = "ECRAuth"
+    effect    = "Allow"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "ECRPush"
+    effect = "Allow"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:PutImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+    ]
+    resources = [
+      aws_ecr_repository.api.arn,
+      aws_ecr_repository.web.arn,
+    ]
+  }
+
+  statement {
+    sid       = "EKSDescribe"
+    effect    = "Allow"
+    actions   = ["eks:DescribeCluster"]
+    resources = [local.cluster_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "gha_deploy" {
+  count  = trimspace(var.github_repo) != "" ? 1 : 0
+  name   = "${local.name_prefix}-gha-deploy"
+  role   = aws_iam_role.gha_deploy[0].id
+  policy = data.aws_iam_policy_document.gha_deploy[0].json
 }
