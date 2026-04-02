@@ -443,8 +443,8 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                 </div>
               </div>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <OperatorPanel title="Provider posture" body="Use this page to confirm Stripe verification state, not to reason about workspace billing readiness in the abstract." />
-                <OperatorPanel title="Assignment posture" body="Read linked workspaces as dependency count. Refresh, rotate, or disable this connection with that blast radius in mind." />
+                <OperatorPanel title="Verification" body="Confirm the Stripe connection is verified here before assigning it to workspaces." />
+                <OperatorPanel title="Assignments" body="The more workspaces attached, the more careful you should be when rotating or disabling this connection." />
                 <OperatorPanel title="Action rule" body="Provider verification belongs here. Workspace provisioning belongs to workspace attachment and billing setup flows." />
               </div>
             </section>

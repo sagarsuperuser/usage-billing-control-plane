@@ -191,8 +191,8 @@ function EmptyState() {
       <p className="font-semibold text-slate-950">No metrics yet.</p>
       <p className="mt-2">Create the first metric to define what your plans can charge against.</p>
       <div className="mt-4">
-        <Link href="/pricing/metrics/new" className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800">
-          Create metric
+        <Link href="/pricing/metrics/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+          New metric
         </Link>
       </div>
     </div>

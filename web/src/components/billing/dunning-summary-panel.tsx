@@ -41,7 +41,7 @@ export function DunningSummaryPanel({
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Dunning</p>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        <OperatorHint title="Workflow posture" body="Use dunning as the recovery control surface after payment failure. The state and next action should tell you whether reminder or retry is appropriate." />
+        <OperatorHint title="How dunning works" body="Dunning retries failed payments automatically. Check the state and next action to decide whether to send a reminder or trigger a retry manually." />
         <OperatorHint title="Reminder rule" body="Use reminder dispatch only when the customer still needs outreach or setup recovery. Do not treat it as a substitute for payment setup readiness." />
       </div>
       <div className="mt-4 grid gap-3">

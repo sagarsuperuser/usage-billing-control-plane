@@ -188,5 +188,5 @@ function LoadingState() {
 }
 
 function EmptyState() {
-  return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600"><p className="font-semibold text-slate-950">No coupons yet.</p><p className="mt-2">Create the first coupon, then attach it to plans.</p><div className="mt-4"><Link href="/pricing/coupons/new" className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800">Create coupon</Link></div></div>;
+  return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600"><p className="font-semibold text-slate-950">No coupons yet.</p><p className="mt-2">Create the first coupon, then attach it to plans.</p><div className="mt-4"><Link href="/pricing/coupons/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New coupon</Link></div></div>;
 }

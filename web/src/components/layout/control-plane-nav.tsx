@@ -51,7 +51,7 @@ const tenantOperationsItems: NavItem[] = [
   { href: "/workspace-access", label: "Access", scope: "tenant", icon: ShieldCheck },
   { href: "/usage-events", label: "Usage", scope: "tenant", icon: Activity },
   { href: "/dunning", label: "Dunning", scope: "tenant", icon: BellRing },
-  { href: "/replay-operations", label: "Recovery", scope: "tenant", icon: Workflow },
+  { href: "/replay-operations", label: "Replay", scope: "tenant", icon: Workflow },
   { href: "/invoice-explainability", label: "Explainability", scope: "tenant", icon: Layers3 },
 ];
 

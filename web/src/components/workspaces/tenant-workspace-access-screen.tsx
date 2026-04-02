@@ -399,9 +399,9 @@ export function TenantWorkspaceAccessScreen() {
             <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">People, machine identities, and audit controls</h1>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Team &amp; access</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                  Manage human access, service accounts, and credential evidence from one workspace console.
+                  Manage members, service accounts, and API credentials for this workspace.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -436,13 +436,13 @@ export function TenantWorkspaceAccessScreen() {
               <SummaryMetric label="Active credentials" value={String(activeCredentialCount)} hint="Machine secrets currently usable" />
             </section>
 
-            <section ref={peopleSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <section ref={peopleSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Human access</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Membership and invitation control</h2>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Members</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                    Invite operators, adjust effective role, and suspend stale membership from one review surface.
+                    Invite people, manage roles, and remove access.
                   </p>
                 </div>
                 <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
@@ -498,7 +498,7 @@ export function TenantWorkspaceAccessScreen() {
                         })}
                       </div>
                     ) : (
-                      <div className="px-5 py-8 text-sm text-slate-500">No active members yet.</div>
+                      <div className="px-5 py-8 text-sm text-slate-500">No active members yet. Use the invite form above to add the first member.</div>
                     )}
                   </section>
 
@@ -716,12 +716,12 @@ export function TenantWorkspaceAccessScreen() {
               </div>
             </section>
 
-            <section ref={machineSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <section ref={machineSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Machine access</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Machine identities</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Review automation identities, then issue or rotate credentials from the selected identity.</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Service accounts</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">API identities for automation and integrations. Issue or rotate credentials as needed.</p>
                 </div>
                 <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
                   <DetailField label="Disabled identities" value={`${disabledServiceAccounts.length}`} className="bg-white" />
@@ -995,12 +995,12 @@ export function TenantWorkspaceAccessScreen() {
               </div>
             </section>
 
-            <section ref={auditSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <section ref={auditSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Audit evidence</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Credential event timeline and export record</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Review credential lifecycle events and export evidence only when operators need a durable record.</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Audit log</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Credential and access events. Export for compliance when needed.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <select

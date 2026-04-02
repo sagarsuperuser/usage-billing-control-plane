@@ -205,11 +205,11 @@ export function ReplayOperationsScreen() {
 
         {isTenantSession ? (
           <>
-            <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+            <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Replay Recovery Console</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Replay + Reprocess Operations</h1>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recovery</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Replay operations</h1>
                   <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
                     Queue replay jobs, inspect diagnostics, and recover failed processing from one workspace console.
                   </p>
@@ -234,8 +234,8 @@ export function ReplayOperationsScreen() {
               <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Recovery Workbench</p>
-                    <h2 className="mt-1 text-lg font-semibold text-slate-900">Inspect queued, running, done, and failed jobs</h2>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Jobs</p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-900">Job queue</h2>
                     <p className="mt-2 max-w-2xl text-sm text-slate-600">
                       Filter the queue first, then open diagnostics on the exact job that needs recovery.
                     </p>
@@ -398,8 +398,8 @@ export function ReplayOperationsScreen() {
               <div className="space-y-6">
                 <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Queue policy</p>
-                    <h2 className="mt-1 text-lg font-semibold text-slate-900">Recovery guardrails</h2>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Policy</p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-900">Guardrails</h2>
                     <p className="mt-2 text-sm text-slate-600">
                       Queue a replay only after diagnostics confirm the exact customer, meter, and time window that need reprocessing.
                     </p>
@@ -429,8 +429,8 @@ export function ReplayOperationsScreen() {
             <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Queue Replay Job</p>
-                  <h2 className="mt-1 text-lg font-semibold text-slate-900">Launch customer or meter reprocessing</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">New job</p>
+                  <h2 className="mt-1 text-lg font-semibold text-slate-900">Queue a replay job</h2>
                   <p className="mt-2 max-w-3xl text-sm text-slate-600">
                     Build one replay request with an explicit scope, an optional time window, and a deterministic idempotency key. This keeps recovery controlled and reviewable.
                   </p>

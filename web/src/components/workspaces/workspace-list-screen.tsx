@@ -125,7 +125,7 @@ export function WorkspaceListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { label: "Workspaces" }]} />
 
-        {canViewPlatformSurface ? <section className="rounded-3xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Workspaces</p>
@@ -148,7 +148,7 @@ export function WorkspaceListScreen() {
               </Link>
               <Link
                 href="/workspaces/new"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
               >
                 <Plus className="h-4 w-4" />
                 New workspace
@@ -173,12 +173,12 @@ export function WorkspaceListScreen() {
           />
         ) : null}
 
-        {canViewPlatformSurface ? <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Workspace inventory</h2>
-              <p className="mt-2 text-sm text-slate-600">Read the row summary first, then open the workspace only when the platform needs to intervene.</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Workspaces</h2>
+              <p className="mt-2 text-sm text-slate-600">Review setup status and billing readiness across all workspaces.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
@@ -323,7 +323,7 @@ function EmptyState() {
       <p className="font-semibold text-slate-950">No workspaces match the current filters.</p>
       <p className="mt-2">Clear filters or create a new workspace if you are bootstrapping a fresh tenant.</p>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link href="/workspaces/new" className="inline-flex h-10 items-center rounded-xl bg-emerald-700 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-emerald-800">Create workspace</Link>
+        <Link href="/workspaces/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New workspace</Link>
       </div>
     </div>
   );

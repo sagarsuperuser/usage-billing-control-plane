@@ -272,12 +272,12 @@ export function CustomerOnboardingScreen() {
 
             <aside className="min-w-0 grid gap-5 self-start">
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operator posture</p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">After submit</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Next steps</p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">After creating</h2>
                 <div className="mt-4 grid gap-2">
-                  <ChecklistLine done text="Use this screen for customer creation only" />
-                  <ChecklistLine done text="Open customer detail for readiness and recovery" />
-                  <ChecklistLine done text="Use the customer directory for inventory review" />
+                  <ChecklistLine done text="Complete the billing profile on the customer detail page" />
+                  <ChecklistLine done text="Send a payment setup request once the profile is ready" />
+                  <ChecklistLine done text="Create a subscription to start billing" />
                 </div>
               </section>
 

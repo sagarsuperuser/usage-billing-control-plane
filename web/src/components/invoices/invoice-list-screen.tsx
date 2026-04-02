@@ -97,9 +97,9 @@ export function InvoiceListScreen() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoices</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Invoice visibility</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Invoices</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Browse invoice state, payment state, due amounts, and linked customers without leaving the main invoice workflow.
+                View invoice status, amounts due, and payment state across all customers.
               </p>
             </div>
           </div>
@@ -290,8 +290,12 @@ function LoadingState() {
 function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No invoices match the current filters.</p>
-      <p className="mt-2">Clear filters or wait for the first finalized invoice to appear in the workspace billing history.</p>
+      <p className="font-semibold text-slate-950">No invoices yet.</p>
+      <p className="mt-2">Invoices appear once a customer has an active subscription and a billing cycle completes. Make sure customers have a billing profile and payment setup done.</p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link href="/subscriptions" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">View subscriptions</Link>
+        <Link href="/customers" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">View customers</Link>
+      </div>
     </div>
   );
 }

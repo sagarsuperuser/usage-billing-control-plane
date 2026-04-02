@@ -75,7 +75,7 @@ export function BillingConnectionListScreen() {
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { label: "Billing Connections" }]} />
 
-        {canViewPlatformSurface ? <section className="rounded-3xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Billing Connections</p>
@@ -84,7 +84,7 @@ export function BillingConnectionListScreen() {
                 Manage Stripe connections here. Verify the connection first, then assign it to a workspace.
               </p>
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <OperatorLine title="Inventory rule" body="Use this list as the platform credential inventory. Open detail only when the row shows a real provider or assignment issue." />
+                <OperatorLine title="Verify first" body="Confirm the Stripe connection is healthy before assigning it to a workspace." />
                 <OperatorLine title="Verification rule" body="Separate provider verification from workspace provisioning. A healthy Stripe check is not the same as a completed workspace handoff." />
                 <OperatorLine title="Assignment rule" body="Treat linked workspaces as dependency count. The more workspaces attached, the stricter the change control for that connection." />
               </div>
@@ -98,7 +98,7 @@ export function BillingConnectionListScreen() {
               </Link>
               <Link
                 href="/billing-connections/new"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
               >
                 <Plus className="h-4 w-4" />
                 New billing connection
@@ -124,12 +124,12 @@ export function BillingConnectionListScreen() {
           />
         ) : null}
 
-        {canViewPlatformSurface ? <section className="rounded-3xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
+        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Connection inventory</h2>
-              <p className="mt-2 text-sm text-slate-600">Read provider health, assignment readiness, and dependency count from the row before opening detail.</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Connections</h2>
+              <p className="mt-2 text-sm text-slate-600">Check provider health and workspace assignments before opening a connection.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
@@ -267,7 +267,7 @@ function EmptyState() {
       <p className="font-semibold text-slate-950">No billing connections match the current filters.</p>
       <p className="mt-2">Create a billing connection before assigning billing to a workspace.</p>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link href="/billing-connections/new" className="inline-flex h-10 items-center rounded-xl bg-emerald-700 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-emerald-800">Create billing connection</Link>
+        <Link href="/billing-connections/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New billing connection</Link>
       </div>
     </div>
   );

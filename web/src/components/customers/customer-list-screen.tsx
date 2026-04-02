@@ -91,9 +91,9 @@ export function CustomerListScreen() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customers</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Customer directory</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Customers</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Browse billing readiness, payment setup state, and recovery needs. Customer creation stays in the dedicated setup flow.
+                View billing readiness, payment setup status, and recovery needs across all customers.
               </p>
             </div>
             {isTenantSession ? (
@@ -213,7 +213,7 @@ function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: 
         }
       />
       <div className="flex items-center justify-between gap-3 lg:justify-end">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
+        <p className="text-[11px] text-slate-400">View →</p>
       </div>
     </Link>
   );
@@ -275,9 +275,9 @@ function EmptyState() {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
       <p className="font-semibold text-slate-950">No customers match the current filters.</p>
-      <p className="mt-2">Clear filters or create a new customer to start the workspace billing journey.</p>
+      <p className="mt-2">Create a customer to get started.</p>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link href="/customers/new" className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800">Create customer</Link>
+        <Link href="/customers/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New customer</Link>
       </div>
     </div>
   );

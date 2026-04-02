@@ -126,9 +126,9 @@ export function UsageEventsScreen() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage Events</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Raw operational event view</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Usage events</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Review recent raw usage events for support and billing disputes from one workspace event inventory.
+                Inspect raw metering events for billing disputes, support, or audit.
               </p>
             </div>
           </div>
@@ -157,7 +157,7 @@ export function UsageEventsScreen() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Filters</p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">Bound the inventory before reviewing events</h2>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Filters</h2>
               </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -199,7 +199,7 @@ export function UsageEventsScreen() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event inventory</p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">Recent raw events</h2>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Events</h2>
               </div>
             <div className="flex flex-wrap gap-3">
               <button

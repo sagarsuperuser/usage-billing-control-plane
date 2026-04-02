@@ -72,7 +72,7 @@ export function PricingHomeScreen() {
       label: "Plans",
       itemLabel: "plan",
       count: planCount,
-      summary: planCount > 0 ? `${activePlanCount} active / ${draftPlanCount} draft` : "No commercial packages yet",
+      summary: planCount > 0 ? `${activePlanCount} active / ${draftPlanCount} draft` : "No plans yet",
       posture: metricCount > 0 ? (planCount > 0 ? "Review activation posture" : "Ready to create first plan") : "Blocked on metrics",
       href: "/pricing/plans",
       createHref: "/pricing/plans/new",
@@ -124,7 +124,7 @@ export function PricingHomeScreen() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Pricing catalog</h1>
               <p className="mt-3 text-sm text-slate-600">
-                Define reusable pricing records once, then assemble commercial packages from the catalog. Metrics establish what can be priced; plans publish the customer-facing package.
+                Define metrics and plans once, then reuse them across customers. Metrics define what gets charged; plans set the price and cadence.
               </p>
             </div>
             {isTenantSession ? (
@@ -156,7 +156,7 @@ export function PricingHomeScreen() {
           <>
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <SummaryCell label="Catalog records" value={catalogCount} hint="Metrics, plans, add-ons, coupons, and taxes" />
-              <SummaryCell label="Active plans" value={activePlanCount} hint={planCount > 0 ? `${draftPlanCount} draft plans remain under review` : "No active commercial package yet"} />
+              <SummaryCell label="Active plans" value={activePlanCount} hint={planCount > 0 ? `${draftPlanCount} draft` : "No active plans yet"} />
               <SummaryCell label="Reusable rules" value={metricCount + addOnCount + couponCount + taxCount} hint="Reusable inputs before customer assignment" />
               <SummaryCell label="Immediate gaps" value={setupQueue.length} hint={setupQueue.length > 0 ? "Domains still missing a first record" : "Core pricing inventory is present"} />
             </section>

@@ -124,9 +124,9 @@ export function PaymentListScreen() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payments</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Payment visibility</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Payments</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Browse payment state, overdue signals, and retry candidates from a normal product surface. Recovery stays available as a deeper workflow when needed.
+                Track payment status, spot overdue invoices, and trigger retries when needed.
               </p>
             </div>
           </div>

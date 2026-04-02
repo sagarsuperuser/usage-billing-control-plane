@@ -30,15 +30,15 @@ export function formatReadinessStatus(status?: string): string {
 }
 
 const tenantSectionStepLabels: Record<string, string> = {
-  tenant_exists: "Workspace record has not been created yet",
-  tenant_active: "Workspace is not active yet",
-  tenant_admin_ready: "Admin access has not been created yet",
-  tenant_admin_key: "Admin access has not been created yet",
-  billing_mapping_ready: "Billing connection is not configured yet",
-  billing_mapping: "Billing connection is not configured yet",
-  billing_verification: "Billing connection is attached but not verified yet",
-  pricing: "Pricing rules still need to be configured",
-  customer_created: "No billing-ready customer has been created yet",
+  tenant_exists: "Create the workspace to continue",
+  tenant_active: "Activate the workspace to continue",
+  tenant_admin_ready: "Create an admin account for this workspace",
+  tenant_admin_key: "Create an admin account for this workspace",
+  billing_mapping_ready: "Attach a billing connection to this workspace",
+  billing_mapping: "Attach a billing connection to this workspace",
+  billing_verification: "Verify the billing connection — check credentials and retry sync",
+  pricing: "Create at least one metric and plan before going live",
+  customer_created: "Add the first customer to complete workspace setup",
 };
 
 const tenantStepLabels: Record<string, string> = {
@@ -54,12 +54,12 @@ const tenantStepLabels: Record<string, string> = {
 };
 
 const customerStepLabels: Record<string, string> = {
-  customer_exists: "Customer record has not been created yet",
-  customer_active: "Customer is not active yet",
-  billing_provider_configured: "Billing connection is not configured yet",
-  lago_customer_synced: "Billing profile is not ready yet",
-  payment_setup_ready: "Customer has not completed payment setup",
-  default_payment_method_verified: "Default payment method has not been verified yet",
+  customer_exists: "Create the customer record first",
+  customer_active: "Activate the customer to continue",
+  billing_provider_configured: "Attach a billing connection to this workspace",
+  lago_customer_synced: "Complete the billing profile — legal name, address, and currency are required",
+  payment_setup_ready: "Send a payment setup request so the customer can add a payment method",
+  default_payment_method_verified: "Refresh payment setup after the customer completes checkout",
 };
 
 export function describeTenantMissingStep(step: string): string {

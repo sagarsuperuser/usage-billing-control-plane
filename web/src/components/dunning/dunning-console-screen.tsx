@@ -203,13 +203,13 @@ export function DunningConsoleScreen() {
 
         {isTenantSession ? (
           <>
-        <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Collections</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning runs</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Collections</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Review collection policy, then open the exact invoice run that needs operator action.
+                Track payment retry runs and take action on overdue invoices.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">

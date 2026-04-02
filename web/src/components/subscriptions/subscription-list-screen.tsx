@@ -66,9 +66,9 @@ export function SubscriptionListScreen() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscriptions</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Customer subscriptions</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Subscriptions</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Track what the customer is signing up for, whether payment setup has been requested, and whether the payer has completed billing readiness.
+                Manage active plans, payment setup status, and billing readiness per customer.
               </p>
             </div>
             {isTenantSession ? (
@@ -199,8 +199,8 @@ function EmptyState() {
       <p className="font-semibold text-slate-950">No subscriptions yet.</p>
       <p className="mt-2">Create the first subscription after you have at least one customer and one plan.</p>
       <div className="mt-4">
-        <Link href="/subscriptions/new" className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800">
-          Create subscription
+        <Link href="/subscriptions/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+          New subscription
         </Link>
       </div>
     </div>
