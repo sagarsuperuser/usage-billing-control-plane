@@ -135,8 +135,8 @@ module "eks" {
         principal_arn = aws_iam_role.gha_deploy[0].arn
 
         policy_associations = {
-          edit = {
-            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
+          admin = {
+            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
             access_scope = {
               type = "cluster"
             }
