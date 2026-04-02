@@ -266,7 +266,7 @@ test("workspace access shows summary-first service account and audit surfaces", 
 
   await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
   await expect(page.getByText("API identities for automation and integrations. Issue or rotate credentials as needed.")).toBeVisible();
-  await expect(page.getByText("Active credentials")).toBeVisible();
+  await expect(page.getByText("Machine secrets currently usable")).toBeVisible();
   await expect(page.getByText("created", { exact: true })).not.toBeVisible();
 
   await page.getByTestId("inspect-service-account-svc_erp").click();
