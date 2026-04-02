@@ -9,9 +9,11 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchPlans, fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup, updateSubscription } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function tone(status?: string): string {
@@ -65,14 +67,22 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
   const requestMutation = useMutation({
     mutationFn: () => requestSubscriptionPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, subscriptionID }),
     onSuccess: async () => {
+      showSuccess("Payment setup requested", "The customer will receive an email with the checkout link.");
       await detailQuery.refetch();
+    },
+    onError: (err: Error) => {
+      showError("Request failed", err.message || "Could not request payment setup.");
     },
   });
 
   const resendMutation = useMutation({
     mutationFn: () => resendSubscriptionPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, subscriptionID }),
     onSuccess: async () => {
+      showSuccess("Payment setup request resent", "A new checkout link has been sent to the customer.");
       await detailQuery.refetch();
+    },
+    onError: (err: Error) => {
+      showError("Resend failed", err.message || "Could not resend payment setup request.");
     },
   });
 
@@ -139,7 +149,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
               </Link>
             </section>
           ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -300,7 +310,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                 </section>
               </aside>
             </div>
-          </>
+          </SectionErrorBoundary>
           )
         ) : null}
       </main>

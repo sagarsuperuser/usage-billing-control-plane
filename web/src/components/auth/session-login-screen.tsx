@@ -21,6 +21,7 @@ export function SessionLoginScreen() {
   const searchParams = useSearchParams();
   const { session, isAuthenticated, apiBaseURL } = useUISession();
   const requestedNext = searchParams.get("next");
+  const accessSwitch = searchParams.get("switch") === "1";
   const providerKey = searchParams.get("provider");
   const authError = searchParams.get("error");
   const resetState = searchParams.get("reset");
@@ -32,12 +33,12 @@ export function SessionLoginScreen() {
   });
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !accessSwitch) {
       router.replace(resolveTarget(session, requestedNext));
     }
-  }, [isAuthenticated, requestedNext, router, session]);
+  }, [accessSwitch, isAuthenticated, requestedNext, router, session]);
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !accessSwitch) {
     return (
       <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
         <main className="mx-auto flex min-h-screen max-w-[1200px] items-center justify-center px-4 py-10 md:px-8 lg:px-10">
@@ -88,6 +89,11 @@ export function SessionLoginScreen() {
         </section>
 
         <section className="flex flex-col justify-center gap-4 xl:max-w-[460px] xl:justify-center">
+          {accessSwitch ? (
+            <div className="w-full rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 shadow-sm">
+              Sign in with the account you want to use next. Alpha will replace the current browser session after successful login.
+            </div>
+          ) : null}
           {resetState === "success" ? (
             <div className="w-full rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-700 shadow-sm">
               Password updated. Sign in with your new password.

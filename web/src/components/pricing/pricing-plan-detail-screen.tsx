@@ -9,6 +9,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -78,7 +79,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
             </Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -206,7 +207,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                 )}
               </div>
             </section>
-          </>
+          </SectionErrorBoundary>
         ) : null}
       </main>
     </div>

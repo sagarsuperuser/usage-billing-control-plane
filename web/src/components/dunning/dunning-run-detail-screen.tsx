@@ -9,6 +9,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
 import { diagnoseDunningRun, dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
@@ -105,7 +106,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
         ) : null}
 
         {isTenantSession ? (
-          <>
+          <SectionErrorBoundary>
         <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -339,7 +340,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
             </section>
           </>
         ) : null}
-          </>
+          </SectionErrorBoundary>
         ) : null}
       </main>
     </div>

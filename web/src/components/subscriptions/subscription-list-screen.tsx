@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LoaderCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -9,6 +9,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchSubscriptions } from "@/lib/api";
 import { type SubscriptionSummary } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -163,9 +164,31 @@ function InventoryCell({ label, value }: { label: string; value: string }) {
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading subscriptions
+    <div className="grid gap-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_110px] lg:items-start">
+          <div className="min-w-0">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="mt-2 h-3 w-28" />
+            <Skeleton className="mt-2 h-4 w-48" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-4 w-20" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="mt-2 h-4 w-24" />
+          </div>
+          <div className="flex items-center justify-end">
+            <Skeleton className="h-3.5 w-8" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

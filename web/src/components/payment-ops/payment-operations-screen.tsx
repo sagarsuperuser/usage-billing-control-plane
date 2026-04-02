@@ -23,6 +23,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { type InvoiceStatusFilters } from "@/lib/types";
 import { useSessionStore } from "@/store/use-session-store";
 import { billingFailureDiagnosis, formatBillingState } from "@/lib/billing-lifecycle";
+import { showError, showSuccess } from "@/lib/toast";
 
 const statusSortOptions = [
   { value: "last_event_at", label: "Last event" },
@@ -180,11 +181,15 @@ export function PaymentOperationsScreen() {
         csrfToken,
       }),
     onSuccess: async (_, invoiceID) => {
+      showSuccess("Payment retry queued", "Invoice payment retry has been submitted.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["invoice-statuses"] }),
         queryClient.invalidateQueries({ queryKey: ["invoice-status-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["invoice-events", apiBaseURL, invoiceID] }),
       ]);
+    },
+    onError: (err: Error) => {
+      showError("Retry failed", err.message || "Could not retry invoice payment.");
     },
   });
 

@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, CreditCard, LoaderCircle, RefreshCcw, ShieldOff, XCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -9,6 +12,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   disableBillingProviderConnection,
   fetchBillingProviderConnection,
@@ -18,6 +22,7 @@ import {
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { formatReadinessStatus } from "@/lib/readiness";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 type HealthCheckTone = "good" | "warn" | "bad" | "neutral";
@@ -266,9 +271,11 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope } = useUISession();
   const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [isEditing, setIsEditing] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [environment, setEnvironment] = useState<"test" | "live">("test");
   const [rotatedStripeSecretKey, setRotatedStripeSecretKey] = useState("");
+  const { register, handleSubmit, reset: resetEdit } = useForm({
+    resolver: zodResolver(z.object({ display_name: z.string().min(1), environment: z.enum(["test", "live"]) })),
+    defaultValues: { display_name: "", environment: "test" as const },
+  });
 
   const connectionQuery = useQuery({
     queryKey: ["billing-provider-connection", apiBaseURL, connectionID],
@@ -279,40 +286,52 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   const refreshMutation = useMutation({
     mutationFn: () => refreshBillingProviderConnection({ runtimeBaseURL: apiBaseURL, csrfToken, connectionID }),
     onSuccess: async () => {
+      showSuccess("Connection check complete");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connection", apiBaseURL, connectionID] }),
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connections"] }),
       ]);
     },
+    onError: (err: Error) => {
+      showError("Check failed", err.message || "Could not refresh connection status.");
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { display_name: string; environment: "test" | "live" }) =>
       updateBillingProviderConnection({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
         connectionID,
         body: {
-          display_name: displayName.trim(),
-          environment,
+          display_name: data.display_name.trim(),
+          environment: data.environment,
         },
       }),
     onSuccess: async () => {
+      showSuccess("Connection settings saved");
       setIsEditing(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connection", apiBaseURL, connectionID] }),
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connections"] }),
       ]);
     },
+    onError: (err: Error) => {
+      showError("Update failed", err.message || "Could not update connection settings.");
+    },
   });
 
   const disableMutation = useMutation({
     mutationFn: () => disableBillingProviderConnection({ runtimeBaseURL: apiBaseURL, csrfToken, connectionID }),
     onSuccess: async () => {
+      showSuccess("Connection disabled");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connection", apiBaseURL, connectionID] }),
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connections"] }),
       ]);
+    },
+    onError: (err: Error) => {
+      showError("Disable failed", err.message || "Could not disable connection.");
     },
   });
 
@@ -325,11 +344,15 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
         stripeSecretKey: rotatedStripeSecretKey.trim(),
       }),
     onSuccess: async () => {
+      showSuccess("Secret rotated", "The new Stripe secret key is now active.");
       setRotatedStripeSecretKey("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connection", apiBaseURL, connectionID] }),
         queryClient.invalidateQueries({ queryKey: ["billing-provider-connections"] }),
       ]);
+    },
+    onError: (err: Error) => {
+      showError("Rotation failed", err.message || "Could not rotate the Stripe secret key.");
     },
   });
 
@@ -354,16 +377,11 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
 
   const startEditing = () => {
     if (!connection) return;
-    setDisplayName(connection.display_name);
-    setEnvironment(connection.environment);
+    resetEdit({ display_name: connection.display_name, environment: connection.environment });
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
-    if (connection) {
-      setDisplayName(connection.display_name);
-      setEnvironment(connection.environment);
-    }
     setIsEditing(false);
   };
 
@@ -399,7 +417,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
             </Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -541,13 +559,20 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                     </div>
                   ) : (
                     <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                      <InputField label="Connection name" value={displayName} onChange={setDisplayName} placeholder="Stripe Sandbox" />
+                      <label className="grid gap-2 text-sm text-slate-700">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Connection name</span>
+                        <input
+                          {...register("display_name")}
+                          aria-label="Connection name"
+                          placeholder="Stripe Sandbox"
+                          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                        />
+                      </label>
                       <label className="grid gap-2 text-sm text-slate-700">
                         <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Environment</span>
                         <select
+                          {...register("environment")}
                           aria-label="Environment"
-                          value={environment}
-                          onChange={(event) => setEnvironment(event.target.value as "test" | "live")}
                           className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                         >
                           <option value="test">Test</option>
@@ -557,8 +582,8 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                       <div className="lg:col-span-2 flex flex-wrap gap-3">
                         <button
                           type="button"
-                          onClick={() => updateMutation.mutate()}
-                          disabled={!csrfToken || updateMutation.isPending || !displayName.trim()}
+                          onClick={handleSubmit((data) => updateMutation.mutate(data))}
+                          disabled={!csrfToken || updateMutation.isPending}
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {updateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
@@ -648,7 +673,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                 </section>
               </aside>
             </div>
-          </>
+          </SectionErrorBoundary>
         )) : null}
       </main>
     </div>

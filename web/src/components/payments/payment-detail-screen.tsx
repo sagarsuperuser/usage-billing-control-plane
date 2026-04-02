@@ -13,6 +13,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchDunningRunDetail, fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
 import { billingActionConfig, billingFailureDiagnosis, billingFailureEvidence, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
@@ -113,7 +114,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
               </Link>
             </section>
           ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -312,7 +313,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 </section>
               </aside>
             </div>
-          </>
+          </SectionErrorBoundary>
           )
         ) : null}
       </main>

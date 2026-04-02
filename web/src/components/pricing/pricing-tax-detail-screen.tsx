@@ -8,6 +8,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchTax } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -41,7 +42,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
             <Link href="/pricing/taxes" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"><ArrowLeft className="h-4 w-4" />Back to taxes</Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -83,7 +84,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
                 <GuidanceCard title="Next action" body="Apply active taxes through billing settings and keep code changes deliberate so invoice behavior stays explainable." />
               </aside>
             </div>
-          </>
+          </SectionErrorBoundary>
         ) : null}
       </main>
     </div>

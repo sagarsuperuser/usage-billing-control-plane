@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LoaderCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -255,9 +255,34 @@ function InventoryCell({ label, value }: { label: string; value: string }) {
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading invoices
+    <div className="grid gap-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_110px] lg:items-start">
+          <div className="min-w-0">
+            <Skeleton className="h-5 w-44" />
+            <Skeleton className="mt-2 h-4 w-36" />
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="mt-2 h-3 w-52" />
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-4 w-20" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-4 w-20" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="flex items-center justify-end">
+            <Skeleton className="h-3.5 w-8" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

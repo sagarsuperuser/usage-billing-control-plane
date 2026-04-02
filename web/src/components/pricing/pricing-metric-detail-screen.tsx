@@ -8,6 +8,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchPricingMetric } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -45,7 +46,7 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
             </Link>
           </section>
         ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -86,7 +87,7 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
                 <GuidanceCard title="Next action" body="Attach the metric to plans that price this usage record. Metric detail is for inspection, not day-to-day operator changes." />
               </aside>
             </div>
-          </>
+          </SectionErrorBoundary>
         ) : null}
       </main>
     </div>

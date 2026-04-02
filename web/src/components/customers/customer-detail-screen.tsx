@@ -9,6 +9,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   beginCustomerPaymentSetup,
   fetchCustomerBillingProfile,
@@ -21,6 +22,7 @@ import {
   updateCustomerBillingProfile,
 } from "@/lib/api";
 import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
+import { showError, showSuccess } from "@/lib/toast";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type CustomerBillingProfile, type CustomerBillingProfileInput } from "@/lib/types";
@@ -74,14 +76,22 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const retryMutation = useMutation({
     mutationFn: () => retryCustomerBillingSync({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
     onSuccess: async () => {
+      showSuccess("Billing sync retry initiated");
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
+    },
+    onError: (err: Error) => {
+      showError("Billing sync retry failed", err.message || "Could not retry billing sync.");
     },
   });
 
   const refreshMutation = useMutation({
     mutationFn: () => refreshCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
     onSuccess: async () => {
+      showSuccess("Payment setup refreshed");
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
+    },
+    onError: (err: Error) => {
+      showError("Refresh failed", err.message || "Could not refresh payment setup.");
     },
   });
   const beginSetupMutation = useMutation({
@@ -93,13 +103,21 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const requestSetupMutation = useMutation({
     mutationFn: () => requestCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
     onSuccess: async () => {
+      showSuccess("Payment setup request sent", "The customer will receive an email with the checkout link.");
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
+    },
+    onError: (err: Error) => {
+      showError("Request failed", err.message || "Could not send payment setup request.");
     },
   });
   const resendSetupMutation = useMutation({
     mutationFn: () => resendCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
     onSuccess: async () => {
+      showSuccess("Payment setup request resent", "A new checkout link has been sent to the customer.");
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
+    },
+    onError: (err: Error) => {
+      showError("Resend failed", err.message || "Could not resend payment setup request.");
     },
   });
   const billingProfileMutation = useMutation({
@@ -195,7 +213,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               </Link>
             </section>
           ) : (
-          <>
+          <SectionErrorBoundary>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -559,7 +577,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 </section>
               </aside>
             </div>
-          </>
+          </SectionErrorBoundary>
           )
         ) : null}
       </main>

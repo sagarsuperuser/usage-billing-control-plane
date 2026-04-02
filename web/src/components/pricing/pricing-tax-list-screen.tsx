@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, LoaderCircle, Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -9,6 +9,7 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTaxes } from "@/lib/api";
 import { type Tax } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -133,7 +134,36 @@ function OperatorCard({ title, body }: { title: string; body: string }) {
 }
 
 function LoadingState() {
-  return <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600"><LoaderCircle className="h-4 w-4 animate-spin" />Loading tax inventory</div>;
+  return (
+    <div className="grid gap-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.6fr))_auto] lg:items-center">
+          <div className="min-w-0">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="mt-2 h-3 w-24" />
+            <Skeleton className="mt-2 h-4 w-48" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-8" />
+            <Skeleton className="mt-2 h-4 w-12" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="mt-2 h-4 w-24" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-4 w-24" />
+          </div>
+          <Skeleton className="h-4 w-10" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function EmptyState() {

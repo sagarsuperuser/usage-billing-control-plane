@@ -243,7 +243,6 @@ export function TenantWorkspaceAccessScreen() {
   const disabledServiceAccounts = serviceAccounts.filter((account) => account.status === "disabled");
   const activeCredentialCount = serviceAccounts.reduce((sum, account) => sum + account.active_credential_count, 0);
   const serviceAccountsWithoutActiveCredentials = serviceAccounts.filter((account) => account.active_credential_count === 0).length;
-  const reviewQueueCount = pendingInvitations.length + disabledMembers.length + disabledServiceAccounts.length;
   const selectedMemberIDValue = selectedMemberID || members[0]?.user_id || "";
   const selectedMember = members.find((member) => member.user_id === selectedMemberIDValue) ?? members[0] ?? null;
   const selectedServiceAccountCredentials = selectedServiceAccount?.credentials ?? [];
@@ -390,55 +389,36 @@ export function TenantWorkspaceAccessScreen() {
 
         {isAuthenticated && scope === "tenant" && isAdmin ? (
           <>
-            <section className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_42%,#e2e8f0_42%,#f8fafc_100%)] p-[1px] shadow-sm">
-              <div className="rounded-[27px] bg-white">
-                <div className="grid gap-5 rounded-[27px] bg-[radial-gradient(circle_at_top_left,rgba(15,23,42,0.06),transparent_34%),linear-gradient(180deg,#ffffff,rgba(248,250,252,0.98))] p-6 lg:grid-cols-[1.15fr_0.85fr]">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Workspace access governance</p>
-                    <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Identity, credentials, and audit evidence in one operating console</h1>
-                    <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-                      Keep human access, machine credentials, and credential evidence under one review path. Use people access for operators, service accounts for automation, and audit events for evidence.
-                    </p>
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => scrollToSection(peopleSectionRef)}
-                        className="inline-flex h-10 items-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800"
-                      >
-                        People access
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => scrollToSection(machineSectionRef)}
-                        className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
-                      >
-                        Machine access
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => scrollToSection(auditSectionRef)}
-                        className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
-                      >
-                        Audit evidence
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current posture</p>
-                      <p className="mt-2 text-lg font-semibold text-slate-950">
-                        {reviewQueueCount > 0 ? "Attention required" : "Controlled"}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-600">
-                        {pendingInvitations.length} pending invite{pendingInvitations.length === 1 ? "" : "s"} · {disabledServiceAccounts.length} disabled machine identit{disabledServiceAccounts.length === 1 ? "y" : "ies"} · {disabledMembers.length} inactive member{disabledMembers.length === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <DetailField label="Admin coverage" value={`${activeAdminCount} active admin${activeAdminCount === 1 ? "" : "s"}`} className="bg-white" />
-                      <DetailField label="Review queue" value={`${reviewQueueCount} item${reviewQueueCount === 1 ? "" : "s"}`} className="bg-white" />
-                    </div>
-                  </div>
-                </div>
+            <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">People, machine identities, and audit controls</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                  Manage human access, service accounts, and credential evidence from one workspace console.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(peopleSectionRef)}
+                  className="inline-flex h-10 items-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800"
+                >
+                  People
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(machineSectionRef)}
+                  className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
+                >
+                  Machine
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(auditSectionRef)}
+                  className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
+                >
+                  Audit
+                </button>
               </div>
             </section>
 
@@ -447,12 +427,6 @@ export function TenantWorkspaceAccessScreen() {
               <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} hint="People waiting for workspace entry" />
               <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} hint={`${disabledServiceAccounts.length} disabled identities`} />
               <SummaryMetric label="Active credentials" value={String(activeCredentialCount)} hint="Machine secrets currently usable" />
-            </section>
-
-            <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorGuidanceCard title="Human access" body="Keep role changes, suspensions, and invitations in one review lane. Avoid mixing person access with credential inventory." />
-              <OperatorGuidanceCard title="Machine access" body="Each service account should map to one automation job, clear purpose, and explicit environment." />
-              <OperatorGuidanceCard title="Evidence path" body="Review the event trail before exporting CSV. Evidence should follow the service account you are changing." />
             </section>
 
             <section ref={peopleSectionRef} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -742,7 +716,7 @@ export function TenantWorkspaceAccessScreen() {
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Machine access</p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Machine identities</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Use one identity per automation path. Review posture here, then issue, rotate, or revoke credentials from the selected identity panel.</p>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Review automation identities, then issue or rotate credentials from the selected identity.</p>
                 </div>
                 <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
                   <DetailField label="Disabled identities" value={`${disabledServiceAccounts.length}`} className="bg-white" />
@@ -755,7 +729,7 @@ export function TenantWorkspaceAccessScreen() {
                   <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Service accounts</p>
-                      <p className="mt-1 text-sm text-slate-600">Pick an identity to inspect its controls and credential history.</p>
+                      <p className="mt-1 text-sm text-slate-600">Select an identity to inspect controls, credentials, and audit history.</p>
                     </div>
                     <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
                   </div>
@@ -774,16 +748,15 @@ export function TenantWorkspaceAccessScreen() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="truncate text-sm font-semibold text-slate-950">{account.name}</p>
+                                  <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
                                   {selected ? <StatusChip tone="info">Selected</StatusChip> : null}
+                                  {account.active_credential_count === 0 ? <StatusChip tone="warning">No active credential</StatusChip> : null}
                                 </div>
                                 <p className="mt-1 break-words text-sm text-slate-600">{account.description || "No description recorded."}</p>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  <StatusChip tone="neutral">{formatServiceAccountRole(account.role)}</StatusChip>
-                                  <StatusChip tone="neutral">{(account.environment || "unspecified").toUpperCase()}</StatusChip>
-                                  <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
-                                  <StatusChip tone={account.active_credential_count === 0 ? "warning" : "info"}>
-                                    {account.active_credential_count} credential{account.active_credential_count === 1 ? "" : "s"}
-                                  </StatusChip>
+                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                                  <span>Role: {formatServiceAccountRole(account.role)}</span>
+                                  <span>Environment: {(account.environment || "unspecified").toUpperCase()}</span>
+                                  <span>Credentials: {account.active_credential_count}</span>
                                 </div>
                               </div>
                               <div className="flex flex-wrap gap-2 xl:justify-end">
@@ -917,7 +890,7 @@ export function TenantWorkspaceAccessScreen() {
                           className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                          Issue
+                          Issue credential
                         </button>
                         <button
                           type="button"
@@ -1241,15 +1214,6 @@ function StatusChip({
     <span className={`inline-flex h-7 items-center rounded-full border px-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] ${toneClassName}`}>
       {children}
     </span>
-  );
-}
-
-function OperatorGuidanceCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 

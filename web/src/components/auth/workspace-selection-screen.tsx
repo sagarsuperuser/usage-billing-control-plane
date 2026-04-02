@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchPendingWorkspaceSelection, selectPendingWorkspace } from "@/lib/api";
-import { buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
+import { buildAccessSwitchPath, buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import { useSessionStore } from "@/store/use-session-store";
 
 export function WorkspaceSelectionScreen() {
@@ -71,7 +71,7 @@ export function WorkspaceSelectionScreen() {
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
-                href={buildLoginPath(requestedNext || "/customers")}
+                href={buildAccessSwitchPath(requestedNext || "/customers")}
                 className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm font-medium text-slate-800 transition hover:border-stone-300 hover:bg-white"
               >
                 Return to login
@@ -126,7 +126,7 @@ export function WorkspaceSelectionScreen() {
           {selectMutation.error ? <p className="mt-4 text-xs text-rose-700">{selectMutation.error.message}</p> : null}
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
-              href={buildLoginPath(requestedNext || "/customers")}
+              href={buildAccessSwitchPath(requestedNext || "/customers")}
               className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
             >
               Start over

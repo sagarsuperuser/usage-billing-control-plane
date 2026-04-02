@@ -1,13 +1,22 @@
 "use client";
 
-import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { LoaderCircle, LogIn } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import type { UISession, UIAuthProvider } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 import { isInvitationPendingLoginError, isWorkspaceSelectionRequiredError } from "@/lib/api";
 import { normalizeNextPath } from "@/lib/session-routing";
+
+const loginSchema = z.object({
+  email: z.string().email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginFields = z.infer<typeof loginSchema>;
 
 export function SessionLoginCard({
   apiBaseURL,
@@ -31,32 +40,39 @@ export function SessionLoginCard({
   nextPath?: string | null;
 }) {
   const { login, loggingIn, loginError, isLoading, configError } = useUISession();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setErrorMessage("");
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFields>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit = async (data: LoginFields) => {
     try {
-      const session = await login({ email, password, nextPath: nextPath ?? undefined });
-      setPassword("");
+      const session = await login({ email: data.email, password: data.password, nextPath: nextPath ?? undefined });
+      reset();
       onSuccess?.(session);
     } catch (err) {
       if (isWorkspaceSelectionRequiredError(err)) {
-        setPassword("");
+        reset({ email: data.email });
         onSelectionRequired?.();
         return;
       }
       if (isInvitationPendingLoginError(err)) {
-        setPassword("");
+        reset({ email: data.email });
         onInvitationPending?.(err.nextPath);
         return;
       }
       const message = err instanceof Error ? err.message : "Sign-in failed";
-      setErrorMessage(message);
+      setError("root", { message });
     }
   };
+
+  const busy = isSubmitting || loggingIn || isLoading;
 
   return (
     <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 text-sm text-slate-800 shadow-sm">
@@ -125,29 +141,37 @@ export function SessionLoginCard({
         <div className="h-px flex-1 bg-stone-200" />
       </div>
 
-      <form className="mt-5 grid gap-4" onSubmit={onSubmit}>
+      <form className="mt-5 grid gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid gap-1.5">
             <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Email</label>
             <input
               type="email"
               data-testid="session-login-email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
               placeholder="operator@alpha.test"
-              className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+              autoComplete="email"
+              className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
+              aria-invalid={errors.email ? "true" : undefined}
+              {...register("email")}
             />
+            {errors.email ? (
+              <p className="text-xs text-rose-600">{errors.email.message}</p>
+            ) : null}
           </div>
-          <div className="grid gap-2">
+          <div className="grid gap-1.5">
             <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Password</label>
             <input
               type="password"
               data-testid="session-login-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
               placeholder="Your account password"
-              className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+              autoComplete="current-password"
+              className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
+              aria-invalid={errors.password ? "true" : undefined}
+              {...register("password")}
             />
+            {errors.password ? (
+              <p className="text-xs text-rose-600">{errors.password.message}</p>
+            ) : null}
           </div>
         </div>
 
@@ -155,13 +179,14 @@ export function SessionLoginCard({
           <button
             type="submit"
             data-testid="session-login-submit"
-            disabled={!email.trim() || !password.trim() || loggingIn || isLoading || Boolean(configError)}
+            disabled={busy || Boolean(configError)}
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loggingIn ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+            {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             Start session
           </button>
         </div>
+
         {passwordResetEnabled ? (
           <div className="flex justify-end">
             <Link href="/forgot-password" className="text-xs text-slate-600 transition hover:text-slate-900">
@@ -175,8 +200,8 @@ export function SessionLoginCard({
         Runtime API endpoint is resolved automatically for this deployment.
       </p>
       {configError ? <p className="mt-3 text-xs text-rose-700">{configError.message}</p> : null}
-      {!configError && (errorMessage || loginError?.message) ? (
-        <p className="mt-3 text-xs text-rose-700">{errorMessage || loginError?.message}</p>
+      {!configError && (errors.root?.message || loginError?.message) ? (
+        <p className="mt-3 text-xs text-rose-700">{errors.root?.message || loginError?.message}</p>
       ) : null}
     </section>
   );

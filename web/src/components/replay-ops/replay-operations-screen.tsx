@@ -21,6 +21,7 @@ import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryReplayJob } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 import { type ReplayJob } from "@/lib/types";
 
@@ -124,6 +125,9 @@ export function ReplayOperationsScreen() {
         queryClient.invalidateQueries({ queryKey: ["replay-job-diagnostics", apiBaseURL, payload.job.id] }),
       ]);
     },
+    onError: (err: Error) => {
+      showError("Replay queue failed", err.message || "Could not queue replay job.");
+    },
   });
 
   const retryMutation = useMutation({
@@ -141,6 +145,9 @@ export function ReplayOperationsScreen() {
         queryClient.invalidateQueries({ queryKey: ["replay-jobs"] }),
         queryClient.invalidateQueries({ queryKey: ["replay-job-diagnostics", apiBaseURL, job.id] }),
       ]);
+    },
+    onError: (err: Error) => {
+      showError("Retry failed", err.message || "Could not retry replay job.");
     },
   });
 

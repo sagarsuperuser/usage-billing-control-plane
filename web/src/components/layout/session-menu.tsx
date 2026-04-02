@@ -2,13 +2,16 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LoaderCircle, LogOut, PanelsTopLeft, UserRoundCog } from "lucide-react";
 
 import { useUISession } from "@/hooks/use-ui-session";
+import { buildAccessSwitchPath } from "@/lib/session-routing";
 
 export function SessionMenu() {
   const { session, scope, platformRole, csrfToken, logout, loggingOut } = useUISession();
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -42,6 +45,7 @@ export function SessionMenu() {
   const homeHref = scope === "platform" ? "/billing-connections" : "/customers";
   const secondaryHref = scope === "platform" ? "/workspaces" : "/workspace-access";
   const secondaryLabel = scope === "platform" ? "Open workspaces" : "Open access";
+  const accessSwitchHref = buildAccessSwitchPath(pathname || homeHref);
   const closeMenu = () => {
     if (detailsRef.current?.open) {
       detailsRef.current.open = false;
@@ -89,7 +93,7 @@ export function SessionMenu() {
             {secondaryLabel}
           </Link>
           <Link
-            href="/login"
+            href={accessSwitchHref}
             prefetch={false}
             onClick={closeMenu}
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 transition hover:bg-amber-100"

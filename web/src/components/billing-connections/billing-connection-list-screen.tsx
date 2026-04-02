@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { LoaderCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchBillingProviderConnections } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { type BillingProviderConnection } from "@/lib/types";
@@ -228,9 +229,34 @@ function OperatorLine({ title, body }: { title: string; body: string }) {
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 py-6 text-sm text-slate-600">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading billing connections
+    <div className="divide-y divide-stone-200">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="grid gap-4 py-4 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,0.5fr))] lg:items-start">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+            <Skeleton className="mt-2 h-4 w-64" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-4 w-16" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-2 h-4 w-8" />
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-4 w-24" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

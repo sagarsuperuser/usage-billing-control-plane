@@ -7,7 +7,6 @@ import {
   Activity,
   Building2,
   CreditCard,
-  LoaderCircle,
   ReceiptText,
   ShieldCheck,
   UserRoundPlus,
@@ -16,6 +15,7 @@ import {
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchBillingProviderConnections,
   fetchCustomerReadiness,
@@ -307,9 +307,16 @@ export function ControlPlaneOverviewScreen() {
                 />
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {summaryCards.map((item) => (
-                  <SummaryCard key={item.label} label={item.label} value={item.value} tone={item.tone} />
-                ))}
+                {attentionLoading || isLoading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="mt-3 h-8 w-12" />
+                      </div>
+                    ))
+                  : summaryCards.map((item) => (
+                      <SummaryCard key={item.label} label={item.label} value={item.value} tone={item.tone} />
+                    ))}
               </div>
             </div>
 
@@ -351,9 +358,16 @@ export function ControlPlaneOverviewScreen() {
               </div>
             </div>
             {isLoading || attentionLoading ? (
-              <div className="mt-5 flex items-center gap-2 text-sm text-slate-600">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading live attention data
+              <div className="mt-5 divide-y divide-stone-200">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div className="min-w-0 flex-1">
+                      <Skeleton className="h-3.5 w-40" />
+                      <Skeleton className="mt-2 h-3 w-56" />
+                    </div>
+                    <Skeleton className="h-7 w-10 shrink-0 rounded-2xl" />
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="mt-5 divide-y divide-stone-200">
