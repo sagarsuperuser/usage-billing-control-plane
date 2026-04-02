@@ -408,23 +408,23 @@ export function TenantWorkspaceAccessScreen() {
                 <button
                   type="button"
                   onClick={() => scrollToSection(peopleSectionRef)}
-                  className="inline-flex h-10 items-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800"
+                  className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
                 >
-                  People
+                  Members
                 </button>
                 <button
                   type="button"
                   onClick={() => scrollToSection(machineSectionRef)}
-                  className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
+                  className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
                 >
-                  Machine
+                  Service accounts
                 </button>
                 <button
                   type="button"
                   onClick={() => scrollToSection(auditSectionRef)}
-                  className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-stone-100"
+                  className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
                 >
-                  Audit
+                  Audit log
                 </button>
               </div>
             </section>
@@ -439,8 +439,7 @@ export function TenantWorkspaceAccessScreen() {
             <section ref={peopleSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Human access</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Members</h2>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Members</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
                     Invite people, manage roles, and remove access.
                   </p>
@@ -453,11 +452,10 @@ export function TenantWorkspaceAccessScreen() {
 
               <div className="mt-6 grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
                 <div className="grid gap-4">
-                  <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                  <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                     <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current members</p>
-                        <p className="mt-1 text-sm text-slate-600">Workspace operator inventory with direct role and status review.</p>
+                        <p className="text-sm font-semibold text-slate-900">Members</p>
                       </div>
                       <PaginationControls page={pagedMembers.page} totalPages={pagedMembers.totalPages} onPageChange={setMemberPage} label="Current members" />
                     </div>
@@ -502,11 +500,10 @@ export function TenantWorkspaceAccessScreen() {
                     )}
                   </section>
 
-                  <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                  <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                     <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Pending invites</p>
-                        <p className="mt-1 text-sm text-slate-600">Temporary access links waiting for acceptance.</p>
+                        <p className="text-sm font-semibold text-slate-900">Pending invites</p>
                       </div>
                       <PaginationControls page={pagedInvitations.page} totalPages={pagedInvitations.totalPages} onPageChange={setInvitePage} label="Pending invites" />
                     </div>
@@ -543,8 +540,8 @@ export function TenantWorkspaceAccessScreen() {
                 </div>
 
                 <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
-                  <section className="rounded-2xl border border-stone-200 bg-white p-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Invite operator</p>
+                  <section className="rounded-xl border border-stone-200 bg-white p-5">
+                    <p className="text-sm font-semibold text-slate-900">Invite a member</p>
                     <div className="mt-4 grid gap-3">
                       <input
                         {...registerInvite("email")}
@@ -572,8 +569,8 @@ export function TenantWorkspaceAccessScreen() {
                       </button>
                     </div>
                     {latestInviteURL ? (
-                      <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">New invite link</p>
+                      <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+                        <p className="text-xs font-medium text-slate-500">Invite link — share with the person you invited</p>
                         <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
                         <button
                           type="button"
@@ -590,7 +587,7 @@ export function TenantWorkspaceAccessScreen() {
                   </section>
 
                   {selectedMember ? (
-                    <section className="rounded-2xl border border-stone-200 bg-white p-5">
+                    <section className="rounded-xl border border-stone-200 bg-white p-5">
                       {(() => {
                         const draftRole = memberDraftRoles[selectedMember.user_id] ?? (selectedMember.role as "reader" | "writer" | "admin");
                         const roleDirty = draftRole !== selectedMember.role;
@@ -614,15 +611,14 @@ export function TenantWorkspaceAccessScreen() {
                           <>
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Selected member</p>
-                                <h3 className="mt-2 truncate text-lg font-semibold text-slate-950">{selectedMember.display_name}</h3>
+                                <h3 className="truncate text-lg font-semibold text-slate-950">{selectedMember.display_name}</h3>
                                 <p className="mt-1 break-all text-sm text-slate-600">{selectedMember.email}</p>
                               </div>
                               <StatusChip tone={selectedMember.status === "active" ? "success" : "neutral"}>{selectedMember.status}</StatusChip>
                             </div>
                             <div className="mt-4 grid gap-3 sm:grid-cols-2">
                               <DetailField label="Current role" value={selectedMember.role} />
-                              <DetailField label="Operator flags" value={selfMember ? "Self" : lastAdminProtected ? "Last active admin" : "Standard"} />
+                              <DetailField label="Notes" value={selfMember ? "This is you" : lastAdminProtected ? "Last active admin" : "—"} />
                             </div>
                             <div className="mt-4 grid gap-3">
                               <select
@@ -647,7 +643,7 @@ export function TenantWorkspaceAccessScreen() {
                                     type="button"
                                     onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: draftRole })}
                                     disabled={!canApplyRole}
-                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     Apply role
                                   </button>
@@ -660,7 +656,7 @@ export function TenantWorkspaceAccessScreen() {
                                         return next;
                                       })
                                     }
-                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
                                   >
                                     Cancel
                                   </button>
@@ -672,7 +668,7 @@ export function TenantWorkspaceAccessScreen() {
                                       type="button"
                                       onClick={() => removeMemberMutation.mutate(selectedMember.user_id)}
                                       disabled={!canSuspend}
-                                      className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-700 bg-rose-700 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                      className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-700 bg-rose-700 px-4 text-sm font-medium text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                       Confirm suspend
                                     </button>
@@ -689,7 +685,7 @@ export function TenantWorkspaceAccessScreen() {
                                     type="button"
                                     onClick={() => setConfirmingMemberAction({ userID: selectedMember.user_id, action: "suspend" })}
                                     disabled={!canSuspend}
-                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     Suspend member
                                   </button>
@@ -699,9 +695,9 @@ export function TenantWorkspaceAccessScreen() {
                                   type="button"
                                   onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: selectedMember.role as "reader" | "writer" | "admin" })}
                                   disabled={!canReactivate}
-                                  className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  Reactivate member
+                                  Reactivate
                                 </button>
                               )}
                               {selfMember ? <p className="text-xs text-slate-500">You cannot change your own membership from this screen.</p> : null}
@@ -719,8 +715,7 @@ export function TenantWorkspaceAccessScreen() {
             <section ref={machineSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Machine access</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Service accounts</h2>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Service accounts</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">API identities for automation and integrations. Issue or rotate credentials as needed.</p>
                 </div>
                 <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
@@ -730,7 +725,7 @@ export function TenantWorkspaceAccessScreen() {
               </div>
 
               <div className="mt-6 grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
-                <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                   <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Service accounts</p>
@@ -760,7 +755,7 @@ export function TenantWorkspaceAccessScreen() {
                                 <p className="mt-1 break-words text-sm text-slate-600">{account.description || "No description recorded."}</p>
                                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                                   <span>Role: {formatServiceAccountRole(account.role)}</span>
-                                  <span>Environment: {(account.environment || "unspecified").toUpperCase()}</span>
+                                  <span>Environment: {account.environment || "Unspecified"}</span>
                                   <span>Credentials: {account.active_credential_count}</span>
                                 </div>
                               </div>
@@ -795,7 +790,7 @@ export function TenantWorkspaceAccessScreen() {
                 </div>
 
                 <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
-                  <section className="rounded-2xl border border-stone-200 bg-white p-5">
+                  <section className="rounded-xl border border-stone-200 bg-white p-5">
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Create service account</p>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <input
@@ -842,35 +837,34 @@ export function TenantWorkspaceAccessScreen() {
                       </button>
                     </div>
                     {latestCredentialSecret ? (
-                      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-emerald-700">Latest issued secret</p>
-                        <p className="mt-2 text-xs font-medium text-slate-800">{latestCredentialSecret.label}</p>
-                        <p className="mt-2 break-all font-mono text-xs text-slate-700">{latestCredentialSecret.secret}</p>
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                        <p className="text-xs font-semibold text-amber-800">Copy this secret now — it won&apos;t be shown again</p>
+                        <p className="mt-1.5 text-xs text-slate-600">{latestCredentialSecret.label}</p>
+                        <p className="mt-2 break-all rounded-lg border border-amber-100 bg-white px-3 py-2 font-mono text-xs text-slate-800">{latestCredentialSecret.secret}</p>
                         <button
                           type="button"
                           onClick={() => {
                             void navigator.clipboard.writeText(latestCredentialSecret.secret);
                           }}
-                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs text-emerald-700 transition hover:bg-emerald-100"
+                          className="mt-3 inline-flex h-8 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
                         >
                           <Copy className="h-3.5 w-3.5" />
-                          Copy secret
+                          Copy
                         </button>
                       </div>
                     ) : null}
                   </section>
 
                   {selectedServiceAccount ? (
-                  <section className="rounded-2xl border border-stone-200 bg-white p-5">
+                  <section className="rounded-xl border border-stone-200 bg-white p-5">
                     <div className="flex flex-col gap-4">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected identity</p>
-                        <p className="mt-2 text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
+                        <p className="text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
                         <p className="mt-1 break-words text-sm text-slate-600">{selectedServiceAccount.description || "No description recorded."}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <StatusChip tone={selectedServiceAccount.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(selectedServiceAccount.status)}</StatusChip>
                           <StatusChip tone="neutral">{formatServiceAccountRole(selectedServiceAccount.role)}</StatusChip>
-                          <StatusChip tone="neutral">{(selectedServiceAccount.environment || "unspecified").toUpperCase()}</StatusChip>
+                          <StatusChip tone="neutral">{selectedServiceAccount.environment || "Unspecified"}</StatusChip>
                           <StatusChip tone="info">
                             {selectedServiceAccount.active_credential_count} active credential{selectedServiceAccount.active_credential_count === 1 ? "" : "s"}
                           </StatusChip>
@@ -887,7 +881,7 @@ export function TenantWorkspaceAccessScreen() {
                           type="button"
                           onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)}
                           disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-3 text-xs uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
                           Issue credential
@@ -895,10 +889,10 @@ export function TenantWorkspaceAccessScreen() {
                         <button
                           type="button"
                           onClick={() => openAudit(selectedServiceAccount.id)}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
                         >
                           <ShieldCheck className="h-3.5 w-3.5" />
-                          Audit
+                          Audit log
                         </button>
                         <button
                           type="button"
@@ -909,7 +903,7 @@ export function TenantWorkspaceAccessScreen() {
                             })
                           }
                           disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <ShieldOff className="h-3.5 w-3.5" />
                           {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
@@ -920,12 +914,12 @@ export function TenantWorkspaceAccessScreen() {
                     <div className="mt-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Current credentials</p>
-                          <p className="mt-1 text-sm text-slate-600">Review issue, rotation, and revocation state.</p>
+                          <p className="text-sm font-semibold text-slate-900">Credentials</p>
+                          <p className="mt-1 text-sm text-slate-500">Issue, rotate, or revoke access credentials.</p>
                         </div>
                         <PaginationControls page={pagedCredentials.page} totalPages={pagedCredentials.totalPages} onPageChange={setCredentialPage} label="Credentials" />
                       </div>
-                      <div className="mt-3 overflow-hidden rounded-2xl border border-stone-200">
+                      <div className="mt-3 overflow-hidden rounded-xl border border-stone-200">
                         {pagedCredentials.items.length > 0 ? (
                           <>
                             <div className="hidden grid-cols-[minmax(0,1.5fr)_150px_160px_130px_170px] gap-4 bg-stone-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
@@ -987,8 +981,8 @@ export function TenantWorkspaceAccessScreen() {
                     </div>
                   </section>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
-                    Create a service account to review credential posture and machine access.
+                  <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
+                    Select or create a service account to manage its credentials.
                   </div>
                 )}
                 </div>
@@ -998,8 +992,7 @@ export function TenantWorkspaceAccessScreen() {
             <section ref={auditSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Audit evidence</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Audit log</h2>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Audit log</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Credential and access events. Export for compliance when needed.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1007,7 +1000,7 @@ export function TenantWorkspaceAccessScreen() {
                     aria-label="Audit service account"
                     value={selectedAuditServiceAccountIDValue}
                     onChange={(event) => setSelectedAuditServiceAccountID(event.target.value)}
-                    className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
+                    className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
                   >
                     {serviceAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
@@ -1019,19 +1012,19 @@ export function TenantWorkspaceAccessScreen() {
                     type="button"
                     onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
                     disabled={!selectedAuditServiceAccountIDValue}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Download audit CSV
+                    Export CSV
                   </button>
                 </div>
               </div>
               {selectedAuditServiceAccount ? (
-                <div className="mt-4 grid gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 sm:grid-cols-3">
-                  <DetailField label="Audit focus" value={selectedAuditServiceAccount.name} className="bg-white" />
+                <div className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 sm:grid-cols-3">
+                  <DetailField label="Service account" value={selectedAuditServiceAccount.name} className="bg-white" />
                   <DetailField
-                    label="Credential posture"
-                    value={`${selectedAuditServiceAccount.active_credential_count} active credential${selectedAuditServiceAccount.active_credential_count === 1 ? "" : "s"}`}
+                    label="Active credentials"
+                    value={`${selectedAuditServiceAccount.active_credential_count} credential${selectedAuditServiceAccount.active_credential_count === 1 ? "" : "s"}`}
                     className="bg-white"
                   />
                   <DetailField
@@ -1045,11 +1038,11 @@ export function TenantWorkspaceAccessScreen() {
               )}
               {selectedAuditServiceAccount ? (
                 <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                  <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="border-b border-stone-200 bg-stone-50 px-4 py-4 sm:flex-1 sm:border-b-0">
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Recent events</p>
-                        <p className="mt-1 text-sm text-slate-600">Page through the credential event timeline.</p>
+                        <p className="text-sm font-semibold text-slate-900">Recent events</p>
+                        <p className="mt-1 text-sm text-slate-500">Credential issue, rotation, and revocation history.</p>
                       </div>
                       <div className="px-4 pb-4 sm:pb-0 sm:pr-4">
                         <CursorPaginationControls
@@ -1079,7 +1072,7 @@ export function TenantWorkspaceAccessScreen() {
                   </div>
                   <div className="grid gap-4">
                     <ServiceAccountAuditDetail event={selectedAuditEvent} />
-                    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="border-b border-stone-200 bg-stone-50 px-4 py-4 sm:flex-1 sm:border-b-0">
                           <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Scheduled exports</p>
@@ -1184,7 +1177,7 @@ function ServiceAccountAuditRow({
 
 function SummaryMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
+    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
@@ -1211,7 +1204,7 @@ function StatusChip({
             : "border-stone-200 bg-stone-100 text-slate-700";
 
   return (
-    <span className={`inline-flex h-7 items-center rounded-full border px-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] ${toneClassName}`}>
+    <span className={`inline-flex h-7 items-center rounded-full border px-2.5 text-[11px] font-semibold ${toneClassName}`}>
       {children}
     </span>
   );
@@ -1220,7 +1213,7 @@ function StatusChip({
 function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }) {
   if (!event) {
     return (
-      <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-6 text-sm text-slate-600">
+      <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-6 text-sm text-slate-600">
         Select an audit event to inspect the full credential record.
       </div>
     );
@@ -1243,7 +1236,7 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
     .sort(([left], [right]) => left.localeCompare(right));
 
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
+    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
       <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected event</p>
       <p className="mt-2 text-lg font-semibold text-slate-950">{presentation.title}</p>
       <p className="mt-2 text-sm text-slate-700">{presentation.summary}</p>
@@ -1260,7 +1253,7 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
           <DetailField label="Credential name" value={credentialName || "No display name recorded"} />
           <DetailField label="Access role" value={role ? formatServiceAccountRole(role as "reader" | "writer" | "admin") : "Not recorded"} />
           <DetailField label="Intended use" value={purpose || "Not recorded"} />
-          <DetailField label="Environment" value={environment ? environment.toUpperCase() : "Not recorded"} />
+          <DetailField label="Environment" value={environment || "Not recorded"} />
         </div>
       </div>
 

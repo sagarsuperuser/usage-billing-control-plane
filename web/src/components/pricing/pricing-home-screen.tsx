@@ -174,9 +174,8 @@ export function PricingHomeScreen() {
                   <div className="border-b border-slate-200 px-6 py-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Catalog inventory</p>
-                        <h2 className="mt-1 text-xl font-semibold text-slate-950">Pricing records</h2>
-                        <p className="mt-2 text-sm text-slate-600">One row per pricing domain with current inventory, operating posture, and direct actions.</p>
+                        <h2 className="text-xl font-semibold text-slate-950">Pricing setup</h2>
+                        <p className="mt-1 text-sm text-slate-600">Configure metrics, plans, add-ons, coupons, and taxes for your workspace.</p>
                       </div>
                     </div>
                   </div>
@@ -184,7 +183,7 @@ export function PricingHomeScreen() {
                   <div className="hidden grid-cols-[180px_110px_minmax(0,1fr)_auto] gap-4 border-b border-slate-200 px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 lg:grid">
                     <span>Domain</span>
                     <span>Count</span>
-                    <span>Current posture</span>
+                    <span>Status</span>
                     <span>Actions</span>
                   </div>
 
