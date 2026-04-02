@@ -1,6 +1,9 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   ChevronLeft,
   ChevronRight,
@@ -48,13 +51,20 @@ export function TenantWorkspaceAccessScreen() {
   const peopleSectionRef = useRef<HTMLElement | null>(null);
   const machineSectionRef = useRef<HTMLElement | null>(null);
   const auditSectionRef = useRef<HTMLElement | null>(null);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"reader" | "writer" | "admin">("writer");
-  const [serviceAccountName, setServiceAccountName] = useState("");
-  const [serviceAccountDescription, setServiceAccountDescription] = useState("");
-  const [serviceAccountRole, setServiceAccountRole] = useState<"reader" | "writer" | "admin">("writer");
-  const [serviceAccountPurpose, setServiceAccountPurpose] = useState("");
-  const [serviceAccountEnvironment, setServiceAccountEnvironment] = useState("prod");
+  const { register: registerInvite, handleSubmit: handleInviteSubmit, reset: resetInvite } = useForm({
+    resolver: zodResolver(z.object({ email: z.string().email(), role: z.enum(["reader", "writer", "admin"]) })),
+    defaultValues: { email: "", role: "writer" as const },
+  });
+  const { register: registerSA, handleSubmit: handleSASubmit, reset: resetSA } = useForm({
+    resolver: zodResolver(z.object({
+      name: z.string().min(1),
+      description: z.string(),
+      role: z.enum(["reader", "writer", "admin"]),
+      purpose: z.string().min(1),
+      environment: z.string().min(1),
+    })),
+    defaultValues: { name: "", description: "", role: "writer" as const, purpose: "", environment: "prod" },
+  });
   const [latestCredentialSecret, setLatestCredentialSecret] = useState<{ label: string; secret: string } | null>(null);
   const [selectedMemberID, setSelectedMemberID] = useState("");
   const [selectedServiceAccountID, setSelectedServiceAccountID] = useState("");
@@ -94,15 +104,15 @@ export function TenantWorkspaceAccessScreen() {
   });
 
   const createInvitationMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { email: string; role: "reader" | "writer" | "admin" }) =>
       createTenantWorkspaceInvitation({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
-        email: inviteEmail,
-        role: inviteRole,
+        email: data.email,
+        role: data.role,
       }),
     onSuccess: async () => {
-      setInviteEmail("");
+      resetInvite();
       await queryClient.invalidateQueries({ queryKey: invitationQueryKey });
     },
   });
@@ -148,22 +158,19 @@ export function TenantWorkspaceAccessScreen() {
     },
   });
   const createServiceAccountMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { name: string; description: string; role: "reader" | "writer" | "admin"; purpose: string; environment: string }) =>
       createTenantWorkspaceServiceAccount({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
-        name: serviceAccountName,
-        description: serviceAccountDescription,
-        role: serviceAccountRole,
-        purpose: serviceAccountPurpose,
-        environment: serviceAccountEnvironment,
+        name: data.name,
+        description: data.description,
+        role: data.role,
+        purpose: data.purpose,
+        environment: data.environment,
         issueInitialCredential: true,
       }),
     onSuccess: async (payload) => {
-      setServiceAccountName("");
-      setServiceAccountDescription("");
-      setServiceAccountPurpose("");
-      setServiceAccountEnvironment("prod");
+      resetSA();
       setSelectedServiceAccountID(payload.service_account.id);
       setSelectedAuditServiceAccountID(payload.service_account.id);
       if (payload.secret) {
@@ -540,16 +547,14 @@ export function TenantWorkspaceAccessScreen() {
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Invite operator</p>
                     <div className="mt-4 grid gap-3">
                       <input
+                        {...registerInvite("email")}
                         type="email"
-                        value={inviteEmail}
-                        onChange={(event) => setInviteEmail(event.target.value)}
                         placeholder="teammate@example.com"
                         className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       />
                       <select
+                        {...registerInvite("role")}
                         aria-label="Workspace role"
-                        value={inviteRole}
-                        onChange={(event) => setInviteRole(event.target.value as "reader" | "writer" | "admin")}
                         className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       >
                         <option value="admin">Admin</option>
@@ -558,8 +563,8 @@ export function TenantWorkspaceAccessScreen() {
                       </select>
                       <button
                         type="button"
-                        onClick={() => createInvitationMutation.mutate()}
-                        disabled={!csrfToken || !inviteEmail.trim() || createInvitationMutation.isPending}
+                        onClick={handleInviteSubmit((data) => createInvitationMutation.mutate(data))}
+                        disabled={!csrfToken || createInvitationMutation.isPending}
                         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
@@ -794,16 +799,14 @@ export function TenantWorkspaceAccessScreen() {
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Create service account</p>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <input
+                        {...registerSA("name")}
                         type="text"
-                        value={serviceAccountName}
-                        onChange={(event) => setServiceAccountName(event.target.value)}
                         placeholder="Acme ERP Sync"
                         className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       />
                       <select
+                        {...registerSA("role")}
                         aria-label="Service account role"
-                        value={serviceAccountRole}
-                        onChange={(event) => setServiceAccountRole(event.target.value as "reader" | "writer" | "admin")}
                         className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       >
                         <option value="admin">Admin</option>
@@ -811,30 +814,27 @@ export function TenantWorkspaceAccessScreen() {
                         <option value="reader">Reader</option>
                       </select>
                       <input
+                        {...registerSA("purpose")}
                         type="text"
-                        value={serviceAccountPurpose}
-                        onChange={(event) => setServiceAccountPurpose(event.target.value)}
                         placeholder="erp-sync"
                         className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       />
                       <input
+                        {...registerSA("environment")}
                         type="text"
-                        value={serviceAccountEnvironment}
-                        onChange={(event) => setServiceAccountEnvironment(event.target.value)}
                         placeholder="prod"
                         className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       />
                       <textarea
-                        value={serviceAccountDescription}
-                        onChange={(event) => setServiceAccountDescription(event.target.value)}
+                        {...registerSA("description")}
                         placeholder="What this credential is for"
                         rows={3}
                         className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                       />
                       <button
                         type="button"
-                        onClick={() => createServiceAccountMutation.mutate()}
-                        disabled={!csrfToken || !serviceAccountName.trim() || createServiceAccountMutation.isPending}
+                        onClick={handleSASubmit((data) => createServiceAccountMutation.mutate(data))}
+                        disabled={!csrfToken || createServiceAccountMutation.isPending}
                         className="md:col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
