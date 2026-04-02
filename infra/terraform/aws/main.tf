@@ -610,7 +610,7 @@ data "aws_iam_policy_document" "gha_deploy_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [
+      values = [
         "repo:${var.github_repo}:ref:refs/heads/main",
         "repo:${var.github_repo}:pull_request",
       ]

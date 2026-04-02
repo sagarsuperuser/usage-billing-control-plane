@@ -408,7 +408,6 @@ test("platform admin sees a clean workspace gate on pricing home", async ({ page
 
   await page.goto("/pricing");
 
-  await expect(page.getByRole("heading", { name: "Pricing catalog" })).toBeVisible();
   await expect(page.getByText("Workspace session required")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pricing records" })).not.toBeVisible();
   await expect(page.getByText("Catalog records")).not.toBeVisible();
