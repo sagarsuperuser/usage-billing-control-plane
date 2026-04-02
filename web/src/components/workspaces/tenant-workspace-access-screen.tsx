@@ -82,6 +82,7 @@ export function TenantWorkspaceAccessScreen() {
   const [auditExportPage, setAuditExportPage] = useState(1);
   const [auditExportCursor, setAuditExportCursor] = useState<string | undefined>(undefined);
   const [auditExportCursorHistory, setAuditExportCursorHistory] = useState<Array<string | undefined>>([]);
+  const [activeTab, setActiveTab] = useState<"members" | "service-accounts" | "audit">("members");
 
   const workspaceQueryKey = ["tenant-workspace-members", apiBaseURL, session?.tenant_id];
   const invitationQueryKey = ["tenant-workspace-invitations", apiBaseURL, session?.tenant_id];
@@ -374,7 +375,7 @@ export function TenantWorkspaceAccessScreen() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1180px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+      <main className="mx-auto flex max-w-[1180px] flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
         <ControlPlaneNav />
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Access" }]} />
 
@@ -390,7 +391,7 @@ export function TenantWorkspaceAccessScreen() {
         {isAuthenticated && scope === "tenant" && !isAdmin ? (
           <ScopeNotice
             title="Workspace admin role required"
-            body={`You are signed in as ${role || "reader"}. Only workspace admins can manage invitations, service accounts, roles, and member removal.`}
+            body={`Only workspace admins can manage invitations, service accounts, roles, and member removal.`}
             actionHref="/customers"
             actionLabel="Open workspace home"
           />
@@ -398,743 +399,505 @@ export function TenantWorkspaceAccessScreen() {
 
         {isAuthenticated && scope === "tenant" && isAdmin ? (
           <>
-            <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace access</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Team &amp; access</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                  Manage members, service accounts, and API credentials for this workspace.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => scrollToSection(peopleSectionRef)}
-                  className="inline-flex h-9 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-                >
-                  Members
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollToSection(machineSectionRef)}
-                  className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
-                >
-                  Service accounts
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollToSection(auditSectionRef)}
-                  className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
-                >
-                  Audit log
-                </button>
-              </div>
-            </section>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-950">Team &amp; access</h1>
+              <p className="mt-1 text-sm text-slate-500">Members, service accounts, and credential audit for this workspace.</p>
+            </div>
 
-            <section className="grid gap-4 md:grid-cols-4">
-              <SummaryMetric label="Members" value={String(members.length)} hint={`${activeMembers.length} active operators`} />
-              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} hint="People waiting for workspace entry" />
-              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} hint={`${disabledServiceAccounts.length} disabled identities`} />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <SummaryMetric label="Members" value={String(members.length)} hint={`${activeMembers.length} active`} />
+              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} hint="Awaiting acceptance" />
+              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} hint={`${disabledServiceAccounts.length} disabled`} />
               <SummaryMetric label="Active credentials" value={String(activeCredentialCount)} hint="Machine secrets currently usable" />
-            </section>
+            </div>
 
-            <section ref={peopleSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Members</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                    Invite people, manage roles, and remove access.
-                  </p>
-                </div>
-                <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
-                  <DetailField label="Active admins" value={`${activeAdminCount}`} className="bg-white" />
-                  <DetailField label="Inactive members" value={`${disabledMembers.length}`} className="bg-white" />
-                </div>
+            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+              <div className="flex border-b border-stone-200" role="tablist">
+                {(
+                  [
+                    { id: "members", label: "Members", Icon: UserRound },
+                    { id: "service-accounts", label: "Service accounts", Icon: ServerCog },
+                    { id: "audit", label: "Audit log", Icon: ShieldCheck },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-medium transition ${
+                      activeTab === tab.id
+                        ? "border-slate-900 text-slate-900"
+                        : "border-transparent text-slate-500 hover:border-stone-300 hover:text-slate-700"
+                    }`}
+                  >
+                    <tab.Icon className="h-3.5 w-3.5" />
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
-              <div className="mt-6 grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
-                <div className="grid gap-4">
-                  <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                    <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">Members</p>
-                      </div>
-                      <PaginationControls page={pagedMembers.page} totalPages={pagedMembers.totalPages} onPageChange={setMemberPage} label="Current members" />
-                    </div>
-                    {pagedMembers.items.length > 0 ? (
-                      <div className="divide-y divide-stone-200">
-                        <div className="hidden grid-cols-[minmax(0,2.2fr)_120px_140px_140px] gap-4 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
-                          <span>Operator</span>
-                          <span>Role</span>
-                          <span>Status</span>
-                          <span>Control</span>
+              {activeTab === "members" && (
+                <div className="p-6">
+                  <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+                    <div className="grid gap-4">
+                      <div className="overflow-hidden rounded-lg border border-stone-200">
+                        <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
+                          <p className="text-sm font-medium text-slate-700">Members</p>
+                          <PaginationControls page={pagedMembers.page} totalPages={pagedMembers.totalPages} onPageChange={setMemberPage} label="Members" />
                         </div>
-                        {pagedMembers.items.map((member) => {
-                          const selected = selectedMemberIDValue === member.user_id;
-                          return (
-                            <button
-                              key={member.user_id}
-                              type="button"
-                              onClick={() => setSelectedMemberID(member.user_id)}
-                              className={`grid w-full gap-3 px-5 py-4 text-left transition md:grid-cols-[minmax(0,2.2fr)_120px_140px_140px] md:items-center ${
-                                selected ? "bg-sky-50/70" : "bg-white hover:bg-stone-50"
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-slate-950">{member.display_name}</p>
-                                <p className="mt-1 truncate text-xs text-slate-500">{member.email}</p>
-                              </div>
-                              <span className="text-sm text-slate-700">{member.role}</span>
-                              <div className="flex flex-wrap gap-2">
-                                <StatusChip tone={member.status === "active" ? "success" : "neutral"}>{member.status}</StatusChip>
-                                {isSelfMember(member.user_id) ? <StatusChip tone="info">You</StatusChip> : null}
-                                {isLastActiveAdmin(member) ? <StatusChip tone="warning">Last admin</StatusChip> : null}
-                              </div>
-                              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                                {selected ? "Selected" : "Inspect"}
-                              </span>
-                            </button>
-                          );
-                        })}
+                        {pagedMembers.items.length > 0 ? (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                <th className="px-4 py-2.5 font-semibold">Member</th>
+                                <th className="px-4 py-2.5 font-semibold">Role</th>
+                                <th className="px-4 py-2.5 font-semibold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100">
+                              {pagedMembers.items.map((member) => {
+                                const selected = selectedMemberIDValue === member.user_id;
+                                return (
+                                  <tr
+                                    key={member.user_id}
+                                    onClick={() => setSelectedMemberID(member.user_id)}
+                                    className={`cursor-pointer transition ${selected ? "bg-sky-50" : "hover:bg-stone-50"}`}
+                                  >
+                                    <td className="px-4 py-3">
+                                      <p className="font-medium text-slate-900">{member.display_name}</p>
+                                      <p className="text-xs text-slate-500">{member.email}</p>
+                                    </td>
+                                    <td className="px-4 py-3 capitalize text-slate-600">{member.role}</td>
+                                    <td className="px-4 py-3">
+                                      <div className="flex flex-wrap gap-1.5">
+                                        <StatusChip tone={member.status === "active" ? "success" : "neutral"}>{member.status}</StatusChip>
+                                        {isSelfMember(member.user_id) ? <StatusChip tone="info">You</StatusChip> : null}
+                                        {isLastActiveAdmin(member) ? <StatusChip tone="warning">Last admin</StatusChip> : null}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <p className="px-4 py-6 text-sm text-slate-500">No members yet.</p>
+                        )}
                       </div>
-                    ) : (
-                      <div className="px-5 py-8 text-sm text-slate-500">No active members yet. Use the invite form above to add the first member.</div>
-                    )}
-                  </section>
 
-                  <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                    <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">Pending invites</p>
-                      </div>
-                      <PaginationControls page={pagedInvitations.page} totalPages={pagedInvitations.totalPages} onPageChange={setInvitePage} label="Pending invites" />
-                    </div>
-                    {pagedInvitations.items.length > 0 ? (
-                      <div className="divide-y divide-stone-200">
-                        <div className="hidden grid-cols-[minmax(0,1.8fr)_120px_180px_110px] gap-4 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
-                          <span>Email</span>
-                          <span>Role</span>
-                          <span>Expires</span>
-                          <span>Action</span>
+                      <div className="overflow-hidden rounded-lg border border-stone-200">
+                        <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
+                          <p className="text-sm font-medium text-slate-700">Pending invites</p>
+                          <PaginationControls page={pagedInvitations.page} totalPages={pagedInvitations.totalPages} onPageChange={setInvitePage} label="Pending invites" />
                         </div>
-                        {pagedInvitations.items.map((invite) => (
-                          <div key={invite.id} className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1.8fr)_120px_180px_110px] md:items-center">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-slate-950">{invite.email}</p>
-                            </div>
-                            <span className="text-sm text-slate-700">{invite.role}</span>
-                            <span className="text-sm text-slate-600">{formatExactTimestamp(invite.expires_at)}</span>
-                            <button
-                              type="button"
-                              onClick={() => revokeInvitationMutation.mutate(invite.id)}
-                              disabled={!csrfToken || revokeInvitationMutation.isPending}
-                              className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Revoke
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="px-5 py-8 text-sm text-slate-500">No pending workspace invites.</div>
-                    )}
-                  </section>
-                </div>
-
-                <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
-                  <section className="rounded-xl border border-stone-200 bg-white p-5">
-                    <p className="text-sm font-semibold text-slate-900">Invite a member</p>
-                    <div className="mt-4 grid gap-3">
-                      <input
-                        {...registerInvite("email")}
-                        type="email"
-                        placeholder="teammate@example.com"
-                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                      />
-                      <select
-                        {...registerInvite("role")}
-                        aria-label="Workspace role"
-                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                      >
-                        <option value="admin">Admin</option>
-                        <option value="writer">Writer</option>
-                        <option value="reader">Reader</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleInviteSubmit((data) => createInvitationMutation.mutate(data))}
-                        disabled={!csrfToken || createInvitationMutation.isPending}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
-                        Send invite
-                      </button>
-                    </div>
-                    {latestInviteURL ? (
-                      <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-                        <p className="text-xs font-medium text-slate-500">Invite link — share with the person you invited</p>
-                        <p className="mt-2 break-all text-xs text-slate-700">{latestInviteURL}</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(latestInviteURL);
-                          }}
-                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copy invite link
-                        </button>
-                      </div>
-                    ) : null}
-                  </section>
-
-                  {selectedMember ? (
-                    <section className="rounded-xl border border-stone-200 bg-white p-5">
-                      {(() => {
-                        const draftRole = memberDraftRoles[selectedMember.user_id] ?? (selectedMember.role as "reader" | "writer" | "admin");
-                        const roleDirty = draftRole !== selectedMember.role;
-                        const selfMember = isSelfMember(selectedMember.user_id);
-                        const lastAdminProtected = isLastActiveAdmin(selectedMember);
-                        const showSuspendConfirm =
-                          confirmingMemberAction?.userID === selectedMember.user_id && confirmingMemberAction.action === "suspend";
-                        const roleSelectDisabled =
-                          selectedMember.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
-                        const canApplyRole = roleDirty && !roleSelectDisabled && Boolean(csrfToken);
-                        const canSuspend =
-                          selectedMember.status === "active" &&
-                          Boolean(csrfToken) &&
-                          !removeMemberMutation.isPending &&
-                          !selfMember &&
-                          !lastAdminProtected;
-                        const canReactivate =
-                          selectedMember.status !== "active" && Boolean(csrfToken) && !updateMemberMutation.isPending && !selfMember;
-
-                        return (
-                          <>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <h3 className="truncate text-lg font-semibold text-slate-950">{selectedMember.display_name}</h3>
-                                <p className="mt-1 break-all text-sm text-slate-600">{selectedMember.email}</p>
-                              </div>
-                              <StatusChip tone={selectedMember.status === "active" ? "success" : "neutral"}>{selectedMember.status}</StatusChip>
-                            </div>
-                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                              <DetailField label="Current role" value={selectedMember.role} />
-                              <DetailField label="Notes" value={selfMember ? "This is you" : lastAdminProtected ? "Last active admin" : "—"} />
-                            </div>
-                            <div className="mt-4 grid gap-3">
-                              <select
-                                aria-label={`Role for ${selectedMember.email}`}
-                                value={draftRole}
-                                onChange={(event) =>
-                                  setMemberDraftRoles((current) => ({
-                                    ...current,
-                                    [selectedMember.user_id]: event.target.value as "reader" | "writer" | "admin",
-                                  }))
-                                }
-                                disabled={roleSelectDisabled}
-                                className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                              >
-                                <option value="admin">Admin</option>
-                                <option value="writer">Writer</option>
-                                <option value="reader">Reader</option>
-                              </select>
-                              {roleDirty ? (
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: draftRole })}
-                                    disabled={!canApplyRole}
-                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Apply role
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setMemberDraftRoles((current) => {
-                                        const next = { ...current };
-                                        delete next[selectedMember.user_id];
-                                        return next;
-                                      })
-                                    }
-                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : selectedMember.status === "active" ? (
-                                showSuspendConfirm ? (
-                                  <div className="flex flex-wrap gap-2">
+                        {pagedInvitations.items.length > 0 ? (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                <th className="px-4 py-2.5 font-semibold">Email</th>
+                                <th className="px-4 py-2.5 font-semibold">Role</th>
+                                <th className="px-4 py-2.5 font-semibold">Expires</th>
+                                <th className="px-4 py-2.5 font-semibold" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100">
+                              {pagedInvitations.items.map((invite) => (
+                                <tr key={invite.id}>
+                                  <td className="px-4 py-3 font-medium text-slate-900">{invite.email}</td>
+                                  <td className="px-4 py-3 capitalize text-slate-600">{invite.role}</td>
+                                  <td className="px-4 py-3 text-slate-500">{formatExactTimestamp(invite.expires_at)}</td>
+                                  <td className="px-4 py-3 text-right">
                                     <button
                                       type="button"
-                                      onClick={() => removeMemberMutation.mutate(selectedMember.user_id)}
-                                      disabled={!canSuspend}
-                                      className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-700 bg-rose-700 px-4 text-sm font-medium text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                      onClick={() => revokeInvitationMutation.mutate(invite.id)}
+                                      disabled={!csrfToken || revokeInvitationMutation.isPending}
+                                      className="text-xs font-medium text-rose-600 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                      Confirm suspend
+                                      Revoke
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setConfirmingMemberAction(null)}
-                                      className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-700 transition hover:bg-stone-100"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfirmingMemberAction({ userID: selectedMember.user_id, action: "suspend" })}
-                                    disabled={!canSuspend}
-                                    className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Suspend member
-                                  </button>
-                                )
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: selectedMember.role as "reader" | "writer" | "admin" })}
-                                  disabled={!canReactivate}
-                                  className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Reactivate
-                                </button>
-                              )}
-                              {selfMember ? <p className="text-xs text-slate-500">You cannot change your own membership from this screen.</p> : null}
-                              {lastAdminProtected ? <p className="text-xs text-slate-500">Promote another active admin before changing this member&apos;s access.</p> : null}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </section>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-
-            <section ref={machineSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Service accounts</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">API identities for automation and integrations. Issue or rotate credentials as needed.</p>
-                </div>
-                <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
-                  <DetailField label="Disabled identities" value={`${disabledServiceAccounts.length}`} className="bg-white" />
-                  <DetailField label="No active credential" value={`${serviceAccountsWithoutActiveCredentials}`} className="bg-white" />
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
-                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                  <div className="flex flex-col gap-3 border-b border-stone-200 bg-stone-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Service accounts</p>
-                      <p className="mt-1 text-sm text-slate-600">Select an identity to inspect controls, credentials, and audit history.</p>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <p className="px-4 py-6 text-sm text-slate-500">No pending workspace invites.</p>
+                        )}
+                      </div>
                     </div>
-                    <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
-                  </div>
-                  {pagedServiceAccounts.items.length > 0 ? (
-                    <div className="divide-y divide-stone-200">
-                      {pagedServiceAccounts.items.map((account) => {
-                        const selected = selectedServiceAccountIDValue === account.id;
-                        return (
-                          <div
-                            key={account.id}
-                            className={`px-5 py-4 transition ${
-                              selected ? "bg-sky-50/70" : "bg-white"
-                            }`}
+
+                    <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
+                      <div className="rounded-lg border border-stone-200 p-4">
+                        <p className="text-sm font-semibold text-slate-900">Invite a member</p>
+                        <div className="mt-3 grid gap-2">
+                          <input
+                            {...registerInvite("email")}
+                            type="email"
+                            placeholder="teammate@example.com"
+                            className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                          />
+                          <select
+                            {...registerInvite("role")}
+                            aria-label="Workspace role"
+                            className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                           >
-                            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="truncate text-sm font-semibold text-slate-950">{account.name}</p>
-                                  <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
-                                  {selected ? <StatusChip tone="info">Selected</StatusChip> : null}
-                                  {account.active_credential_count === 0 ? <StatusChip tone="warning">No active credential</StatusChip> : null}
-                                </div>
-                                <p className="mt-1 break-words text-sm text-slate-600">{account.description || "No description recorded."}</p>
-                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                                  <span>Role: {formatServiceAccountRole(account.role)}</span>
-                                  <span>Environment: {account.environment || "Unspecified"}</span>
-                                  <span>Credentials: {account.active_credential_count}</span>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap gap-2 xl:justify-end">
-                                <button
-                                  type="button"
-                                  data-testid={`inspect-service-account-${account.id}`}
-                                  onClick={() => setSelectedServiceAccountID(account.id)}
-                                  className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition ${
-                                    selected
-                                      ? "border border-sky-200 bg-sky-100 text-sky-800"
-                                      : "border border-stone-200 bg-white text-slate-700 hover:bg-stone-100"
-                                  }`}
-                                >
-                                  {selected ? "Viewing" : "Inspect"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => openAudit(account.id)}
-                                  className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100"
-                                >
-                                  Audit
-                                </button>
-                              </div>
-                            </div>
+                            <option value="admin">Admin</option>
+                            <option value="writer">Writer</option>
+                            <option value="reader">Reader</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={handleInviteSubmit((data) => createInvitationMutation.mutate(data))}
+                            disabled={!csrfToken || createInvitationMutation.isPending}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
+                            Send invite
+                          </button>
+                        </div>
+                        {latestInviteURL ? (
+                          <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                            <p className="text-xs text-slate-500">Share with the invitee</p>
+                            <p className="mt-1.5 break-all text-xs text-slate-700">{latestInviteURL}</p>
+                            <button
+                              type="button"
+                              onClick={() => { void navigator.clipboard.writeText(latestInviteURL); }}
+                              className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-stone-100"
+                            >
+                              <Copy className="h-3 w-3" />
+                              Copy link
+                            </button>
                           </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="px-5 py-8 text-sm text-slate-500">No service accounts yet. Create one to issue a machine credential and track its audit history.</div>
-                  )}
-                </div>
-
-                <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
-                  <section className="rounded-xl border border-stone-200 bg-white p-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Create service account</p>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <input
-                        {...registerSA("name")}
-                        type="text"
-                        placeholder="Acme ERP Sync"
-                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                      />
-                      <select
-                        {...registerSA("role")}
-                        aria-label="Service account role"
-                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                      >
-                        <option value="admin">Admin</option>
-                        <option value="writer">Writer</option>
-                        <option value="reader">Reader</option>
-                      </select>
-                      <input
-                        {...registerSA("purpose")}
-                        type="text"
-                        placeholder="erp-sync"
-                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                      />
-                      <input
-                        {...registerSA("environment")}
-                        type="text"
-                        placeholder="prod"
-                        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                      />
-                      <textarea
-                        {...registerSA("description")}
-                        placeholder="What this credential is for"
-                        rows={3}
-                        className="md:col-span-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSASubmit((data) => createServiceAccountMutation.mutate(data))}
-                        disabled={!csrfToken || createServiceAccountMutation.isPending}
-                        className="md:col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
-                        Create and issue first credential
-                      </button>
-                    </div>
-                    {latestCredentialSecret ? (
-                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                        <p className="text-xs font-semibold text-amber-800">Copy this secret now — it won&apos;t be shown again</p>
-                        <p className="mt-1.5 text-xs text-slate-600">{latestCredentialSecret.label}</p>
-                        <p className="mt-2 break-all rounded-lg border border-amber-100 bg-white px-3 py-2 font-mono text-xs text-slate-800">{latestCredentialSecret.secret}</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(latestCredentialSecret.secret);
-                          }}
-                          className="mt-3 inline-flex h-8 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copy
-                        </button>
-                      </div>
-                    ) : null}
-                  </section>
-
-                  {selectedServiceAccount ? (
-                  <section data-testid="service-account-detail" className="rounded-xl border border-stone-200 bg-white p-5">
-                    <div className="flex flex-col gap-4">
-                      <div>
-                        <p className="text-lg font-semibold text-slate-950">{selectedServiceAccount.name}</p>
-                        <p className="mt-1 break-words text-sm text-slate-600">{selectedServiceAccount.description || "No description recorded."}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <StatusChip tone={selectedServiceAccount.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(selectedServiceAccount.status)}</StatusChip>
-                          <StatusChip tone="neutral">{formatServiceAccountRole(selectedServiceAccount.role)}</StatusChip>
-                          <StatusChip tone="neutral">{selectedServiceAccount.environment || "Unspecified"}</StatusChip>
-                          <StatusChip tone="info">
-                            {selectedServiceAccount.active_credential_count} active credential{selectedServiceAccount.active_credential_count === 1 ? "" : "s"}
-                          </StatusChip>
-                        </div>
+                        ) : null}
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <DetailField label="Purpose" value={selectedServiceAccount.purpose || "Not recorded"} />
-                        <DetailField label="Last activity" value={describeServiceAccountActivity(selectedServiceAccount)} />
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)}
-                          disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {issueCredentialMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                          Issue credential
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openAudit(selectedServiceAccount.id)}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100"
-                        >
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          Audit log
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateServiceAccountStatusMutation.mutate({
-                              serviceAccountID: selectedServiceAccount.id,
-                              status: selectedServiceAccount.status === "active" ? "disabled" : "active",
-                            })
-                          }
-                          disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <ShieldOff className="h-3.5 w-3.5" />
-                          {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-5">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">Credentials</p>
-                          <p className="mt-1 text-sm text-slate-500">Issue, rotate, or revoke access credentials.</p>
-                        </div>
-                        <PaginationControls page={pagedCredentials.page} totalPages={pagedCredentials.totalPages} onPageChange={setCredentialPage} label="Credentials" />
-                      </div>
-                      <div className="mt-3 overflow-hidden rounded-xl border border-stone-200">
-                        {pagedCredentials.items.length > 0 ? (
-                          <>
-                            <div className="hidden grid-cols-[minmax(0,1.5fr)_150px_160px_130px_170px] gap-4 bg-stone-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
-                              <span>Credential</span>
-                              <span>Prefix</span>
-                              <span>Issued</span>
-                              <span>Status</span>
-                              <span>Controls</span>
-                            </div>
-                          {pagedCredentials.items.map((credential) => {
-                            const isRevoked = Boolean(credential.revoked_at);
+                      {selectedMember ? (
+                        <div className="rounded-lg border border-stone-200 p-4">
+                          {(() => {
+                            const draftRole = memberDraftRoles[selectedMember.user_id] ?? (selectedMember.role as "reader" | "writer" | "admin");
+                            const roleDirty = draftRole !== selectedMember.role;
+                            const selfMember = isSelfMember(selectedMember.user_id);
+                            const lastAdminProtected = isLastActiveAdmin(selectedMember);
+                            const showSuspendConfirm = confirmingMemberAction?.userID === selectedMember.user_id && confirmingMemberAction.action === "suspend";
+                            const roleSelectDisabled = selectedMember.status !== "active" || updateMemberMutation.isPending || selfMember || lastAdminProtected;
+                            const canApplyRole = roleDirty && !roleSelectDisabled && Boolean(csrfToken);
+                            const canSuspend = selectedMember.status === "active" && Boolean(csrfToken) && !removeMemberMutation.isPending && !selfMember && !lastAdminProtected;
+                            const canReactivate = selectedMember.status !== "active" && Boolean(csrfToken) && !updateMemberMutation.isPending && !selfMember;
                             return (
-                              <div key={credential.id} className="grid gap-3 border-t border-stone-200 px-4 py-4 md:grid-cols-[minmax(0,1.5fr)_150px_160px_130px_170px] md:items-center md:first:border-t-0">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium text-slate-950">{credential.name}</p>
-                                  <p className="mt-1 text-xs text-slate-500">{describeCredentialActivity(credential)}</p>
+                              <>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-slate-900">{selectedMember.display_name}</p>
+                                    <p className="mt-0.5 truncate text-xs text-slate-500">{selectedMember.email}</p>
+                                  </div>
+                                  <StatusChip tone={selectedMember.status === "active" ? "success" : "neutral"}>{selectedMember.status}</StatusChip>
                                 </div>
-                                <p className="font-mono text-sm text-slate-700">{credential.key_prefix}</p>
-                                <p className="text-sm text-slate-600">{formatExactTimestamp(credential.created_at)}</p>
-                                <div className="flex flex-wrap gap-2">
-                                  <StatusChip tone={isRevoked ? "danger" : "success"}>{isRevoked ? "Revoked" : "Active"}</StatusChip>
+                                <div className="mt-3 grid gap-2">
+                                  <select
+                                    aria-label={`Role for ${selectedMember.email}`}
+                                    value={draftRole}
+                                    onChange={(event) =>
+                                      setMemberDraftRoles((current) => ({
+                                        ...current,
+                                        [selectedMember.user_id]: event.target.value as "reader" | "writer" | "admin",
+                                      }))
+                                    }
+                                    disabled={roleSelectDisabled}
+                                    className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                                  >
+                                    <option value="admin">Admin</option>
+                                    <option value="writer">Writer</option>
+                                    <option value="reader">Reader</option>
+                                  </select>
+                                  {roleDirty ? (
+                                    <div className="flex gap-2">
+                                      <button type="button" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: draftRole })} disabled={!canApplyRole} className="flex-1 inline-flex h-9 items-center justify-center rounded-lg border border-slate-900 bg-slate-900 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50">Apply role</button>
+                                      <button type="button" onClick={() => setMemberDraftRoles((current) => { const next = { ...current }; delete next[selectedMember.user_id]; return next; })} className="flex-1 inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 text-sm text-slate-700 hover:bg-stone-100">Cancel</button>
+                                    </div>
+                                  ) : selectedMember.status === "active" ? (
+                                    showSuspendConfirm ? (
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => removeMemberMutation.mutate(selectedMember.user_id)} disabled={!canSuspend} className="flex-1 inline-flex h-9 items-center justify-center rounded-lg border border-rose-700 bg-rose-700 text-sm font-medium text-white hover:bg-rose-800 disabled:opacity-50">Confirm suspend</button>
+                                        <button type="button" onClick={() => setConfirmingMemberAction(null)} className="flex-1 inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 text-sm text-slate-700 hover:bg-stone-100">Cancel</button>
+                                      </div>
+                                    ) : (
+                                      <button type="button" onClick={() => setConfirmingMemberAction({ userID: selectedMember.user_id, action: "suspend" })} disabled={!canSuspend} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">
+                                        <UserX className="h-4 w-4" />
+                                        Suspend
+                                      </button>
+                                    )
+                                  ) : (
+                                    <button type="button" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: selectedMember.role as "reader" | "writer" | "admin" })} disabled={!canReactivate} className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">Reactivate</button>
+                                  )}
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2">
+                                {selfMember ? <p className="mt-2 text-xs text-slate-500">You cannot change your own membership from this screen.</p> : null}
+                                {lastAdminProtected ? <p className="mt-2 text-xs text-slate-500">Promote another active admin before changing this member&apos;s access.</p> : null}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "service-accounts" && (
+                <div className="p-6">
+                  <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+                    <div className="overflow-hidden rounded-lg border border-stone-200">
+                      <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-slate-700">Service accounts</p>
+                          <p className="text-xs text-slate-500">API identities for automation and integrations. Issue or rotate credentials as needed.</p>
+                        </div>
+                        <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
+                      </div>
+                      {pagedServiceAccounts.items.length > 0 ? (
+                        <div className="divide-y divide-stone-100">
+                          {pagedServiceAccounts.items.map((account) => {
+                            const selected = selectedServiceAccountIDValue === account.id;
+                            return (
+                              <div key={account.id} className={`flex items-center gap-4 px-4 py-3.5 transition ${selected ? "bg-sky-50" : "bg-white"}`}>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate text-sm font-medium text-slate-900">{account.name}</p>
+                                    <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
+                                    {account.active_credential_count === 0 ? <StatusChip tone="warning">No credential</StatusChip> : null}
+                                  </div>
+                                  <p className="mt-0.5 truncate text-xs text-slate-500">{account.description || "No description."}</p>
+                                </div>
+                                <div className="flex shrink-0 gap-2">
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      rotateCredentialMutation.mutate({
-                                        serviceAccountID: selectedServiceAccount.id,
-                                        credentialID: credential.id,
-                                      })
-                                    }
-                                    disabled={!csrfToken || isRevoked || rotateCredentialMutation.isPending}
-                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    data-testid={`inspect-service-account-${account.id}`}
+                                    onClick={() => setSelectedServiceAccountID(account.id)}
+                                    className={`inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition ${
+                                      selected ? "border border-sky-200 bg-sky-100 text-sky-800" : "border border-stone-200 bg-white text-slate-600 hover:bg-stone-100"
+                                    }`}
                                   >
-                                    Rotate
+                                    {selected ? "Viewing" : "Inspect"}
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      revokeCredentialMutation.mutate({
-                                        serviceAccountID: selectedServiceAccount.id,
-                                        credentialID: credential.id,
-                                      })
-                                    }
-                                    disabled={!csrfToken || isRevoked || revokeCredentialMutation.isPending}
-                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    onClick={() => { setActiveTab("audit"); openAudit(account.id); }}
+                                    className="inline-flex h-8 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:bg-stone-100"
                                   >
-                                    Revoke
+                                    Audit
                                   </button>
                                 </div>
                               </div>
                             );
                           })}
-                          </>
-                        ) : (
-                          <div className="px-4 py-6 text-sm text-slate-500">No credentials issued yet.</div>
-                        )}
-                      </div>
-                    </div>
-                  </section>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-slate-600">
-                    Select or create a service account to manage its credentials.
-                  </div>
-                )}
-                </div>
-              </div>
-            </section>
-
-            <section ref={auditSectionRef} className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Audit log</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Credential and access events. Export for compliance when needed.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    aria-label="Audit service account"
-                    value={selectedAuditServiceAccountIDValue}
-                    onChange={(event) => setSelectedAuditServiceAccountID(event.target.value)}
-                    className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
-                  >
-                    {serviceAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
-                    disabled={!selectedAuditServiceAccountIDValue}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-              {selectedAuditServiceAccount ? (
-                <div className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 sm:grid-cols-3">
-                  <DetailField label="Service account" value={selectedAuditServiceAccount.name} className="bg-white" />
-                  <DetailField
-                    label="Active credentials"
-                    value={`${selectedAuditServiceAccount.active_credential_count} credential${selectedAuditServiceAccount.active_credential_count === 1 ? "" : "s"}`}
-                    className="bg-white"
-                  />
-                  <DetailField
-                    label="Last machine activity"
-                    value={describeServiceAccountActivity(selectedAuditServiceAccount)}
-                    className="bg-white"
-                  />
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-slate-500">Create a service account first to inspect machine-credential audit.</p>
-              )}
-              {selectedAuditServiceAccount ? (
-                <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="border-b border-stone-200 bg-stone-50 px-4 py-4 sm:flex-1 sm:border-b-0">
-                        <p className="text-sm font-semibold text-slate-900">Recent events</p>
-                        <p className="mt-1 text-sm text-slate-500">Credential issue, rotation, and revocation history.</p>
-                      </div>
-                      <div className="px-4 pb-4 sm:pb-0 sm:pr-4">
-                        <CursorPaginationControls
-                          page={auditPage}
-                          hasPreviousPage={auditHasPreviousPage}
-                          hasNextPage={auditHasNextPage}
-                          onPrevious={goToPreviousAuditPage}
-                          onNext={goToNextAuditPage}
-                          label="Audit events"
-                        />
-                      </div>
-                    </div>
-                    <div className="divide-y divide-stone-200">
-                      {auditItems.length > 0 ? (
-                        auditItems.map((event) => (
-                          <ServiceAccountAuditRow
-                            key={event.id}
-                            event={event}
-                            selected={event.id === selectedAuditEventIDValue}
-                            onSelect={() => setSelectedAuditEventID(event.id)}
-                          />
-                        ))
+                        </div>
                       ) : (
-                        <p className="px-4 py-6 text-sm text-slate-500">No audit events yet.</p>
+                        <p className="px-4 py-8 text-sm text-slate-500">No service accounts yet. Create one using the form.</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-4 xl:sticky xl:top-6 xl:self-start">
+                      <div className="rounded-lg border border-stone-200 p-4">
+                        <p className="text-sm font-semibold text-slate-900">New service account</p>
+                        <div className="mt-3 grid gap-2">
+                          <input {...registerSA("name")} type="text" placeholder="Name (e.g. erp-sync)" className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <select {...registerSA("role")} aria-label="Service account role" className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2">
+                              <option value="admin">Admin</option>
+                              <option value="writer">Writer</option>
+                              <option value="reader">Reader</option>
+                            </select>
+                            <input {...registerSA("environment")} type="text" placeholder="Environment" className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" />
+                          </div>
+                          <input {...registerSA("purpose")} type="text" placeholder="Purpose" className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" />
+                          <textarea {...registerSA("description")} placeholder="Description (optional)" rows={2} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" />
+                          <button
+                            type="button"
+                            onClick={handleSASubmit((data) => createServiceAccountMutation.mutate(data))}
+                            disabled={!csrfToken || createServiceAccountMutation.isPending}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
+                            Create and issue credential
+                          </button>
+                        </div>
+                        {latestCredentialSecret ? (
+                          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                            <p className="text-xs font-semibold text-amber-800">Copy now — won&apos;t be shown again</p>
+                            <p className="mt-2 break-all rounded border border-amber-100 bg-white px-2 py-1.5 font-mono text-xs text-slate-800">{latestCredentialSecret.secret}</p>
+                            <button type="button" onClick={() => { void navigator.clipboard.writeText(latestCredentialSecret.secret); }} className="mt-2 inline-flex h-7 items-center gap-1.5 rounded border border-amber-200 bg-white px-2 text-xs text-amber-800 hover:bg-amber-100">
+                              <Copy className="h-3 w-3" />
+                              Copy
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {selectedServiceAccount ? (
+                        <div data-testid="service-account-detail" className="rounded-lg border border-stone-200 p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900">{selectedServiceAccount.name}</p>
+                              <p className="mt-0.5 text-xs text-slate-500">{selectedServiceAccount.description || "No description."}</p>
+                            </div>
+                            <StatusChip tone={selectedServiceAccount.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(selectedServiceAccount.status)}</StatusChip>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                            <span className="text-slate-500">Role <span className="ml-1 font-medium text-slate-700">{formatServiceAccountRole(selectedServiceAccount.role)}</span></span>
+                            <span className="text-slate-500">Env <span className="ml-1 font-medium text-slate-700">{selectedServiceAccount.environment || "—"}</span></span>
+                            <span className="text-slate-500">Purpose <span className="ml-1 font-medium text-slate-700">{selectedServiceAccount.purpose || "—"}</span></span>
+                            <span className="text-slate-500 truncate" title={describeServiceAccountActivity(selectedServiceAccount)}>
+                              {describeServiceAccountActivity(selectedServiceAccount)}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)} disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+                              {issueCredentialMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <KeyRound className="h-3 w-3" />}
+                              Issue credential
+                            </button>
+                            <button type="button" onClick={() => updateServiceAccountStatusMutation.mutate({ serviceAccountID: selectedServiceAccount.id, status: selectedServiceAccount.status === "active" ? "disabled" : "active" })} disabled={!csrfToken || updateServiceAccountStatusMutation.isPending} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs text-slate-600 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50">
+                              <ShieldOff className="h-3 w-3" />
+                              {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
+                            </button>
+                          </div>
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-slate-700">Credentials</p>
+                              <PaginationControls page={pagedCredentials.page} totalPages={pagedCredentials.totalPages} onPageChange={setCredentialPage} label="Credentials" />
+                            </div>
+                            <div className="mt-2 divide-y divide-stone-100 overflow-hidden rounded-lg border border-stone-200">
+                              {pagedCredentials.items.length > 0 ? (
+                                pagedCredentials.items.map((credential) => {
+                                  const isRevoked = Boolean(credential.revoked_at);
+                                  return (
+                                    <div key={credential.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <p className="truncate text-xs font-medium text-slate-900">{credential.name}</p>
+                                          <StatusChip tone={isRevoked ? "danger" : "success"}>{isRevoked ? "Revoked" : "Active"}</StatusChip>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500">{describeCredentialActivity(credential)}</p>
+                                      </div>
+                                      {!isRevoked && (
+                                        <div className="flex shrink-0 gap-1.5">
+                                          <button type="button" onClick={() => rotateCredentialMutation.mutate({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id })} disabled={!csrfToken || rotateCredentialMutation.isPending} className="inline-flex h-7 items-center gap-1 rounded border border-stone-200 bg-white px-2 text-[11px] font-medium text-slate-600 transition hover:bg-stone-100 disabled:opacity-50">
+                                            <RefreshCw className="h-2.5 w-2.5" />
+                                            Rotate
+                                          </button>
+                                          <button type="button" onClick={() => revokeCredentialMutation.mutate({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id })} disabled={!csrfToken || revokeCredentialMutation.isPending} className="inline-flex h-7 items-center rounded border border-rose-200 bg-rose-50 px-2 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50">Revoke</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                <p className="px-3 py-4 text-xs text-slate-500">No credentials issued yet.</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-stone-300 px-4 py-6 text-sm text-slate-500">
+                          Select a service account to manage credentials.
+                        </div>
                       )}
                     </div>
                   </div>
-                  <div className="grid gap-4">
-                    <ServiceAccountAuditDetail event={selectedAuditEvent} />
-                    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="border-b border-stone-200 bg-stone-50 px-4 py-4 sm:flex-1 sm:border-b-0">
-                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Scheduled exports</p>
-                          <p className="mt-1 text-sm text-slate-600">Review generated export jobs for this service account.</p>
-                        </div>
-                        <div className="px-4 pb-4 sm:pb-0 sm:pr-4">
-                          <CursorPaginationControls
-                            page={auditExportPage}
-                            hasPreviousPage={auditExportHasPreviousPage}
-                            hasNextPage={auditExportHasNextPage}
-                            onPrevious={goToPreviousAuditExportPage}
-                            onNext={goToNextAuditExportPage}
-                            label="Audit exports"
-                          />
-                        </div>
-                      </div>
-                      <div className="divide-y divide-stone-200">
-                        {auditExportItems.length > 0 ? (
-                          <>
-                            <div className="hidden grid-cols-[140px_150px_120px_120px] gap-4 bg-stone-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
-                              <span>Status</span>
-                              <span>Created</span>
-                              <span>Rows</span>
-                              <span>Output</span>
-                            </div>
-                            {auditExportItems.map((item) => (
-                              <div key={item.job.id} className="grid gap-3 px-4 py-4 md:grid-cols-[140px_150px_120px_120px] md:items-center">
-                                <div className="flex flex-wrap gap-2">
-                                  <StatusChip tone={item.download_url ? "success" : item.job.status === "failed" ? "danger" : "info"}>
-                                    {formatAuditExportStatus(item.job.status)}
-                                  </StatusChip>
-                                </div>
-                                <p className="text-sm text-slate-700">{formatExactTimestamp(item.job.created_at)}</p>
-                                <p className="text-sm text-slate-700">{item.job.row_count} row(s)</p>
-                                {item.download_url ? (
-                                  <a
-                                    href={item.download_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100"
-                                  >
-                                    <Download className="h-3.5 w-3.5" />
-                                    Download
-                                  </a>
-                                ) : (
-                                  <span className="text-xs text-slate-500">Pending</span>
-                                )}
-                              </div>
-                            ))}
-                          </>
-                        ) : (
-                          <p className="px-4 py-6 text-sm text-slate-500">No audit exports created yet.</p>
-                        )}
-                      </div>
+                </div>
+              )}
+
+              {activeTab === "audit" && (
+                <div className="p-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Credential audit log</p>
+                      <p className="text-xs text-slate-500">Credential issue, rotation, and revocation events.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <select
+                        aria-label="Audit service account"
+                        value={selectedAuditServiceAccountIDValue}
+                        onChange={(event) => setSelectedAuditServiceAccountID(event.target.value)}
+                        className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
+                      >
+                        {serviceAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>{account.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
+                        disabled={!selectedAuditServiceAccountIDValue}
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Export CSV
+                      </button>
                     </div>
                   </div>
+
+                  {selectedAuditServiceAccount ? (
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                      <div className="overflow-hidden rounded-lg border border-stone-200">
+                        <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
+                          <p className="text-sm font-medium text-slate-700">Recent events</p>
+                          <CursorPaginationControls page={auditPage} hasPreviousPage={auditHasPreviousPage} hasNextPage={auditHasNextPage} onPrevious={goToPreviousAuditPage} onNext={goToNextAuditPage} label="Audit events" />
+                        </div>
+                        <div className="divide-y divide-stone-100">
+                          {auditItems.length > 0 ? (
+                            auditItems.map((event) => (
+                              <ServiceAccountAuditRow key={event.id} event={event} selected={event.id === selectedAuditEventIDValue} onSelect={() => setSelectedAuditEventID(event.id)} />
+                            ))
+                          ) : (
+                            <p className="px-4 py-6 text-sm text-slate-500">No audit events yet.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4">
+                        <ServiceAccountAuditDetail event={selectedAuditEvent} />
+                        <div className="overflow-hidden rounded-lg border border-stone-200">
+                          <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
+                            <p className="text-sm font-medium text-slate-700">Exports</p>
+                            <CursorPaginationControls page={auditExportPage} hasPreviousPage={auditExportHasPreviousPage} hasNextPage={auditExportHasNextPage} onPrevious={goToPreviousAuditExportPage} onNext={goToNextAuditExportPage} label="Audit exports" />
+                          </div>
+                          <div className="divide-y divide-stone-100">
+                            {auditExportItems.length > 0 ? (
+                              auditExportItems.map((item) => (
+                                <div key={item.job.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <StatusChip tone={item.download_url ? "success" : item.job.status === "failed" ? "danger" : "info"}>
+                                      {formatAuditExportStatus(item.job.status)}
+                                    </StatusChip>
+                                    <div>
+                                      <p className="text-xs text-slate-700">{formatExactTimestamp(item.job.created_at)}</p>
+                                      <p className="text-[11px] text-slate-500">{item.job.row_count} row(s)</p>
+                                    </div>
+                                  </div>
+                                  {item.download_url ? (
+                                    <a href={item.download_url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100">
+                                      <Download className="h-3 w-3" />
+                                      Download
+                                    </a>
+                                  ) : (
+                                    <span className="text-xs text-slate-500">Pending</span>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <p className="px-4 py-6 text-sm text-slate-500">No exports yet.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-500">Create a service account first to inspect machine-credential audit.</p>
+                  )}
                 </div>
-              ) : null}
-            </section>
+              )}
+            </div>
           </>
         ) : null}
       </main>

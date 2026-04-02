@@ -264,16 +264,21 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await installWorkspaceAccessMock(page);
   await page.goto("/workspace-access");
 
-  await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
-  await expect(page.getByText("API identities for automation and integrations. Issue or rotate credentials as needed.")).toBeVisible();
+  // Members tab is active by default
+  await expect(page.getByRole("tab", { name: "Members" })).toBeVisible();
   await expect(page.getByText("Machine secrets currently usable")).toBeVisible();
+
+  // Navigate to service accounts tab
+  await page.getByRole("tab", { name: "Service accounts" }).click();
+  await expect(page.getByText("API identities for automation and integrations. Issue or rotate credentials as needed.")).toBeVisible();
   await expect(page.getByText("created", { exact: true })).not.toBeVisible();
 
   await page.getByTestId("inspect-service-account-svc_erp").click();
   await expect(page.getByTestId("service-account-detail").getByText("ERP export worker")).toBeVisible();
   await expect(page.getByText(/last used/i).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Audit log" }).first().click();
+  // Audit button on SA row switches to audit tab and pre-selects that SA
+  await page.getByTestId("inspect-service-account-svc_erp").locator("..").getByRole("button", { name: "Audit" }).click();
   await page.getByLabel("Audit service account").selectOption("svc_erp");
   await expect(page.getByText("Credential rotated")).toBeVisible();
   await page.getByRole("button", { name: /View service account audit details for Credential rotated/i }).click();
