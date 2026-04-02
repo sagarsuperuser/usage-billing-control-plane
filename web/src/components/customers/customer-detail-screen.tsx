@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { ArrowLeft, CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { type InputHTMLAttributes, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
@@ -43,17 +46,35 @@ function tone(status?: string): string {
   }
 }
 
+const billingProfileSchema = z.object({
+  legal_name: z.string().min(1),
+  email: z.string().min(1),
+  phone: z.string(),
+  tax_identifier: z.string(),
+  tax_codes_raw: z.string(),
+  billing_address_line1: z.string().min(1),
+  billing_address_line2: z.string(),
+  billing_city: z.string().min(1),
+  billing_state: z.string(),
+  billing_postal_code: z.string().min(1),
+  billing_country: z.string().min(1),
+  currency: z.string().min(1),
+  provider_code: z.string(),
+});
+
+type BillingProfileFormValues = z.infer<typeof billingProfileSchema>;
+
 export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
-  const [profileDraftState, setProfileDraftState] = useState<{
-    sourceKey: string;
-    value: CustomerBillingProfileInput;
-    flash: string | null;
-  }>({
-    sourceKey: "",
-    value: emptyBillingProfileDraft(),
-    flash: null,
+  const [profileFlash, setProfileFlash] = useState<string | null>(null);
+  const { register, handleSubmit: handleProfileSubmit, reset: resetProfile, watch: watchProfile, formState: profileFormState } = useForm<BillingProfileFormValues>({
+    resolver: zodResolver(billingProfileSchema),
+    defaultValues: {
+      legal_name: "", email: "", phone: "", tax_identifier: "", tax_codes_raw: "",
+      billing_address_line1: "", billing_address_line2: "", billing_city: "",
+      billing_state: "", billing_postal_code: "", billing_country: "", currency: "", provider_code: "",
+    },
   });
 
   const customersQuery = useQuery({
@@ -121,15 +142,15 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
     },
   });
   const billingProfileMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: BillingProfileFormValues) =>
       updateCustomerBillingProfile({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
         externalID,
-        body: profileDraft,
+        body: { ...data, tax_codes: parseCodeList(data.tax_codes_raw) },
       }),
     onSuccess: async () => {
-      updateProfileFlash("Billing profile saved.");
+      setProfileFlash("Billing profile saved.");
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch(), billingProfileQuery.refetch()]);
     },
   });
@@ -153,35 +174,32 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const latestRequestedCheckoutURL = requestSetupMutation.data?.checkout_url || resendSetupMutation.data?.checkout_url;
   const profileBaseline = billingProfileDraftFromProfile(billingProfile, customer?.email);
   const profileSourceKey = [externalID, billingProfile?.updated_at || "", billingProfile?.last_synced_at || "", customer?.email || ""].join(":");
-  const profileDraft =
-    profileDraftState.sourceKey === profileSourceKey ? profileDraftState.value : profileBaseline;
-  const profileFlash =
-    profileDraftState.sourceKey === profileSourceKey ? profileDraftState.flash : null;
-  const billingProfileDirty = serializeBillingProfileDraft(profileDraft) !== serializeBillingProfileDraft(profileBaseline);
-  const billingProfileReady = requiredBillingProfileFields(profileDraft).every(Boolean);
 
-  const updateProfileDraft = (
-    next:
-      | CustomerBillingProfileInput
-      | ((current: CustomerBillingProfileInput) => CustomerBillingProfileInput),
-  ) => {
-    setProfileDraftState((current) => {
-      const currentValue = current.sourceKey === profileSourceKey ? current.value : profileBaseline;
-      return {
-        sourceKey: profileSourceKey,
-        value: typeof next === "function" ? next(currentValue) : next,
-        flash: null,
-      };
-    });
-  };
+  useEffect(() => {
+    resetProfile(
+      {
+        legal_name: profileBaseline.legal_name || "",
+        email: profileBaseline.email || "",
+        phone: profileBaseline.phone || "",
+        tax_identifier: profileBaseline.tax_identifier || "",
+        tax_codes_raw: (profileBaseline.tax_codes || []).join(", "),
+        billing_address_line1: profileBaseline.billing_address_line1 || "",
+        billing_address_line2: profileBaseline.billing_address_line2 || "",
+        billing_city: profileBaseline.billing_city || "",
+        billing_state: profileBaseline.billing_state || "",
+        billing_postal_code: profileBaseline.billing_postal_code || "",
+        billing_country: profileBaseline.billing_country || "",
+        currency: profileBaseline.currency || "",
+        provider_code: profileBaseline.provider_code || "",
+      },
+      { keepDirtyValues: true },
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileSourceKey]);
 
-  const updateProfileFlash = (message: string | null) => {
-    setProfileDraftState((current) => ({
-      sourceKey: profileSourceKey,
-      value: current.sourceKey === profileSourceKey ? current.value : profileBaseline,
-      flash: message,
-    }));
-  };
+  const profileValues = watchProfile();
+  const billingProfileDirty = profileFormState.isDirty;
+  const billingProfileReady = profileFormState.isValid;
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -289,73 +307,43 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
 
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    <InputField label="Legal name" value={profileDraft.legal_name || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, legal_name: value }))} placeholder="Acme Billing LLC" />
-                    <InputField label="Billing email" value={profileDraft.email || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, email: value }))} placeholder="billing@acme.test" />
-                    <InputField label="Phone" value={profileDraft.phone || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, phone: value }))} placeholder="+1 415 555 0100" />
-                    <InputField label="Tax identifier" value={profileDraft.tax_identifier || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, tax_identifier: value }))} placeholder="VAT / GST / EIN" />
-                    <InputField
-                      label="Tax codes"
-                      value={(profileDraft.tax_codes || []).join(", ")}
-                      onChange={(value) => updateProfileDraft((current) => ({ ...current, tax_codes: parseCodeList(value) }))}
-                      placeholder="GST_IN, VAT_DE"
-                    />
-                    <InputField
-                      label="Billing address line 1"
-                      value={profileDraft.billing_address_line1 || ""}
-                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_address_line1: value }))}
-                      placeholder="1 Billing Street"
-                    />
-                    <InputField
-                      label="Billing address line 2"
-                      value={profileDraft.billing_address_line2 || ""}
-                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_address_line2: value }))}
-                      placeholder="Suite 200"
-                    />
-                    <InputField label="Billing city" value={profileDraft.billing_city || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_city: value }))} placeholder="Bengaluru" />
-                    <InputField label="Billing state" value={profileDraft.billing_state || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_state: value }))} placeholder="Karnataka" />
-                    <InputField
-                      label="Billing postal code"
-                      value={profileDraft.billing_postal_code || ""}
-                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_postal_code: value }))}
-                      placeholder="560001"
-                    />
-                    <InputField
-                      label="Billing country"
-                      value={profileDraft.billing_country || ""}
-                      onChange={(value) => updateProfileDraft((current) => ({ ...current, billing_country: value }))}
-                      placeholder="IN"
-                    />
-                    <InputField label="Currency" value={profileDraft.currency || ""} onChange={(value) => updateProfileDraft((current) => ({ ...current, currency: value }))} placeholder="USD" />
-                    <InputField
-                      label="Billing connection code"
-                      value={profileDraft.provider_code || ""}
-                      onChange={(value) => updateProfileDraft((current) => ({ ...current, provider_code: value }))}
-                      placeholder="stripe_default"
-                    />
+                    <InputField label="Legal name" placeholder="Acme Billing LLC" {...register("legal_name")} />
+                    <InputField label="Billing email" placeholder="billing@acme.test" {...register("email")} />
+                    <InputField label="Phone" placeholder="+1 415 555 0100" {...register("phone")} />
+                    <InputField label="Tax identifier" placeholder="VAT / GST / EIN" {...register("tax_identifier")} />
+                    <InputField label="Tax codes" placeholder="GST_IN, VAT_DE" {...register("tax_codes_raw")} />
+                    <InputField label="Billing address line 1" placeholder="1 Billing Street" {...register("billing_address_line1")} />
+                    <InputField label="Billing address line 2" placeholder="Suite 200" {...register("billing_address_line2")} />
+                    <InputField label="Billing city" placeholder="Bengaluru" {...register("billing_city")} />
+                    <InputField label="Billing state" placeholder="Karnataka" {...register("billing_state")} />
+                    <InputField label="Billing postal code" placeholder="560001" {...register("billing_postal_code")} />
+                    <InputField label="Billing country" placeholder="IN" {...register("billing_country")} />
+                    <InputField label="Currency" placeholder="USD" {...register("currency")} />
+                    <InputField label="Billing connection code" placeholder="stripe_default" {...register("provider_code")} />
                   </div>
 
                   <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Required fields</p>
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
-                      <ChecklistLine done={Boolean((profileDraft.legal_name || "").trim())} text="Legal name is set" />
-                      <ChecklistLine done={Boolean((profileDraft.email || "").trim())} text="Billing email is set" />
-                      <ChecklistLine done={Boolean((profileDraft.billing_address_line1 || "").trim())} text="Billing address is set" />
-                      <ChecklistLine done={Boolean((profileDraft.billing_city || "").trim())} text="Billing city is set" />
-                      <ChecklistLine done={Boolean((profileDraft.billing_postal_code || "").trim())} text="Billing postal code is set" />
-                      <ChecklistLine done={Boolean((profileDraft.billing_country || "").trim())} text="Billing country is set" />
-                      <ChecklistLine done={Boolean((profileDraft.currency || "").trim())} text="Currency is set" />
-                      <ChecklistLine done={Boolean((profileDraft.tax_codes || []).length)} text="Tax codes are optional and ready when assigned" />
-                      <ChecklistLine done={Boolean((profileDraft.tax_identifier || "").trim())} text="Tax identifier is optional and ready when present" />
+                      <ChecklistLine done={Boolean((profileValues.legal_name || "").trim())} text="Legal name is set" />
+                      <ChecklistLine done={Boolean((profileValues.email || "").trim())} text="Billing email is set" />
+                      <ChecklistLine done={Boolean((profileValues.billing_address_line1 || "").trim())} text="Billing address is set" />
+                      <ChecklistLine done={Boolean((profileValues.billing_city || "").trim())} text="Billing city is set" />
+                      <ChecklistLine done={Boolean((profileValues.billing_postal_code || "").trim())} text="Billing postal code is set" />
+                      <ChecklistLine done={Boolean((profileValues.billing_country || "").trim())} text="Billing country is set" />
+                      <ChecklistLine done={Boolean((profileValues.currency || "").trim())} text="Currency is set" />
+                      <ChecklistLine done={Boolean(parseCodeList(profileValues.tax_codes_raw || "").length)} text="Tax codes are optional and ready when assigned" />
+                      <ChecklistLine done={Boolean((profileValues.tax_identifier || "").trim())} text="Tax identifier is optional and ready when present" />
                     </div>
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={() => {
-                        updateProfileFlash(null);
-                        billingProfileMutation.mutate();
-                      }}
+                      onClick={handleProfileSubmit((data) => {
+                        setProfileFlash(null);
+                        billingProfileMutation.mutate(data);
+                      })}
                       disabled={!canWrite || !csrfToken || billingProfileMutation.isPending || !billingProfileDirty}
                       className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -364,9 +352,21 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        updateProfileDraft(profileBaseline);
-                      }}
+                      onClick={() => resetProfile({
+                        legal_name: profileBaseline.legal_name || "",
+                        email: profileBaseline.email || "",
+                        phone: profileBaseline.phone || "",
+                        tax_identifier: profileBaseline.tax_identifier || "",
+                        tax_codes_raw: (profileBaseline.tax_codes || []).join(", "),
+                        billing_address_line1: profileBaseline.billing_address_line1 || "",
+                        billing_address_line2: profileBaseline.billing_address_line2 || "",
+                        billing_city: profileBaseline.billing_city || "",
+                        billing_state: profileBaseline.billing_state || "",
+                        billing_postal_code: profileBaseline.billing_postal_code || "",
+                        billing_country: profileBaseline.billing_country || "",
+                        currency: profileBaseline.currency || "",
+                        provider_code: profileBaseline.provider_code || "",
+                      })}
                       disabled={!billingProfileDirty || billingProfileMutation.isPending}
                       className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -637,13 +637,12 @@ function MetaItem({ label, value, mono }: { label: string; value: string; mono?:
   );
 }
 
-function InputField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
+function InputField({ label, placeholder, ...props }: { label: string; placeholder: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
       <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        {...props}
         placeholder={placeholder}
         className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
       />
@@ -693,40 +692,6 @@ function billingProfileDraftFromProfile(profile: CustomerBillingProfile | null, 
   };
 }
 
-function normalizeBillingProfileDraft(input: CustomerBillingProfileInput): CustomerBillingProfileInput {
-  return {
-    legal_name: (input.legal_name || "").trim(),
-    email: (input.email || "").trim(),
-    phone: (input.phone || "").trim(),
-    billing_address_line1: (input.billing_address_line1 || "").trim(),
-    billing_address_line2: (input.billing_address_line2 || "").trim(),
-    billing_city: (input.billing_city || "").trim(),
-    billing_state: (input.billing_state || "").trim(),
-    billing_postal_code: (input.billing_postal_code || "").trim(),
-    billing_country: (input.billing_country || "").trim(),
-    currency: (input.currency || "").trim(),
-    tax_identifier: (input.tax_identifier || "").trim(),
-    tax_codes: parseCodeList((input.tax_codes || []).join(",")),
-    provider_code: (input.provider_code || "").trim(),
-  };
-}
-
-function serializeBillingProfileDraft(input: CustomerBillingProfileInput): string {
-  return JSON.stringify(normalizeBillingProfileDraft(input));
-}
-
-function requiredBillingProfileFields(input: CustomerBillingProfileInput): boolean[] {
-  const normalized = normalizeBillingProfileDraft(input);
-  return [
-    normalized.legal_name !== "",
-    normalized.email !== "",
-    normalized.billing_address_line1 !== "",
-    normalized.billing_city !== "",
-    normalized.billing_postal_code !== "",
-    normalized.billing_country !== "",
-    normalized.currency !== "",
-  ];
-}
 
 function parseCodeList(value: string): string[] {
   const seen = new Set<string>();
