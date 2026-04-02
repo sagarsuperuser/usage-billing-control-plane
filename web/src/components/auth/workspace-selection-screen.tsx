@@ -106,15 +106,23 @@ export function WorkspaceSelectionScreen() {
                   type="button"
                   onClick={() => selectMutation.mutate(item.tenant_id)}
                   disabled={selectMutation.isPending}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3.5 text-left transition hover:border-slate-300 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  className="group flex w-full items-center gap-3.5 rounded-xl border border-stone-200 bg-white px-4 py-3.5 text-left transition hover:border-slate-300 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{item.name}</p>
-                    <p className="mt-0.5 font-mono text-xs text-slate-400 truncate">{item.tenant_id}</p>
-                  </div>
-                  <span className="shrink-0 inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                    {item.role}
+                  <span className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-sm font-semibold text-white">
+                    {item.name.charAt(0).toUpperCase()}
                   </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{item.name}</p>
+                    <p className="mt-0.5 font-mono text-[11px] text-slate-400 truncate">{item.tenant_id}</p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                      {item.role}
+                    </span>
+                    <svg className="h-4 w-4 text-slate-300 transition group-hover:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </button>
               ))}
             </div>

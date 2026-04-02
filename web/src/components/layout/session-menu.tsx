@@ -97,14 +97,6 @@ export function SessionMenu() {
           >
             {secondaryLabel}
           </Link>
-          <Link
-            href={accessSwitchHref}
-            prefetch={false}
-            onClick={closeMenu}
-            className="flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm text-slate-700 transition hover:bg-stone-50"
-          >
-            Switch access
-          </Link>
         </div>
         <div className="border-t border-stone-100" />
         <div className="p-1.5">
