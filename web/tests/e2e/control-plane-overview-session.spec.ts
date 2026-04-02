@@ -334,11 +334,11 @@ test("platform overview shows live workspace attention counts", async ({ page })
   await page.getByTestId("session-login-submit").click();
 
   const nav = page.locator("nav");
-  await expect(page.getByRole("heading", { name: "What needs action" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Action required" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toHaveCount(0);
-  await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Replay", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toHaveCount(0);
   await expect(page.getByText("Create a workspace and hand off access cleanly.")).toBeVisible();
   await expect(page.getByText("Create the first billable customer and start payment setup.")).toHaveCount(0);
@@ -371,10 +371,10 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   await page.getByTestId("session-login-submit").click();
 
   const nav = page.locator("nav");
-  await expect(page.getByRole("heading", { name: "What needs action" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Action required" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Recovery", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Replay", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toHaveCount(0);
