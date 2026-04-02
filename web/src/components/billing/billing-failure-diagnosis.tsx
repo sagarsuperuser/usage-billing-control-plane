@@ -45,7 +45,7 @@ export function BillingFailureDiagnosisCard({
             </div>
             <div className="rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">
               <p className="font-semibold">Before acting</p>
-              <p className="mt-2">Don't act on the failure message alone. Verify the issue against the full billing evidence and timeline first.</p>
+              <p className="mt-2">Do not act on the failure message alone. Verify the issue against the full billing evidence and timeline first.</p>
             </div>
           </div>
           <div className="mt-4 rounded-xl border border-current/15 bg-white/50 px-4 py-3 text-sm">

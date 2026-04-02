@@ -254,6 +254,7 @@ export function TenantWorkspaceAccessScreen() {
   const selectedMember = members.find((member) => member.user_id === selectedMemberIDValue) ?? members[0] ?? null;
   const selectedServiceAccountCredentials = selectedServiceAccount?.credentials ?? [];
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setSelectedAuditEventID("");
     setAuditPage(1);
@@ -263,6 +264,7 @@ export function TenantWorkspaceAccessScreen() {
     setAuditExportCursor(undefined);
     setAuditExportCursorHistory([]);
   }, [selectedAuditServiceAccountIDValue]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const serviceAccountAuditQuery = useQuery({
     queryKey: ["tenant-workspace-service-account-audit", apiBaseURL, session?.tenant_id, selectedAuditServiceAccountIDValue],

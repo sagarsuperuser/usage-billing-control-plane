@@ -54,7 +54,11 @@ export function SubscriptionNewScreen() {
     },
   });
 
-  const watched = watch();
+  const watched = {
+    customer_external_id: watch("customer_external_id"),
+    plan_id: watch("plan_id"),
+    request_payment_setup: watch("request_payment_setup"),
+  };
 
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, "subscriptions-new"],
