@@ -56,15 +56,14 @@ export function SessionMenu() {
     <details ref={detailsRef} className="group relative">
       <summary
         data-testid="session-menu-toggle"
-        className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-left transition hover:border-stone-300 hover:bg-white"
+        className="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-left transition hover:border-stone-300 hover:bg-white"
       >
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700">
-          <UserRoundCog className="h-4 w-4" />
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-white">
+          <UserRoundCog className="h-3.5 w-3.5" />
         </span>
-        <span className="min-w-0">
-          <span className="block text-[10px] uppercase tracking-[0.16em] text-slate-500">Current access</span>
-          <span className="block truncate text-xs font-semibold uppercase tracking-[0.12em] text-slate-900">{accessLabel}</span>
-          <span className="block truncate text-[11px] text-slate-600">{identityLabel}</span>
+        <span className="min-w-0 hidden sm:block">
+          <span className="block truncate text-xs font-semibold text-slate-900">{accessLabel}</span>
+          <span className="block truncate text-[11px] text-slate-500">{identityLabel}</span>
         </span>
       </summary>
       <div className="absolute right-0 z-30 mt-2 w-[300px] rounded-3xl border border-stone-200 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
