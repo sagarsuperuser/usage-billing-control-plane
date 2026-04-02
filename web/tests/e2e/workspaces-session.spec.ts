@@ -407,7 +407,7 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await page.getByTestId("session-login-submit").click();
 
-  await expect(page.getByRole("heading", { name: "Workspace handoff and readiness" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
   await expect(page.getByRole("link", { name: "New workspace" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Tenant Alpha/i })).toBeVisible();
   await expect(page.getByText("Next action: pricing")).toBeVisible();
