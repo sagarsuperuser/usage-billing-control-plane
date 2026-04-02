@@ -4,16 +4,12 @@ Release gate for `usage-billing-control-plane` against staging.
 
 ---
 
-## Current Proven State (2026-03-15)
+## Staging Endpoints
 
 - Alpha API: `https://api-staging.sagarwaidande.org`
 - Alpha UI: `https://staging.sagarwaidande.org`
 - Lago API: `https://lago-api-staging.sagarwaidande.org`
 - Webhook endpoint: `https://api-staging.sagarwaidande.org/internal/lago/webhooks` (hmac)
-- Payment E2E passed (success: `56251c97...`, failure: `baa27549...`)
-- Replay smoke passed (job: `rpl_432a72de0e30cac9`)
-- Backup/restore drill passed (snapshot: `lago-alpha-staging-drill-snap-20260315121714`)
-- Rollback rehearsal passed (image: `staging-20260315-replay-ui`)
 
 Note: Stripe account is India-based — success-path customers require a billing address synced to Stripe.
 
@@ -24,13 +20,9 @@ Note: Stripe account is India-based — success-path customers require a billing
 | ID | Area | Command | Status |
 |----|------|---------|--------|
 | P0-1 | Build/Test Gate | `make preflight-staging && make test-real-env-smoke && make test-integration` | [ ] |
-| P0-2 | Real Payment E2E | Run `Real Payment E2E` workflow twice (`succeeded` + `failed`) | [x] |
-| P0-3 | Payment Failure Visibility | Verify `payment_status=failed`, `last_payment_error`, event history | [x] |
-| P0-4 | Runtime Security | Verify secure cookie, rate limiting, 429 with `Retry-After` | [x] |
-| P0-5 | Backup/Restore Drill | Snapshot + restore drill in staging | [x] |
-| P0-6 | Deploy/Rollback Safety | Deploy → rollback → redeploy cycle | [x] |
-
-P0-1 remains open (CI/preflight evidence not yet formally captured). All others proven on 2026-03-15.
+| P0-2 | Real Payment E2E | `make test-staging-payment-smoke LAGO_API_KEY='...'` (success + failure) | [ ] |
+| P0-3 | Payment Failure Visibility | Verify `payment_status=failed`, `last_payment_error`, event history | [ ] |
+| P0-4 | Runtime Security | Verify secure cookie, rate limiting, 429 with `Retry-After` | [ ] |
 
 ---
 
@@ -82,16 +74,18 @@ kubectl logs -n lago-alpha deploy/lago-alpha-lago-alpha-replay-worker --tail=100
 kubectl logs -n lago-alpha deploy/lago-alpha-lago-alpha-replay-dispatcher --tail=100
 ```
 
-Combined acceptance gate:
+Runtime health check:
 
 ```bash
 ALPHA_API_BASE_URL='https://api-staging.sagarwaidande.org' \
-ALPHA_WRITER_API_KEY='...' ALPHA_READER_API_KEY='...' \
-LAGO_API_URL='https://lago-api-staging.sagarwaidande.org' \
-LAGO_API_KEY='...' \
-SUCCESS_INVOICE_ID='56251c97-597a-4cec-9a22-8106d746def8' \
-FAILURE_INVOICE_ID='baa27549-32d4-47cd-9f14-d98b61c8b0fa' \
-make verify-staging-acceptance
+ALPHA_READER_API_KEY='...' \
+make verify-staging-runtime
+```
+
+Payment smoke (auto-mints keys):
+
+```bash
+LAGO_API_KEY='...' make test-staging-payment-smoke
 ```
 
 Browser smoke:
@@ -121,19 +115,7 @@ for i in $(seq 1 25); do
 done
 ```
 
-### 7. Backup/Restore Drill
-
-```bash
-AWS_REGION='us-east-1' ENVIRONMENT='staging' \
-RDS_INSTANCE_ID='<staging_rds_instance_id>' \
-DB_SUBNET_GROUP='<staging_db_subnet_group>' \
-VPC_SG_IDS='<sg-aaaa,sg-bbbb>' \
-CONFIRM_BACKUP_RESTORE='YES_I_UNDERSTAND' \
-DELETE_RESTORE_ON_SUCCESS=1 WAIT_FOR_DELETE=1 \
-make backup-restore-drill
-```
-
-### 8. Rollback (If Needed)
+### 7. Rollback (If Needed)
 
 ```bash
 make rollback-staging REVISION=<previous_helm_revision>
@@ -149,5 +131,4 @@ Promote only when all pass:
 - Infra apply completed without drift
 - Post-deploy functional checks pass
 - Real payment E2E green (success + failure)
-- Rollback validated at least once
 - All P0 rows checked

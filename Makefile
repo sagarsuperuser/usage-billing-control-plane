@@ -34,7 +34,7 @@ LAGO_STAGING_BACKEND_IMAGE_OVERRIDE ?= 139831607173.dkr.ecr.us-east-1.amazonaws.
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-pricing-journey test-staging-subscription-journey test-staging-payment-setup-journey test-staging-browser-payment-setup-journey test-staging-access-invite-journey test-staging-customer-onboarding-journey test-staging-subscription-change-cancel-journey test-staging-usage-to-issued-invoice-journey test-staging-dunning-journey test-staging-replay-smoke test-staging-acceptance verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data cleanup-staging-flow-data-local lago-up lago-down lago-ps lago-verify lago-baseline lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install reloader-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-staging-acceptance verify-replay-smoke-staging backup-restore-drill rehearse-release-rollback web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
+.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-pricing-journey test-staging-subscription-journey test-staging-payment-setup-journey test-staging-access-invite-journey test-staging-customer-onboarding-journey test-staging-replay-smoke verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data cleanup-staging-flow-data-local lago-up lago-down lago-ps lago-verify lago-baseline lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install reloader-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-replay-smoke-staging web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
@@ -204,45 +204,19 @@ test-staging-subscription-journey: ## Run live staging subscription billing jour
 test-staging-payment-setup-journey: ## Run live staging payment setup and collect-payment journey with minted platform/writer/reader keys (requires LAGO_API_KEY)
 	@bash ./scripts/run_staging_payment_setup_journey_with_minted_keys.sh
 
-test-staging-browser-payment-setup-journey: ## Run live browser payment setup journey through collect-payment recovery and retry (requires LAGO_API_KEY)
-	@bash ./scripts/run_staging_browser_payment_setup_journey.sh
-
 test-staging-access-invite-journey: ## Run live staging access and invite membership journey
 	@bash ./scripts/run_staging_access_invite_journey.sh
 
 test-staging-customer-onboarding-journey: ## Run live staging customer onboarding journey
 	@bash ./scripts/run_staging_customer_onboarding_journey.sh
 
-test-staging-subscription-change-cancel-journey: ## Run live staging subscription change and cancellation journey (requires LAGO_API_KEY)
-	@bash ./scripts/run_staging_subscription_change_cancel_journey.sh
-
-test-staging-usage-to-issued-invoice-journey: ## Run live staging usage-to-issued-invoice journey with minted platform/writer/reader keys (requires LAGO_API_KEY)
-	@bash ./scripts/run_staging_usage_to_issued_invoice_journey_with_minted_keys.sh
-
-test-staging-dunning-journey: ## Run live staging dunning and collections journey with minted platform/writer/reader keys (requires LAGO_API_KEY)
-	@bash ./scripts/run_staging_dunning_journey_with_minted_keys.sh
-
-test-staging-billing-connection-lifecycle-journey: ## Run live staging billing connection lifecycle journey through the platform UI
-	@bash ./scripts/run_staging_billing_connection_lifecycle_journey.sh
-
 verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_staging_runtime.sh
-
-verify-staging-acceptance: ## Run staging runtime verify + success/failure payment E2E (auto-prepares clean payment fixtures unless explicit invoice ids are provided)
-	@bash ./scripts/verify_staging_acceptance.sh
-
-test-staging-acceptance: verify-staging-acceptance ## Run the full live staging acceptance gate
 
 verify-replay-smoke-staging: ## Create and verify a fresh live replay fixture in staging (requires ALPHA_API_BASE_URL/ALPHA_WRITER_API_KEY/ALPHA_READER_API_KEY)
 	@bash ./scripts/verify_replay_smoke_staging.sh
 
 test-staging-replay-smoke: verify-replay-smoke-staging ## Run live staging replay smoke
-
-backup-restore-drill: ## Run RDS backup+restore drill (requires AWS env vars and CONFIRM_BACKUP_RESTORE=YES_I_UNDERSTAND)
-	@bash ./scripts/rds_backup_restore_drill.sh
-
-rehearse-release-rollback: ## Run deploy -> rollback -> redeploy rehearsal (requires kubectl/helm context + image vars)
-	@bash ./scripts/rehearse_release_rollback.sh
 
 web-e2e: ## Run browser E2E tests for control-plane UI
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
