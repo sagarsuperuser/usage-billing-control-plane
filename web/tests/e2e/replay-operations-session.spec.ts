@@ -239,7 +239,7 @@ test("writer session can queue replay jobs and inspect diagnostics", async ({ pa
 
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
-  await expect(page.getByText("Replay + Reprocess Operations")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Replay operations" })).toBeVisible();
   await page.getByTestId("replay-create-customer-id").fill("cust_new");
   await page.getByTestId("replay-create-meter-id").fill("meter_new");
   await page.getByTestId("replay-create-idempotency-key").fill("replay-new-1");
