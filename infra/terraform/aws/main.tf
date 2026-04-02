@@ -138,8 +138,7 @@ module "eks" {
           edit = {
             policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
             access_scope = {
-              type       = "namespace"
-              namespaces = ["lago-alpha"]
+              type = "cluster"
             }
           }
         }
