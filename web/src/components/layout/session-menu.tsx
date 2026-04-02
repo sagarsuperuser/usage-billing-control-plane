@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { LoaderCircle, LogOut, PanelsTopLeft, UserRoundCog } from "lucide-react";
 
 import { useUISession } from "@/hooks/use-ui-session";
-import { buildAccessSwitchPath } from "@/lib/session-routing";
 
 export function SessionMenu() {
   const { session, scope, platformRole, csrfToken, logout, loggingOut } = useUISession();
@@ -45,7 +44,6 @@ export function SessionMenu() {
   const homeHref = scope === "platform" ? "/billing-connections" : "/customers";
   const secondaryHref = scope === "platform" ? "/workspaces" : "/workspace-access";
   const secondaryLabel = scope === "platform" ? "Open workspaces" : "Open access";
-  const accessSwitchHref = buildAccessSwitchPath(pathname || homeHref);
   const closeMenu = () => {
     if (detailsRef.current?.open) {
       detailsRef.current.open = false;
@@ -96,14 +94,6 @@ export function SessionMenu() {
             className="flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm text-slate-700 transition hover:bg-stone-50"
           >
             {secondaryLabel}
-          </Link>
-          <Link
-            href={accessSwitchHref}
-            prefetch={false}
-            onClick={closeMenu}
-            className="flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm text-slate-500 transition hover:bg-stone-50"
-          >
-            Sign in as different account
           </Link>
         </div>
         <div className="border-t border-stone-100" />
