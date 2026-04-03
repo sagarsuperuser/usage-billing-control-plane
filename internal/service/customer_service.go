@@ -81,7 +81,7 @@ type CustomerReadiness struct {
 	CustomerExists               bool                          `json:"customer_exists"`
 	CustomerActive               bool                          `json:"customer_active"`
 	BillingProviderConfigured    bool                          `json:"billing_provider_configured"`
-	LagoCustomerSynced           bool                          `json:"lago_customer_synced"`
+	ProviderCustomerSynced           bool                          `json:"provider_customer_synced"`
 	DefaultPaymentMethodVerified bool                          `json:"default_payment_method_verified"`
 	BillingProfileStatus         domain.BillingProfileStatus   `json:"billing_profile_status"`
 	PaymentSetupStatus           domain.PaymentSetupStatus     `json:"payment_setup_status"`
@@ -528,7 +528,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	}
 
 	now := time.Now().UTC()
-	_ = result.LagoCustomerID // lago_customer_id column removed; sync result field retained in adapter interface
+	_ = result.ProviderCustomerID // lago_customer_id column removed; sync result field retained in adapter interface
 	profile.ProfileStatus = deriveBillingProfileStatus(profile)
 	profile.LastSyncedAt = &now
 	profile.LastSyncError = ""
@@ -590,7 +590,7 @@ func (s *CustomerService) recordCustomerSyncFailure(customer domain.Customer, pr
 func buildCustomerReadiness(billingProviderConfigured bool, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) CustomerReadiness {
 	missing := make([]string, 0)
 	status := "ready"
-	lagoCustomerSynced := profile.LastSyncedAt != nil && strings.TrimSpace(profile.LastSyncError) == ""
+	providerCustomerSynced := profile.LastSyncedAt != nil && strings.TrimSpace(profile.LastSyncError) == ""
 	defaultPaymentMethodVerified := setup.DefaultPaymentMethodPresent && strings.TrimSpace(setup.LastVerificationError) == ""
 	if customer.Status != domain.CustomerStatusActive {
 		missing = append(missing, "customer_active")
@@ -601,8 +601,8 @@ func buildCustomerReadiness(billingProviderConfigured bool, customer domain.Cust
 	if profile.ProfileStatus != domain.BillingProfileStatusReady {
 		missing = append(missing, "billing_profile_ready")
 	}
-	if !lagoCustomerSynced {
-		missing = append(missing, "lago_customer_synced")
+	if !providerCustomerSynced {
+		missing = append(missing, "provider_customer_synced")
 	}
 	if setup.SetupStatus != domain.PaymentSetupStatusReady {
 		missing = append(missing, "payment_setup_ready")
@@ -620,7 +620,7 @@ func buildCustomerReadiness(billingProviderConfigured bool, customer domain.Cust
 		CustomerExists:               true,
 		CustomerActive:               customer.Status == domain.CustomerStatusActive,
 		BillingProviderConfigured:    billingProviderConfigured,
-		LagoCustomerSynced:           lagoCustomerSynced,
+		ProviderCustomerSynced:           providerCustomerSynced,
 		DefaultPaymentMethodVerified: defaultPaymentMethodVerified,
 		BillingProfileStatus:         profile.ProfileStatus,
 		PaymentSetupStatus:           setup.SetupStatus,

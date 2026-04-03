@@ -192,7 +192,7 @@ func TestBillingProviderConnectionService_SyncFailsWhenStripeVerificationFails(t
 		DisplayName:        "Stripe Verify Fail",
 		Scope:              "platform",
 		StripeSecretKey:    "sk_test_verify_fail",
-		LagoOrganizationID: "org_seed",
+		StripeAccountID: "org_seed",
 	}, "platform_api_key", "pkey_verify_fail")
 	if err != nil {
 		t.Fatalf("create connection: %v", err)
@@ -233,7 +233,7 @@ func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
 		DisplayName:        "Stripe Stale A",
 		Scope:              "platform",
 		StripeSecretKey:    "sk_test_batch_a",
-		LagoOrganizationID: "org_seed",
+		StripeAccountID: "org_seed",
 	}, "platform_api_key", "pkey_batch_a")
 	if err != nil {
 		t.Fatalf("create stale A: %v", err)
@@ -244,7 +244,7 @@ func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
 		DisplayName:        "Stripe Stale B",
 		Scope:              "platform",
 		StripeSecretKey:    "sk_test_batch_b",
-		LagoOrganizationID: "org_seed",
+		StripeAccountID: "org_seed",
 	}, "platform_api_key", "pkey_batch_b")
 	if err != nil {
 		t.Fatalf("create stale B: %v", err)
@@ -255,7 +255,7 @@ func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
 		DisplayName:        "Stripe Fresh",
 		Scope:              "platform",
 		StripeSecretKey:    "sk_test_batch_c",
-		LagoOrganizationID: "org_seed",
+		StripeAccountID: "org_seed",
 	}, "platform_api_key", "pkey_batch_c")
 	if err != nil {
 		t.Fatalf("create fresh: %v", err)
@@ -273,7 +273,7 @@ func TestBillingProviderConnectionService_RecheckBatch(t *testing.T) {
 		DisplayName:        "Stripe Disabled",
 		Scope:              "platform",
 		StripeSecretKey:    "sk_test_batch_d",
-		LagoOrganizationID: "org_seed",
+		StripeAccountID: "org_seed",
 	}, "platform_api_key", "pkey_batch_d")
 	if err != nil {
 		t.Fatalf("create disabled: %v", err)
@@ -348,7 +348,7 @@ func TestBillingProviderConnectionService_ProvisionWorkspaceBillingConnectionReq
 	_, err = svc.ProvisionWorkspaceBillingConnection(context.Background(), ProvisionWorkspaceBillingConnectionInput{
 		ConnectionID:       created.ID,
 		OwnerTenantID:      "tenant_test",
-		LagoOrganizationID: "org_test",
+		StripeAccountID: "org_test",
 	})
 	if err == nil || !strings.Contains(err.Error(), "must be checked before workspace assignment") {
 		t.Fatalf("expected checked-before-assignment validation error, got %v", err)
@@ -367,11 +367,11 @@ func TestBillingProviderConnectionService_ProvisionWorkspaceBillingConnection(t 
 		VerifiedAt: time.Now().UTC(),
 	}}
 	adapter := &stubBillingProviderAdapter{result: EnsureStripeProviderResult{
-		LagoOrganizationID: "org_default",
-		LagoProviderCode:   "stripe_default_org",
+		StripeAccountID: "org_default",
+		StripeProviderCode:   "stripe_default_org",
 		ConnectedAt:        time.Now().UTC(),
 		LastSyncedAt:       time.Now().UTC(),
-		LagoWebhookHMACKey: "hmac_workspace",
+		DeprecatedHMACKey: "hmac_workspace",
 	}}
 	svc := NewBillingProviderConnectionService(repo, secretStore, adapter).WithStripeConnectionVerifier(verifier)
 
@@ -392,23 +392,23 @@ func TestBillingProviderConnectionService_ProvisionWorkspaceBillingConnection(t 
 	result, err := svc.ProvisionWorkspaceBillingConnection(context.Background(), ProvisionWorkspaceBillingConnectionInput{
 		ConnectionID:       created.ID,
 		OwnerTenantID:      "tenant_workspace",
-		LagoOrganizationID: "org_default",
+		StripeAccountID: "org_default",
 	})
 	if err != nil {
 		t.Fatalf("provision workspace billing: %v", err)
 	}
-	if adapter.last.LagoOrganizationID != "org_default" {
-		t.Fatalf("expected default org to be sent to adapter, got %q", adapter.last.LagoOrganizationID)
+	if adapter.last.StripeAccountID != "org_default" {
+		t.Fatalf("expected default org to be sent to adapter, got %q", adapter.last.StripeAccountID)
 	}
-	if result.LagoOrganizationID != "org_default" {
-		t.Fatalf("expected provision result to preserve org, got %q", result.LagoOrganizationID)
+	if result.StripeAccountID != "org_default" {
+		t.Fatalf("expected provision result to preserve org, got %q", result.StripeAccountID)
 	}
 	secrets, err := secretStore.GetConnectionSecrets(context.Background(), created.SecretRef)
 	if err != nil {
 		t.Fatalf("get updated connection secrets: %v", err)
 	}
-	if secrets.LagoWebhookHMACKey != "hmac_workspace" {
-		t.Fatalf("expected workspace provisioning to persist hmac key, got %q", secrets.LagoWebhookHMACKey)
+	if secrets.DeprecatedHMACKey != "hmac_workspace" {
+		t.Fatalf("expected workspace provisioning to persist hmac key, got %q", secrets.DeprecatedHMACKey)
 	}
 }
 
@@ -436,7 +436,7 @@ func TestBillingProviderConnectionService_ProvisionFailureReturnsAdapterError(t 
 	_, err = svc.ProvisionWorkspaceBillingConnection(context.Background(), ProvisionWorkspaceBillingConnectionInput{
 		ConnectionID:       created.ID,
 		OwnerTenantID:      "tenant_fail",
-		LagoOrganizationID: "org_fail",
+		StripeAccountID: "org_fail",
 	})
 	if err == nil || !strings.Contains(err.Error(), "lago sync failed") {
 		t.Fatalf("expected adapter error during provisioning, got %v", err)

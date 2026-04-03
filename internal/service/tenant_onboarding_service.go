@@ -22,8 +22,8 @@ type TenantOnboardingRequest struct {
 	ID                          string     `json:"id"`
 	Name                        string     `json:"name"`
 	BillingProviderConnectionID string     `json:"billing_provider_connection_id,omitempty"`
-	LagoOrganizationID          string     `json:"lago_organization_id,omitempty"`
-	LagoBillingProviderCode     string     `json:"lago_billing_provider_code,omitempty"`
+	StripeAccountID          string     `json:"lago_organization_id,omitempty"`
+	StripeProviderCode     string     `json:"lago_billing_provider_code,omitempty"`
 	AdminKeyName                string     `json:"admin_key_name,omitempty"`
 	AdminKeyExpiresAt           *time.Time `json:"admin_key_expires_at,omitempty"`
 	AllowExistingActiveKeys     bool       `json:"allow_existing_active_keys,omitempty"`

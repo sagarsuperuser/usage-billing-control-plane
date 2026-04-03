@@ -23,7 +23,7 @@ type BillingSecretStore interface {
 type BillingProviderSecrets struct {
 	StripeSecretKey     string `json:"stripe_secret_key,omitempty"`
 	StripeWebhookSecret string `json:"stripe_webhook_secret,omitempty"`
-	LagoWebhookHMACKey  string `json:"lago_webhook_hmac_key,omitempty"`
+	DeprecatedHMACKey  string `json:"lago_webhook_hmac_key,omitempty"`
 }
 
 type MemoryBillingSecretStore struct {
@@ -165,12 +165,12 @@ func storeErrNotFound(label string) error {
 func normalizeBillingProviderSecrets(secrets BillingProviderSecrets) BillingProviderSecrets {
 	return BillingProviderSecrets{
 		StripeSecretKey:    strings.TrimSpace(secrets.StripeSecretKey),
-		LagoWebhookHMACKey: strings.TrimSpace(secrets.LagoWebhookHMACKey),
+		DeprecatedHMACKey: strings.TrimSpace(secrets.DeprecatedHMACKey),
 	}
 }
 
 func validateBillingProviderSecrets(secrets BillingProviderSecrets) error {
-	if strings.TrimSpace(secrets.StripeSecretKey) == "" && strings.TrimSpace(secrets.LagoWebhookHMACKey) == "" {
+	if strings.TrimSpace(secrets.StripeSecretKey) == "" && strings.TrimSpace(secrets.DeprecatedHMACKey) == "" {
 		return fmt.Errorf("%w: at least one billing provider secret is required", ErrValidation)
 	}
 	return nil

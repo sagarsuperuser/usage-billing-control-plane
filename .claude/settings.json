@@ -93,7 +93,24 @@
       "Bash(grep -rn \"ORDER BY.*sortBy\\\\|ORDER BY.*%s\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/store/postgres_*.go)",
       "Bash(grep -rn \"filter\\\\.SortBy\\\\|filter\\\\.Sort\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/store/postgres_*.go)",
       "Bash(sed -i '' 's/lago_alpha_ui_session/alpha_ui_session/g' /Users/superuser/projects/golang/usage-billing-control-plane/internal/appconfig/server.go)",
-      "Bash(sed -i '' 's/\"backend\", \"lago\"/\"backend\", \"direct\"/g' /Users/superuser/projects/golang/usage-billing-control-plane/cmd/server/main.go)"
+      "Bash(sed -i '' 's/\"backend\", \"lago\"/\"backend\", \"direct\"/g' /Users/superuser/projects/golang/usage-billing-control-plane/cmd/server/main.go)",
+      "Bash(sed -i '' 's/lago webhook service is required/payment status service is required/g' internal/api/http_invoices.go)",
+      "Bash(sed -i '' 's/from lago:/from billing provider:/g' internal/api/http_invoices.go)",
+      "Bash(sed -i '' 's/lagoInvoiceEnvelope/invoiceEnvelope/g' internal/service/invoice_explainability_service.go)",
+      "Bash(sed -i '' 's/lagoInvoice /invoicePayload /g' internal/service/invoice_explainability_service.go)",
+      "Bash(sed -i '' 's/lagoInvoice$/invoicePayload/g' internal/service/invoice_explainability_service.go)",
+      "Bash(sed -i '' 's/LagoOrganizationID string/StripeAccountID string/g' internal/service/billing_provider_connection_service.go)",
+      "Bash(sed -i '' 's/LagoOrganizationID \\\\*string/StripeAccountID *string/g' internal/service/billing_provider_connection_service.go)",
+      "Bash(sed -i '' 's/LagoOrganizationID/StripeAccountID/g' internal/service/billing_provider_connection_service.go)",
+      "Bash(sed -i '' 's/LagoProviderCode string/StripeProviderCode string/g' internal/service/billing_provider_connection_service.go)",
+      "Bash(sed -i '' 's/LagoProviderCode \\\\*string/StripeProviderCode *string/g' internal/service/billing_provider_connection_service.go)",
+      "Bash(sed -i '' 's/LagoWebhookHMACKey/DeprecatedHMACKey/g' internal/service/billing_secret_store.go)",
+      "Bash(sed -i '' 's/result\\\\.LagoCustomerID/result.ProviderCustomerID/g' internal/service/customer_service.go)",
+      "Bash(sed -i '' 's/LagoChargeID/ChargeID/g' internal/service/invoice_explainability_service.go)",
+      "Bash(sed -i '' 's/LagoSubscriptionID/SubscriptionID/g' internal/service/invoice_explainability_service.go)",
+      "Bash(sed -i '' 's/lagoFeeItemRaw/feeItemRaw/g' internal/service/invoice_explainability_service.go)",
+      "Bash(sed -i '' 's/lago invoice payload must be valid json/invoice payload must be valid json/g' internal/service/invoice_explainability_service.go)",
+      "Bash(sed -i '' 's/decode lago invoice payload/decode invoice payload/g' internal/service/invoice_explainability_service.go)"
     ]
   }
 }

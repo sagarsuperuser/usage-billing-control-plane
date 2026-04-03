@@ -138,7 +138,7 @@ func (s *NotificationService) ResendInvoiceEmail(ctx context.Context, invoiceID 
 		DispatchedAt: time.Now().UTC(),
 		Action:       "resend_invoice_email",
 		Domain:       "billing_document",
-		Backend:      "lago",
+		Backend:      "stripe",
 	}, nil
 }
 
@@ -157,7 +157,7 @@ func (s *NotificationService) ResendPaymentReceiptEmail(ctx context.Context, pay
 		DispatchedAt: time.Now().UTC(),
 		Action:       "resend_payment_receipt_email",
 		Domain:       "billing_document",
-		Backend:      "lago",
+		Backend:      "stripe",
 	}, nil
 }
 
@@ -176,6 +176,6 @@ func (s *NotificationService) ResendCreditNoteEmail(ctx context.Context, creditN
 		DispatchedAt: time.Now().UTC(),
 		Action:       "resend_credit_note_email",
 		Domain:       "billing_document",
-		Backend:      "lago",
+		Backend:      "stripe",
 	}, nil
 }

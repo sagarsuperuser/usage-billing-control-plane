@@ -90,7 +90,7 @@ func NewRedisRateLimiter(cfg RedisRateLimiterConfig) (*RedisRateLimiter, error) 
 
 	keyPrefix := strings.TrimSpace(cfg.KeyPrefix)
 	if keyPrefix == "" {
-		keyPrefix = "lago_alpha:ratelimit"
+		keyPrefix = "alpha:ratelimit"
 	}
 	store, err := redisstore.NewStoreWithOptions(client, limiter.StoreOptions{
 		Prefix: keyPrefix,

@@ -63,23 +63,23 @@ func NewInvoiceExplainabilityOptions(feeTypes []string, lineItemSort string, pag
 	return out, nil
 }
 
-type lagoInvoiceEnvelope struct {
-	Invoice lagoInvoice `json:"invoice"`
+type invoiceEnvelope struct {
+	Invoice invoicePayload `json:"invoice"`
 }
 
-type lagoInvoice struct {
+type invoicePayload struct {
 	ID               string       `json:"lago_id"`
 	Number           string       `json:"number"`
 	Status           string       `json:"status"`
 	Currency         string       `json:"currency"`
 	TotalAmountCents int64        `json:"total_amount_cents"`
-	Fees             []lagoFeeRaw `json:"fees"`
+	Fees             []feeRaw `json:"fees"`
 }
 
-type lagoFeeRaw struct {
+type feeRaw struct {
 	ID                  string         `json:"lago_id"`
-	LagoChargeID        string         `json:"lago_charge_id"`
-	LagoSubscriptionID  string         `json:"lago_subscription_id"`
+	ChargeID        string         `json:"lago_charge_id"`
+	SubscriptionID  string         `json:"lago_subscription_id"`
 	AmountCents         int64          `json:"amount_cents"`
 	TaxesAmountCents    int64          `json:"taxes_amount_cents"`
 	TotalAmountCents    int64          `json:"total_amount_cents"`
@@ -91,10 +91,10 @@ type lagoFeeRaw struct {
 	ChargesFromDatetime string         `json:"charges_from_datetime"`
 	ChargesToDatetime   string         `json:"charges_to_datetime"`
 	AmountDetails       map[string]any `json:"amount_details"`
-	Item                lagoFeeItemRaw `json:"item"`
+	Item                feeItemRaw `json:"item"`
 }
 
-type lagoFeeItemRaw struct {
+type feeItemRaw struct {
 	Type                     string `json:"type"`
 	Code                     string `json:"code"`
 	Name                     string `json:"name"`
@@ -109,15 +109,15 @@ type explainabilityRow struct {
 
 func BuildInvoiceExplainability(payload []byte, options InvoiceExplainabilityOptions) (domain.InvoiceExplainability, error) {
 	if !json.Valid(payload) {
-		return domain.InvoiceExplainability{}, fmt.Errorf("%w: lago invoice payload must be valid json", ErrValidation)
+		return domain.InvoiceExplainability{}, fmt.Errorf("%w: invoice payload must be valid json", ErrValidation)
 	}
 
-	var env lagoInvoiceEnvelope
+	var env invoiceEnvelope
 	if err := json.Unmarshal(payload, &env); err != nil {
-		return domain.InvoiceExplainability{}, fmt.Errorf("decode lago invoice payload: %w", err)
+		return domain.InvoiceExplainability{}, fmt.Errorf("decode invoice payload: %w", err)
 	}
 	if strings.TrimSpace(env.Invoice.ID) == "" {
-		return domain.InvoiceExplainability{}, fmt.Errorf("%w: lago invoice payload missing invoice", ErrValidation)
+		return domain.InvoiceExplainability{}, fmt.Errorf("%w: invoice payload missing invoice", ErrValidation)
 	}
 
 	rows := make([]explainabilityRow, 0, len(env.Invoice.Fees))
@@ -151,7 +151,7 @@ func BuildInvoiceExplainability(payload []byte, options InvoiceExplainabilityOpt
 	return out, nil
 }
 
-func buildExplainabilityLineItem(fee lagoFeeRaw) domain.InvoiceExplainabilityLineItem {
+func buildExplainabilityLineItem(fee feeRaw) domain.InvoiceExplainabilityLineItem {
 	itemName := strings.TrimSpace(fee.Item.InvoiceDisplayName)
 	if itemName == "" {
 		itemName = strings.TrimSpace(fee.Item.Name)
@@ -181,7 +181,7 @@ func buildExplainabilityLineItem(fee lagoFeeRaw) domain.InvoiceExplainabilityLin
 		computationMode = "unknown"
 	}
 
-	ruleRef := buildRuleReference(itemType, strings.TrimSpace(fee.Item.Code), strings.TrimSpace(fee.LagoChargeID), strings.TrimSpace(fee.LagoSubscriptionID), strings.TrimSpace(fee.ID))
+	ruleRef := buildRuleReference(itemType, strings.TrimSpace(fee.Item.Code), strings.TrimSpace(fee.ChargeID), strings.TrimSpace(fee.SubscriptionID), strings.TrimSpace(fee.ID))
 	from := firstTimePointer(fee.ChargesFromDatetime, fee.FromDatetime)
 	to := firstTimePointer(fee.ChargesToDatetime, fee.ToDatetime)
 	properties := normalizeJSONMap(fee.AmountDetails)
@@ -214,8 +214,8 @@ func buildExplainabilityLineItem(fee lagoFeeRaw) domain.InvoiceExplainabilityLin
 		FromDatetime:            from,
 		ToDatetime:              to,
 		ChargeFilterDisplayName: strings.TrimSpace(fee.Item.FilterInvoiceDisplayName),
-		SubscriptionID:          strings.TrimSpace(fee.LagoSubscriptionID),
-		ChargeID:                strings.TrimSpace(fee.LagoChargeID),
+		SubscriptionID:          strings.TrimSpace(fee.SubscriptionID),
+		ChargeID:                strings.TrimSpace(fee.ChargeID),
 		BillableMetricCode:      strings.TrimSpace(billableMetricCode),
 		Properties:              properties,
 	}

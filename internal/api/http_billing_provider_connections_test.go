@@ -24,11 +24,11 @@ func (s *stubBillingProviderAdapterAPI) EnsureStripeProvider(_ context.Context, 
 	if s.err != nil {
 		return service.EnsureStripeProviderResult{}, s.err
 	}
-	if s.result.LagoProviderCode == "" {
-		s.result.LagoProviderCode = input.LagoProviderCode
+	if s.result.StripeProviderCode == "" {
+		s.result.StripeProviderCode = input.StripeProviderCode
 	}
-	if s.result.LagoOrganizationID == "" {
-		s.result.LagoOrganizationID = input.LagoOrganizationID
+	if s.result.StripeAccountID == "" {
+		s.result.StripeAccountID = input.StripeAccountID
 	}
 	return s.result, nil
 }
@@ -130,8 +130,8 @@ func TestInternalBillingProviderConnectionEndpoints(t *testing.T) {
 	}
 
 	adapter := &stubBillingProviderAdapterAPI{result: service.EnsureStripeProviderResult{
-		LagoOrganizationID: "org_synced",
-		LagoProviderCode:   "stripe_synced",
+		StripeAccountID: "org_synced",
+		StripeProviderCode:   "stripe_synced",
 	}}
 	svc := service.NewBillingProviderConnectionService(repo, service.NewMemoryBillingSecretStore(), adapter).
 		WithStripeConnectionVerifier(&stubStripeConnectionVerifierAPI{result: service.StripeConnectionVerificationResult{AccountID: "acct_ok"}})
@@ -235,8 +235,8 @@ func TestInternalBillingProviderConnectionRotateSecretEndpoint(t *testing.T) {
 	}
 
 	adapter := &stubBillingProviderAdapterAPI{result: service.EnsureStripeProviderResult{
-		LagoOrganizationID: "org_synced",
-		LagoProviderCode:   "stripe_synced",
+		StripeAccountID: "org_synced",
+		StripeProviderCode:   "stripe_synced",
 	}}
 	secretStore := service.NewMemoryBillingSecretStore()
 	svc := service.NewBillingProviderConnectionService(repo, secretStore, adapter).

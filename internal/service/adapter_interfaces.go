@@ -50,7 +50,6 @@ type InvoiceBillingAdapter interface {
 // CustomerSyncResult holds the provider-neutral outcome of a customer sync
 // and payment method verification.
 type CustomerSyncResult struct {
-	LagoCustomerID              string
 	ProviderCustomerID          string
 	PaymentMethodType           string
 	DefaultPaymentMethodPresent bool

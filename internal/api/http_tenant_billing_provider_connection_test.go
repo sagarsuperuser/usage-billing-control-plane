@@ -20,14 +20,14 @@ import (
 type stubWorkspaceBillingProviderAdapter struct{}
 
 func (stubWorkspaceBillingProviderAdapter) EnsureStripeProvider(_ context.Context, input service.EnsureStripeProviderInput) (service.EnsureStripeProviderResult, error) {
-	providerCode := input.LagoProviderCode
+	providerCode := input.StripeProviderCode
 	if providerCode == "" {
 		providerCode = "stripe_workspace"
 	}
 	now := time.Now().UTC()
 	return service.EnsureStripeProviderResult{
-		LagoOrganizationID: input.LagoOrganizationID,
-		LagoProviderCode:   providerCode,
+		StripeAccountID: input.StripeAccountID,
+		StripeProviderCode:   providerCode,
 		ConnectedAt:        now,
 		LastSyncedAt:       now,
 	}, nil

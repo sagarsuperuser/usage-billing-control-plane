@@ -120,22 +120,22 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 
 func BuildInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizationID string) (domain.BillingEvent, error) {
 	if !json.Valid(payload) {
-		return domain.BillingEvent{}, fmt.Errorf("%w: lago invoice payload must be valid json", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: invoice payload must be valid json", ErrValidation)
 	}
 
 	var decoded map[string]any
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return domain.BillingEvent{}, fmt.Errorf("%w: decode lago invoice payload", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: decode invoice payload", ErrValidation)
 	}
 
 	invoicePayload, ok := decoded["invoice"].(map[string]any)
 	if !ok || invoicePayload == nil {
-		return domain.BillingEvent{}, fmt.Errorf("%w: lago invoice payload missing invoice", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: invoice payload missing invoice", ErrValidation)
 	}
 
 	invoiceID := strings.TrimSpace(stringValue(invoicePayload["lago_id"]))
 	if invoiceID == "" {
-		return domain.BillingEvent{}, fmt.Errorf("%w: lago invoice id is required", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: invoice id is required", ErrValidation)
 	}
 
 	organizationID := strings.TrimSpace(stringValue(invoicePayload["organization_id"]))

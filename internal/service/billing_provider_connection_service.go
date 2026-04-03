@@ -31,15 +31,15 @@ type EnsureStripeProviderInput struct {
 	DisplayName        string
 	Environment        string
 	SecretKey          string
-	LagoOrganizationID string
-	LagoProviderCode   string
+	StripeAccountID string
+	StripeProviderCode   string
 	OwnerTenantID      string
 }
 
 type EnsureStripeProviderResult struct {
-	LagoOrganizationID string
-	LagoProviderCode   string
-	LagoWebhookHMACKey string
+	StripeAccountID string
+	StripeProviderCode   string
+	DeprecatedHMACKey string
 	ConnectedAt        time.Time
 	LastSyncedAt       time.Time
 }
@@ -59,9 +59,9 @@ type CreateBillingProviderConnectionRequest struct {
 	Scope              string `json:"scope"`
 	OwnerTenantID      string `json:"owner_tenant_id,omitempty"`
 	StripeSecretKey    string `json:"stripe_secret_key,omitempty"`
-	LagoOrganizationID string `json:"lago_organization_id,omitempty"`
-	LagoProviderCode   string `json:"lago_provider_code,omitempty"`
-	LagoWebhookHMACKey string `json:"lago_webhook_hmac_key,omitempty"`
+	StripeAccountID string `json:"stripe_account_id,omitempty"`
+	StripeProviderCode   string `json:"stripe_provider_code,omitempty"`
+	DeprecatedHMACKey string `json:"deprecated_hmac_key,omitempty"`
 }
 
 type UpdateBillingProviderConnectionRequest struct {
@@ -69,9 +69,9 @@ type UpdateBillingProviderConnectionRequest struct {
 	Environment        *string `json:"environment,omitempty"`
 	Scope              *string `json:"scope,omitempty"`
 	OwnerTenantID      *string `json:"owner_tenant_id,omitempty"`
-	LagoOrganizationID *string `json:"lago_organization_id,omitempty"`
-	LagoProviderCode   *string `json:"lago_provider_code,omitempty"`
-	LagoWebhookHMACKey *string `json:"lago_webhook_hmac_key,omitempty"`
+	StripeAccountID *string `json:"stripe_account_id,omitempty"`
+	StripeProviderCode   *string `json:"stripe_provider_code,omitempty"`
+	DeprecatedHMACKey *string `json:"deprecated_hmac_key,omitempty"`
 }
 
 type ListBillingProviderConnectionsRequest struct {
@@ -100,8 +100,8 @@ type BillingProviderConnectionRecheckBatchResult struct {
 type ProvisionWorkspaceBillingConnectionInput struct {
 	ConnectionID       string
 	OwnerTenantID      string
-	LagoOrganizationID string
-	LagoProviderCode   string
+	StripeAccountID string
+	StripeProviderCode   string
 }
 
 func NewBillingProviderConnectionService(repo store.Repository, secretStore BillingSecretStore, adapter BillingProviderAdapter) *BillingProviderConnectionService {
@@ -160,8 +160,8 @@ func (s *BillingProviderConnectionService) CreateBillingProviderConnection(ctx c
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: actor type is required", ErrValidation)
 	}
 	stripeSecretKey := strings.TrimSpace(req.StripeSecretKey)
-	lagoWebhookHMACKey := strings.TrimSpace(req.LagoWebhookHMACKey)
-	if providerType == domain.BillingProviderTypeStripe && stripeSecretKey == "" && lagoWebhookHMACKey == "" {
+	deprecatedHMACKey := strings.TrimSpace(req.DeprecatedHMACKey)
+	if providerType == domain.BillingProviderTypeStripe && stripeSecretKey == "" && deprecatedHMACKey == "" {
 		return domain.BillingProviderConnection{}, fmt.Errorf("%w: stripe_secret_key or lago_webhook_hmac_key is required", ErrValidation)
 	}
 
@@ -171,7 +171,7 @@ func (s *BillingProviderConnectionService) CreateBillingProviderConnection(ctx c
 	}
 	secretRef, err := s.secretStore.PutConnectionSecrets(ctx, id, BillingProviderSecrets{
 		StripeSecretKey:    stripeSecretKey,
-		LagoWebhookHMACKey: lagoWebhookHMACKey,
+		DeprecatedHMACKey: deprecatedHMACKey,
 	})
 	if err != nil {
 		return domain.BillingProviderConnection{}, err
@@ -284,7 +284,7 @@ func (s *BillingProviderConnectionService) UpdateBillingProviderConnection(id st
 		updated.Scope = scope
 		updated.OwnerTenantID = ownerTenantID
 	}
-	if req.LagoWebhookHMACKey != nil {
+	if req.DeprecatedHMACKey != nil {
 		if strings.TrimSpace(updated.SecretRef) == "" {
 			return domain.BillingProviderConnection{}, fmt.Errorf("%w: secret_ref is required to update webhook hmac key", ErrValidation)
 		}
@@ -292,7 +292,7 @@ func (s *BillingProviderConnectionService) UpdateBillingProviderConnection(id st
 		if err != nil {
 			return domain.BillingProviderConnection{}, err
 		}
-		secrets.LagoWebhookHMACKey = strings.TrimSpace(*req.LagoWebhookHMACKey)
+		secrets.DeprecatedHMACKey = strings.TrimSpace(*req.DeprecatedHMACKey)
 		if _, err := s.secretStore.UpdateConnectionSecrets(context.Background(), updated.SecretRef, secrets); err != nil {
 			return domain.BillingProviderConnection{}, err
 		}
@@ -403,8 +403,8 @@ func (s *BillingProviderConnectionService) ProvisionWorkspaceBillingConnection(c
 	if connectionID == "" {
 		return EnsureStripeProviderResult{}, fmt.Errorf("%w: billing provider connection id is required", ErrValidation)
 	}
-	resolvedLagoOrganizationID := strings.TrimSpace(input.LagoOrganizationID)
-	if resolvedLagoOrganizationID == "" {
+	resolvedStripeAccountID := strings.TrimSpace(input.StripeAccountID)
+	if resolvedStripeAccountID == "" {
 		return EnsureStripeProviderResult{}, fmt.Errorf("%w: lago organization id is required", ErrValidation)
 	}
 
@@ -435,15 +435,15 @@ func (s *BillingProviderConnectionService) ProvisionWorkspaceBillingConnection(c
 		DisplayName:        current.DisplayName,
 		Environment:        current.Environment,
 		SecretKey:          secrets.StripeSecretKey,
-		LagoOrganizationID: resolvedLagoOrganizationID,
-		LagoProviderCode:   strings.TrimSpace(input.LagoProviderCode),
+		StripeAccountID: resolvedStripeAccountID,
+		StripeProviderCode:   strings.TrimSpace(input.StripeProviderCode),
 		OwnerTenantID:      strings.TrimSpace(input.OwnerTenantID),
 	})
 	if err != nil {
 		return EnsureStripeProviderResult{}, err
 	}
-	if strings.TrimSpace(result.LagoWebhookHMACKey) != "" {
-		secrets.LagoWebhookHMACKey = strings.TrimSpace(result.LagoWebhookHMACKey)
+	if strings.TrimSpace(result.DeprecatedHMACKey) != "" {
+		secrets.DeprecatedHMACKey = strings.TrimSpace(result.DeprecatedHMACKey)
 		if _, err := s.secretStore.UpdateConnectionSecrets(ctx, current.SecretRef, secrets); err != nil {
 			return EnsureStripeProviderResult{}, err
 		}
@@ -454,8 +454,8 @@ func (s *BillingProviderConnectionService) ProvisionWorkspaceBillingConnection(c
 	if result.LastSyncedAt.IsZero() {
 		result.LastSyncedAt = result.ConnectedAt
 	}
-	if strings.TrimSpace(result.LagoOrganizationID) == "" {
-		result.LagoOrganizationID = resolvedLagoOrganizationID
+	if strings.TrimSpace(result.StripeAccountID) == "" {
+		result.StripeAccountID = resolvedStripeAccountID
 	}
 	return result, nil
 }

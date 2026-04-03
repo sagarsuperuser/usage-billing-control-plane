@@ -38,10 +38,10 @@ func (a *StripeBillingProviderAdapter) EnsureStripeProvider(ctx context.Context,
 
 	now := time.Now().UTC()
 	return EnsureStripeProviderResult{
-		// Lago-specific fields are populated with Stripe equivalents
-		// for backward compatibility during the migration period.
-		LagoOrganizationID: verification.AccountID, // Stripe account ID reused as org ID
-		LagoProviderCode:   fmt.Sprintf("stripe_%s_%s", input.Environment, input.ConnectionID),
+		// Stripe connection verification result
+		
+		StripeAccountID: verification.AccountID,
+		StripeProviderCode: fmt.Sprintf("stripe_%s_%s", input.Environment, input.ConnectionID),
 		ConnectedAt:        now,
 		LastSyncedAt:       now,
 	}, nil
