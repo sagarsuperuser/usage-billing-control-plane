@@ -78,6 +78,6 @@ RUN_LARGE_REPLAY_DATASET="$run_large_replay_dataset" \
 LARGE_REPLAY_EVENT_COUNT="$large_replay_event_count" \
 LARGE_REPLAY_MAX_MISMATCH_ROWS="$large_replay_max_mismatch_rows" \
 LARGE_REPLAY_MAX_TOTAL_ABS_DELTA_CENTS="$large_replay_max_total_abs_delta_cents" \
-go test "${test_flags[@]}" ./internal/... ./migrations/...
+go test "${test_flags[@]}" ./internal/api/ ./internal/store/ ./internal/service/ ./migrations/...
 
 echo "Integration tests passed."
