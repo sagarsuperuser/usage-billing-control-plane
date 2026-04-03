@@ -45,6 +45,13 @@ docker compose -f "$compose_file" up -d
 echo "Waiting for Postgres health..."
 "$repo_root/scripts/wait_for_postgres.sh" "$compose_file" postgres 90
 
+echo "Creating test database if it does not exist..."
+docker compose -f "$compose_file" exec -T postgres \
+  psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'lago_alpha_test'" \
+  | grep -q 1 || \
+  docker compose -f "$compose_file" exec -T postgres \
+  psql -U postgres -c "CREATE DATABASE lago_alpha_test"
+
 echo "Running migrations..."
 DATABASE_URL="$test_database_url" go run "$repo_root/cmd/migrate"
 
