@@ -85,7 +85,9 @@
       "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/http*.go)",
       "Bash(grep -rn \"Err[A-Z].*= \" /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go /Users/superuser/projects/golang/usage-billing-control-plane/internal/store/store.go)",
       "Bash(grep -rn 'fmt.Errorf.*%w.*ErrValidation\\\\|fmt.Errorf.*%w.*ErrDependency\\\\|fmt.Errorf.*%w.*ErrNotFound' /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)",
-      "Bash(grep -rn 'return.*fmt.Errorf\\(' /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)"
+      "Bash(grep -rn 'return.*fmt.Errorf\\(' /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)",
+      "Bash(sed -i '' 's|r.Get\\(\"/v1/ui/sessions/rate-limit-probe\"|r.Post\\(\"/v1/ui/sessions/rate-limit-probe\"|' /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/http.go)",
+      "Bash(sed -i '' 's|http.MethodGet, ts.URL+\"/v1/ui/sessions/rate-limit-probe\"|http.MethodPost, ts.URL+\"/v1/ui/sessions/rate-limit-probe\"|' /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/http_rate_limit_test.go)"
     ]
   }
 }

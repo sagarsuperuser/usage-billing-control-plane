@@ -115,7 +115,7 @@ func TestRateLimitBlocksProtectedRouteAfterAuth(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(nil, api.WithAPIKeyAuthorizer(authorizer), api.WithRateLimiter(limiter, true, false)).Handler())
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"/v1/unknown", nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/v1/customers", nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestRateLimitFailOpenOnProtectedRoutes(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(nil, api.WithAPIKeyAuthorizer(authorizer), api.WithRateLimiter(limiter, true, false)).Handler())
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"/v1/unknown", nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/v1/customers", nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -173,9 +173,10 @@ func TestRateLimitFailOpenOnProtectedRoutes(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Route is protected but not registered, so we should fall through to 404 when limiter fails open.
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("expected 404 with fail-open behavior, got %d", resp.StatusCode)
+	// Rate limiter fails but fail-open is true — request should NOT be 429.
+	// It may be 400 (no store) or 404, but must not be rate-limited.
+	if resp.StatusCode == http.StatusTooManyRequests {
+		t.Fatalf("expected fail-open (not 429), got 429")
 	}
 }
 

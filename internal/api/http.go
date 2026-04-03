@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
 	"usage-billing-control-plane/internal/reconcile"
 	"usage-billing-control-plane/internal/replay"
@@ -78,7 +80,7 @@ type Server struct {
 	requireSessionOriginCheck          bool
 	allowedSessionOrigins              map[string]struct{}
 	uiPublicBaseURL                    string
-	mux                                *http.ServeMux
+	router                             chi.Router
 }
 
 const (
@@ -471,7 +473,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 		rateLimitFailOpen:      true,
 		rateLimitLoginFailOpen: false,
 		allowedSessionOrigins:  make(map[string]struct{}),
-		mux:                    http.NewServeMux(),
+		router:                 chi.NewRouter(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -511,13 +513,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 }
 
 func (s *Server) Handler() http.Handler {
-	var handler http.Handler = s.mux
-	handler = s.accessLogMiddleware(handler)
-	handler = s.authMiddleware(handler)
-	handler = s.corsMiddleware(handler)
-	handler = s.instrumentMiddleware(handler)
-	handler = s.requestIDMiddleware(handler)
-	return handler
+	return s.router
 }
 
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
@@ -732,113 +728,139 @@ func (s *Server) logOnboardingFailure(r *http.Request, req service.TenantOnboard
 	s.logger.Error("tenant onboarding failed", attrs...)
 }
 
-func (s *Server) authMiddleware(next http.Handler) http.Handler {
-	if s.authorizer == nil && s.sessionManager == nil {
-		return next
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requiredRole, protected := requiredRoleForRequest(r)
-		requiresPlatform := requiresPlatformScope(r)
-		if policy, identifier, failOpen, ok := s.preAuthRateLimitTarget(r, protected); ok {
-			if !s.enforceRateLimit(w, r, policy, identifier, "", failOpen) {
-				return
-			}
-		}
-		if !protected {
-			next.ServeHTTP(w, r)
-			return
+// requireAuth returns a chi middleware that authenticates the request, enforces
+// the given minimum role, performs CSRF validation for session-based callers on
+// unsafe methods, and applies post-auth rate limiting.  The scope parameter
+// controls whether the route requires platform scope, tenant scope, or either
+// (session-self routes).
+func (s *Server) requireAuth(minRole Role, scope authScope) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if s.authorizer == nil && s.sessionManager == nil {
+			return next
 		}
 
-		principal, usingSession, err := s.authorizePrincipal(r)
-		if err != nil {
-			statusCode := http.StatusInternalServerError
-			reason := "authorization_failed"
-			if errors.Is(err, errUnauthorized) {
-				statusCode = http.StatusUnauthorized
-				reason = "unauthorized"
-			} else if errors.Is(err, errTenantBlocked) {
-				statusCode = http.StatusForbidden
-				reason = "tenant_blocked"
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Pre-auth rate limiting for protected routes.
+			if policy, identifier, failOpen, ok := s.preAuthRateLimitTarget(r, true); ok {
+				if !s.enforceRateLimit(w, r, policy, identifier, "", failOpen) {
+					return
+				}
 			}
-			s.logAuthFailure(r, statusCode, reason, err)
-			writeAuthError(w, err)
-			return
-		}
-		if requiresPlatform {
-			if principal.Scope != ScopePlatform {
-				s.logAuthFailure(r, http.StatusForbidden, "platform_scope_required", nil)
-				writeError(w, http.StatusForbidden, "forbidden")
+
+			principal, usingSession, err := s.authorizePrincipal(r)
+			if err != nil {
+				statusCode := http.StatusInternalServerError
+				reason := "authorization_failed"
+				if errors.Is(err, errUnauthorized) {
+					statusCode = http.StatusUnauthorized
+					reason = "unauthorized"
+				} else if errors.Is(err, errTenantBlocked) {
+					statusCode = http.StatusForbidden
+					reason = "tenant_blocked"
+				}
+				s.logAuthFailure(r, statusCode, reason, err)
+				writeAuthError(w, err)
 				return
 			}
-			if principal.PlatformRole != PlatformRoleAdmin {
-				s.logAuthFailure(r, http.StatusForbidden, "insufficient_platform_role", nil)
-				writeError(w, http.StatusForbidden, "forbidden")
-				return
-			}
-		} else if isUISessionSelfRoute(r.URL.Path) {
-			switch principal.Scope {
-			case ScopePlatform:
+
+			switch scope {
+			case authScopePlatform:
+				if principal.Scope != ScopePlatform {
+					s.logAuthFailure(r, http.StatusForbidden, "platform_scope_required", nil)
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
 				if principal.PlatformRole != PlatformRoleAdmin {
 					s.logAuthFailure(r, http.StatusForbidden, "insufficient_platform_role", nil)
 					writeError(w, http.StatusForbidden, "forbidden")
 					return
 				}
-			case ScopeTenant:
+			case authScopeSessionSelf:
+				switch principal.Scope {
+				case ScopePlatform:
+					if principal.PlatformRole != PlatformRoleAdmin {
+						s.logAuthFailure(r, http.StatusForbidden, "insufficient_platform_role", nil)
+						writeError(w, http.StatusForbidden, "forbidden")
+						return
+					}
+				case ScopeTenant:
+					if roleRank(principal.Role) == 0 {
+						s.logAuthFailure(r, http.StatusUnauthorized, "invalid_role", nil)
+						writeError(w, http.StatusUnauthorized, "unauthorized")
+						return
+					}
+					if !roleAllows(principal.Role, minRole) {
+						s.logAuthFailure(r, http.StatusForbidden, "insufficient_role", nil)
+						writeError(w, http.StatusForbidden, "forbidden")
+						return
+					}
+				default:
+					s.logAuthFailure(r, http.StatusForbidden, "session_scope_required", nil)
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
+			default: // authScopeTenant
+				if principal.Scope != ScopeTenant {
+					s.logAuthFailure(r, http.StatusForbidden, "tenant_scope_required", nil)
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
 				if roleRank(principal.Role) == 0 {
 					s.logAuthFailure(r, http.StatusUnauthorized, "invalid_role", nil)
 					writeError(w, http.StatusUnauthorized, "unauthorized")
 					return
 				}
-				if !roleAllows(principal.Role, requiredRole) {
+				if !roleAllows(principal.Role, minRole) {
 					s.logAuthFailure(r, http.StatusForbidden, "insufficient_role", nil)
 					writeError(w, http.StatusForbidden, "forbidden")
 					return
 				}
-			default:
-				s.logAuthFailure(r, http.StatusForbidden, "session_scope_required", nil)
-				writeError(w, http.StatusForbidden, "forbidden")
-				return
 			}
-		} else {
-			if principal.Scope != ScopeTenant {
-				s.logAuthFailure(r, http.StatusForbidden, "tenant_scope_required", nil)
-				writeError(w, http.StatusForbidden, "forbidden")
-				return
-			}
-			if roleRank(principal.Role) == 0 {
-				s.logAuthFailure(r, http.StatusUnauthorized, "invalid_role", nil)
-				writeError(w, http.StatusUnauthorized, "unauthorized")
-				return
-			}
-			if !roleAllows(principal.Role, requiredRole) {
-				s.logAuthFailure(r, http.StatusForbidden, "insufficient_role", nil)
-				writeError(w, http.StatusForbidden, "forbidden")
-				return
-			}
-		}
-		if usingSession && isUnsafeMethod(r.Method) {
-			if s.requireSessionOriginCheck && !s.isAllowedSessionOrigin(r) {
-				s.logAuthFailure(r, http.StatusForbidden, "origin_mismatch", nil)
-				writeError(w, http.StatusForbidden, "forbidden")
-				return
-			}
-			expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
-			providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
-			if expectedCSRF == "" || providedCSRF == "" || subtleConstantTimeMatch(expectedCSRF, providedCSRF) == false {
-				s.logAuthFailure(r, http.StatusForbidden, "csrf_mismatch", nil)
-				writeError(w, http.StatusForbidden, "forbidden")
-				return
-			}
-		}
 
-		if policy, identifier, failOpen, ok := s.authRateLimitTarget(r, principal, requiredRole, usingSession); ok {
-			if !s.enforceRateLimit(w, r, policy, identifier, principal.TenantID, failOpen) {
+			if usingSession && isUnsafeMethod(r.Method) {
+				if s.requireSessionOriginCheck && !s.isAllowedSessionOrigin(r) {
+					s.logAuthFailure(r, http.StatusForbidden, "origin_mismatch", nil)
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
+				expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
+				providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
+				if expectedCSRF == "" || providedCSRF == "" || !subtleConstantTimeMatch(expectedCSRF, providedCSRF) {
+					s.logAuthFailure(r, http.StatusForbidden, "csrf_mismatch", nil)
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
+			}
+
+			if policy, identifier, failOpen, ok := s.authRateLimitTarget(r, principal, minRole, usingSession); ok {
+				if !s.enforceRateLimit(w, r, policy, identifier, principal.TenantID, failOpen) {
+					return
+				}
+			}
+
+			next.ServeHTTP(w, r.WithContext(withPrincipal(r.Context(), principal)))
+		})
+	}
+}
+
+type authScope int
+
+const (
+	authScopeTenant     authScope = iota
+	authScopePlatform   authScope = iota
+	authScopeSessionSelf authScope = iota
+)
+
+// preAuthRateLimitMiddleware applies rate limiting to public (unauthenticated)
+// routes that still need protection, such as webhooks and login endpoints.
+func (s *Server) preAuthRateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if policy, identifier, failOpen, ok := s.preAuthRateLimitTarget(r, false); ok {
+			if !s.enforceRateLimit(w, r, policy, identifier, "", failOpen) {
 				return
 			}
 		}
-
-		next.ServeHTTP(w, r.WithContext(withPrincipal(r.Context(), principal)))
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -1268,303 +1290,6 @@ func subtleConstantTimeMatch(expected, provided string) bool {
 	return diff == 0
 }
 
-func requiredRoleForRequest(r *http.Request) (Role, bool) {
-	path := r.URL.Path
-
-	if path == "/health" {
-		return "", false
-	}
-	if path == "/internal/metrics" {
-		return RoleAdmin, true
-	}
-	if path == "/internal/ready" {
-		return RoleAdmin, true
-	}
-	if path == "/internal/stripe/webhooks" {
-		return "", false
-	}
-	if path == "/internal/tenants/audit" {
-		return RoleAdmin, true
-	}
-	if path == "/internal/billing-provider-connections" {
-		return RoleAdmin, true
-	}
-	if strings.HasPrefix(path, "/internal/billing-provider-connections/") {
-		return RoleAdmin, true
-	}
-	if path == "/internal/onboarding/tenants" {
-		return RoleAdmin, true
-	}
-	if strings.HasPrefix(path, "/internal/onboarding/tenants/") {
-		return RoleAdmin, true
-	}
-	if path == "/internal/tenants" {
-		return RoleAdmin, true
-	}
-	if strings.HasPrefix(path, "/internal/tenants/") {
-		return RoleAdmin, true
-	}
-	if path == "/v1/ui/sessions/login" {
-		return "", false
-	}
-	if path == "/v1/ui/auth/providers" {
-		return "", false
-	}
-	if path == "/v1/ui/password/forgot" {
-		return "", false
-	}
-	if path == "/v1/ui/password/reset" {
-		return "", false
-	}
-	if path == "/v1/ui/workspaces/pending" {
-		return "", false
-	}
-	if path == "/v1/ui/workspaces/select" {
-		return "", false
-	}
-	if strings.HasPrefix(path, "/v1/ui/invitations/") {
-		return "", false
-	}
-	if strings.HasPrefix(path, "/v1/ui/auth/sso/") {
-		return "", false
-	}
-	if path == "/v1/ui/sessions/rate-limit-probe" {
-		return "", false
-	}
-	if path == "/v1/ui/sessions/me" {
-		return RoleReader, true
-	}
-	if path == "/v1/ui/sessions/logout" {
-		return RoleReader, true
-	}
-	if path == "/v1/customer-onboarding" {
-		return RoleWriter, true
-	}
-	if path == "/v1/workspace/members" || strings.HasPrefix(path, "/v1/workspace/members/") {
-		return RoleAdmin, true
-	}
-	if path == "/v1/workspace/invitations" || strings.HasPrefix(path, "/v1/workspace/invitations/") {
-		return RoleAdmin, true
-	}
-	if path == "/v1/workspace/service-accounts" || strings.HasPrefix(path, "/v1/workspace/service-accounts/") {
-		return RoleAdmin, true
-	}
-
-	switch {
-	case path == "/v1/customers":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/customers/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
-		if strings.HasSuffix(tail, "/billing-profile/retry-sync") {
-			if r.Method == http.MethodPost {
-				return RoleWriter, true
-			}
-			return RoleReader, true
-		}
-		if strings.HasSuffix(tail, "/billing-profile") {
-			if r.Method == http.MethodPut {
-				return RoleWriter, true
-			}
-			return RoleReader, true
-		}
-		if strings.HasSuffix(tail, "/payment-setup/checkout-url") {
-			if r.Method == http.MethodPost {
-				return RoleWriter, true
-			}
-			return RoleReader, true
-		}
-		if strings.HasSuffix(tail, "/payment-setup/request") || strings.HasSuffix(tail, "/payment-setup/resend") {
-			if r.Method == http.MethodPost {
-				return RoleWriter, true
-			}
-			return RoleReader, true
-		}
-		if strings.HasSuffix(tail, "/payment-setup/refresh") {
-			if r.Method == http.MethodPost {
-				return RoleWriter, true
-			}
-			return RoleReader, true
-		}
-		if strings.HasSuffix(tail, "/payment-setup") {
-			return RoleReader, true
-		}
-		if r.Method == http.MethodPatch {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/rating-rules":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/rating-rules/"):
-		return RoleReader, true
-	case path == "/v1/meters":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/meters/"):
-		if r.Method == http.MethodPut {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/pricing/metrics":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/pricing/metrics/"):
-		return RoleReader, true
-	case path == "/v1/taxes":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/taxes/"):
-		return RoleReader, true
-	case path == "/v1/plans":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/plans/"):
-		if r.Method == http.MethodPatch {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/subscriptions":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/subscriptions/"):
-		if r.Method == http.MethodPost || r.Method == http.MethodPatch {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/invoices":
-		return RoleReader, true
-	case path == "/v1/payments":
-		return RoleReader, true
-	case path == "/v1/invoices/preview":
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/invoices/"):
-		if r.Method == http.MethodPost && (strings.HasSuffix(strings.Trim(path, "/"), "/retry-payment") || strings.HasSuffix(strings.Trim(path, "/"), "/resend-email")) {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/payment-receipts/"):
-		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/resend-email") {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/credit-notes/"):
-		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/resend-email") {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/payments/"):
-		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/retry") {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/reconciliation-report":
-		return RoleReader, true
-	case path == "/v1/invoice-payment-statuses":
-		return RoleReader, true
-	case path == "/v1/invoice-payment-statuses/summary":
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/invoice-payment-statuses/"):
-		return RoleReader, true
-	case path == "/v1/dunning/policy":
-		if r.Method == http.MethodPut {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/dunning/runs":
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/dunning/runs/"):
-		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/collect-payment-reminder") {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/replay-jobs":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/replay-jobs/"):
-		if r.Method == http.MethodPost && strings.HasSuffix(strings.Trim(path, "/"), "/retry") {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/api-keys":
-		return RoleAdmin, true
-	case path == "/v1/api-keys/audit":
-		return RoleAdmin, true
-	case path == "/v1/api-keys/audit/exports":
-		return RoleAdmin, true
-	case strings.HasPrefix(path, "/v1/api-keys/audit/exports/"):
-		return RoleAdmin, true
-	case strings.HasPrefix(path, "/v1/api-keys/"):
-		return RoleAdmin, true
-	case path == "/v1/usage-events":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case path == "/v1/billed-entries":
-		if r.Method == http.MethodPost {
-			return RoleWriter, true
-		}
-		return RoleReader, true
-	case strings.HasPrefix(path, "/v1/"):
-		return RoleReader, true
-	default:
-		return "", false
-	}
-}
-
-func requiresPlatformScope(r *http.Request) bool {
-	path := strings.TrimSpace(r.URL.Path)
-	switch {
-	case path == "/internal/metrics":
-		return true
-	case path == "/internal/ready":
-		return true
-	case path == "/internal/billing-provider-connections":
-		return true
-	case strings.HasPrefix(path, "/internal/billing-provider-connections/"):
-		return true
-	case path == "/internal/onboarding/tenants":
-		return true
-	case strings.HasPrefix(path, "/internal/onboarding/tenants/"):
-		return true
-	case path == "/internal/tenants":
-		return true
-	case path == "/internal/tenants/audit":
-		return true
-	case strings.HasPrefix(path, "/internal/tenants/"):
-		return true
-	default:
-		return false
-	}
-}
-
-func isUISessionSelfRoute(path string) bool {
-	path = strings.TrimSpace(path)
-	switch path {
-	case "/v1/ui/sessions/me", "/v1/ui/sessions/logout":
-		return true
-	default:
-		return strings.HasSuffix(strings.TrimRight(path, "/"), "/accept") && strings.HasPrefix(path, "/v1/ui/invitations/")
-	}
-}
-
 func normalizeMetricsRoute(path string) string {
 	switch {
 	case path == "/health":
@@ -1800,82 +1525,142 @@ func normalizeMetricsRoute(path string) string {
 }
 
 func (s *Server) registerRoutes() {
-	s.mux.HandleFunc("/health", s.handleHealth)
-	s.mux.HandleFunc("/internal/stripe/webhooks", s.handleStripeWebhooks)
-	s.mux.HandleFunc("/internal/onboarding/tenants", s.handleInternalOnboardingTenants)
-	s.mux.HandleFunc("/internal/onboarding/tenants/", s.handleInternalOnboardingTenantByID)
-	s.mux.HandleFunc("/internal/billing-provider-connections", s.handleInternalBillingProviderConnections)
-	s.mux.HandleFunc("/internal/billing-provider-connections/", s.handleInternalBillingProviderConnectionByID)
-	s.mux.HandleFunc("/internal/tenants/audit", s.handleInternalTenantAudit)
-	s.mux.HandleFunc("/internal/tenants", s.handleInternalTenants)
-	s.mux.HandleFunc("/internal/tenants/", s.handleInternalTenantByID)
-	s.mux.HandleFunc("/v1/ui/auth/providers", s.handleUIAuthProviders)
-	s.mux.HandleFunc("/v1/ui/workspaces/pending", s.handleUIWorkspaceSelectionPending)
-	s.mux.HandleFunc("/v1/ui/workspaces/select", s.handleUIWorkspaceSelectionSelect)
-	s.mux.HandleFunc("/v1/ui/invitations/", s.handleUIInvitations)
-	s.mux.HandleFunc("/v1/ui/auth/sso/", s.handleUISSO)
-	s.mux.HandleFunc("/v1/ui/password/forgot", s.handleUIPasswordForgot)
-	s.mux.HandleFunc("/v1/ui/password/reset", s.handleUIPasswordReset)
-	s.mux.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
-	s.mux.HandleFunc("/v1/ui/sessions/rate-limit-probe", s.handleUIPreAuthRateLimitProbe)
-	s.mux.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
-	s.mux.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
-	s.mux.HandleFunc("/v1/workspace/members", s.handleTenantWorkspaceMembers)
-	s.mux.HandleFunc("/v1/workspace/members/", s.handleTenantWorkspaceMembers)
-	s.mux.HandleFunc("/v1/workspace/invitations", s.handleTenantWorkspaceInvitations)
-	s.mux.HandleFunc("/v1/workspace/invitations/", s.handleTenantWorkspaceInvitations)
-	s.mux.HandleFunc("/v1/workspace/service-accounts", s.handleTenantWorkspaceServiceAccounts)
-	s.mux.HandleFunc("/v1/workspace/service-accounts/", s.handleTenantWorkspaceServiceAccounts)
-	s.mux.HandleFunc("/v1/customer-onboarding", s.handleCustomerOnboarding)
+	r := s.router
 
-	s.mux.HandleFunc("/v1/customers", s.handleCustomers)
-	s.mux.HandleFunc("/v1/customers/", s.handleCustomerByExternalID)
+	// Global middleware (applied to every route).
+	r.Use(s.requestIDMiddleware)
+	r.Use(s.instrumentMiddleware)
+	r.Use(s.corsMiddleware)
+	r.Use(s.accessLogMiddleware)
+	r.Use(chimiddleware.Recoverer)
 
-	s.mux.HandleFunc("/v1/rating-rules", s.handleRatingRules)
-	s.mux.HandleFunc("/v1/rating-rules/", s.handleRatingRuleByID)
+	// ── Public routes (no auth) ─────────────────────────────────────────
+	r.Get("/health", s.handleHealth)
+	r.HandleFunc("/internal/stripe/webhooks", s.handleStripeWebhooks)
+	r.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
+	r.Get("/v1/ui/auth/providers", s.handleUIAuthProviders)
+	r.Post("/v1/ui/password/forgot", s.handleUIPasswordForgot)
+	r.Post("/v1/ui/password/reset", s.handleUIPasswordReset)
+	r.HandleFunc("/v1/ui/workspaces/pending", s.handleUIWorkspaceSelectionPending)
+	r.HandleFunc("/v1/ui/workspaces/select", s.handleUIWorkspaceSelectionSelect)
+	r.HandleFunc("/v1/ui/invitations/*", s.handleUIInvitations)
+	r.HandleFunc("/v1/ui/auth/sso/*", s.handleUISSO)
+	r.Post("/v1/ui/sessions/rate-limit-probe", s.handleUIPreAuthRateLimitProbe)
 
-	s.mux.HandleFunc("/v1/meters", s.handleMeters)
-	s.mux.HandleFunc("/v1/meters/", s.handleMeterByID)
-	s.mux.HandleFunc("/v1/pricing/metrics", s.handlePricingMetrics)
-	s.mux.HandleFunc("/v1/pricing/metrics/", s.handlePricingMetricByID)
-	s.mux.HandleFunc("/v1/taxes", s.handleTaxes)
-	s.mux.HandleFunc("/v1/taxes/", s.handleTaxByID)
-	s.mux.HandleFunc("/v1/add-ons", s.handleAddOns)
-	s.mux.HandleFunc("/v1/add-ons/", s.handleAddOnByID)
-	s.mux.HandleFunc("/v1/coupons", s.handleCoupons)
-	s.mux.HandleFunc("/v1/coupons/", s.handleCouponByID)
-	s.mux.HandleFunc("/v1/plans", s.handlePlans)
-	s.mux.HandleFunc("/v1/plans/", s.handlePlanByID)
-	s.mux.HandleFunc("/v1/subscriptions", s.handleSubscriptions)
-	s.mux.HandleFunc("/v1/subscriptions/", s.handleSubscriptionByID)
+	// ── Session-self routes (any authenticated scope — reader+) ─────────
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth(RoleReader, authScopeSessionSelf))
+		r.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
+		r.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
+	})
 
-	s.mux.HandleFunc("/v1/invoices", s.handleInvoices)
-	s.mux.HandleFunc("/v1/invoices/preview", s.handleInvoicePreview)
-	s.mux.HandleFunc("/v1/invoices/", s.handleInvoiceByID)
-	s.mux.HandleFunc("/v1/payment-receipts/", s.handlePaymentReceiptByID)
-	s.mux.HandleFunc("/v1/credit-notes/", s.handleCreditNoteByID)
-	s.mux.HandleFunc("/v1/payments", s.handlePayments)
-	s.mux.HandleFunc("/v1/payments/", s.handlePaymentByID)
+	// ── Platform admin routes ───────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth(RoleAdmin, authScopePlatform))
+		r.Get("/internal/metrics", s.handleInternalMetrics)
+		r.Get("/internal/ready", s.handleInternalReady)
+		r.HandleFunc("/internal/onboarding/tenants", s.handleInternalOnboardingTenants)
+		r.HandleFunc("/internal/onboarding/tenants/*", s.handleInternalOnboardingTenantByID)
+		r.HandleFunc("/internal/billing-provider-connections", s.handleInternalBillingProviderConnections)
+		r.HandleFunc("/internal/billing-provider-connections/*", s.handleInternalBillingProviderConnectionByID)
+		r.Get("/internal/tenants/audit", s.handleInternalTenantAudit)
+		r.HandleFunc("/internal/tenants", s.handleInternalTenants)
+		r.HandleFunc("/internal/tenants/*", s.handleInternalTenantByID)
+	})
 
-	s.mux.HandleFunc("/v1/usage-events", s.handleUsageEvents)
-	s.mux.HandleFunc("/v1/billed-entries", s.handleBilledEntries)
+	// ── Tenant admin routes ─────────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth(RoleAdmin, authScopeTenant))
+		r.HandleFunc("/v1/workspace/members", s.handleTenantWorkspaceMembers)
+		r.HandleFunc("/v1/workspace/members/*", s.handleTenantWorkspaceMembers)
+		r.HandleFunc("/v1/workspace/invitations", s.handleTenantWorkspaceInvitations)
+		r.HandleFunc("/v1/workspace/invitations/*", s.handleTenantWorkspaceInvitations)
+		r.HandleFunc("/v1/workspace/service-accounts", s.handleTenantWorkspaceServiceAccounts)
+		r.HandleFunc("/v1/workspace/service-accounts/*", s.handleTenantWorkspaceServiceAccounts)
+		r.HandleFunc("/v1/api-keys", s.handleAPIKeys)
+		r.HandleFunc("/v1/api-keys/audit", s.handleAPIKeyAuditEvents)
+		r.HandleFunc("/v1/api-keys/audit/exports", s.handleAPIKeyAuditExports)
+		r.HandleFunc("/v1/api-keys/audit/exports/*", s.handleAPIKeyAuditExportByID)
+		r.HandleFunc("/v1/api-keys/*", s.handleAPIKeyByID)
+	})
 
-	s.mux.HandleFunc("/v1/replay-jobs", s.handleReplayJobs)
-	s.mux.HandleFunc("/v1/replay-jobs/", s.handleReplayJobByID)
-	s.mux.HandleFunc("/v1/invoice-payment-statuses", s.handleInvoicePaymentStatuses)
-	s.mux.HandleFunc("/v1/invoice-payment-statuses/", s.handleInvoicePaymentStatusByID)
-	s.mux.HandleFunc("/v1/dunning/policy", s.handleDunningPolicy)
-	s.mux.HandleFunc("/v1/dunning/runs", s.handleDunningRuns)
-	s.mux.HandleFunc("/v1/dunning/runs/", s.handleDunningRunByID)
+	// ── Tenant writer routes ────────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth(RoleWriter, authScopeTenant))
+		r.Post("/v1/customer-onboarding", s.handleCustomerOnboarding)
+		r.Post("/v1/customers", s.handleCustomers)
+		r.Post("/v1/rating-rules", s.handleRatingRules)
+		r.Post("/v1/meters", s.handleMeters)
+		r.Put("/v1/meters/*", s.handleMeterByID)
+		r.Post("/v1/pricing/metrics", s.handlePricingMetrics)
+		r.Post("/v1/taxes", s.handleTaxes)
+		r.Post("/v1/plans", s.handlePlans)
+		r.Patch("/v1/plans/*", s.handlePlanByID)
+		r.Post("/v1/subscriptions", s.handleSubscriptions)
+		r.Post("/v1/subscriptions/*", s.handleSubscriptionByID)
+		r.Patch("/v1/subscriptions/*", s.handleSubscriptionByID)
+		r.Patch("/v1/customers/*", s.handleCustomerByExternalID)
+		r.Put("/v1/customers/{externalId}/billing-profile", s.handleCustomerByExternalID)
+		r.Post("/v1/customers/{externalId}/billing-profile/retry-sync", s.handleCustomerByExternalID)
+		r.Post("/v1/customers/{externalId}/payment-setup/checkout-url", s.handleCustomerByExternalID)
+		r.Post("/v1/customers/{externalId}/payment-setup/request", s.handleCustomerByExternalID)
+		r.Post("/v1/customers/{externalId}/payment-setup/resend", s.handleCustomerByExternalID)
+		r.Post("/v1/customers/{externalId}/payment-setup/refresh", s.handleCustomerByExternalID)
+		r.Post("/v1/usage-events", s.handleUsageEvents)
+		r.Post("/v1/billed-entries", s.handleBilledEntries)
+		r.Post("/v1/replay-jobs", s.handleReplayJobs)
+		r.Post("/v1/replay-jobs/{id}/retry", s.handleReplayJobByID)
+		r.Post("/v1/invoices/{id}/retry-payment", s.handleInvoiceByID)
+		r.Post("/v1/invoices/{id}/resend-email", s.handleInvoiceByID)
+		r.Post("/v1/payment-receipts/{id}/resend-email", s.handlePaymentReceiptByID)
+		r.Post("/v1/credit-notes/{id}/resend-email", s.handleCreditNoteByID)
+		r.Post("/v1/payments/{id}/retry", s.handlePaymentByID)
+		r.Put("/v1/dunning/policy", s.handleDunningPolicy)
+		r.Post("/v1/dunning/runs/{id}/collect-payment-reminder", s.handleDunningRunByID)
+		r.Post("/v1/add-ons", s.handleAddOns)
+		r.Post("/v1/coupons", s.handleCoupons)
+	})
 
-	s.mux.HandleFunc("/v1/reconciliation-report", s.handleReconciliationReport)
-	s.mux.HandleFunc("/v1/api-keys/audit/exports", s.handleAPIKeyAuditExports)
-	s.mux.HandleFunc("/v1/api-keys/audit/exports/", s.handleAPIKeyAuditExportByID)
-	s.mux.HandleFunc("/v1/api-keys/audit", s.handleAPIKeyAuditEvents)
-	s.mux.HandleFunc("/v1/api-keys", s.handleAPIKeys)
-	s.mux.HandleFunc("/v1/api-keys/", s.handleAPIKeyByID)
-	s.mux.HandleFunc("/internal/metrics", s.handleInternalMetrics)
-	s.mux.HandleFunc("/internal/ready", s.handleInternalReady)
+	// ── Tenant reader routes ────────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth(RoleReader, authScopeTenant))
+		r.Get("/v1/customers", s.handleCustomers)
+		r.Get("/v1/customers/*", s.handleCustomerByExternalID)
+		r.Get("/v1/rating-rules", s.handleRatingRules)
+		r.Get("/v1/rating-rules/*", s.handleRatingRuleByID)
+		r.Get("/v1/meters", s.handleMeters)
+		r.Get("/v1/meters/*", s.handleMeterByID)
+		r.Get("/v1/pricing/metrics", s.handlePricingMetrics)
+		r.Get("/v1/pricing/metrics/*", s.handlePricingMetricByID)
+		r.Get("/v1/taxes", s.handleTaxes)
+		r.Get("/v1/taxes/*", s.handleTaxByID)
+		r.Get("/v1/add-ons", s.handleAddOns)
+		r.Get("/v1/add-ons/*", s.handleAddOnByID)
+		r.Get("/v1/coupons", s.handleCoupons)
+		r.Get("/v1/coupons/*", s.handleCouponByID)
+		r.Get("/v1/plans", s.handlePlans)
+		r.Get("/v1/plans/*", s.handlePlanByID)
+		r.Get("/v1/subscriptions", s.handleSubscriptions)
+		r.Get("/v1/subscriptions/*", s.handleSubscriptionByID)
+		r.Get("/v1/invoices", s.handleInvoices)
+		r.Get("/v1/invoices/preview", s.handleInvoicePreview)
+		r.Get("/v1/invoices/*", s.handleInvoiceByID)
+		r.Get("/v1/payment-receipts/*", s.handlePaymentReceiptByID)
+		r.Get("/v1/credit-notes/*", s.handleCreditNoteByID)
+		r.Get("/v1/payments", s.handlePayments)
+		r.Get("/v1/payments/*", s.handlePaymentByID)
+		r.Get("/v1/usage-events", s.handleUsageEvents)
+		r.Get("/v1/billed-entries", s.handleBilledEntries)
+		r.Get("/v1/replay-jobs", s.handleReplayJobs)
+		r.Get("/v1/replay-jobs/*", s.handleReplayJobByID)
+		r.Get("/v1/invoice-payment-statuses", s.handleInvoicePaymentStatuses)
+		r.Get("/v1/invoice-payment-statuses/summary", s.handleInvoicePaymentStatuses)
+		r.Get("/v1/invoice-payment-statuses/*", s.handleInvoicePaymentStatusByID)
+		r.Get("/v1/dunning/policy", s.handleDunningPolicy)
+		r.Get("/v1/dunning/runs", s.handleDunningRuns)
+		r.Get("/v1/dunning/runs/*", s.handleDunningRunByID)
+		r.Get("/v1/reconciliation-report", s.handleReconciliationReport)
+	})
 }
 
 func randomHexToken(numBytes int) (string, error) {
