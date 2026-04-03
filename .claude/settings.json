@@ -72,7 +72,8 @@
       "Bash(sed -i '' 's/failed to proxy payment retry to lago: boom/payment retry failed: boom/g' internal/api/http_error_translation_test.go)",
       "Bash(sed -i '' 's/lago webhook service is required/payment status service is required/g' internal/api/http_error_translation_test.go)",
       "Bash(sed -i '' 's/lago plan sync failed/plan sync failed/g' internal/api/http_error_translation_test.go)",
-      "Bash(sed -i '' 's/lago subscription sync failed/subscription sync failed/g' internal/api/http_error_translation_test.go)"
+      "Bash(sed -i '' 's/lago subscription sync failed/subscription sync failed/g' internal/api/http_error_translation_test.go)",
+      "Bash(grep \"failed$\\\\|›\")"
     ]
   }
 }

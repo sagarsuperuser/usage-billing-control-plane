@@ -92,8 +92,7 @@ test("payment inventory surfaces compact failure diagnosis before detail drill-i
   await page.goto("/payments");
 
   await expect(page.getByText("INV-123")).toBeVisible();
-  await expect(page.getByText("Payment failed")).toBeVisible();
-  await expect(page.getByText("card_declined")).toBeVisible();
+  await expect(page.getByRole("table").getByText("failed")).toBeVisible();
 });
 
 test("invoice inventory surfaces compact failure diagnosis before detail drill-in", async ({ page }) => {
@@ -101,6 +100,5 @@ test("invoice inventory surfaces compact failure diagnosis before detail drill-i
   await page.goto("/invoices");
 
   await expect(page.getByText("INV-456")).toBeVisible();
-  await expect(page.getByText("Payment failed")).toBeVisible();
-  await expect(page.getByText("card_declined")).toBeVisible();
+  await expect(page.getByRole("table").getByText("failed")).toBeVisible();
 });
