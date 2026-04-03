@@ -43,6 +43,21 @@ function diagnosisToneClass(tone: "healthy" | "warning" | "danger"): string {
   }
 }
 
+function paymentTone(status?: string): string {
+  switch ((status || "").toLowerCase()) {
+    case "succeeded":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "pending":
+    case "processing":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "failed":
+    case "requires_action":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-700";
+  }
+}
+
 export function InvoiceListScreen() {
   const searchParams = useSearchParams();
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
@@ -76,32 +91,11 @@ export function InvoiceListScreen() {
   });
 
   const items = useMemo(() => invoicesQuery.data?.items ?? [], [invoicesQuery.data?.items]);
-  const stats = useMemo(
-    () => ({
-      total: items.length,
-      paid: items.filter((item) => (item.payment_status || "").toLowerCase() === "succeeded").length,
-      overdue: items.filter((item) => Boolean(item.payment_overdue)).length,
-      actionRequired: items.filter((item) => ["failed", "pending"].includes((item.payment_status || "").toLowerCase())).length,
-    }),
-    [items],
-  );
 
   return (
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Invoices" }]} />
-
-        {isTenantSession ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoices</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-950">Invoices</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                View invoice status, amounts due, and payment state across all customers.
-              </p>
-            </div>
-          </div>
-        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -114,171 +108,131 @@ export function InvoiceListScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Visible invoices" value={stats.total} />
-              <MetricCard label="Paid" value={stats.paid} />
-              <MetricCard label="Overdue" value={stats.overdue} />
-              <MetricCard label="Needs attention" value={stats.actionRequired} />
-            </section>
-
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoices</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Filter and inspect</h2>
-            </div>
-            <div className="grid gap-3 lg:grid-cols-3">
-              <input
-                value={customerExternalID}
-                onChange={(event) => setCustomerExternalID(event.target.value)}
-                placeholder="Customer external ID"
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-              />
-              <input
-                value={invoiceStatus}
-                onChange={(event) => setInvoiceStatus(event.target.value)}
-                placeholder="Invoice status"
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-              />
-              <input
-                value={paymentStatus}
-                onChange={(event) => setPaymentStatus(event.target.value)}
-                placeholder="Payment status"
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-              />
-            </div>
-            <div className="grid gap-3 lg:grid-cols-3">
-              <select
-                value={paymentOverdue}
-                onChange={(event) => setPaymentOverdue(event.target.value as "all" | "true" | "false")}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-              >
-                <option value="all">All due states</option>
-                <option value="true">Overdue only</option>
-                <option value="false">Not overdue</option>
-              </select>
-              <select
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as InvoiceStatusFilters["sort_by"])}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-              >
-                {sortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={order}
-                onChange={(event) => setOrder(event.target.value as InvoiceStatusFilters["order"])}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-              >
-                {orderOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-              <div className="mt-5 grid gap-3">
-                {invoicesQuery.isLoading ? (
-                  <LoadingState />
-                ) : items.length === 0 ? (
-                  <EmptyState />
-                ) : (
-                  items.map((item) => <InvoiceRow key={item.invoice_id} item={item} />)
-                )}
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <h1 className="text-sm font-semibold text-slate-900">Invoices{items.length > 0 ? ` (${items.length})` : ""}</h1>
+              <div className="flex items-center gap-2">
+                <input
+                  value={customerExternalID}
+                  onChange={(event) => setCustomerExternalID(event.target.value)}
+                  placeholder="Customer ID..."
+                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+                <select
+                  value={invoiceStatus}
+                  onChange={(event) => setInvoiceStatus(event.target.value)}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  <option value="">All invoice statuses</option>
+                  <option value="finalized">Finalized</option>
+                  <option value="draft">Draft</option>
+                  <option value="voided">Voided</option>
+                  <option value="pending">Pending</option>
+                </select>
+                <select
+                  value={paymentStatus}
+                  onChange={(event) => setPaymentStatus(event.target.value)}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  <option value="">All payment statuses</option>
+                  <option value="succeeded">Succeeded</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
+                  <option value="processing">Processing</option>
+                  <option value="requires_action">Requires action</option>
+                </select>
+                <select
+                  value={paymentOverdue}
+                  onChange={(event) => setPaymentOverdue(event.target.value as "all" | "true" | "false")}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  <option value="all">All due states</option>
+                  <option value="true">Overdue only</option>
+                  <option value="false">Not overdue</option>
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value as InvoiceStatusFilters["sort_by"])}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={order}
+                  onChange={(event) => setOrder(event.target.value as InvoiceStatusFilters["order"])}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  {orderOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
-            </section>
-          </>
+            </div>
+            {invoicesQuery.isLoading ? (
+              <LoadingState />
+            ) : items.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                    <th className="px-5 py-2.5 font-semibold">Invoice #</th>
+                    <th className="px-4 py-2.5 font-semibold">Customer</th>
+                    <th className="px-4 py-2.5 font-semibold">Amount</th>
+                    <th className="px-4 py-2.5 font-semibold">Status</th>
+                    <th className="px-4 py-2.5 font-semibold">Payment</th>
+                    <th className="px-4 py-2.5 font-semibold">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {items.map((item) => {
+                    const diagnosis = billingFailureDiagnosis(item);
+                    return (
+                      <tr key={item.invoice_id} className="transition hover:bg-stone-50">
+                        <td className="px-5 py-3">
+                          <Link href={`/invoices/${encodeURIComponent(item.invoice_id)}`} className="block">
+                            <p className="font-medium text-slate-900">{item.invoice_number || item.invoice_id}</p>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{item.customer_display_name || item.customer_external_id || "—"}</td>
+                        <td className="px-4 py-3 text-slate-900 font-medium">{formatMoney(item.total_amount_cents, item.currency || "USD")}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${diagnosisToneClass(diagnosis.tone)}`}>
+                            {formatInvoiceState(item.invoice_status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${paymentTone(item.payment_status)}`}>
+                            {formatInvoiceState(item.payment_status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">{formatExactTimestamp(item.last_event_at)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         ) : null}
       </main>
     </div>
   );
 }
 
-function InvoiceRow({ item }: { item: InvoiceSummary }) {
-  const diagnosis = billingFailureDiagnosis(item);
-  const primaryLabel = item.customer_display_name || item.customer_external_id || "Unlinked customer";
-
-  return (
-    <Link
-      href={`/invoices/${encodeURIComponent(item.invoice_id)}`}
-      className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_110px] lg:items-start"
-    >
-      <div className="min-w-0">
-        <h3 className="truncate text-base font-semibold text-slate-950">{item.invoice_number || item.invoice_id}</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          {primaryLabel} · {formatMoney(item.total_amount_cents, item.currency || "USD")}
-        </p>
-        <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${diagnosisToneClass(diagnosis.tone)}`}>
-              {diagnosis.title}
-            </span>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.summary}</p>
-        </div>
-      </div>
-      <InventoryCell label="Invoice" value={formatInvoiceState(item.invoice_status)} />
-      <InventoryCell label="Payment" value={formatInvoiceState(item.payment_status)} />
-      <InventoryCell label="Due state" value={item.payment_overdue ? "Overdue" : "Current"} />
-      <div className="flex items-center justify-between gap-3 lg:justify-end">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
-      </div>
-    </Link>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function InventoryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 break-all text-sm font-semibold text-slate-950">{value || "-"}</p>
-    </div>
-  );
-}
-
 function LoadingState() {
   return (
-    <div className="grid gap-3">
+    <div className="divide-y divide-stone-100">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_110px] lg:items-start">
-          <div className="min-w-0">
-            <Skeleton className="h-5 w-44" />
-            <Skeleton className="mt-2 h-4 w-36" />
-            <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
-              <Skeleton className="h-5 w-20 rounded-full" />
-              <Skeleton className="mt-2 h-3 w-52" />
-            </div>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="mt-2 h-4 w-20" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="mt-2 h-4 w-20" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="mt-2 h-4 w-16" />
-          </div>
-          <div className="flex items-center justify-end">
-            <Skeleton className="h-3.5 w-8" />
-          </div>
+        <div key={i} className="flex items-center gap-4 px-5 py-3">
+          <div className="flex-1"><Skeleton className="h-4 w-28" /></div>
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-4 w-14 rounded-full" />
+          <Skeleton className="h-4 w-14 rounded-full" />
+          <Skeleton className="h-3 w-20" />
         </div>
       ))}
     </div>
@@ -287,13 +241,12 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No invoices yet.</p>
-      <p className="mt-2">Invoices appear once a customer has an active subscription and a billing cycle completes. Make sure customers have a billing profile and payment setup done.</p>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link href="/subscriptions" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">View subscriptions</Link>
-        <Link href="/customers" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">View customers</Link>
-      </div>
+    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
+      <p className="text-sm font-medium text-slate-700">No invoices</p>
+      <p className="text-xs text-slate-500">Invoices appear once a billing cycle completes for an active subscription.</p>
+      <Link href="/subscriptions" className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">
+        View subscriptions
+      </Link>
     </div>
   );
 }

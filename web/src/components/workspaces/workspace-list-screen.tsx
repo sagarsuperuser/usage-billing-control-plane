@@ -10,7 +10,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
-import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
+import { formatReadinessStatus } from "@/lib/readiness";
 import { type Tenant, type TenantOnboardingReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -49,25 +49,30 @@ function workspaceBillingInventoryLabel(tenant: Tenant): string {
   }
 }
 
-function workspaceAccessLabel(tenant: Tenant): string {
-  const billing = tenant.workspace_billing;
-  if (!billing.configured) {
-    return "Platform setup";
-  }
-  switch ((billing.diagnosis_code || billing.status || "").toLowerCase()) {
-    case "connected":
-      return "Handoff ready";
-    case "pending":
-    case "provisioning":
-    case "pending_verification":
-      return "Verification pending";
-    case "verification_failed":
-      return "Platform repair";
-    case "disabled":
-      return "Blocked";
+function billingTone(tenant: Tenant): string {
+  const label = workspaceBillingInventoryLabel(tenant);
+  switch (label) {
+    case "Attached":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "Pending":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "Missing":
+    case "Failed":
+    case "Disabled":
+      return "border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return billing.connected ? "Handoff ready" : "Platform setup";
+      return "border-slate-200 bg-slate-50 text-slate-700";
   }
+}
+
+function pricingLabel(readiness?: TenantOnboardingReadiness): string {
+  if (!readiness) return "—";
+  return readiness.billing_integration.pricing_ready ? "Ready" : "Missing";
+}
+
+function customersLabel(readiness?: TenantOnboardingReadiness): string {
+  if (!readiness) return "—";
+  return readiness.first_customer.customer_exists ? "Created" : "Missing";
 }
 
 export function WorkspaceListScreen() {
@@ -105,56 +110,10 @@ export function WorkspaceListScreen() {
     return map;
   }, [readinessQueries]);
 
-  const summary = useMemo(() => {
-    const readiness = filteredTenants.flatMap((tenant) => {
-      const item = readinessByTenant.get(tenant.id);
-      return item ? [item] : [];
-    });
-    return {
-      total: filteredTenants.length,
-      ready: readiness.filter((item) => item.status === "ready").length,
-      needsAttention: readiness.filter((item) => item.status !== "ready").length,
-      billingNotReady: filteredTenants.filter((tenant) => !tenant.workspace_billing.connected).length,
-    };
-  }, [filteredTenants, readinessByTenant]);
-
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { label: "Workspaces" }]} />
-
-        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-          <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Workspaces</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-950">Workspace setup and launch</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                This directory should show which workspace is ready, which one is blocked, and which operational step still belongs to the platform before the workspace can run on its own.
-              </p>
-                          </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/billing-connections"
-                className="inline-flex items-center rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-white"
-              >
-                Open billing connections
-              </Link>
-              <Link
-                href="/workspaces/new"
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-              >
-                <Plus className="h-4 w-4" />
-                New workspace
-              </Link>
-            </div>
-          </div>
-          <div className="grid gap-3 border-t border-stone-200 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4 lg:px-6">
-            <MetricCard label="Visible" value={summary.total} />
-            <MetricCard label="Ready" value={summary.ready} tone="success" />
-            <MetricCard label="Needs attention" value={summary.needsAttention} tone="warn" />
-            <MetricCard label="Billing not ready" value={summary.billingNotReady} tone="warn" />
-          </div>
-        </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
@@ -166,135 +125,94 @@ export function WorkspaceListScreen() {
           />
         ) : null}
 
-        {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
-              <h2 className="mt-2 text-base font-semibold text-slate-950">Workspaces</h2>
-              <p className="mt-2 text-sm text-slate-600">Review setup status and billing readiness across all workspaces.</p>
+        {canViewPlatformSurface ? (
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <h1 className="text-sm font-semibold text-slate-900">Workspaces{filteredTenants.length > 0 ? ` (${filteredTenants.length})` : ""}</h1>
+              <div className="flex items-center gap-2">
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search..."
+                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  <option value="">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="deleted">Deleted</option>
+                </select>
+                <Link href="/workspaces/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <Plus className="h-3.5 w-3.5" />
+                  New
+                </Link>
+              </div>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by workspace name or ID"
-                className="h-11 min-w-[260px] rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-900 outline-none ring-emerald-300 transition placeholder:text-slate-500 focus:ring-2"
-              />
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-900 outline-none ring-emerald-300 transition focus:ring-2"
-              >
-                <option value="">All statuses</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="deleted">Deleted</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-5 divide-y divide-stone-200">
             {tenantsQuery.isLoading ? (
               <LoadingState />
             ) : filteredTenants.length === 0 ? (
               <EmptyState />
             ) : (
-              filteredTenants.map((tenant) => (
-                <WorkspaceRow key={tenant.id} tenant={tenant} readiness={readinessByTenant.get(tenant.id)} />
-              ))
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                    <th className="px-5 py-2.5 font-semibold">Name</th>
+                    <th className="px-4 py-2.5 font-semibold">Status</th>
+                    <th className="px-4 py-2.5 font-semibold">Billing</th>
+                    <th className="px-4 py-2.5 font-semibold">Pricing</th>
+                    <th className="px-4 py-2.5 font-semibold">Customers</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {filteredTenants.map((tenant) => {
+                    const readiness = readinessByTenant.get(tenant.id);
+                    return (
+                      <tr key={tenant.id} className="transition hover:bg-stone-50">
+                        <td className="px-5 py-3">
+                          <Link href={`/workspaces/${encodeURIComponent(tenant.id)}`} className="block">
+                            <p className="font-medium text-slate-900">{tenant.name}</p>
+                            <p className="mt-0.5 font-mono text-xs text-slate-400">{tenant.id}</p>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusTone(tenant.status)}`}>
+                            {tenant.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${billingTone(tenant)}`}>
+                            {workspaceBillingInventoryLabel(tenant)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{pricingLabel(readiness)}</td>
+                        <td className="px-4 py-3 text-slate-600">{customersLabel(readiness)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
-        </section> : null}
+        ) : null}
       </main>
-    </div>
-  );
-}
-
-function WorkspaceRow({ tenant, readiness }: { tenant: Tenant; readiness?: TenantOnboardingReadiness }) {
-  const nextStep = normalizeMissingSteps(readiness?.missing_steps)[0];
-
-  return (
-    <Link
-      href={`/workspaces/${encodeURIComponent(tenant.id)}`}
-      className="grid gap-4 py-4 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1.35fr)_repeat(4,minmax(0,0.5fr))] lg:items-start"
-    >
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-base font-semibold text-slate-950">{tenant.name}</p>
-          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone(tenant.status)}`}>
-            {tenant.status}
-          </span>
-        </div>
-        <p className="mt-1 break-all font-mono text-[11px] text-slate-500">{tenant.id}</p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          {nextStep ? `Next action: ${formatStep(nextStep)}` : "No immediate blocker is shown."}
-        </p>
-      </div>
-      <StatCell label="Overall" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
-      <StatCell label="Billing" value={workspaceBillingInventoryLabel(tenant)} />
-      <StatCell label="First customer" value={readiness?.first_customer.customer_exists ? "Created" : "Missing"} />
-      <StatCell label="Pricing" value={readiness?.billing_integration.pricing_ready ? "Ready" : "Missing"} />
-      <StatCell label="Access" value={workspaceAccessLabel(tenant)} />
-    </Link>
-  );
-}
-
-function StatCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "success" | "warn";
-}) {
-  const toneClass = tone === "success" ? "text-emerald-700" : tone === "warn" ? "text-amber-700" : "text-slate-950";
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
 }
 
 function LoadingState() {
   return (
-    <div className="divide-y divide-stone-200">
+    <div className="divide-y divide-stone-100">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="grid gap-4 py-4 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1.35fr)_repeat(4,minmax(0,0.5fr))] lg:items-start">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-20 rounded-full" />
-            </div>
-            <Skeleton className="mt-2 h-3 w-28" />
-            <Skeleton className="mt-2 h-4 w-56" />
-          </div>
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="mt-2 h-4 w-16" />
-          </div>
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="mt-2 h-4 w-16" />
-          </div>
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="mt-2 h-4 w-16" />
-          </div>
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="mt-2 h-4 w-16" />
-          </div>
+        <div key={i} className="flex items-center gap-4 px-5 py-3">
+          <div className="flex-1"><Skeleton className="h-4 w-32" /><Skeleton className="mt-1 h-3 w-20" /></div>
+          <Skeleton className="h-4 w-14 rounded-full" />
+          <Skeleton className="h-4 w-14 rounded-full" />
+          <Skeleton className="h-3 w-14" />
+          <Skeleton className="h-3 w-14" />
         </div>
       ))}
     </div>
@@ -303,20 +221,13 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="py-6 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No workspaces match the current filters.</p>
-      <p className="mt-2">Clear filters or create a new workspace if you are bootstrapping a fresh tenant.</p>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link href="/workspaces/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New workspace</Link>
-      </div>
+    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
+      <p className="text-sm font-medium text-slate-700">No workspaces</p>
+      <p className="text-xs text-slate-500">Create a workspace to get started.</p>
+      <Link href="/workspaces/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+        <Plus className="h-3.5 w-3.5" />
+        New workspace
+      </Link>
     </div>
   );
-}
-
-function formatStep(step: string): string {
-  return step
-    .replace(/^tenant\./, "")
-    .replace(/^billing_integration\./, "")
-    .replace(/^first_customer\./, "")
-    .replaceAll("_", " ");
 }
