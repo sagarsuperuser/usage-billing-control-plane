@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestBuildLagoInvoiceReconcileEvent(t *testing.T) {
+func TestBuildInvoiceReconcileEvent(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte(`{
@@ -27,7 +27,7 @@ func TestBuildLagoInvoiceReconcileEvent(t *testing.T) {
 		}
 	}`)
 
-	event, err := BuildLagoInvoiceReconcileEvent(payload, "tenant_a", "")
+	event, err := BuildInvoiceReconcileEvent(payload, "tenant_a", "")
 	if err != nil {
 		t.Fatalf("build event: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestBuildLagoInvoiceReconcileEvent(t *testing.T) {
 		t.Fatalf("expected webhook key")
 	}
 
-	again, err := BuildLagoInvoiceReconcileEvent(payload, "tenant_a", "")
+	again, err := BuildInvoiceReconcileEvent(payload, "tenant_a", "")
 	if err != nil {
 		t.Fatalf("build event again: %v", err)
 	}
@@ -65,11 +65,11 @@ func TestBuildLagoInvoiceReconcileEvent(t *testing.T) {
 	}
 }
 
-func TestBuildLagoInvoiceReconcileEvent_FallbackOrganization(t *testing.T) {
+func TestBuildInvoiceReconcileEvent_FallbackOrganization(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte(`{"invoice":{"lago_id":"inv_123","payment_status":"pending"}}`)
-	event, err := BuildLagoInvoiceReconcileEvent(payload, "tenant_a", "org_fallback")
+	event, err := BuildInvoiceReconcileEvent(payload, "tenant_a", "org_fallback")
 	if err != nil {
 		t.Fatalf("build event with fallback org: %v", err)
 	}
@@ -78,13 +78,13 @@ func TestBuildLagoInvoiceReconcileEvent_FallbackOrganization(t *testing.T) {
 	}
 }
 
-func TestBuildLagoInvoiceReconcileEvent_ValidatePayload(t *testing.T) {
+func TestBuildInvoiceReconcileEvent_ValidatePayload(t *testing.T) {
 	t.Parallel()
 
-	if _, err := BuildLagoInvoiceReconcileEvent([]byte(`{"invoice":{}}`), "tenant_a", "org_1"); err == nil {
+	if _, err := BuildInvoiceReconcileEvent([]byte(`{"invoice":{}}`), "tenant_a", "org_1"); err == nil {
 		t.Fatalf("expected validation error for missing invoice id")
 	}
-	if _, err := BuildLagoInvoiceReconcileEvent([]byte(`{"invoice":{"lago_id":"inv_1"}}`), "tenant_a", ""); err == nil {
+	if _, err := BuildInvoiceReconcileEvent([]byte(`{"invoice":{"lago_id":"inv_1"}}`), "tenant_a", ""); err == nil {
 		t.Fatalf("expected validation error for missing organization_id")
 	}
 }

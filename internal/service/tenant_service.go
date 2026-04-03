@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,7 +14,6 @@ type TenantService struct {
 	store                          store.Repository
 	workspaceBillingBindingService *WorkspaceBillingBindingService
 	billingProviderConnectionSvc   *BillingProviderConnectionService
-	organizationBootstrapper       OrganizationBootstrapper
 }
 
 type EnsureTenantRequest struct {
@@ -69,13 +67,6 @@ func (s *TenantService) WithBillingProviderConnectionService(connectionSvc *Bill
 	return s
 }
 
-func (s *TenantService) WithOrganizationBootstrapper(bootstrapper OrganizationBootstrapper) *TenantService {
-	if s == nil {
-		return nil
-	}
-	s.organizationBootstrapper = bootstrapper
-	return s
-}
 
 func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID string) (domain.Tenant, error) {
 	if s == nil || s.store == nil {
@@ -297,18 +288,6 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 	return out, nil
 }
 
-func (s *TenantService) bootstrapTenantOrganization(name string) (OrganizationBootstrapResult, error) {
-	if s == nil || s.organizationBootstrapper == nil {
-		return OrganizationBootstrapResult{}, fmt.Errorf("%w: lago organization bootstrapper is required", ErrValidation)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	result, err := s.organizationBootstrapper.BootstrapOrganization(ctx, name)
-	if err != nil {
-		return OrganizationBootstrapResult{}, fmt.Errorf("bootstrap lago organization for tenant %q: %w", strings.TrimSpace(name), err)
-	}
-	return result, nil
-}
 
 func (s *TenantService) resolveTenantWriteBillingConnection(current domain.Tenant, connectionID *string, actorAPIKeyID string) (string, error) {
 	rawConnectionID := current.BillingProviderConnectionID

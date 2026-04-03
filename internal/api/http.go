@@ -60,7 +60,6 @@ type Server struct {
 	apiKeyService                      *service.APIKeyService
 	onboardingService                  *service.TenantOnboardingService
 	auditExportSvc                     *service.AuditExportService
-	organizationBootstrapper       service.OrganizationBootstrapper
 	meterSyncAdapter                   service.MeterSyncAdapter
 	taxSyncAdapter                     service.TaxSyncAdapter
 	planSyncAdapter                    service.PlanSyncAdapter
@@ -651,11 +650,6 @@ func WithAuditExportService(auditExportSvc *service.AuditExportService) ServerOp
 	}
 }
 
-func WithOrganizationBootstrapper(bootstrapper service.OrganizationBootstrapper) ServerOption {
-	return func(s *Server) {
-		s.organizationBootstrapper = bootstrapper
-	}
-}
 
 func WithMeterSyncAdapter(adapter service.MeterSyncAdapter) ServerOption {
 	return func(s *Server) {
@@ -821,8 +815,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.workspaceAccessService = service.NewWorkspaceAccessService(repo)
 	s.tenantService = service.NewTenantService(repo).
 		WithWorkspaceBillingBindingService(s.workspaceBillingBindingService).
-		WithBillingProviderConnectionService(s.billingProviderConnectionService).
-		WithOrganizationBootstrapper(s.organizationBootstrapper)
+		WithBillingProviderConnectionService(s.billingProviderConnectionService)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
 	if dunningSvc, err := service.NewDunningService(repo); err == nil {
@@ -1188,7 +1181,7 @@ func (s *Server) preAuthRateLimitTarget(r *http.Request, protected bool) (policy
 	switch {
 	case path == "/health":
 		return "", "", false, false
-	case path == "/internal/lago/webhooks", path == "/internal/stripe/webhooks":
+	case path == "/internal/stripe/webhooks":
 		return RateLimitPolicyWebhook, "ip:" + requestClientIP(r), s.rateLimitFailOpen, true
 	case protected:
 		return RateLimitPolicyPreAuthProtected, "ip:" + requestClientIP(r) + ":route:" + normalizeMetricsRoute(path), s.rateLimitFailOpen, true
@@ -1629,7 +1622,7 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/internal/ready" {
 		return RoleAdmin, true
 	}
-	if path == "/internal/stripe/webhooks" || path == "/internal/lago/webhooks" {
+	if path == "/internal/stripe/webhooks" {
 		return "", false
 	}
 	if path == "/internal/tenants/audit" {
@@ -1926,8 +1919,6 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/onboarding/tenants"
 	case strings.HasPrefix(path, "/internal/onboarding/tenants/"):
 		return "/internal/onboarding/tenants/{id}"
-	case path == "/internal/lago/webhooks":
-		return "/internal/lago/webhooks"
 	case path == "/internal/stripe/webhooks":
 		return "/internal/stripe/webhooks"
 	case path == "/internal/tenants/audit":
@@ -2175,7 +2166,6 @@ func isTenantMatch(resourceTenantID, requestTenantID string) bool {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/health", s.handleHealth)
-	s.mux.HandleFunc("/internal/lago/webhooks", s.handleLagoWebhooks)
 	s.mux.HandleFunc("/internal/stripe/webhooks", s.handleStripeWebhooks)
 	s.mux.HandleFunc("/internal/onboarding/tenants", s.handleInternalOnboardingTenants)
 	s.mux.HandleFunc("/internal/onboarding/tenants/", s.handleInternalOnboardingTenantByID)
@@ -4657,44 +4647,13 @@ func (s *Server) handleStripeWebhooks(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleLagoWebhooks(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-	if s.paymentStatusSvc == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	result, err := s.paymentStatusSvc.Ingest(r.Context(), r.Header, body)
-	if err != nil {
-		writeDomainError(w, err)
-		return
-	}
-	status := http.StatusAccepted
-	if result.Idempotent {
-		status = http.StatusOK
-	}
-	writeJSON(w, status, map[string]any{
-		"idempotent": result.Idempotent,
-		"event":      result.Event,
-	})
-}
-
 func (s *Server) handleInvoicePaymentStatuses(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w)
 		return
 	}
 	if s.paymentStatusSvc == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
 	}
 
@@ -4752,7 +4711,7 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 		return
 	}
 	if s.paymentStatusSvc == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
 	}
 
@@ -5046,7 +5005,7 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "failed to proxy retry payment to lago: "+err.Error())
+			writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
 			return
 		}
 		if statusCode >= 200 && statusCode < 300 {
@@ -5098,7 +5057,7 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 		statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "failed to fetch invoice from lago: "+err.Error())
+			writeError(w, http.StatusBadGateway, "failed to fetch invoice: "+err.Error())
 			return
 		}
 		if statusCode < 200 || statusCode >= 300 {
@@ -5106,9 +5065,9 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		explainability, err := service.BuildInvoiceExplainabilityFromLago(body, options)
+		explainability, err := service.BuildInvoiceExplainability(body, options)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "failed to compute explainability from lago invoice: "+err.Error())
+			writeError(w, http.StatusBadGateway, "failed to compute invoice explainability: "+err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, explainability)
@@ -6217,7 +6176,7 @@ func translateUserVisibleError(status int, code, message string) (string, string
 
 	lower := strings.ToLower(trimmed)
 	switch {
-	case strings.Contains(lower, "lago organization id is required"),
+	case strings.Contains(lower, "billing setup incomplete"),
 		strings.Contains(lower, "workspace has no billing execution context"),
 		strings.Contains(lower, "workspace billing binding exists but is not ready"),
 		strings.Contains(lower, "billing setup is incomplete for this workspace"):
@@ -6225,62 +6184,62 @@ func translateUserVisibleError(status int, code, message string) (string, string
 	case strings.Contains(lower, "billing provider connection must be checked before workspace assignment"):
 		return "Check this Stripe connection before assigning it to a workspace.", code
 	case strings.Contains(lower, "meter sync adapter is required"),
-		strings.Contains(lower, "lago meter sync adapter is required"),
-		strings.Contains(lower, "lago tax sync adapter is required"),
-		strings.Contains(lower, "lago plan sync adapter is required"),
-		strings.Contains(lower, "lago subscription sync adapter is required"),
-		strings.Contains(lower, "lago usage sync adapter is required"):
+		strings.Contains(lower, "meter sync adapter is required"),
+		strings.Contains(lower, "tax sync adapter is required"),
+		strings.Contains(lower, "plan sync adapter is required"),
+		strings.Contains(lower, "subscription sync adapter is required"),
+		strings.Contains(lower, "usage sync adapter is required"):
 		return "Pricing updates are unavailable right now.", code
-	case strings.Contains(lower, "metric created but lago sync failed"),
-		strings.Contains(lower, "meter created but lago sync failed"),
-		strings.Contains(lower, "meter updated but lago sync failed"),
-		strings.Contains(lower, "lago meter sync failed"):
+	case strings.Contains(lower, "metric sync failed"),
+		strings.Contains(lower, "meter sync failed"),
+		strings.Contains(lower, "meter sync failed"),
+		strings.Contains(lower, "meter sync failed"):
 		return "Pricing metric changes could not be applied right now.", code
-	case strings.Contains(lower, "lago tax sync failed"):
+	case strings.Contains(lower, "tax sync failed"):
 		return "Tax changes could not be applied right now.", code
-	case strings.Contains(lower, "lago plan sync failed"),
-		strings.Contains(lower, "lago add-on sync failed"),
-		strings.Contains(lower, "lago coupon sync failed"),
-		strings.Contains(lower, "lago fixed charge sync failed"),
-		strings.Contains(lower, "list lago fixed charges failed"),
-		strings.Contains(lower, "decode lago fixed charges response"),
-		strings.Contains(lower, "lago billable metric lookup failed"),
-		strings.Contains(lower, "decode lago billable metric response"):
+	case strings.Contains(lower, "plan sync failed"),
+		strings.Contains(lower, "add-on sync failed"),
+		strings.Contains(lower, "coupon sync failed"),
+		strings.Contains(lower, "fixed charge sync failed"),
+		strings.Contains(lower, "list fixed charges failed"),
+		strings.Contains(lower, "decode fixed charges response"),
+		strings.Contains(lower, "billable metric lookup failed"),
+		strings.Contains(lower, "decode billable metric response"):
 		return "Pricing changes could not be applied right now.", code
-	case strings.Contains(lower, "package pricing with overage is not yet supported for lago plan sync"),
-		(strings.Contains(lower, "pricing mode") && strings.Contains(lower, "not supported for lago plan sync")):
+	case strings.Contains(lower, "package pricing with overage is not yet supported"),
+		(strings.Contains(lower, "pricing mode") && strings.Contains(lower, "not supported")):
 		return "This pricing configuration is not supported yet.", code
-	case strings.Contains(lower, "lago subscription sync failed"),
-		strings.Contains(lower, "lago subscription terminate failed"),
-		strings.Contains(lower, "list lago applied coupons failed"),
-		strings.Contains(lower, "decode lago applied coupons response"),
-		strings.Contains(lower, "apply lago coupon failed"),
-		strings.Contains(lower, "delete lago applied coupon failed"):
+	case strings.Contains(lower, "subscription sync failed"),
+		strings.Contains(lower, "subscription terminate failed"),
+		strings.Contains(lower, "list applied coupons failed"),
+		strings.Contains(lower, "decode applied coupons response"),
+		strings.Contains(lower, "apply coupon failed"),
+		strings.Contains(lower, "delete applied coupon failed"):
 		return "Subscription changes could not be applied right now.", code
-	case strings.Contains(lower, "count aggregation requires quantity=1 for lago usage sync"),
-		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for lago usage sync")),
-		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for lago sync")):
+	case strings.Contains(lower, "count aggregation requires quantity=1 for usage sync"),
+		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for usage sync")),
+		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for sync")):
 		return "This usage configuration is not supported yet.", code
-	case strings.Contains(lower, "lago usage sync failed"):
+	case strings.Contains(lower, "usage sync failed"):
 		return "Usage could not be recorded right now.", code
-	case strings.Contains(lower, "failed to load payment receipts from lago"):
+	case strings.Contains(lower, "failed to load payment receipts from billing provider"):
 		return "Payment receipts could not be loaded right now.", code
-	case strings.Contains(lower, "failed to load credit notes from lago"):
+	case strings.Contains(lower, "failed to load credit notes from billing provider"):
 		return "Credit notes could not be loaded right now.", code
-	case strings.Contains(lower, "failed to proxy payment retry to lago"):
+	case strings.Contains(lower, "payment retry failed"):
 		return "Payment retry could not be started right now.", code
-	case strings.Contains(lower, "failed to fetch invoice from lago"):
+	case strings.Contains(lower, "failed to fetch invoice"):
 		return "Invoice details could not be loaded right now.", code
-	case strings.Contains(lower, "failed to compute explainability from lago invoice"):
+	case strings.Contains(lower, "failed to compute invoice explainability"):
 		return "Invoice explainability is unavailable right now.", code
-	case strings.Contains(lower, "lago webhook service is required"):
+	case strings.Contains(lower, "payment status service is required"):
 		return "Billing activity is unavailable right now.", code
-	case strings.Contains(lower, "lago invoice adapter is required"),
+	case strings.Contains(lower, "invoice billing adapter is required"),
 		strings.Contains(lower, "invoice billing adapter is required"):
 		return "Billing actions are unavailable right now.", code
-	case strings.Contains(lower, "lago customer billing adapter is required"):
+	case strings.Contains(lower, "customer billing adapter is required"):
 		return "Customer billing is unavailable right now.", code
-	case strings.Contains(lower, "stripe_secret_key or lago_webhook_hmac_key is required"),
+	case strings.Contains(lower, "stripe_secret_key is required"),
 		strings.Contains(lower, "stripe_secret_key is required"),
 		strings.Contains(lower, "stripe secret key is required"):
 		return "Stripe credentials are required.", code

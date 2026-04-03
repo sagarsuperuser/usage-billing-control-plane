@@ -8,32 +8,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Organization bootstrapper (replaces Lago org provisioning with a no-op).
-// ---------------------------------------------------------------------------
-
-type OrganizationBootstrapper interface {
-	BootstrapOrganization(ctx context.Context, name string) (OrganizationBootstrapResult, error)
-}
-
-type OrganizationBootstrapResult struct {
-	OrganizationID string
-	APIKey         string
-}
-
-// NoopOrganizationBootstrapper is used when Lago is not present.
-// It returns a synthetic organization ID since we no longer provision Lago orgs.
-type NoopOrganizationBootstrapper struct{}
-
-func (b NoopOrganizationBootstrapper) BootstrapOrganization(_ context.Context, name string) (OrganizationBootstrapResult, error) {
-	return OrganizationBootstrapResult{
-		OrganizationID: fmt.Sprintf("org_%s", strings.ReplaceAll(strings.ToLower(name), " ", "_")),
-		APIKey:         "",
-	}, nil
-}
-
-// ---------------------------------------------------------------------------
-// Context helpers (formerly used by Lago transport resolver).
-// Now pass-through: our Stripe adapters resolve keys internally.
+// Context helpers for billing scope propagation.
 // ---------------------------------------------------------------------------
 
 type billingScopeKey struct{}

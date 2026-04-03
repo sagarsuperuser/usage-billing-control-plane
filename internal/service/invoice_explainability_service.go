@@ -107,7 +107,7 @@ type explainabilityRow struct {
 	CreatedAt time.Time
 }
 
-func BuildInvoiceExplainabilityFromLago(payload []byte, options InvoiceExplainabilityOptions) (domain.InvoiceExplainability, error) {
+func BuildInvoiceExplainability(payload []byte, options InvoiceExplainabilityOptions) (domain.InvoiceExplainability, error) {
 	if !json.Valid(payload) {
 		return domain.InvoiceExplainability{}, fmt.Errorf("%w: lago invoice payload must be valid json", ErrValidation)
 	}

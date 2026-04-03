@@ -47,7 +47,7 @@ func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.paymentStatusSvc == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
 	}
 
@@ -164,7 +164,7 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "failed to proxy payment retry to lago: "+err.Error())
+			writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
 			return
 		}
 		if statusCode >= 200 && statusCode < 300 {
@@ -181,7 +181,7 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.paymentStatusSvc == nil {
-		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
 	}
 

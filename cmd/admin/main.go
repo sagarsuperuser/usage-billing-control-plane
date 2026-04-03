@@ -28,7 +28,7 @@ type cleanupCounts struct {
 	PaymentSmokeCustomerBillingProfiles int64 `json:"payment_smoke_customer_billing_profiles"`
 	PaymentSmokeCustomerPaymentSetup    int64 `json:"payment_smoke_customer_payment_setup"`
 	PaymentSmokeInvoicePaymentViews     int64 `json:"payment_smoke_invoice_payment_status_views"`
-	PaymentSmokeBillingEvents       int64 `json:"payment_smoke_lago_webhook_events"`
+	PaymentSmokeBillingEvents       int64 `json:"payment_smoke_billing_events"`
 	PlaywrightLivePlatformAPIKeys       int64 `json:"playwright_live_platform_api_keys"`
 	PlaywrightLiveTenantAPIKeys         int64 `json:"playwright_live_tenant_api_keys"`
 	PlaywrightLiveAPIKeyAuditEvents     int64 `json:"playwright_live_api_key_audit_events"`
@@ -51,14 +51,12 @@ type cleanupResult struct {
 func main() {
 	logger := logging.ConfigureDefault(logging.LoadConfigFromEnv())
 	if len(os.Args) < 2 {
-		fatal(logger, "missing subcommand", "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-lago-mapping", "ensure-tenant-workspace-billing", "ensure-alpha-customers", "upsert-customer-billing-profile"})
+		fatal(logger, "missing subcommand", "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-workspace-billing", "ensure-alpha-customers", "upsert-customer-billing-profile"})
 	}
 
 	switch strings.ToLower(strings.TrimSpace(os.Args[1])) {
 	case "cleanup-staging-fixtures":
 		runCleanupStagingFixtures(logger, os.Args[2:])
-	case "ensure-tenant-lago-mapping":
-		runEnsureTenantLagoMapping(logger, os.Args[2:])
 	case "ensure-tenant-workspace-billing":
 		runEnsureTenantWorkspaceBilling(logger, os.Args[2:])
 	case "ensure-alpha-customers":
@@ -66,7 +64,7 @@ func main() {
 	case "upsert-customer-billing-profile":
 		runUpsertCustomerBillingProfile(logger, os.Args[2:])
 	default:
-		fatal(logger, "unsupported subcommand", "subcommand", os.Args[1], "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-lago-mapping", "ensure-tenant-workspace-billing", "ensure-alpha-customers", "upsert-customer-billing-profile"})
+		fatal(logger, "unsupported subcommand", "subcommand", os.Args[1], "supported", []string{"cleanup-staging-fixtures", "ensure-tenant-workspace-billing", "ensure-alpha-customers", "upsert-customer-billing-profile"})
 	}
 }
 
@@ -305,7 +303,7 @@ func printCleanupText(res cleanupResult) {
 	fmt.Printf("payment_smoke_customer_billing_profiles=%d\n", res.Counts.PaymentSmokeCustomerBillingProfiles)
 	fmt.Printf("payment_smoke_customer_payment_setup=%d\n", res.Counts.PaymentSmokeCustomerPaymentSetup)
 	fmt.Printf("payment_smoke_invoice_payment_status_views=%d\n", res.Counts.PaymentSmokeInvoicePaymentViews)
-	fmt.Printf("payment_smoke_lago_webhook_events=%d\n", res.Counts.PaymentSmokeBillingEvents)
+	fmt.Printf("payment_smoke_billing_events=%d\n", res.Counts.PaymentSmokeBillingEvents)
 	fmt.Printf("playwright_live_platform_api_keys=%d\n", res.Counts.PlaywrightLivePlatformAPIKeys)
 	fmt.Printf("playwright_live_tenant_api_keys=%d\n", res.Counts.PlaywrightLiveTenantAPIKeys)
 	fmt.Printf("playwright_live_api_key_audit_events=%d\n", res.Counts.PlaywrightLiveAPIKeyAuditEvents)

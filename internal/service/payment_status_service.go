@@ -40,17 +40,6 @@ func (s *PaymentStatusService) WithDunningService(dunningSvc *DunningService) *P
 	return s
 }
 
-// Ingest is a no-op stub for backward compatibility. Actual webhook ingestion
-// is now handled by StripeWebhookService.
-func (s *PaymentStatusService) Ingest(_ interface{}, _ interface{}, _ []byte) (IngestWebhookResult, error) {
-	return IngestWebhookResult{}, fmt.Errorf("lago webhook ingestion is deprecated; use stripe webhook service")
-}
-
-type IngestWebhookResult struct {
-	Event      domain.BillingEvent `json:"event"`
-	Idempotent bool                    `json:"idempotent"`
-}
-
 // ---------------------------------------------------------------------------
 // Request/Response types
 // ---------------------------------------------------------------------------

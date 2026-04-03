@@ -581,7 +581,6 @@ func main() {
 		api.WithCustomerBillingAdapter(customerBillingAdapter),
 	)
 	// Organization bootstrapper (no-op without Lago).
-	serverOpts = append(serverOpts, api.WithOrganizationBootstrapper(service.NoopOrganizationBootstrapper{}))
 
 	if billingProviderSvc != nil {
 		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))

@@ -33,14 +33,6 @@ func (stubWorkspaceBillingProviderAdapter) EnsureStripeProvider(_ context.Contex
 	}, nil
 }
 
-type stubWorkspaceOrgBootstrapper struct{}
-
-func (stubWorkspaceOrgBootstrapper) BootstrapOrganization(_ context.Context, name string) (service.OrganizationBootstrapResult, error) {
-	return service.OrganizationBootstrapResult{
-		OrganizationID: "org_" + normalizeTestSlug(name),
-		APIKey:         "api_" + normalizeTestSlug(name),
-	}, nil
-}
 
 func normalizeTestSlug(value string) string {
 	out := make([]rune, 0, len(value))
@@ -113,7 +105,6 @@ func TestTenantOnboardingUsesBillingProviderConnection(t *testing.T) {
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithBillingProviderConnectionService(billingSvc),
-		api.WithOrganizationBootstrapper(stubWorkspaceOrgBootstrapper{}),
 	).Handler())
 	defer ts.Close()
 

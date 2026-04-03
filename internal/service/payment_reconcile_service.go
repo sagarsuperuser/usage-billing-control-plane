@@ -85,8 +85,8 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 	for _, candidate := range candidates {
 		result.Scanned++
 
-		lagoCtx := ContextWithBillingScope(ctx, candidate.TenantID, candidate.OrganizationID)
-		statusCode, body, err := s.invoiceAdapter.GetInvoice(lagoCtx, candidate.InvoiceID)
+		billingCtx := ContextWithBillingScope(ctx, candidate.TenantID, candidate.OrganizationID)
+		statusCode, body, err := s.invoiceAdapter.GetInvoice(billingCtx, candidate.InvoiceID)
 		if err != nil {
 			result.Failures++
 			continue
@@ -96,7 +96,7 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 			continue
 		}
 
-		event, err := BuildLagoInvoiceReconcileEvent(body, candidate.TenantID, candidate.OrganizationID)
+		event, err := BuildInvoiceReconcileEvent(body, candidate.TenantID, candidate.OrganizationID)
 		if err != nil {
 			result.Failures++
 			continue
@@ -118,7 +118,7 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 	return result, nil
 }
 
-func BuildLagoInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizationID string) (domain.BillingEvent, error) {
+func BuildInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizationID string) (domain.BillingEvent, error) {
 	if !json.Valid(payload) {
 		return domain.BillingEvent{}, fmt.Errorf("%w: lago invoice payload must be valid json", ErrValidation)
 	}

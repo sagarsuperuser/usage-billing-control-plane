@@ -60,8 +60,6 @@ type tenantMappingResult struct {
 	Command                 string    `json:"command"`
 	AppliedAt               time.Time `json:"applied_at"`
 	TenantID                string    `json:"tenant_id"`
-	LagoOrganizationID      string    `json:"lago_organization_id"`
-	LagoBillingProviderCode string    `json:"lago_billing_provider_code"`
 	StatusCode              int       `json:"status_code"`
 }
 
@@ -111,60 +109,6 @@ type billingProfilePayload struct {
 	BillingPostalCode   string `json:"billing_postal_code"`
 	BillingCountry      string `json:"billing_country"`
 	Currency            string `json:"currency"`
-}
-
-func runEnsureTenantLagoMapping(logger *slog.Logger, args []string) {
-	fs := flag.NewFlagSet("ensure-tenant-lago-mapping", flag.ExitOnError)
-	var (
-		baseURL      string
-		platformKey  string
-		tenantID     string
-		orgID        string
-		providerCode string
-		output       string
-	)
-	fs.StringVar(&baseURL, "alpha-api-base-url", firstNonEmpty(os.Getenv("ALPHA_API_BASE_URL"), os.Getenv("PLAYWRIGHT_LIVE_API_BASE_URL"), "http://127.0.0.1:8080"), "alpha api base url")
-	fs.StringVar(&platformKey, "platform-api-key", firstNonEmpty(os.Getenv("PLATFORM_ADMIN_API_KEY"), os.Getenv("PLAYWRIGHT_LIVE_PLATFORM_API_KEY")), "platform admin api key")
-	fs.StringVar(&tenantID, "tenant-id", firstNonEmpty(os.Getenv("TARGET_TENANT_ID"), "default"), "tenant id")
-	fs.StringVar(&orgID, "organization-id", "", "lago organization id")
-	fs.StringVar(&providerCode, "provider-code", "", "lago billing provider code")
-	fs.StringVar(&output, "output", "json", "output format: json or text")
-	_ = fs.Parse(args)
-
-	if strings.TrimSpace(orgID) == "" || strings.TrimSpace(providerCode) == "" {
-		fatal(logger, "organization-id and provider-code are required")
-	}
-	if strings.TrimSpace(platformKey) == "" {
-		fatal(logger, "platform-api-key is required")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	statusCode, _, err := httpJSON(ctx, newAdminHTTPClient(), http.MethodPatch,
-		joinURL(baseURL, "/internal/tenants/"+url.PathEscape(strings.TrimSpace(tenantID))),
-		map[string]string{
-			"lago_organization_id":       strings.TrimSpace(orgID),
-			"lago_billing_provider_code": strings.TrimSpace(providerCode),
-		},
-		platformKey,
-	)
-	if err != nil {
-		fatal(logger, "patch tenant lago mapping", "error", err)
-	}
-	if statusCode != http.StatusOK {
-		fatal(logger, "patch tenant lago mapping failed", "status_code", statusCode)
-	}
-
-	res := tenantMappingResult{
-		Command:                 "ensure-tenant-lago-mapping",
-		AppliedAt:               time.Now().UTC(),
-		TenantID:                strings.TrimSpace(tenantID),
-		LagoOrganizationID:      strings.TrimSpace(orgID),
-		LagoBillingProviderCode: strings.TrimSpace(providerCode),
-		StatusCode:              statusCode,
-	}
-	writeStructuredOutput(output, res)
 }
 
 func runEnsureTenantWorkspaceBilling(logger *slog.Logger, args []string) {

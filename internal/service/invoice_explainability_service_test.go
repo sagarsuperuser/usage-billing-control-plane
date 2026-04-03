@@ -2,7 +2,7 @@ package service
 
 import "testing"
 
-func TestBuildInvoiceExplainabilityFromLago(t *testing.T) {
+func TestBuildInvoiceExplainability(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte(`{
@@ -55,7 +55,7 @@ func TestBuildInvoiceExplainabilityFromLago(t *testing.T) {
 		t.Fatalf("new explainability options: %v", err)
 	}
 
-	out, err := BuildInvoiceExplainabilityFromLago(payload, opts)
+	out, err := BuildInvoiceExplainability(payload, opts)
 	if err != nil {
 		t.Fatalf("build explainability: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestBuildInvoiceExplainabilityFromLago(t *testing.T) {
 	}
 }
 
-func TestBuildInvoiceExplainabilityFromLago_FilterSortPaginate(t *testing.T) {
+func TestBuildInvoiceExplainability_FilterSortPaginate(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte(`{
@@ -109,7 +109,7 @@ func TestBuildInvoiceExplainabilityFromLago_FilterSortPaginate(t *testing.T) {
 		t.Fatalf("new explainability options: %v", err)
 	}
 
-	out, err := BuildInvoiceExplainabilityFromLago(payload, opts)
+	out, err := BuildInvoiceExplainability(payload, opts)
 	if err != nil {
 		t.Fatalf("build explainability: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestBuildInvoiceExplainabilityFromLago_FilterSortPaginate(t *testing.T) {
 	}
 }
 
-func TestBuildInvoiceExplainabilityFromLago_AcceptsStringUnitsAndEventsCount(t *testing.T) {
+func TestBuildInvoiceExplainability_AcceptsStringUnitsAndEventsCount(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte(`{
@@ -159,7 +159,7 @@ func TestBuildInvoiceExplainabilityFromLago_AcceptsStringUnitsAndEventsCount(t *
 		t.Fatalf("new explainability options: %v", err)
 	}
 
-	out, err := BuildInvoiceExplainabilityFromLago(payload, opts)
+	out, err := BuildInvoiceExplainability(payload, opts)
 	if err != nil {
 		t.Fatalf("build explainability: %v", err)
 	}
