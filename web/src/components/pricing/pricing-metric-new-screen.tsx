@@ -77,12 +77,7 @@ export function PricingMetricNewScreen() {
               <form onSubmit={onSubmit} noValidate>
                 <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="grid gap-5">
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <OperatorCard title="Operator input" body="Use a stable code and a unit that operators will still recognize six months from now." />
-                      <OperatorCard title="Aggregation rule" body="Sum is the safest default for most metered event flows. Only use count or max when the billing rule is explicit." />
-                      <OperatorCard title="After create" body="Open the metric record to inspect the generated pricing draft and attach it to plans." />
-                    </div>
-
+                    
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Usage definition</p>
                       <h2 className="mt-2 text-lg font-semibold text-slate-950">Metric basics</h2>
@@ -119,23 +114,12 @@ export function PricingMetricNewScreen() {
               </form>
 
               <aside className="grid gap-5 self-start">
-                <InfoCard title="Design rule" body="Keep metrics simple and stable so plans can reuse them safely later." />
-                <InfoCard title="Operator guidance" body="This screen defines the usage record only. Use metric detail after submit to inspect the generated pricing draft." />
               </aside>
             </div>
           </>
         ) : null}
       </main>
     </div>
-  );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 
@@ -167,15 +151,6 @@ function SelectField({ label, error, options, ...selectProps }: { label: string;
       </select>
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
-  );
-}
-
-function InfoCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 

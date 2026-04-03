@@ -93,9 +93,6 @@ export function TenantAuditScreen() {
         </section> : null}
 
         {canViewPlatformSurface ? <section className="grid gap-3 xl:grid-cols-3">
-          <OperatorCard title="How to use this page" body="Review cross-workspace changes here without opening each workspace separately." />
-          <OperatorCard title="Filter rule" body="Start broad, then narrow by workspace or event code only when the event stream is too large to review safely." />
-          <OperatorCard title="Detail rule" body="Rows show the business action first. Show metadata only when you need to see the exact before-and-after record." />
         </section> : null}
 
         {canViewPlatformSurface ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
@@ -341,15 +338,6 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
     </div>
-  );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 

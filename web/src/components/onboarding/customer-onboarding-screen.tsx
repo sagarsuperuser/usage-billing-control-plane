@@ -173,12 +173,7 @@ export function CustomerOnboardingScreen() {
                   </span>
                 </div>
 
-                <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                  <OperatorCard title="Required now" body="Customer ID, display name, and the billing record the workspace will operate on." />
-                  <OperatorCard title="Billing context" body="Legal entity, address, currency, and the connection code used for collection." />
-                  <OperatorCard title="After submit" body="Open the customer record for readiness, payment recovery, and hosted link follow-up." />
-                </div>
-
+                
                 <div className="mt-5 grid gap-5">
                   <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Customer record</p>
@@ -309,15 +304,6 @@ export function CustomerOnboardingScreen() {
           </div>
         ) : null}
       </main>
-    </div>
-  );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm text-slate-600">{body}</p>
     </div>
   );
 }

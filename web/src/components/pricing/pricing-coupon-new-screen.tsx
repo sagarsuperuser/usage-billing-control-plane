@@ -117,12 +117,7 @@ export function PricingCouponNewScreen() {
               <form onSubmit={onSubmit} noValidate>
                 <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="grid gap-5">
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <OperatorCard title="Discount shape" body="Use percent-off for simple promotions and amount-off when commercial terms require fixed relief." />
-                      <OperatorCard title="Expiration" body="Set the frequency and expiration deliberately so you can clearly tell customers when the discount ends." />
-                      <OperatorCard title="After create" body="Apply the coupon through plan configuration or subscription-level commercial follow-up." />
-                    </div>
-
+                    
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Commercial record</p>
                       <h2 className="text-lg font-semibold text-slate-950">Coupon basics</h2>
@@ -189,8 +184,6 @@ export function PricingCouponNewScreen() {
               </form>
 
               <aside className="grid gap-5 self-start">
-                <InfoCard title="Operator guidance" body="Create the commercial rule here, then apply it through plans and active customer subscriptions." />
-                <InfoCard title="Current scope" body="Coupons follow plan scoping, billing-period frequency, and optional expiration, then apply to customers through active subscription plans." />
               </aside>
             </div>
           </>

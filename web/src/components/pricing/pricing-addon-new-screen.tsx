@@ -91,12 +91,7 @@ export function PricingAddOnNewScreen() {
               <form onSubmit={onSubmit} noValidate>
                 <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="grid gap-5">
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <OperatorCard title="Good fit" body="Use add-ons for fixed recurring extras, not usage-linked charges." />
-                      <OperatorCard title="Operator input" body="Keep the description concise and the amount obvious so account teams can attach it confidently." />
-                      <OperatorCard title="After create" body="Attach the add-on from plan detail or plan create once the commercial record is live." />
-                    </div>
-
+                    
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Commercial record</p>
                       <h2 className="text-lg font-semibold text-slate-950">Recurring add-on terms</h2>
@@ -137,8 +132,6 @@ export function PricingAddOnNewScreen() {
               </form>
 
               <aside className="grid gap-5 self-start">
-                <InfoCard title="Examples" body="Premium support, onboarding assistance, compliance bundle, or managed reporting." />
-                <InfoCard title="Operator guidance" body="This screen creates the reusable commercial record. Attach it to plans after submit." />
               </aside>
             </div>
           </>

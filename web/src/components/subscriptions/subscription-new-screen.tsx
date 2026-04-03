@@ -148,12 +148,7 @@ export function SubscriptionNewScreen() {
               noValidate
             >
               <div className="grid gap-5">
-                <div className="grid gap-3 lg:grid-cols-3">
-                  <OperatorCard title="Eligibility" body="You need an existing customer and an active plan before this record can be created." />
-                  <OperatorCard title="Operator input" body="Keep the commercial record concise. Use the code only when your team needs a stable internal reference." />
-                  <OperatorCard title="After create" body="Use subscription detail for payment setup follow-up, state changes, and operator recovery." />
-                </div>
-
+                
                 <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Commercial record</p>
                   <h2 className="mt-2 text-lg font-semibold text-slate-950">Customer and plan selection</h2>
@@ -223,23 +218,11 @@ export function SubscriptionNewScreen() {
             </form>
 
             <aside className="grid gap-5 self-start">
-              <InfoCard title="Available" body={`${customers.length} customers · ${plans.length} plans`} />
-              <InfoCard title="After creating" body="Open subscription detail to manage state changes, resend payment links, and troubleshoot." />
-              <InfoCard title="Payment rule" body="Never collect card details directly. Always send the generated hosted link for the customer to complete." />
             </aside>
           </div>
         ) : null}
       </main>
     </div>
-  );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 
@@ -250,15 +233,6 @@ function Field({ label, hint, error, children }: { label: string; hint?: string;
       {children}
       {error ? <span className="text-xs text-rose-600">{error}</span> : hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
     </label>
-  );
-}
-
-function InfoCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 

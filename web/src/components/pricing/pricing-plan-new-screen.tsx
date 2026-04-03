@@ -125,12 +125,7 @@ export function PricingPlanNewScreen() {
               <form onSubmit={onSubmit} noValidate>
                 <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="grid gap-5">
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <OperatorCard title="Commercial scope" body="Keep the first plan opinionated: one base price, one cadence, and explicit linked metrics." />
-                      <OperatorCard title="Dependencies" body="Plans require at least one metric. Add-ons and coupons are optional attachments." />
-                      <OperatorCard title="After create" body="Use plan detail for tax assignment, activation review, and commercial attachment changes." />
-                    </div>
-
+                    
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Commercial record</p>
                       <h2 className="text-lg font-semibold text-slate-950">Commercial basics</h2>
@@ -227,24 +222,12 @@ export function PricingPlanNewScreen() {
               </form>
 
               <aside className="grid gap-5 self-start">
-                <InfoCard title="Before you start" body="You need at least one metric before a plan can be created." />
-                <InfoCard title="Operator guidance" body="This screen creates the commercial package. Use plan detail afterward for activation checks and attachment changes." />
-                <InfoCard title="Current selection" body={`${selectedMetricIDs.length} metric(s), ${selectedAddOnIDs.length} add-on(s), ${selectedCouponIDs.length} coupon(s)`} />
               </aside>
             </div>
           </>
         ) : null}
       </main>
     </div>
-  );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 
@@ -277,15 +260,6 @@ function TextareaField({ label, error, testID, ...textareaProps }: { label: stri
       <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
-  );
-}
-
-function InfoCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 

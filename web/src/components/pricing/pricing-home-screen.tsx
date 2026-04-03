@@ -196,12 +196,7 @@ export function PricingHomeScreen() {
                   <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operating model</p>
                     <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial setup sequence</h2>
-                    <div className="mt-5 grid gap-3">
-                      <SequenceStep number="1" title="Define metrics" body="Create stable usage records first so plans are built on reusable measurement rules." />
-                      <SequenceStep number="2" title="Package plans" body="Assemble customer-facing plans from base price, metrics, add-ons, and coupons." />
-                      <SequenceStep number="3" title="Add optional rules" body="Attach taxes, add-ons, and coupons only where they change commercial behavior clearly." />
-                    </div>
-                  </section>
+                                      </section>
 
                   <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Immediate queue</p>

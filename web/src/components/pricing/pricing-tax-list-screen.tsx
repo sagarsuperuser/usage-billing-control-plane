@@ -68,9 +68,6 @@ export function PricingTaxListScreen() {
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorCard title="Assignment rule" body="Keep tax codes stable and rates deliberate so invoice behavior stays explainable." />
-              <OperatorCard title="Check before assigning" body="Review tax rules here before applying one to a customer or workspace billing settings." />
-              <OperatorCard title="Next action" body="Open tax detail to confirm availability, then assign active rules through billing settings." />
             </section>
 
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">

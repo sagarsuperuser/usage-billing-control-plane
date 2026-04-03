@@ -87,12 +87,7 @@ export function PricingTaxNewScreen() {
               <form onSubmit={onSubmit} noValidate>
                 <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="grid gap-5">
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <OperatorCard title="Assignment" body="Active taxes become available to customer billing profiles and workspace billing settings." />
-                      <OperatorCard title="Stable codes" body="Treat the code as reusable configuration. Change rates deliberately so invoice behavior stays explainable." />
-                      <OperatorCard title="After create" body="Use tax detail and customer billing settings to confirm where the rule is applied." />
-                    </div>
-
+                    
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Tax rule</p>
                       <h2 className="text-lg font-semibold text-slate-950">Tax basics</h2>
@@ -131,8 +126,6 @@ export function PricingTaxNewScreen() {
               </form>
 
               <aside className="grid gap-5 self-start">
-                <InfoCard title="Operator guidance" body="This screen creates the reusable tax rule only. Apply it later through customer and workspace billing settings." />
-                <InfoCard title="Use stable codes" body="Treat tax codes like reusable configuration. Change rates or descriptions deliberately so invoice behavior stays explainable." />
               </aside>
             </div>
           </>

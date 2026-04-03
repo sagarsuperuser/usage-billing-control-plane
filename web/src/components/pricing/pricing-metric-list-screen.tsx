@@ -66,9 +66,6 @@ export function PricingMetricListScreen() {
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorCard title="Commercial rule" body="Keep metric keys stable so plans and reporting can rely on them." />
-              <OperatorCard title="When to open detail" body="Use this list to find metrics. Open detail when you need to check aggregation type or usage context." />
-              <OperatorCard title="Next action" body="Create new metrics only when the commercial signal is genuinely different from existing usage records." />
             </section>
 
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
@@ -134,15 +131,6 @@ function StatusCell({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 truncate text-sm font-semibold text-slate-950">{value}</p>
     </div>
-  );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 

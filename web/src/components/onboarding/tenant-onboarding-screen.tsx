@@ -161,12 +161,7 @@ export function TenantOnboardingScreen() {
                   </span>
                 </div>
 
-                <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                  <OperatorLine title="Workspace identity" body="Choose a stable ID and a clear name — both are hard to change after setup." />
-                  <OperatorLine title="Billing connection" body="Attach a billing connection now only if it's already verified. Otherwise finish it from workspace detail." />
-                  <OperatorLine title="First API key" body="Create the first admin credential only if you need immediate API access. You can always add it later." />
-                </div>
-
+                
                 <div className="mt-5 grid gap-5">
                   <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace record</p>
@@ -352,15 +347,6 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{formatReadinessStatus(value)}</p>
       <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
-    </div>
-  );
-}
-
-function OperatorLine({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

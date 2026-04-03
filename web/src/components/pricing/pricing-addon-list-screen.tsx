@@ -68,9 +68,6 @@ export function PricingAddOnListScreen() {
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorCard title="When to use add-ons" body="Use add-ons only for recurring extras you can clearly explain on top of the base plan." />
-              <OperatorCard title="Attach via plans" body="Add-ons are reusable. Attach them to plans rather than creating the same charge repeatedly." />
-              <OperatorCard title="Next action" body="Open add-on detail to review the record, then confirm which plans should carry it." />
             </section>
 
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">

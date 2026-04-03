@@ -440,12 +440,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   </Link>
                 </div>
               </div>
-              <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <OperatorPanel title="Verification" body="Confirm the Stripe connection is verified here before assigning it to workspaces." />
-                <OperatorPanel title="Assignments" body="The more workspaces attached, the more careful you should be when rotating or disabling this connection." />
-                <OperatorPanel title="Action rule" body="Verify the provider connection here. Workspace setup and billing attachment are handled in workspace detail." />
-              </div>
-            </section>
+                          </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <SummaryStat label="Status" value={formatReadinessStatus(connection.status)} helper={verificationDiagnosis?.title || "Connection state"} />
@@ -695,15 +690,6 @@ function SummaryStat({ label, value, helper }: { label: string; value: string; h
       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
       <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
-    </div>
-  );
-}
-
-function OperatorPanel({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

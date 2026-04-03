@@ -68,9 +68,6 @@ export function PricingCouponListScreen() {
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorCard title="Commercial rule" body="Coupons are discount rules, not one-off adjustments. Keep their scope and expiry easy to explain." />
-              <OperatorCard title="Review before attaching" body="Check discount type, frequency, and expiration before attaching a coupon to a plan or subscription." />
-              <OperatorCard title="Next action" body="Open the coupon to review it, then apply it through plans or customer subscriptions." />
             </section>
 
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">

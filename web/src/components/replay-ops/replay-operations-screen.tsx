@@ -221,12 +221,7 @@ export function ReplayOperationsScreen() {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <CompactRule title="Queue once" body="Use deterministic idempotency keys to avoid duplicate recovery runs." />
-                <CompactRule title="Inspect first" body="Open diagnostics before retrying or creating another replay job." />
-                <CompactRule title="Recover narrowly" body="Keep customer, meter, and time window scope as small as possible." />
-              </div>
-            </section>
+                          </section>
 
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -636,15 +631,6 @@ export function ReplayOperationsScreen() {
           </aside>
         ) : null}
       </main>
-    </div>
-  );
-}
-
-function CompactRule({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
     </div>
   );
 }

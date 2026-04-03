@@ -117,12 +117,7 @@ export function InvoiceExplainabilityScreen() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <CompactRule title="Trace source" body="Load one invoice and inspect how each line item was produced." />
-            <CompactRule title="Operational use" body="Use this before escalating a billing question or replay issue." />
-            <CompactRule title="Output shape" body="Keep the list compact and open one line item when you need raw properties." />
-          </div>
-        </section> : null}
+                  </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -417,15 +412,6 @@ function MetricCard({
     >
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-600">{label}</p>
       <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
-
-function CompactRule({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
     </div>
   );
 }

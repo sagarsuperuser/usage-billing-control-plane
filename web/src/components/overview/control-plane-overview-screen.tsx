@@ -282,28 +282,6 @@ export function ControlPlaneOverviewScreen() {
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 Start with the highest-priority items, then open the matching area.
               </p>
-              <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <OperatorLine
-                  title={scope === "platform" ? "Platform overview" : "Workspace overview"}
-                  body={
-                    scope === "platform"
-                      ? "Start here for platform triage: check credential health, workspace setup, and what's blocking launch."
-                      : "Start here for workspace operations: customer setup, payment status, and quick access to key areas."
-                  }
-                />
-                <OperatorLine
-                  title="How to read the counts"
-                  body="Use the numbers to find what needs attention. Open that section once you know where to focus."
-                />
-                <OperatorLine
-                  title="Action rule"
-                  body={
-                    scope === "platform"
-                      ? "Create reusable billing assets first, then finish workspace setup from the platform side."
-                      : "Work inside one workspace. Keep pricing, customers, subscriptions, and troubleshooting together."
-                  }
-                />
-              </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {attentionLoading || isLoading
                   ? Array.from({ length: 4 }).map((_, i) => (
@@ -449,15 +427,6 @@ function SummaryCard({
     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
-function OperatorLine({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }

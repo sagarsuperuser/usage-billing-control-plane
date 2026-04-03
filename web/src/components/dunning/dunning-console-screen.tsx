@@ -37,15 +37,6 @@ function formatState(value?: string): string {
   return value.replaceAll("_", " ");
 }
 
-function CompactRule({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-    </div>
-  );
-}
-
 function MetricCard({ label, value, tone = "default" }: { label: string; value: string | number; tone?: "default" | "warn" | "danger" | "info" }) {
   const toneClass =
     tone === "danger"
@@ -218,12 +209,7 @@ export function DunningConsoleScreen() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <CompactRule title="Policy" body="Keep one default collection policy per workspace." />
-            <CompactRule title="Run detail" body="Each row is one invoice-level collection workflow." />
-            <CompactRule title="Manual actions" body="Use reminders only when you need to override the normal cadence." />
-          </div>
-        </section>
+                  </section>
 
         <section className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
           <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">

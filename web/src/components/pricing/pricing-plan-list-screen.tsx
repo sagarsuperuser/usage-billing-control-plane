@@ -87,9 +87,6 @@ export function PricingPlanListScreen() {
             </section>
 
             <section className="grid gap-3 xl:grid-cols-3">
-              <OperatorCard title="Keep it simple" body="Plans are the packaged offer customers see. Keep the first version simple and easy to explain before launch." />
-              <OperatorCard title="Review before opening" body="Check linked metrics, add-ons, and coupons here before opening a plan for deeper inspection." />
-              <OperatorCard title="Next action" body="Use draft plans for review, then activate only once the full commercial package is stable." />
             </section>
 
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
@@ -165,15 +162,6 @@ function StatusCell({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
     </div>
-  );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }
 

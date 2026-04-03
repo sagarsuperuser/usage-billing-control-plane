@@ -131,12 +131,7 @@ export function WorkspaceListScreen() {
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 This directory should show which workspace is ready, which one is blocked, and which operational step still belongs to the platform before the workspace can run on its own.
               </p>
-              <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                <OperatorLine title="How to use this list" body="This is your workspace setup checklist. Open a workspace when you can see what area needs work." />
-                <OperatorLine title="Readiness rule" body="Treat billing, pricing, and first-customer setup as separate readiness tracks. One green badge does not cover the rest." />
-                <OperatorLine title="Launch rule" body="A workspace is ready when platform setup is complete and the remaining steps belong to the workspace team." />
-              </div>
-            </div>
+                          </div>
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/billing-connections"
@@ -267,15 +262,6 @@ function MetricCard({
     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
-function OperatorLine({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );
 }
