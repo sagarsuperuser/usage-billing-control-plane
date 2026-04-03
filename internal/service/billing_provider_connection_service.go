@@ -186,8 +186,6 @@ func (s *BillingProviderConnectionService) CreateBillingProviderConnection(ctx c
 		Scope:              scope,
 		OwnerTenantID:      ownerTenantID,
 		Status:             domain.BillingProviderConnectionStatusPending,
-		LagoOrganizationID: strings.TrimSpace(req.LagoOrganizationID),
-		LagoProviderCode:   strings.TrimSpace(req.LagoProviderCode),
 		SecretRef:          secretRef,
 		CreatedByType:      actorType,
 		CreatedByID:        actorID,
@@ -285,12 +283,6 @@ func (s *BillingProviderConnectionService) UpdateBillingProviderConnection(id st
 		}
 		updated.Scope = scope
 		updated.OwnerTenantID = ownerTenantID
-	}
-	if req.LagoOrganizationID != nil {
-		updated.LagoOrganizationID = strings.TrimSpace(*req.LagoOrganizationID)
-	}
-	if req.LagoProviderCode != nil {
-		updated.LagoProviderCode = strings.TrimSpace(*req.LagoProviderCode)
 	}
 	if req.LagoWebhookHMACKey != nil {
 		if strings.TrimSpace(updated.SecretRef) == "" {

@@ -24,8 +24,6 @@ type billingProviderConnectionResponse struct {
 	CheckBlockerCode     string                                 `json:"check_blocker_code,omitempty"`
 	CheckBlockerSummary  string                                 `json:"check_blocker_summary,omitempty"`
 	LinkedWorkspaceCount int                                    `json:"linked_workspace_count"`
-	LagoOrganizationID   string                                 `json:"lago_organization_id,omitempty"`
-	LagoProviderCode     string                                 `json:"lago_provider_code,omitempty"`
 	SecretConfigured     bool                                   `json:"secret_configured"`
 	LastSyncedAt         *string                                `json:"last_synced_at,omitempty"`
 	LastSyncError        string                                 `json:"last_sync_error,omitempty"`
@@ -107,8 +105,6 @@ func (s *Server) newBillingProviderConnectionResponse(item domain.BillingProvide
 		CheckBlockerCode:     checkBlockerCode,
 		CheckBlockerSummary:  checkBlockerSummary,
 		LinkedWorkspaceCount: linkedWorkspaceCount,
-		LagoOrganizationID:   item.LagoOrganizationID,
-		LagoProviderCode:     item.LagoProviderCode,
 		SecretConfigured:     strings.TrimSpace(item.SecretRef) != "",
 		LastSyncError:        item.LastSyncError,
 		CreatedByType:        item.CreatedByType,

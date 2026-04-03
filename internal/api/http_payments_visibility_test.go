@@ -425,7 +425,6 @@ func TestPaymentDetailEndpointKeepsRetryWhenCustomerPaymentSetupReady(t *testing
 		DisplayName:    "Acme Corp",
 		Email:          "billing@acme.test",
 		Status:         domain.CustomerStatusActive,
-		LagoCustomerID: "lago_cust_123",
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	})

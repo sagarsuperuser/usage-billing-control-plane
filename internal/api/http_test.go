@@ -2085,12 +2085,8 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	if updated2["id"] != "tenant_ops" {
 		t.Fatalf("expected updated tenant response to remain sanitized, got %v", updated2["id"])
 	}
-	tenantOps, err := repo.GetTenant("tenant_ops")
-	if err != nil {
+	if _, err := repo.GetTenant("tenant_ops"); err != nil {
 		t.Fatalf("get tenant_ops from repo: %v", err)
-	}
-	if tenantOps.LagoBillingProviderCode != "stripe_v2" {
-		t.Fatalf("expected persisted provider code stripe_v2, got %q", tenantOps.LagoBillingProviderCode)
 	}
 
 	auditPage := getJSON(t, ts.URL+"/internal/tenants/audit?tenant_id=tenant_ops&limit=10", "platform-admin", http.StatusOK)
@@ -2802,8 +2798,6 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 		DisplayName:        "Stripe Platform",
 		Scope:              domain.BillingProviderConnectionScopePlatform,
 		Status:             domain.BillingProviderConnectionStatusConnected,
-		LagoOrganizationID: "org_default",
-		LagoProviderCode:   "stripe_test",
 		SecretRef:          "memory://billing-provider-connections/bpc_onboarding_default/seed",
 		ConnectedAt:        &connectedAt,
 		LastSyncedAt:       &lastSyncedAt,
@@ -2820,8 +2814,8 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 		WorkspaceID:                 "default",
 		BillingProviderConnectionID: connection.ID,
 		Backend:                     domain.WorkspaceBillingBackendStripe,
-		BackendOrganizationID:       connection.LagoOrganizationID,
-		BackendProviderCode:         connection.LagoProviderCode,
+		BackendOrganizationID:       "org_default",
+		BackendProviderCode:         "stripe_test",
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
 		Status:                      domain.WorkspaceBillingBindingStatusConnected,
 		ConnectedAt:                 &connectedAt,
@@ -3046,8 +3040,6 @@ func TestCustomerOnboardingWorkflow(t *testing.T) {
 		DisplayName:        "Stripe Platform",
 		Scope:              domain.BillingProviderConnectionScopePlatform,
 		Status:             domain.BillingProviderConnectionStatusConnected,
-		LagoOrganizationID: "org_default",
-		LagoProviderCode:   "stripe_test",
 		SecretRef:          "memory://billing-provider-connections/bpc_onboarding_default/seed",
 		ConnectedAt:        &connectedAt,
 		LastSyncedAt:       &lastSyncedAt,
@@ -3064,8 +3056,8 @@ func TestCustomerOnboardingWorkflow(t *testing.T) {
 		WorkspaceID:                 "default",
 		BillingProviderConnectionID: connection.ID,
 		Backend:                     domain.WorkspaceBillingBackendStripe,
-		BackendOrganizationID:       connection.LagoOrganizationID,
-		BackendProviderCode:         connection.LagoProviderCode,
+		BackendOrganizationID:       "org_default",
+		BackendProviderCode:         "stripe_test",
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
 		Status:                      domain.WorkspaceBillingBindingStatusConnected,
 		ConnectedAt:                 &connectedAt,
@@ -3466,19 +3458,9 @@ func mustCreatePlatformAPIKey(t *testing.T, repo *store.PostgresStore, rawKey st
 	}
 }
 
-func mustSetTenantMappings(t *testing.T, repo *store.PostgresStore, tenantID, lagoOrganizationID, lagoBillingProviderCode string) {
+func mustSetTenantMappings(t *testing.T, _ *store.PostgresStore, _, _, _ string) {
 	t.Helper()
-
-	tenant, err := repo.GetTenant(tenantID)
-	if err != nil {
-		t.Fatalf("get tenant %q: %v", tenantID, err)
-	}
-	tenant.LagoOrganizationID = lagoOrganizationID
-	tenant.LagoBillingProviderCode = lagoBillingProviderCode
-	tenant.UpdatedAt = time.Now().UTC()
-	if _, err := repo.UpdateTenant(tenant); err != nil {
-		t.Fatalf("update tenant %q mappings: %v", tenantID, err)
-	}
+	// lago fields removed from domain model; this helper is now a no-op
 }
 
 func postJSON(t *testing.T, url string, body any, apiKey string, expectedStatus int) map[string]any {

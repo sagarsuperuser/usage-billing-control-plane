@@ -291,7 +291,6 @@ type DunningNotificationIntentListFilter struct {
 type Repository interface {
 	Migrate() error
 
-	GetTenantByLagoOrganizationID(organizationID string) (domain.Tenant, error)
 	CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	GetTenant(id string) (domain.Tenant, error)
 	UpdateTenant(input domain.Tenant) (domain.Tenant, error)

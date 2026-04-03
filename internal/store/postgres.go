@@ -78,9 +78,6 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Status = normalizeTenantStatus(input.Status)
 	input.BillingProviderConnectionID = normalizeOptionalText(input.BillingProviderConnectionID)
-	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
-	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
-	input.LagoAPIKey = strings.TrimSpace(input.LagoAPIKey)
 	if input.Name == "" {
 		input.Name = input.ID
 	}
@@ -103,16 +100,13 @@ func (s *PostgresStore) CreateTenant(input domain.Tenant) (domain.Tenant, error)
 
 	row := tx.QueryRowContext(
 		ctx,
-		`INSERT INTO tenants (id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key, created_at, updated_at)
-		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8, $9)
-		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key, created_at, updated_at`,
+		`INSERT INTO tenants (id, name, status, billing_provider_connection_id, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4,''), $5, $6)
+		RETURNING id, name, status, billing_provider_connection_id, created_at, updated_at`,
 		input.ID,
 		input.Name,
 		string(input.Status),
 		input.BillingProviderConnectionID,
-		input.LagoOrganizationID,
-		input.LagoBillingProviderCode,
-		input.LagoAPIKey,
 		input.CreatedAt,
 		input.UpdatedAt,
 	)
@@ -143,45 +137,10 @@ func (s *PostgresStore) GetTenant(id string) (domain.Tenant, error) {
 
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key, created_at, updated_at
+		`SELECT id, name, status, billing_provider_connection_id, created_at, updated_at
 		FROM tenants
 		WHERE id = $1`,
 		id,
-	)
-	tenant, err := scanTenant(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Tenant{}, ErrNotFound
-		}
-		return domain.Tenant{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return domain.Tenant{}, err
-	}
-	return tenant, nil
-}
-
-func (s *PostgresStore) GetTenantByLagoOrganizationID(organizationID string) (domain.Tenant, error) {
-	organizationID = normalizeOptionalText(organizationID)
-	if organizationID == "" {
-		return domain.Tenant{}, ErrNotFound
-	}
-
-	ctx, cancel := s.withTimeout()
-	defer cancel()
-
-	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
-	if err != nil {
-		return domain.Tenant{}, err
-	}
-	defer rollbackSilently(tx)
-
-	row := tx.QueryRowContext(
-		ctx,
-		`SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key, created_at, updated_at
-		FROM tenants
-		WHERE lago_organization_id = $1`,
-		organizationID,
 	)
 	tenant, err := scanTenant(row)
 	if err != nil {
@@ -201,9 +160,6 @@ func (s *PostgresStore) UpdateTenant(input domain.Tenant) (domain.Tenant, error)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Status = normalizeTenantStatus(input.Status)
 	input.BillingProviderConnectionID = normalizeOptionalText(input.BillingProviderConnectionID)
-	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
-	input.LagoBillingProviderCode = normalizeOptionalText(input.LagoBillingProviderCode)
-	input.LagoAPIKey = strings.TrimSpace(input.LagoAPIKey)
 	if input.Name == "" {
 		return domain.Tenant{}, fmt.Errorf("validation failed: tenant name is required")
 	}
@@ -226,18 +182,12 @@ func (s *PostgresStore) UpdateTenant(input domain.Tenant) (domain.Tenant, error)
 		SET name = $1,
 		    status = $2,
 		    billing_provider_connection_id = NULLIF($3,''),
-		    lago_organization_id = NULLIF($4,''),
-		    lago_billing_provider_code = NULLIF($5,''),
-		    lago_api_key = NULLIF($6,''),
-		    updated_at = $7
-		WHERE id = $8
-		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key, created_at, updated_at`,
+		    updated_at = $4
+		WHERE id = $5
+		RETURNING id, name, status, billing_provider_connection_id, created_at, updated_at`,
 		input.Name,
 		string(input.Status),
 		input.BillingProviderConnectionID,
-		input.LagoOrganizationID,
-		input.LagoBillingProviderCode,
-		input.LagoAPIKey,
 		input.UpdatedAt,
 		input.ID,
 	)
@@ -269,7 +219,7 @@ func (s *PostgresStore) ListTenants(status string) ([]domain.Tenant, error) {
 	}
 	defer rollbackSilently(tx)
 
-	query := `SELECT id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key, created_at, updated_at FROM tenants`
+	query := `SELECT id, name, status, billing_provider_connection_id, created_at, updated_at FROM tenants`
 	args := []any{}
 	if status != "" {
 		query += ` WHERE status = $1`
@@ -321,7 +271,7 @@ func (s *PostgresStore) UpdateTenantStatus(id string, status domain.TenantStatus
 		`UPDATE tenants
 		SET status = $1, updated_at = $2
 		WHERE id = $3
-		RETURNING id, name, status, billing_provider_connection_id, lago_organization_id, lago_billing_provider_code, lago_api_key, created_at, updated_at`,
+		RETURNING id, name, status, billing_provider_connection_id, created_at, updated_at`,
 		string(status),
 		updatedAt,
 		id,
@@ -528,8 +478,6 @@ func (s *PostgresStore) CreateBillingProviderConnection(input domain.BillingProv
 	input.Scope = domain.BillingProviderConnectionScope(strings.ToLower(strings.TrimSpace(string(input.Scope))))
 	input.OwnerTenantID = normalizeOptionalText(input.OwnerTenantID)
 	input.Status = domain.BillingProviderConnectionStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
-	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
-	input.LagoProviderCode = normalizeOptionalText(input.LagoProviderCode)
 	input.SecretRef = normalizeOptionalText(input.SecretRef)
 	input.LastSyncError = normalizeOptionalText(input.LastSyncError)
 	input.CreatedByType = strings.ToLower(strings.TrimSpace(input.CreatedByType))
@@ -562,11 +510,11 @@ func (s *PostgresStore) CreateBillingProviderConnection(input domain.BillingProv
 		ctx,
 		`INSERT INTO billing_provider_connections (
 			id, provider_type, environment, display_name, scope, owner_tenant_id, status,
-			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			secret_ref, last_synced_at, last_sync_error,
 			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),$11,NULLIF($12,''),$13,$14,$15,NULLIF($16,''),$17,$18)
+		) VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,NULLIF($8,''),$9,NULLIF($10,''),$11,$12,$13,NULLIF($14,''),$15,$16)
 		RETURNING id, provider_type, environment, display_name, scope, owner_tenant_id, status,
-			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			secret_ref, last_synced_at, last_sync_error,
 			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at`,
 		input.ID,
 		string(input.ProviderType),
@@ -575,8 +523,6 @@ func (s *PostgresStore) CreateBillingProviderConnection(input domain.BillingProv
 		string(input.Scope),
 		input.OwnerTenantID,
 		string(input.Status),
-		input.LagoOrganizationID,
-		input.LagoProviderCode,
 		input.SecretRef,
 		input.LastSyncedAt,
 		input.LastSyncError,
@@ -618,7 +564,7 @@ func (s *PostgresStore) GetBillingProviderConnection(id string) (domain.BillingP
 	row := tx.QueryRowContext(
 		ctx,
 		`SELECT id, provider_type, environment, display_name, scope, owner_tenant_id, status,
-			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			secret_ref, last_synced_at, last_sync_error,
 			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at
 		FROM billing_provider_connections
 		WHERE id = $1`,
@@ -685,7 +631,7 @@ func (s *PostgresStore) ListBillingProviderConnections(filter BillingProviderCon
 		nextArg++
 	}
 	query := fmt.Sprintf(`SELECT id, provider_type, environment, display_name, scope, owner_tenant_id, status,
-		lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+		secret_ref, last_synced_at, last_sync_error,
 		connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at
 	FROM billing_provider_connections
 	WHERE %s
@@ -782,8 +728,6 @@ func (s *PostgresStore) UpdateBillingProviderConnection(input domain.BillingProv
 	input.Scope = domain.BillingProviderConnectionScope(strings.ToLower(strings.TrimSpace(string(input.Scope))))
 	input.OwnerTenantID = normalizeOptionalText(input.OwnerTenantID)
 	input.Status = domain.BillingProviderConnectionStatus(strings.ToLower(strings.TrimSpace(string(input.Status))))
-	input.LagoOrganizationID = normalizeOptionalText(input.LagoOrganizationID)
-	input.LagoProviderCode = normalizeOptionalText(input.LagoProviderCode)
 	input.SecretRef = normalizeOptionalText(input.SecretRef)
 	input.LastSyncError = normalizeOptionalText(input.LastSyncError)
 	input.CreatedByType = strings.ToLower(strings.TrimSpace(input.CreatedByType))
@@ -813,19 +757,17 @@ func (s *PostgresStore) UpdateBillingProviderConnection(input domain.BillingProv
 		    scope = $4,
 		    owner_tenant_id = NULLIF($5,''),
 		    status = $6,
-		    lago_organization_id = NULLIF($7,''),
-		    lago_provider_code = NULLIF($8,''),
-		    secret_ref = NULLIF($9,''),
-		    last_synced_at = $10,
-		    last_sync_error = NULLIF($11,''),
-		    connected_at = $12,
-		    disabled_at = $13,
-		    created_by_type = $14,
-		    created_by_id = NULLIF($15,''),
-		    updated_at = $16
-		WHERE id = $17
+		    secret_ref = NULLIF($7,''),
+		    last_synced_at = $8,
+		    last_sync_error = NULLIF($9,''),
+		    connected_at = $10,
+		    disabled_at = $11,
+		    created_by_type = $12,
+		    created_by_id = NULLIF($13,''),
+		    updated_at = $14
+		WHERE id = $15
 		RETURNING id, provider_type, environment, display_name, scope, owner_tenant_id, status,
-			lago_organization_id, lago_provider_code, secret_ref, last_synced_at, last_sync_error,
+			secret_ref, last_synced_at, last_sync_error,
 			connected_at, disabled_at, created_by_type, created_by_id, created_at, updated_at`,
 		string(input.ProviderType),
 		input.Environment,
@@ -833,8 +775,6 @@ func (s *PostgresStore) UpdateBillingProviderConnection(input domain.BillingProv
 		string(input.Scope),
 		input.OwnerTenantID,
 		string(input.Status),
-		input.LagoOrganizationID,
-		input.LagoProviderCode,
 		input.SecretRef,
 		input.LastSyncedAt,
 		input.LastSyncError,
@@ -2082,7 +2022,6 @@ func (s *PostgresStore) CreateCustomer(input domain.Customer) (domain.Customer, 
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	input.Email = normalizeOptionalText(input.Email)
 	input.Status = normalizeCustomerStatus(input.Status)
-	input.LagoCustomerID = normalizeOptionalText(input.LagoCustomerID)
 	if input.ExternalID == "" {
 		return domain.Customer{}, fmt.Errorf("validation failed: external_id is required")
 	}
@@ -2109,10 +2048,10 @@ func (s *PostgresStore) CreateCustomer(input domain.Customer) (domain.Customer, 
 	}
 	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `INSERT INTO customers (id, tenant_id, external_id, display_name, email, status, lago_customer_id, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,NULLIF($5,''),$6,NULLIF($7,''),$8,$9)
-		RETURNING id, tenant_id, external_id, display_name, email, status, lago_customer_id, created_at, updated_at`,
-		input.ID, input.TenantID, input.ExternalID, input.DisplayName, input.Email, string(input.Status), input.LagoCustomerID, input.CreatedAt, input.UpdatedAt)
+	row := tx.QueryRowContext(ctx, `INSERT INTO customers (id, tenant_id, external_id, display_name, email, status, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,NULLIF($5,''),$6,$7,$8)
+		RETURNING id, tenant_id, external_id, display_name, email, status, created_at, updated_at`,
+		input.ID, input.TenantID, input.ExternalID, input.DisplayName, input.Email, string(input.Status), input.CreatedAt, input.UpdatedAt)
 	out, err := scanCustomer(row)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -2139,7 +2078,7 @@ func (s *PostgresStore) GetCustomer(tenantID, id string) (domain.Customer, error
 	}
 	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, external_id, display_name, email, status, lago_customer_id, created_at, updated_at FROM customers WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, external_id, display_name, email, status, created_at, updated_at FROM customers WHERE tenant_id = $1 AND id = $2`, tenantID, id)
 	out, err := scanCustomer(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -2166,7 +2105,7 @@ func (s *PostgresStore) GetCustomerByExternalID(tenantID, externalID string) (do
 	}
 	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, external_id, display_name, email, status, lago_customer_id, created_at, updated_at FROM customers WHERE tenant_id = $1 AND external_id = $2`, tenantID, externalID)
+	row := tx.QueryRowContext(ctx, `SELECT id, tenant_id, external_id, display_name, email, status, created_at, updated_at FROM customers WHERE tenant_id = $1 AND external_id = $2`, tenantID, externalID)
 	out, err := scanCustomer(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -2211,7 +2150,7 @@ func (s *PostgresStore) ListCustomers(filter CustomerListFilter) ([]domain.Custo
 		clauses = append(clauses, fmt.Sprintf("external_id = $%d", len(args)))
 	}
 	args = append(args, filter.Limit, filter.Offset)
-	query := `SELECT id, tenant_id, external_id, display_name, email, status, lago_customer_id, created_at, updated_at FROM customers WHERE ` + strings.Join(clauses, " AND ") + fmt.Sprintf(" ORDER BY created_at DESC, id DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+	query := `SELECT id, tenant_id, external_id, display_name, email, status, created_at, updated_at FROM customers WHERE ` + strings.Join(clauses, " AND ") + fmt.Sprintf(" ORDER BY created_at DESC, id DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -2242,7 +2181,6 @@ func (s *PostgresStore) UpdateCustomer(input domain.Customer) (domain.Customer, 
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	input.Email = normalizeOptionalText(input.Email)
 	input.Status = normalizeCustomerStatus(input.Status)
-	input.LagoCustomerID = normalizeOptionalText(input.LagoCustomerID)
 	if input.ID == "" {
 		return domain.Customer{}, fmt.Errorf("validation failed: customer id is required")
 	}
@@ -2265,8 +2203,8 @@ func (s *PostgresStore) UpdateCustomer(input domain.Customer) (domain.Customer, 
 	}
 	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `UPDATE customers SET external_id = $1, display_name = $2, email = NULLIF($3,''), status = $4, lago_customer_id = NULLIF($5,''), updated_at = $6 WHERE tenant_id = $7 AND id = $8 RETURNING id, tenant_id, external_id, display_name, email, status, lago_customer_id, created_at, updated_at`,
-		input.ExternalID, input.DisplayName, input.Email, string(input.Status), input.LagoCustomerID, input.UpdatedAt, input.TenantID, input.ID)
+	row := tx.QueryRowContext(ctx, `UPDATE customers SET external_id = $1, display_name = $2, email = NULLIF($3,''), status = $4, updated_at = $5 WHERE tenant_id = $6 AND id = $7 RETURNING id, tenant_id, external_id, display_name, email, status, created_at, updated_at`,
+		input.ExternalID, input.DisplayName, input.Email, string(input.Status), input.UpdatedAt, input.TenantID, input.ID)
 	out, err := scanCustomer(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -7945,8 +7883,7 @@ func scanCustomer(s rowScanner) (domain.Customer, error) {
 	var out domain.Customer
 	var email sql.NullString
 	var status string
-	var lagoCustomerID sql.NullString
-	if err := s.Scan(&out.ID, &out.TenantID, &out.ExternalID, &out.DisplayName, &email, &status, &lagoCustomerID, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	if err := s.Scan(&out.ID, &out.TenantID, &out.ExternalID, &out.DisplayName, &email, &status, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.Customer{}, err
 	}
 	out.TenantID = normalizeTenantID(out.TenantID)
@@ -7954,9 +7891,6 @@ func scanCustomer(s rowScanner) (domain.Customer, error) {
 	out.DisplayName = strings.TrimSpace(out.DisplayName)
 	if email.Valid {
 		out.Email = normalizeOptionalText(email.String)
-	}
-	if lagoCustomerID.Valid {
-		out.LagoCustomerID = normalizeOptionalText(lagoCustomerID.String)
 	}
 	out.Status = normalizeCustomerStatus(domain.CustomerStatus(status))
 	return out, nil
@@ -8143,25 +8077,13 @@ func scanTenant(s rowScanner) (domain.Tenant, error) {
 	var out domain.Tenant
 	var status string
 	var billingProviderConnectionID sql.NullString
-	var lagoOrganizationID sql.NullString
-	var lagoBillingProviderCode sql.NullString
-	var lagoAPIKey sql.NullString
-	if err := s.Scan(&out.ID, &out.Name, &status, &billingProviderConnectionID, &lagoOrganizationID, &lagoBillingProviderCode, &lagoAPIKey, &out.CreatedAt, &out.UpdatedAt); err != nil {
+	if err := s.Scan(&out.ID, &out.Name, &status, &billingProviderConnectionID, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		return domain.Tenant{}, err
 	}
 	out.ID = normalizeTenantID(out.ID)
 	out.Name = strings.TrimSpace(out.Name)
 	if billingProviderConnectionID.Valid {
 		out.BillingProviderConnectionID = normalizeOptionalText(billingProviderConnectionID.String)
-	}
-	if lagoOrganizationID.Valid {
-		out.LagoOrganizationID = normalizeOptionalText(lagoOrganizationID.String)
-	}
-	if lagoBillingProviderCode.Valid {
-		out.LagoBillingProviderCode = normalizeOptionalText(lagoBillingProviderCode.String)
-	}
-	if lagoAPIKey.Valid {
-		out.LagoAPIKey = strings.TrimSpace(lagoAPIKey.String)
 	}
 	out.Status = normalizeTenantStatus(domain.TenantStatus(status))
 	return out, nil
@@ -8363,8 +8285,6 @@ func scanBillingProviderConnection(s rowScanner) (domain.BillingProviderConnecti
 	var scope string
 	var status string
 	var ownerTenantID sql.NullString
-	var lagoOrganizationID sql.NullString
-	var lagoProviderCode sql.NullString
 	var secretRef sql.NullString
 	var lastSyncedAt sql.NullTime
 	var lastSyncError sql.NullString
@@ -8380,8 +8300,6 @@ func scanBillingProviderConnection(s rowScanner) (domain.BillingProviderConnecti
 		&scope,
 		&ownerTenantID,
 		&status,
-		&lagoOrganizationID,
-		&lagoProviderCode,
 		&secretRef,
 		&lastSyncedAt,
 		&lastSyncError,
@@ -8403,12 +8321,6 @@ func scanBillingProviderConnection(s rowScanner) (domain.BillingProviderConnecti
 	out.CreatedByType = strings.ToLower(strings.TrimSpace(out.CreatedByType))
 	if ownerTenantID.Valid {
 		out.OwnerTenantID = normalizeOptionalText(ownerTenantID.String)
-	}
-	if lagoOrganizationID.Valid {
-		out.LagoOrganizationID = normalizeOptionalText(lagoOrganizationID.String)
-	}
-	if lagoProviderCode.Valid {
-		out.LagoProviderCode = normalizeOptionalText(lagoProviderCode.String)
 	}
 	if secretRef.Valid {
 		out.SecretRef = normalizeOptionalText(secretRef.String)

@@ -55,8 +55,6 @@ func TestWorkspaceBillingBindingService_ResolveBackfillsBindingFromTenantFields(
 		Name:                        "Tenant Binding Legacy",
 		Status:                      domain.TenantStatusActive,
 		BillingProviderConnectionID: connection.ID,
-		LagoOrganizationID:          "org_legacy",
-		LagoBillingProviderCode:     "provider_legacy",
 		CreatedAt:                   now,
 		UpdatedAt:                   now,
 	})
@@ -100,8 +98,6 @@ func TestWorkspaceBillingBindingService_BindingPreemptsLegacyBackfillUntilReady(
 		Name:                        "Tenant Binding Pending",
 		Status:                      domain.TenantStatusActive,
 		BillingProviderConnectionID: connection.ID,
-		LagoOrganizationID:          "org_legacy_pending",
-		LagoBillingProviderCode:     "provider_legacy_pending",
 		CreatedAt:                   now,
 		UpdatedAt:                   now,
 	})
@@ -198,8 +194,6 @@ func createWorkspaceBillingBindingTestConnection(t *testing.T, repo interface {
 		DisplayName:        strings.ReplaceAll(id, "_", " "),
 		Scope:              domain.BillingProviderConnectionScopePlatform,
 		Status:             domain.BillingProviderConnectionStatusConnected,
-		LagoOrganizationID: "org_connection_seed",
-		LagoProviderCode:   "provider_connection_seed",
 		SecretRef:          "secret/ref/" + id,
 		ConnectedAt:        &connectedAt,
 		CreatedByType:      "platform_user",

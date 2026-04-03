@@ -228,7 +228,7 @@ func (s *WorkspaceBillingBindingService) ResolveEffectiveWorkspaceBillingContext
 	if err != nil {
 		return EffectiveWorkspaceBillingContext{}, err
 	}
-	if tenant.BillingProviderConnectionID == "" || tenant.LagoOrganizationID == "" || tenant.LagoBillingProviderCode == "" {
+	if tenant.BillingProviderConnectionID == "" {
 		return EffectiveWorkspaceBillingContext{}, fmt.Errorf("%w: workspace has no billing execution context", ErrValidation)
 	}
 	binding, _, err := s.ensureBindingFromTenantLegacy(tenant)
@@ -343,7 +343,7 @@ func (s *WorkspaceBillingBindingService) ensureBindingFromTenantLegacy(tenant do
 	if s == nil || s.store == nil {
 		return domain.WorkspaceBillingBinding{}, false, fmt.Errorf("%w: workspace billing binding repository is required", ErrValidation)
 	}
-	if strings.TrimSpace(tenant.BillingProviderConnectionID) == "" || strings.TrimSpace(tenant.LagoOrganizationID) == "" || strings.TrimSpace(tenant.LagoBillingProviderCode) == "" {
+	if strings.TrimSpace(tenant.BillingProviderConnectionID) == "" {
 		return domain.WorkspaceBillingBinding{}, false, fmt.Errorf("%w: workspace has no billing execution context", ErrValidation)
 	}
 	if _, err := s.store.GetBillingProviderConnection(tenant.BillingProviderConnectionID); err != nil {
@@ -353,8 +353,6 @@ func (s *WorkspaceBillingBindingService) ensureBindingFromTenantLegacy(tenant do
 		WorkspaceID:                 tenant.ID,
 		BillingProviderConnectionID: tenant.BillingProviderConnectionID,
 		Backend:                     string(domain.WorkspaceBillingBackendStripe),
-		BackendOrganizationID:       tenant.LagoOrganizationID,
-		BackendProviderCode:         tenant.LagoBillingProviderCode,
 		IsolationMode:               string(domain.WorkspaceBillingIsolationModeShared),
 		CreatedByType:               "system_migration",
 		CreatedByID:                 tenant.ID,

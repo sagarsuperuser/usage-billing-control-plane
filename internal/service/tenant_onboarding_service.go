@@ -133,8 +133,6 @@ func (s *TenantOnboardingService) OnboardTenant(req TenantOnboardingRequest, act
 		ID:                          req.ID,
 		Name:                        req.Name,
 		BillingProviderConnectionID: req.BillingProviderConnectionID,
-		LagoOrganizationID:          req.LagoOrganizationID,
-		LagoBillingProviderCode:     req.LagoBillingProviderCode,
 	}, actorAPIKeyID)
 	if err != nil {
 		return TenantOnboardingResult{}, wrapTenantOnboardingStage("ensure_tenant", err)
@@ -269,7 +267,7 @@ func (s *TenantOnboardingService) GetTenantReadiness(id string) (TenantOnboardin
 			billingIntegrationReadiness.NextAction = "Select a billing connection and verify it before handing off the workspace."
 		}
 	} else {
-		billingIntegrationReadiness.BillingMappingReady = strings.TrimSpace(tenant.LagoOrganizationID) != "" && strings.TrimSpace(tenant.LagoBillingProviderCode) != ""
+		billingIntegrationReadiness.BillingMappingReady = false // lago fields removed; legacy tenant billing no longer supported
 		billingIntegrationReadiness.BillingConnected = billingIntegrationReadiness.BillingMappingReady
 		if billingIntegrationReadiness.BillingMappingReady {
 			billingIntegrationReadiness.WorkspaceBillingStatus = "connected"

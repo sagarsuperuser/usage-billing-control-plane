@@ -21,14 +21,12 @@ type CreateCustomerRequest struct {
 	ExternalID     string `json:"external_id"`
 	DisplayName    string `json:"display_name,omitempty"`
 	Email          string `json:"email,omitempty"`
-	LagoCustomerID string `json:"lago_customer_id,omitempty"`
 }
 
 type UpdateCustomerRequest struct {
 	DisplayName    *string                `json:"display_name,omitempty"`
 	Email          *string                `json:"email,omitempty"`
 	Status         *domain.CustomerStatus `json:"status,omitempty"`
-	LagoCustomerID *string                `json:"lago_customer_id,omitempty"`
 }
 
 type ListCustomersRequest struct {
@@ -108,7 +106,6 @@ func (s *CustomerService) CreateCustomer(tenantID string, req CreateCustomerRequ
 	externalID := strings.TrimSpace(req.ExternalID)
 	displayName := strings.TrimSpace(req.DisplayName)
 	email := strings.TrimSpace(req.Email)
-	lagoCustomerID := strings.TrimSpace(req.LagoCustomerID)
 	if externalID == "" {
 		return domain.Customer{}, fmt.Errorf("%w: external_id is required", ErrValidation)
 	}
@@ -122,7 +119,6 @@ func (s *CustomerService) CreateCustomer(tenantID string, req CreateCustomerRequ
 		DisplayName:    displayName,
 		Email:          email,
 		Status:         domain.CustomerStatusActive,
-		LagoCustomerID: lagoCustomerID,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	})
@@ -131,9 +127,6 @@ func (s *CustomerService) CreateCustomer(tenantID string, req CreateCustomerRequ
 			return domain.Customer{}, fmt.Errorf("%w: customer external_id already exists", store.ErrDuplicateKey)
 		}
 		return domain.Customer{}, err
-	}
-	if strings.TrimSpace(customer.LagoCustomerID) == "" && strings.TrimSpace(lagoCustomerID) != "" {
-		customer.LagoCustomerID = lagoCustomerID
 	}
 	return customer, nil
 }
@@ -196,9 +189,6 @@ func (s *CustomerService) UpdateCustomer(tenantID, externalID string, req Update
 			return domain.Customer{}, err
 		}
 		updated.Status = status
-	}
-	if req.LagoCustomerID != nil {
-		updated.LagoCustomerID = strings.TrimSpace(*req.LagoCustomerID)
 	}
 	updated.UpdatedAt = time.Now().UTC()
 
@@ -538,15 +528,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	}
 
 	now := time.Now().UTC()
-	if result.LagoCustomerID != "" && customer.LagoCustomerID != result.LagoCustomerID {
-		customer.LagoCustomerID = result.LagoCustomerID
-		customer.UpdatedAt = now
-		updatedCustomer, updateErr := s.store.UpdateCustomer(customer)
-		if updateErr != nil {
-			return customer, profile, setup, updateErr
-		}
-		customer = updatedCustomer
-	}
+	_ = result.LagoCustomerID // lago_customer_id column removed; sync result field retained in adapter interface
 	profile.ProfileStatus = deriveBillingProfileStatus(profile)
 	profile.LastSyncedAt = &now
 	profile.LastSyncError = ""
@@ -608,7 +590,7 @@ func (s *CustomerService) recordCustomerSyncFailure(customer domain.Customer, pr
 func buildCustomerReadiness(billingProviderConfigured bool, customer domain.Customer, profile domain.CustomerBillingProfile, setup domain.CustomerPaymentSetup) CustomerReadiness {
 	missing := make([]string, 0)
 	status := "ready"
-	lagoCustomerSynced := strings.TrimSpace(customer.LagoCustomerID) != "" && profile.LastSyncedAt != nil && strings.TrimSpace(profile.LastSyncError) == ""
+	lagoCustomerSynced := profile.LastSyncedAt != nil && strings.TrimSpace(profile.LastSyncError) == ""
 	defaultPaymentMethodVerified := setup.DefaultPaymentMethodPresent && strings.TrimSpace(setup.LastVerificationError) == ""
 	if customer.Status != domain.CustomerStatusActive {
 		missing = append(missing, "customer_active")
@@ -660,7 +642,7 @@ func (s *CustomerService) resolveBillingProviderContext(tenant domain.Tenant) (s
 		}
 		return strings.TrimSpace(effective.BackendOrganizationID), strings.TrimSpace(effective.BackendProviderCode)
 	}
-	return strings.TrimSpace(tenant.LagoOrganizationID), strings.TrimSpace(tenant.LagoBillingProviderCode)
+	return "", ""
 }
 
 

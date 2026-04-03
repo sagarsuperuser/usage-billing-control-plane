@@ -94,9 +94,6 @@ type Tenant struct {
 	Name                        string       `json:"name"`
 	Status                      TenantStatus `json:"status"`
 	BillingProviderConnectionID string       `json:"billing_provider_connection_id,omitempty"`
-	LagoOrganizationID          string       `json:"-"`
-	LagoBillingProviderCode     string       `json:"-"`
-	LagoAPIKey                  string       `json:"-"`
 	CreatedAt                   time.Time    `json:"created_at"`
 	UpdatedAt                   time.Time    `json:"updated_at"`
 }
@@ -109,8 +106,6 @@ type BillingProviderConnection struct {
 	Scope              BillingProviderConnectionScope  `json:"scope"`
 	OwnerTenantID      string                          `json:"owner_tenant_id,omitempty"`
 	Status             BillingProviderConnectionStatus `json:"status"`
-	LagoOrganizationID string                          `json:"-"`
-	LagoProviderCode   string                          `json:"-"`
 	SecretRef          string                          `json:"secret_ref,omitempty"`
 	LastSyncedAt       *time.Time                      `json:"last_synced_at,omitempty"`
 	LastSyncError      string                          `json:"last_sync_error,omitempty"`
@@ -346,7 +341,6 @@ type Customer struct {
 	DisplayName    string         `json:"display_name"`
 	Email          string         `json:"email,omitempty"`
 	Status         CustomerStatus `json:"status"`
-	LagoCustomerID string         `json:"-"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }

@@ -34,7 +34,13 @@
       "Bash(chmod +x /Users/superuser/projects/golang/usage-billing-control-plane/scripts/test_integration.sh)",
       "Bash(xargs -I {} gh run view {} --log-failed)",
       "Bash(grep \"return ServerConfig{}, fmt.Errorf\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/appconfig/server.go)",
-      "Bash(gh workflow:*)"
+      "Bash(gh workflow:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl exec:*)",
+      "Bash(kubectl run:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)['data']; print\\('\\\\n'.join\\(f'{k}' for k in d.keys\\(\\)\\)\\)\")",
+      "Bash(go vet:*)"
     ]
   }
 }
