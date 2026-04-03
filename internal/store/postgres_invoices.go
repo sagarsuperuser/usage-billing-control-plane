@@ -197,8 +197,21 @@ func (s *PostgresStore) ListInvoices(filter InvoiceListFilter) ([]domain.Invoice
 	}
 
 	sortBy := "created_at"
-	if filter.SortBy != "" {
-		sortBy = filter.SortBy
+	switch strings.ToLower(strings.TrimSpace(filter.SortBy)) {
+	case "created_at", "":
+		sortBy = "created_at"
+	case "updated_at":
+		sortBy = "updated_at"
+	case "billing_period_start":
+		sortBy = "billing_period_start"
+	case "total_amount_cents":
+		sortBy = "total_amount_cents"
+	case "amount_due_cents":
+		sortBy = "amount_due_cents"
+	case "invoice_number":
+		sortBy = "invoice_number"
+	default:
+		sortBy = "created_at"
 	}
 	order := "DESC"
 	if filter.SortDesc {

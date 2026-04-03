@@ -301,7 +301,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		},
 		UISession: UISessionConfig{
 			Lifetime:           time.Duration(getIntEnv("UI_SESSION_LIFETIME_SEC", 43200)) * time.Second,
-			CookieName:         firstNonEmpty(strings.TrimSpace(os.Getenv("UI_SESSION_COOKIE_NAME")), "lago_alpha_ui_session"),
+			CookieName:         firstNonEmpty(strings.TrimSpace(os.Getenv("UI_SESSION_COOKIE_NAME")), "alpha_ui_session"),
 			CookieSecure:       uiSessionCookieSecure,
 			CookieSameSite:     uiSessionCookieSameSite,
 			CookieSameSiteName: uiSessionCookieSameSiteName,

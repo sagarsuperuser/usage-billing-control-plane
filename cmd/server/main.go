@@ -280,7 +280,7 @@ func main() {
 		logger.Info(
 			"billing notification delegation enabled",
 			"component", "server",
-			"backend", "lago",
+			"backend", "direct",
 		)
 	}
 
