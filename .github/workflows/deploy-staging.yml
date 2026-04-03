@@ -144,6 +144,12 @@ jobs:
           dunningScheduler:
             image:
               tag: "${API_SHA}"
+          billingCycleWorker:
+            image:
+              tag: "${API_SHA}"
+          billingCycleScheduler:
+            image:
+              tag: "${API_SHA}"
           web:
             image:
               tag: "${WEB_SHA}"

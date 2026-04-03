@@ -32,7 +32,9 @@
       "Bash(git commit -m ':*)",
       "Bash(gh run:*)",
       "Bash(chmod +x /Users/superuser/projects/golang/usage-billing-control-plane/scripts/test_integration.sh)",
-      "Bash(xargs -I {} gh run view {} --log-failed)"
+      "Bash(xargs -I {} gh run view {} --log-failed)",
+      "Bash(grep \"return ServerConfig{}, fmt.Errorf\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/appconfig/server.go)",
+      "Bash(gh workflow:*)"
     ]
   }
 }
