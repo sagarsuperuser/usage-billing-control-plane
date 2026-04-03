@@ -11,7 +11,7 @@ import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
 import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
-import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
+import { formatReadinessStatus } from "@/lib/readiness";
 import { type Customer, type CustomerReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -85,24 +85,6 @@ export function CustomerListScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Customers" }]} />
 
-        {isTenantSession ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customers</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-950">Customers</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                View billing readiness, payment setup status, and recovery needs across all customers.
-              </p>
-            </div>
-            {isTenantSession ? (
-              <Link href="/customers/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-                <Plus className="h-4 w-4" />
-                New customer
-              </Link>
-            ) : null}
-          </div>
-        </section> : null}
-
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice
@@ -114,155 +96,97 @@ export function CustomerListScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Visible customers" value={summary.total} />
-              <MetricCard label="Billing ready" value={summary.ready} />
-              <MetricCard label="Collection blocked" value={summary.pendingPayment} />
-              <MetricCard label="Sync recovery" value={summary.syncErrors} />
-            </section>
-
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customers</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search by name or customer ID"
-                    className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-                  />
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
-                    className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                  >
-                    <option value="">All statuses</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <div className="flex items-center gap-3">
+                <h1 className="text-sm font-semibold text-slate-900">Customers{filteredCustomers.length > 0 ? ` (${filteredCustomers.length})` : ""}</h1>
               </div>
-
-              <div className="mt-5 grid gap-3">
-                {customersQuery.isLoading ? (
-                  <LoadingState />
-                ) : filteredCustomers.length === 0 ? (
-                  <EmptyState />
-                ) : (
-                  filteredCustomers.map((customer) => (
-                    <CustomerRow key={customer.external_id} customer={customer} readiness={readinessByCustomer.get(customer.external_id)} />
-                  ))
-                )}
+              <div className="flex items-center gap-2">
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search..."
+                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  <option value="">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <Link href="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <Plus className="h-3.5 w-3.5" />
+                  New
+                </Link>
               </div>
-            </section>
-          </>
+            </div>
+            {customersQuery.isLoading ? (
+              <LoadingState />
+            ) : filteredCustomers.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                    <th className="px-5 py-2.5 font-semibold">Customer</th>
+                    <th className="px-4 py-2.5 font-semibold">Status</th>
+                    <th className="px-4 py-2.5 font-semibold">Profile</th>
+                    <th className="px-4 py-2.5 font-semibold">Collection</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {filteredCustomers.map((customer) => {
+                    const readiness = readinessByCustomer.get(customer.external_id);
+                    const diagnosis = readiness ? diagnoseCustomerCollection(readiness) : null;
+                    return (
+                      <tr key={customer.external_id} className="transition hover:bg-stone-50">
+                        <td className="px-5 py-3">
+                          <Link href={`/customers/${encodeURIComponent(customer.external_id)}`} className="block">
+                            <p className="font-medium text-slate-900">{customer.display_name}</p>
+                            <p className="mt-0.5 font-mono text-xs text-slate-400">{customer.external_id}</p>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${tone(customer.status)}`}>
+                            {customer.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {readiness ? formatReadinessStatus(readiness.billing_profile_status) : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {diagnosis ? (
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${customerCollectionDiagnosisToneClass(diagnosis.tone)}`}>
+                              {diagnosis.tone === "healthy" ? "Ready" : diagnosis.tone === "warning" ? "Pending" : "Blocked"}
+                            </span>
+                          ) : <span className="text-slate-400">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         ) : null}
       </main>
     </div>
   );
 }
 
-function CustomerRow({ customer, readiness }: { customer: Customer; readiness?: CustomerReadiness }) {
-  const nextStep = normalizeMissingSteps(readiness?.missing_steps)[0];
-  const diagnosis = readiness ? diagnoseCustomerCollection(readiness) : null;
-  return (
-    <Link
-      href={`/customers/${encodeURIComponent(customer.external_id)}`}
-      className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_110px] lg:items-start"
-    >
-      <div className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="truncate text-base font-semibold text-slate-950">{customer.display_name}</h3>
-          <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(customer.status)}`}>
-            {customer.status}
-          </span>
-          {diagnosis ? (
-            <span
-              className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${customerCollectionDiagnosisToneClass(
-                diagnosis.tone,
-              )}`}
-            >
-              {diagnosis.title}
-            </span>
-          ) : null}
-        </div>
-        <p className="mt-1 break-all font-mono text-xs text-slate-500">{customer.external_id}</p>
-        <p className="mt-2 text-sm text-slate-600">
-          {diagnosis?.summary || (nextStep ? `Next action: ${describeCustomerMissingStep(nextStep)}` : "No immediate customer blocker is shown.")}
-        </p>
-      </div>
-      <InventoryCell label="Status" value={readiness ? formatReadinessStatus(readiness.status) : "Loading"} />
-      <InventoryCell label="Profile" value={readiness ? formatReadinessStatus(readiness.billing_profile_status) : "Loading"} />
-      <InventoryCell
-        label="Collection"
-        value={
-          diagnosis
-            ? diagnosis.tone === "healthy"
-              ? "Ready"
-              : diagnosis.tone === "warning"
-                ? "Pending"
-                : "Blocked"
-            : "Review"
-        }
-      />
-      <div className="flex items-center justify-between gap-3 lg:justify-end">
-        <p className="text-[11px] text-slate-400">View →</p>
-      </div>
-    </Link>
-  );
-}
-
-function InventoryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
 function LoadingState() {
   return (
-    <div className="grid gap-3">
+    <div className="divide-y divide-stone-100">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_110px] lg:items-start">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-5 w-36" />
-              <Skeleton className="h-5 w-16 rounded-full" />
-            </div>
-            <Skeleton className="mt-2 h-3 w-28" />
-            <Skeleton className="mt-2 h-4 w-56" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="mt-2 h-4 w-20" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="mt-2 h-4 w-20" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="mt-2 h-4 w-20" />
-          </div>
-          <div className="flex items-center justify-end">
-            <Skeleton className="h-3.5 w-8" />
-          </div>
+        <div key={i} className="flex items-center gap-4 px-5 py-3">
+          <div className="flex-1"><Skeleton className="h-4 w-32" /><Skeleton className="mt-1 h-3 w-20" /></div>
+          <Skeleton className="h-4 w-14 rounded-full" />
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-4 w-14 rounded-full" />
         </div>
       ))}
     </div>
@@ -271,12 +195,13 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No customers match the current filters.</p>
-      <p className="mt-2">Create a customer to get started.</p>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link href="/customers/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New customer</Link>
-      </div>
+    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
+      <p className="text-sm font-medium text-slate-700">No customers</p>
+      <p className="text-xs text-slate-500">Create a customer to get started.</p>
+      <Link href="/customers/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+        <Plus className="h-3.5 w-3.5" />
+        New customer
+      </Link>
     </div>
   );
 }
