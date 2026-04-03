@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 
 import { AppProviders } from "@/app/providers";
+import { SidebarLayout } from "@/components/layout/sidebar";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -29,7 +30,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} antialiased`}>
-        <AppProviders>{children}</AppProviders>
+        <AppProviders>
+          <SidebarLayout>{children}</SidebarLayout>
+        </AppProviders>
       </body>
     </html>
   );

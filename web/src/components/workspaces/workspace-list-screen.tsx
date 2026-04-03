@@ -7,7 +7,6 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
@@ -120,16 +119,15 @@ export function WorkspaceListScreen() {
   }, [filteredTenants, readinessByTenant]);
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#eef4ef_0%,#f6f2eb_100%)] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { label: "Workspaces" }]} />
 
         {canViewPlatformSurface ? <section className="rounded-xl border border-stone-200 bg-white/92 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Workspaces</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace setup and launch</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-950">Workspace setup and launch</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 This directory should show which workspace is ready, which one is blocked, and which operational step still belongs to the platform before the workspace can run on its own.
               </p>
@@ -177,7 +175,7 @@ export function WorkspaceListScreen() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Directory</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Workspaces</h2>
+              <h2 className="mt-2 text-base font-semibold text-slate-950">Workspaces</h2>
               <p className="mt-2 text-sm text-slate-600">Review setup status and billing readiness across all workspaces.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -268,7 +266,7 @@ function MetricCard({
   return (
     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 text-3xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
+      <p className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
 }

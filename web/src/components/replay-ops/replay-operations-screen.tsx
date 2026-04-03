@@ -18,7 +18,6 @@ import { useSearchParams } from "next/navigation";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryReplayJob } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import { showError } from "@/lib/toast";
@@ -182,9 +181,8 @@ export function ReplayOperationsScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
 
         <AppBreadcrumbs
           items={[
@@ -209,7 +207,7 @@ export function ReplayOperationsScreen() {
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recovery</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Replay operations</h1>
+                  <h1 className="mt-2 text-lg font-semibold text-slate-900 md:text-4xl">Replay operations</h1>
                   <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
                     Queue replay jobs, inspect diagnostics, and recover failed processing from one workspace console.
                   </p>
@@ -426,7 +424,7 @@ export function ReplayOperationsScreen() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">New job</p>

@@ -11,7 +11,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   createWorkspaceInvitation,
@@ -299,9 +298,8 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
     member.status === "active" && member.role === "admin" && activeAdminCount <= 1;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: selectedTenant?.name || tenantID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -317,7 +315,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
         {canViewPlatformSurface ? (tenantStatusQuery.isLoading ? (
           <LoadingPanel label="Loading workspace detail" />
         ) : tenantStatusQuery.isError || !selectedTenant || !selectedReadiness ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace</p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-950">Workspace not available</h1>
             <p className="mt-3 text-sm text-slate-600">The requested workspace could not be loaded from the onboarding status API.</p>
@@ -331,11 +329,11 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{selectedTenant.name}</h1>
+                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{selectedTenant.name}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className="font-mono text-xs text-slate-500">{selectedTenant.id}</span>
                     <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
@@ -396,7 +394,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Readiness</p>
@@ -417,7 +415,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace access</p>
@@ -684,7 +682,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
               </div>
 
               <aside className="min-w-0 grid gap-5 self-start">
-                <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="min-w-0 rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace billing</p>
@@ -900,7 +898,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metadata</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Created" value={formatExactTimestamp(selectedTenant.created_at)} />

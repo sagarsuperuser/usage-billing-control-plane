@@ -165,7 +165,7 @@ function focusLine(page: Page, title: string) {
 }
 
 function focusValue(page: Page, title: string) {
-  return focusLine(page, title).locator("p.text-2xl");
+  return focusLine(page, title).locator("p.text-base");
 }
 
 async function installPlatformOverviewMock(page: Page, session: PlatformSessionPayload) {
@@ -336,7 +336,6 @@ test("platform overview shows live workspace attention counts", async ({ page })
   const nav = page.locator("nav");
   await expect(page.getByRole("heading", { name: "Action required" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payments", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Replay", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toHaveCount(0);
@@ -377,7 +376,6 @@ test("tenant overview shows live customer attention counts", async ({ page }) =>
   await expect(nav.getByRole("link", { name: "Replay", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Explainability", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces", exact: true })).toHaveCount(0);
-  await expect(nav.getByRole("link", { name: "Workspace Setup", exact: true })).toHaveCount(0);
   await expect(page.getByText("Create the first billable customer and start payment setup.")).toBeVisible();
   await expect(page.getByText("Billing readiness and payment setup.")).toBeVisible();
   await expect(page.getByText("Payment failures and retries.")).toBeVisible();

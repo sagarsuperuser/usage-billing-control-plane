@@ -90,7 +90,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
 
   if (isLoading || previewQuery.isLoading) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <div className="text-slate-900">
         <main className="mx-auto flex min-h-screen max-w-[720px] items-center justify-center px-4 py-10">
           <div className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">
             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -103,7 +103,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
 
   if (previewQuery.isError || !previewQuery.data) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <div className="text-slate-900">
         <main className="mx-auto flex min-h-screen max-w-[720px] items-center justify-center px-4 py-10">
           <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace invitation</p>
@@ -132,8 +132,8 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   const showRegistrationForm = preview.requires_login && !isAuthenticated && !preview.account_exists;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex min-h-screen max-w-[760px] items-center px-4 py-10">
+    <div className="text-slate-900">
+      <main className="mx-auto flex min-h-screen max-w-2xl items-center px-4 py-10">
         <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace invitation</p>
           <h1 className="mt-2 text-2xl font-semibold text-slate-950">Join {preview.workspace_name}</h1>

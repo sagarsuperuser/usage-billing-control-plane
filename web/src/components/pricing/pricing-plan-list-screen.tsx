@@ -8,7 +8,6 @@ import { useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchAddOns, fetchCoupons, fetchPlans, fetchPricingMetrics } from "@/lib/api";
 import { type AddOn, type Coupon, type Plan, type PricingMetric } from "@/lib/types";
@@ -54,9 +53,8 @@ export function PricingPlanListScreen() {
   const draftCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Plans" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -66,11 +64,11 @@ export function PricingPlanListScreen() {
 
         {isTenantSession ? (
           <>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Plans</h1>
+                  <h1 className="mt-2 text-lg font-semibold text-slate-950">Plans</h1>
                   <p className="mt-3 max-w-3xl text-sm text-slate-600">
                     Plans define how customers are charged. Keep the first version simple: a base price, a cadence, and one or more linked metrics.
                   </p>
@@ -94,7 +92,7 @@ export function PricingPlanListScreen() {
               <OperatorCard title="Next action" body="Use draft plans for review, then activate only once the full commercial package is stable." />
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plans</p>

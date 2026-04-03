@@ -12,7 +12,6 @@ import type { InputHTMLAttributes } from "react";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { onboardCustomer } from "@/lib/api";
 import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { showError } from "@/lib/toast";
@@ -116,17 +115,16 @@ export function CustomerOnboardingScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { href: "/customers", label: "Customers" }, { label: "New" }]} />
 
         {isTenantSession ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer setup</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create customer</h1>
+                <h1 className="mt-2 text-lg font-semibold text-slate-950">Create customer</h1>
                 <p className="mt-3 max-w-3xl text-sm text-slate-600">Create the customer, apply the billing profile, and optionally start payment setup.</p>
               </div>
               <Link href="/customers" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open customers</Link>
@@ -163,7 +161,7 @@ export function CustomerOnboardingScreen() {
         {isTenantSession ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
             <form onSubmit={onSubmit} noValidate>
-              <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <section className="min-w-0 rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
@@ -271,7 +269,7 @@ export function CustomerOnboardingScreen() {
             </form>
 
             <aside className="min-w-0 grid gap-5 self-start">
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Next steps</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">After creating</h2>
                 <div className="mt-4 grid gap-2">
@@ -282,7 +280,7 @@ export function CustomerOnboardingScreen() {
               </section>
 
               {result?.customer ? (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer created</p>
                   <h2 className="mt-2 break-words text-xl font-semibold text-slate-950">{result.customer.display_name}</h2>
                   <p className="mt-1 break-all font-mono text-xs text-slate-500">{result.customer.external_id}</p>
@@ -299,7 +297,7 @@ export function CustomerOnboardingScreen() {
                   </div>
                 </section>
               ) : (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Expected output</p>
                   <div className="mt-4 grid gap-3 text-sm text-slate-600">
                     <p>Submit once the operator has enough billing detail to open a usable customer record.</p>

@@ -11,7 +11,6 @@ import { z } from "zod";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   beginCustomerPaymentSetup,
@@ -202,9 +201,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const billingProfileReady = profileFormState.isValid;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { href: "/customers", label: "Customers" }, { label: customer?.display_name || externalID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -221,7 +219,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
           customersQuery.isLoading || readinessQuery.isLoading ? (
             <LoadingPanel label="Loading customer detail" />
           ) : customersQuery.isError || readinessQuery.isError || billingProfileQuery.isError || !customer || !readiness ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-950">Customer not available</h1>
               <p className="mt-3 text-sm text-slate-600">The requested customer could not be loaded from the workspace APIs.</p>
@@ -232,11 +230,11 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
             </section>
           ) : (
           <SectionErrorBoundary>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{customer.display_name}</h1>
+                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{customer.display_name}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className="font-mono text-xs text-slate-500">{customer.external_id}</span>
                     <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(readiness.status)}`}>
@@ -272,7 +270,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Readiness</p>
@@ -292,7 +290,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing profile</p>
@@ -393,7 +391,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   ) : null}
                 </section>
 
-                <section id="payment-collection" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section id="payment-collection" className="scroll-mt-24 rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment collection</p>
                   <p className="mt-3 text-sm text-slate-600">Send the setup path here, then refresh verification.</p>
                   <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -556,7 +554,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               </div>
 
               <aside className="min-w-0 grid gap-5 self-start">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing state</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Billing customer ID" value={customer.lago_customer_id || "-"} mono />
@@ -566,7 +564,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customer record</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Email" value={customer.email || "-"} />

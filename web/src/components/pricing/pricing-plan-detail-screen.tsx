@@ -8,7 +8,6 @@ import { useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -57,9 +56,8 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   }, [couponsQuery.data, plan]);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/plans", label: "Plans" }, { label: plan?.name || planID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -70,7 +68,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
         {isTenantSession ? planQuery.isLoading ? (
           <LoadingPanel label="Loading plan detail" />
         ) : !plan ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing plan</p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-950">Plan not available</h1>
             <Link href="/pricing/plans" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
@@ -80,11 +78,11 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace plan</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{plan.name}</h1>
+                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{plan.name}</h1>
                   <p className="mt-3 break-all font-mono text-xs text-slate-500">{plan.code}</p>
                   <p className="mt-3 max-w-3xl text-sm text-slate-600">{plan.description || "No description provided."}</p>
                 </div>
@@ -106,7 +104,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                   <Stat label="Coupons" value={String((plan.coupon_ids ?? []).length)} />
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <h2 className="text-xl font-semibold text-slate-950">Plan details</h2>
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <InfoCell label="Plan code" value={plan.code} />
@@ -123,7 +121,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </aside>
             </div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked metrics</p>
@@ -151,7 +149,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Attached coupons</p>
@@ -179,7 +177,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Attached add-ons</p>

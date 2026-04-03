@@ -26,7 +26,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
 import {
   createTenantWorkspaceInvitation,
@@ -378,9 +377,8 @@ export function TenantWorkspaceAccessScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1180px] flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Access" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}

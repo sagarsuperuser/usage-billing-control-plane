@@ -9,7 +9,6 @@ import { useSearchParams } from "next/navigation";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchPayments } from "@/lib/api";
 import { billingFailureDiagnosis } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
@@ -115,16 +114,15 @@ export function PaymentListScreen() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Payments" }]} />
 
-        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payments</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Payments</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-950">Payments</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
                 Track payment status, spot overdue invoices, and trigger retries when needed.
               </p>
@@ -151,7 +149,7 @@ export function PaymentListScreen() {
               <MetricCard label="Needs attention" value={stats.actionRequired} />
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="flex flex-col gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payments</p>

@@ -66,7 +66,7 @@ export function WorkspaceSelectionScreen() {
           <div className="w-full max-w-[440px]">
             <Logo />
             <div className="mt-8">
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">No workspace to select</h1>
+              <h1 className="text-base font-semibold text-slate-950">No workspace to select</h1>
               <p className="mt-2 text-sm text-slate-500">
                 Sign in again — this chooser only appears when your account has access to more than one workspace.
               </p>
@@ -91,7 +91,7 @@ export function WorkspaceSelectionScreen() {
         <div className="w-full max-w-[440px]">
           <Logo />
           <div className="mt-8">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Choose a workspace</h1>
+            <h1 className="text-base font-semibold text-slate-950">Choose a workspace</h1>
             <p className="mt-1.5 text-sm text-slate-500">
               {selectionQuery.data.user_email
                 ? <>{selectionQuery.data.user_email} has access to multiple workspaces.</>

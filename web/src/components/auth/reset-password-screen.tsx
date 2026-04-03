@@ -33,8 +33,8 @@ export function ResetPasswordScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex min-h-screen max-w-[760px] items-center px-4 py-10">
+    <div className="text-slate-900">
+      <main className="mx-auto flex min-h-screen max-w-2xl items-center px-4 py-10">
         <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Password reset</p>
           <h1 className="mt-2 text-2xl font-semibold text-slate-950">Choose a new password</h1>

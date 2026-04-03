@@ -1,7 +1,34 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(grep \"^server$\" /Users/superuser/projects/golang/usage-billing-control-plane/.gitignore)",
+      "Bash(git rm:*)",
+      "Bash(git commit -m 'chore: remove accidental binary from repo, add to .gitignore:*)",
+      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/billing-connections/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/customers/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/subscriptions/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/invoices/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/payments/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/pricing/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/workspaces/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/dunning/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/onboarding/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/usage-events/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/invoice-explainability/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/layout/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/auth/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/overview/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/billing/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/audit/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/replay-ops/*.tsx /Users/superuser/projects/golang/usage-billing-control-plane/web/src/components/payment-ops/*.tsx)",
+      "WebSearch",
+      "WebFetch(domain:www.saasframe.io)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:linear.app)",
+      "WebFetch(domain:nicelydone.club)",
+      "WebFetch(domain:docs.stripe.com)",
+      "WebFetch(domain:seedflip.co)",
+      "WebFetch(domain:purecode.ai)",
+      "WebFetch(domain:www.withorb.com)",
+      "WebFetch(domain:stripe.com)",
+      "WebFetch(domain:htmlcolors.com)",
+      "WebFetch(domain:blog.logrocket.com)",
+      "WebFetch(domain:www.colorsandfonts.com)",
+      "WebFetch(domain:www.navbar.gallery)",
+      "WebFetch(domain:clerk.com)",
+      "WebFetch(domain:docs.withorb.com)",
+      "WebFetch(domain:docs.metronome.com)",
+      "Bash(ls /Users/superuser/projects/golang/usage-billing-control-plane/web/src/app/*/page.tsx)",
+      "Bash(npx next:*)",
+      "Bash(sed -i '' '/Workspace Setup.*toBeVisible/d' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)",
+      "Bash(sed -i '' '/Workspace Setup.*toHaveCount/d' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)",
+      "Bash(sed -i '' 's/name: \"Billing Connections\"/name: \"Connections\"/g' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)"
     ]
   }
 }

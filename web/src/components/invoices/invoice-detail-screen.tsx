@@ -11,7 +11,6 @@ import { BillingFailureEvidence } from "@/components/billing/billing-failure-evi
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   fetchInvoiceCreditNotes,
@@ -97,9 +96,8 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
         : undefined;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
             { href: "/control-plane", label: "Workspace" },
@@ -122,7 +120,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
           invoiceQuery.isLoading ? (
             <LoadingPanel label="Loading invoice detail" />
           ) : invoiceQuery.isError || !invoice ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice</p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-950">Invoice not available</h1>
               <p className="mt-3 text-sm text-slate-600">The requested invoice could not be loaded from the workspace APIs.</p>
@@ -136,11 +134,11 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
             </section>
           ) : (
           <SectionErrorBoundary>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{invoice.invoice_number || invoice.invoice_id}</h1>
+                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{invoice.invoice_number || invoice.invoice_id}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className="font-mono text-xs text-slate-500">{invoice.invoice_id}</span>
                     <Badge>{formatBillingState(invoice.invoice_status)}</Badge>
@@ -197,7 +195,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice status</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     <StatusCard label="Invoice status" value={formatBillingState(invoice.invoice_status)} />
@@ -214,7 +212,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 </section>
 
                 {invoice.lifecycle ? (
-                  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current action</p>
                     <div className="mt-5 grid gap-3 lg:grid-cols-2">
                       <StatusCard label="Action" value={formatBillingState(invoice.lifecycle.recommended_action)} />
@@ -240,7 +238,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   error={timelineError}
                 />
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked billing documents</p>
                   <div className="mt-5 grid gap-6">
                     <div>
@@ -312,7 +310,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Document actions</p>
                   {resendEmailMutation.isSuccess ? (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
@@ -352,7 +350,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
                 />
                 {invoice.lifecycle ? (
-                  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
                     <div className="mt-4 grid gap-3">
                       <MetaItem label="Recommended action" value={formatBillingState(invoice.lifecycle.recommended_action)} />
@@ -404,7 +402,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     </div>
                   </section>
                 ) : null}
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked customer</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Customer" value={invoice.customer_display_name || "-"} />
@@ -420,7 +418,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice metadata</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Billing entity" value={invoice.billing_entity_code || "-"} />

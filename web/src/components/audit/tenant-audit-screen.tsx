@@ -7,7 +7,6 @@ import { LoaderCircle } from "lucide-react";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchTenantAuditEvents, fetchTenants } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 import { type TenantAuditEvent } from "@/lib/types";
@@ -64,9 +63,8 @@ export function TenantAuditScreen() {
   const selectedEvent = auditItems.find((item) => item.id === selectedEventIDValue) ?? null;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Overview" }, { label: "Workspace audit" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -79,9 +77,9 @@ export function TenantAuditScreen() {
           />
         ) : null}
 
-        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Platform audit</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Workspace audit trail</h1>
+          <h1 className="mt-2 text-lg font-semibold text-slate-950">Workspace audit trail</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">
             Review workspace, billing, customer, and access changes across all workspaces.
           </p>
@@ -100,7 +98,7 @@ export function TenantAuditScreen() {
           <OperatorCard title="Detail rule" body="Rows show the business action first. Show metadata only when you need to see the exact before-and-after record." />
         </section> : null}
 
-        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
             <label className="grid gap-2 text-sm text-slate-700">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace</span>
@@ -144,7 +142,7 @@ export function TenantAuditScreen() {
           </div>
         </section> : null}
 
-        {canViewPlatformSurface ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {canViewPlatformSurface ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent workspace events</p>
             <h2 className="text-xl font-semibold text-slate-950">Audit history</h2>

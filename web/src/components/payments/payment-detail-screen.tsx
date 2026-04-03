@@ -12,7 +12,6 @@ import { BillingFailureEvidence } from "@/components/billing/billing-failure-evi
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchDunningRunDetail, fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
 import { billingActionConfig, billingFailureDiagnosis, billingFailureEvidence, formatBillingState } from "@/lib/billing-lifecycle";
@@ -76,9 +75,8 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
         : undefined;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
             { href: "/control-plane", label: "Workspace" },
@@ -101,7 +99,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
           paymentQuery.isLoading ? (
             <LoadingPanel label="Loading payment detail" />
           ) : paymentQuery.isError || !payment ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment</p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-950">Payment not available</h1>
               <p className="mt-3 text-sm text-slate-600">The requested payment detail could not be loaded from the workspace APIs.</p>
@@ -115,11 +113,11 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
             </section>
           ) : (
           <SectionErrorBoundary>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{payment.invoice_number || payment.invoice_id}</h1>
+                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{payment.invoice_number || payment.invoice_id}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className="font-mono text-xs text-slate-500">{payment.invoice_id}</span>
                     <Badge>{formatBillingState(payment.payment_status)}</Badge>
@@ -167,7 +165,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment status</p>
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     <StatusCard label="Action" value={formatBillingState(payment.lifecycle.recommended_action)} />
@@ -190,7 +188,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 {diagnosis ? <BillingFailureDiagnosisCard diagnosis={diagnosis} /> : null}
                 {diagnosisEvidence.length > 0 ? <BillingFailureEvidence items={diagnosisEvidence} /> : null}
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Timeline window</p>
@@ -226,7 +224,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   onSendReminder={dunningRunID ? () => reminderMutation.mutate(dunningRunID) : undefined}
                   runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
                 />
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Recommended action" value={formatBillingState(payment.lifecycle.recommended_action)} />
@@ -282,7 +280,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked customer</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Customer" value={payment.customer_display_name || "-"} />
@@ -298,7 +296,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked invoice</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Invoice" value={payment.invoice_number || payment.invoice_id} />

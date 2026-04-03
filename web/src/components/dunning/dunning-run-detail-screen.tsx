@@ -8,7 +8,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
@@ -83,9 +82,8 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
   }, [detail?.notification_intents]);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
 
         <AppBreadcrumbs
           items={[
@@ -111,7 +109,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Dunning run</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Invoice-level collections workflow</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-900 md:text-4xl">Invoice-level collections workflow</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
                 Inspect the active run, event history, and reminder dispatch before retrying collection or escalating recovery.
               </p>
@@ -209,7 +207,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
             </section>
 
             {diagnosis ? (
-              <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+              <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Current blocker</p>
@@ -245,7 +243,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
             ) : null}
 
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-              <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+              <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Event timeline</p>
                   <h2 className="mt-1 text-lg font-semibold text-slate-900">Run state transitions</h2>
@@ -283,7 +281,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
               </section>
 
               <aside className="grid gap-6 self-start">
-                <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Reminder dispatch</p>
                   <h2 className="mt-1 text-lg font-semibold text-slate-900">Dispatch status</h2>
                   <div className="mt-4 grid gap-3">
@@ -324,7 +322,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Linked surfaces</p>
                   <div className="mt-4 grid gap-3">
                     <Link href={`/payments/${encodeURIComponent(run.invoice_id)}`} className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100">

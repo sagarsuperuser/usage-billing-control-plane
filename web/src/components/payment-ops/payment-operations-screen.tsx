@@ -16,7 +16,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchInvoiceEvents, fetchInvoiceLifecycle, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
 import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -224,9 +223,8 @@ export function PaymentOperationsScreen() {
   const resetStatusOffset = () => setStatusOffset(0);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -244,7 +242,7 @@ export function PaymentOperationsScreen() {
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Payment operations</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Failed payment triage</h1>
+                  <h1 className="mt-2 text-lg font-semibold text-slate-900 md:text-4xl">Failed payment triage</h1>
                   <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
                     Review invoices that need attention, inspect the timeline, and trigger safe retries from one workspace console.
                   </p>

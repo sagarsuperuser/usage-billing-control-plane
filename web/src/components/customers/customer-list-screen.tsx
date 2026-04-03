@@ -8,7 +8,6 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
 import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
@@ -82,16 +81,15 @@ export function CustomerListScreen() {
   }, [filteredCustomers, readinessByCustomer]);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Customers" }]} />
 
-        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customers</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Customers</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-950">Customers</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
                 View billing readiness, payment setup status, and recovery needs across all customers.
               </p>
@@ -124,7 +122,7 @@ export function CustomerListScreen() {
               <MetricCard label="Sync recovery" value={summary.syncErrors} />
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Customers</p>

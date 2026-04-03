@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchBillingProviderConnections,
@@ -272,15 +271,14 @@ export function ControlPlaneOverviewScreen() {
   const primaryAction = actionItems[0] ?? moduleItems[0] ?? null;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
 
         <section className="rounded-xl border border-stone-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:p-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Overview</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{sessionTitle}</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-950">{sessionTitle}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 Start with the highest-priority items, then open the matching area.
               </p>
@@ -368,7 +366,7 @@ export function ControlPlaneOverviewScreen() {
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Needs action</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Action required</h2>
+                <h2 className="mt-2 text-base font-semibold text-slate-950">Action required</h2>
               </div>
             </div>
             {isLoading || attentionLoading ? (
@@ -398,7 +396,7 @@ export function ControlPlaneOverviewScreen() {
                 <div className="flex items-end justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Quick access</h2>
+                    <h2 className="mt-2 text-base font-semibold text-slate-950">Quick access</h2>
                   </div>
                 </div>
                 <div className="mt-5 divide-y divide-stone-200">
@@ -412,7 +410,7 @@ export function ControlPlaneOverviewScreen() {
                 <div className="flex items-end justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Platform</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Quick access</h2>
+                    <h2 className="mt-2 text-base font-semibold text-slate-950">Quick access</h2>
                   </div>
                 </div>
                 <div className="mt-5 divide-y divide-stone-200">
@@ -450,7 +448,7 @@ function SummaryCard({
   return (
     <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 text-3xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
+      <p className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
 }
@@ -482,7 +480,7 @@ function AttentionRow({
         <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
       </div>
       <div className="shrink-0 text-right">
-        <p className="text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
+        <p className="text-base font-semibold text-slate-950">{value}</p>
         <p className="mt-1 text-[11px] text-slate-400">View →</p>
       </div>
     </Link>

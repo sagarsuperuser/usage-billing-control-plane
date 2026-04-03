@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchUsageEvents } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import type { UsageEvent } from "@/lib/types";
@@ -117,16 +116,15 @@ export function UsageEventsScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Usage Events" }]} />
 
-        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {isTenantSession ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage Events</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Usage events</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-950">Usage events</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">
                 Inspect raw metering events for billing disputes, support, or audit.
               </p>
@@ -153,7 +151,7 @@ export function UsageEventsScreen() {
               <MetricCard label="Meters on page" value={String(stats.meters)} />
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Filters</p>
@@ -195,7 +193,7 @@ export function UsageEventsScreen() {
           </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage events</p>

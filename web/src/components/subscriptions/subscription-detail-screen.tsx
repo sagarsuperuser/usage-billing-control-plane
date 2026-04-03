@@ -8,7 +8,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchPlans, fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup, updateSubscription } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
@@ -120,9 +119,8 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
   const canArchive = Boolean(subscription && subscription.status !== "archived");
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: subscription?.display_name || subscriptionID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -139,7 +137,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
           detailQuery.isLoading ? (
             <LoadingPanel label="Loading subscription detail" />
           ) : detailQuery.isError || !subscription ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-950">Subscription not available</h1>
               <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the workspace APIs.</p>
@@ -150,11 +148,11 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
             </section>
           ) : (
           <SectionErrorBoundary>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{subscription.display_name}</h1>
+                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{subscription.display_name}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className="font-mono text-xs text-slate-500">{subscription.code}</span>
                     <span data-testid="subscription-status-badge" className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(subscription.status)}`}>
@@ -178,7 +176,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lifecycle</p>
@@ -193,7 +191,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial controls</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">Change plan or cancel billing</h2>
                   <p className="mt-3 text-sm leading-relaxed text-slate-600">
@@ -248,7 +246,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment setup</p>
                   <p className="mt-3 text-sm leading-relaxed text-slate-600">
                     Request the setup path here, then verify that the payer completed it before treating the subscription as ready.
@@ -286,7 +284,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
               </div>
 
               <aside className="min-w-0 grid gap-5 self-start">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial context</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Customer" value={subscription.customer_display_name} />
@@ -297,7 +295,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment setup state</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Payment setup status" value={formatSubscriptionPaymentSetupStatus(subscription.payment_setup_status)} />

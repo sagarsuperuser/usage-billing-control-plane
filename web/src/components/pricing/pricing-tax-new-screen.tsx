@@ -12,7 +12,6 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { createTax } from "@/lib/api";
 import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -69,9 +68,8 @@ export function PricingTaxNewScreen() {
   const busy = isSubmitting || mutation.isPending;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1200px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/taxes", label: "Taxes" }, { label: "New" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -79,15 +77,15 @@ export function PricingTaxNewScreen() {
 
         {isTenantSession ? (
           <>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create tax</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-950">Create tax</h1>
               <p className="mt-3 max-w-3xl text-sm text-slate-600">Define a reusable tax code and rate that Alpha can assign to customer billing profiles and workspace billing settings.</p>
             </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
               <form onSubmit={onSubmit} noValidate>
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="grid gap-5">
                     <div className="grid gap-3 lg:grid-cols-3">
                       <OperatorCard title="Assignment" body="Active taxes become available to customer billing profiles and workspace billing settings." />

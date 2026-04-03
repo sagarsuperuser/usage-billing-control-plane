@@ -12,7 +12,6 @@ import type { InputHTMLAttributes } from "react";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { fetchBillingProviderConnections, onboardTenant } from "@/lib/api";
 import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { showError } from "@/lib/toast";
@@ -107,17 +106,16 @@ export function TenantOnboardingScreen() {
   const createdSecret = result?.tenant_admin_bootstrap.secret ?? "";
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: "New" }]} />
 
         {canViewPlatformSurface ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace setup</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Create workspace</h1>
+                <h1 className="mt-2 text-lg font-semibold text-slate-950">Create workspace</h1>
                 <p className="mt-3 max-w-3xl text-sm text-slate-600">
                   Create the workspace, attach billing now or later, and optionally mint the first admin credential.
                 </p>
@@ -151,7 +149,7 @@ export function TenantOnboardingScreen() {
         {canViewPlatformSurface ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
             <form onSubmit={onSubmit} noValidate>
-              <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <section className="min-w-0 rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operator setup</p>
@@ -295,7 +293,7 @@ export function TenantOnboardingScreen() {
             </form>
 
             <aside className="min-w-0 grid gap-5 self-start">
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">After setup</p>
                 <h2 className="mt-2 text-xl font-semibold text-slate-950">Next screens</h2>
                 <div className="mt-4 grid gap-2">
@@ -306,7 +304,7 @@ export function TenantOnboardingScreen() {
               </section>
 
               {result?.tenant ? (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace created</p>
                   <h2 className="mt-2 break-words text-xl font-semibold text-slate-950">{result.tenant.name}</h2>
                   <p className="mt-1 break-all font-mono text-xs text-slate-500">{result.tenant.id}</p>
@@ -331,7 +329,7 @@ export function TenantOnboardingScreen() {
                   </div>
                 </section>
               ) : (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Use workspaces after create</p>
                   <div className="mt-4 space-y-3 text-sm text-slate-600">
                     <p>Billing is attached from workspace detail or Billing connections.</p>

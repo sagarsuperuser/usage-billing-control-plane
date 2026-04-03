@@ -11,7 +11,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   disableBillingProviderConnection,
@@ -386,9 +385,8 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1360px] flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/billing-connections", label: "Billing Connections" }, { label: connection?.display_name || connectionID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -404,7 +402,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
         {canViewPlatformSurface ? (connectionQuery.isLoading ? (
           <LoadingPanel label="Loading billing connection detail" />
         ) : connectionQuery.isError || !connection ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing connection</p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-950">Connection not available</h1>
             <p className="mt-3 text-sm text-slate-600">The requested billing connection could not be loaded.</p>
@@ -418,11 +416,11 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing connection</p>
-                  <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-slate-950">{connection.display_name}</h1>
+                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{connection.display_name}</h1>
                   <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(connection.status)}`}>
                       {formatReadinessStatus(connection.status)}
@@ -462,7 +460,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Connection health</p>
@@ -488,7 +486,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   ) : null}
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Verification</p>
@@ -535,7 +533,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Configuration</p>
@@ -604,7 +602,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
               </div>
 
               <aside className="min-w-0 grid gap-5 self-start">
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</p>
                   <p className="mt-2 text-sm text-slate-600">Run provider checks, rotate the secret, or retire the connection here. Use workspace setup when the next step is assignment.</p>
                   <div className="mt-4 grid gap-3">
@@ -661,7 +659,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metadata</p>
                   <div className="mt-4 grid gap-3">
                     <MetaItem label="Provider" value={connection.provider_type} />

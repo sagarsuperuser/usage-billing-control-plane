@@ -9,7 +9,6 @@ import { useSearchParams } from "next/navigation";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningPolicy, fetchDunningRuns, updateDunningPolicy } from "@/lib/api";
 import { diagnoseDunningRun, dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
@@ -59,7 +58,7 @@ function MetricCard({ label, value, tone = "default" }: { label: string; value: 
   return (
     <div className={`rounded-2xl border px-4 py-4 ${toneClass}`}>
       <p className="text-xs uppercase tracking-[0.16em]">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-2 text-base font-semibold">{value}</p>
     </div>
   );
 }
@@ -185,9 +184,8 @@ export function DunningConsoleScreen() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
 
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Dunning" }]} />
 
@@ -207,7 +205,7 @@ export function DunningConsoleScreen() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Collections</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">Dunning</h1>
+              <h1 className="mt-2 text-lg font-semibold text-slate-900 md:text-4xl">Dunning</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
                 Track payment retry runs and take action on overdue invoices.
               </p>
@@ -228,7 +226,7 @@ export function DunningConsoleScreen() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-          <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Policy</p>
@@ -340,7 +338,7 @@ export function DunningConsoleScreen() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
             <div className="flex flex-col gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Dunning runs</p>

@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchBillingProviderConnections } from "@/lib/api";
@@ -70,9 +69,8 @@ export function BillingConnectionListScreen() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[1180px] flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Billing connections" }]} />
 
         {canViewPlatformSurface ? (

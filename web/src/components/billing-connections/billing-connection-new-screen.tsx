@@ -12,7 +12,6 @@ import type { InputHTMLAttributes, SelectHTMLAttributes } from "react";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { ControlPlaneNav } from "@/components/layout/control-plane-nav";
 import { createBillingProviderConnection, refreshBillingProviderConnection } from "@/lib/api";
 import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -74,9 +73,8 @@ export function BillingConnectionNewScreen() {
   const busy = isSubmitting || createMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <main className="mx-auto flex max-w-[760px] flex-col gap-5 px-4 py-6 md:px-8">
-        <ControlPlaneNav />
+    <div className="text-slate-900">
+      <main className="mx-auto flex max-w-2xl flex-col gap-5 px-4 py-6 md:px-8">
         <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Billing connections" }, { label: "New" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
