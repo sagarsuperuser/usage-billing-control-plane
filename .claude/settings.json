@@ -74,7 +74,14 @@
       "Bash(sed -i '' 's/lago plan sync failed/plan sync failed/g' internal/api/http_error_translation_test.go)",
       "Bash(sed -i '' 's/lago subscription sync failed/subscription sync failed/g' internal/api/http_error_translation_test.go)",
       "Bash(grep \"failed$\\\\|›\")",
-      "Bash(grep \"FAIL\\\\|failed$\\\\|Error:\")"
+      "Bash(grep \"FAIL\\\\|failed$\\\\|Error:\")",
+      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/cmd/*/main.go)",
+      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/http_*.go)",
+      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)",
+      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/*_test.go)",
+      "Read(//Users/superuser/projects/golang/usage-billing-control-plane/**)",
+      "Bash(python3)",
+      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/store/postgres*.go)"
     ]
   }
 }
