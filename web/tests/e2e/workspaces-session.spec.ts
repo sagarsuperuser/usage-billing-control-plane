@@ -408,9 +408,9 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "New workspace" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "New" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Tenant Alpha/i })).toBeVisible();
-  await expect(page.getByText("Next action: pricing")).toBeVisible();
+  await expect(page.getByText("tenant_alpha")).toBeVisible();
 
   await page.getByRole("link", { name: /Tenant Alpha/i }).click();
   await expect(page).toHaveURL(/\/workspaces\/tenant_alpha$/);

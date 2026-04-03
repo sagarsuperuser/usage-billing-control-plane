@@ -329,54 +329,24 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{selectedTenant.name}</h1>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                    <span className="font-mono text-xs text-slate-500">{selectedTenant.id}</span>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessTone(selectedReadiness.status)}`}>
-                      {formatReadinessStatus(selectedReadiness.status)}
-                    </span>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                      {formatReadinessStatus(selectedTenant.status)}
-                    </span>
-                  </div>
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-sm font-semibold text-slate-900">{selectedTenant.name}</h1>
+                  <span className="font-mono text-xs text-slate-400">{selectedTenant.id}</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${readinessTone(selectedReadiness.status)}`}>
+                    {formatReadinessStatus(selectedReadiness.status)}
+                  </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Link
-                    href="/workspaces"
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to workspaces
-                  </Link>
-                  <Link
-                    href="/workspaces/new"
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-                  >
-                    <Building2 className="h-4 w-4" />
-                    New workspace
-                  </Link>
-                </div>
+                <Link
+                  href="/workspaces/new"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  New workspace
+                </Link>
               </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryStat label="Workspace" value={selectedReadiness.tenant.status} helper={selectedReadiness.tenant.tenant_active ? "Active and available" : "Needs activation"} />
-              <SummaryStat
-                label="Billing"
-                value={selectedReadiness.billing_integration.status}
-                helper={describeWorkspaceBillingHelper(selectedReadiness.billing_integration)}
-              />
-              <SummaryStat
-                label="First customer"
-                value={selectedReadiness.first_customer.status}
-                helper={selectedReadiness.first_customer.customer_exists ? "Customer exists" : "No customer yet"}
-              />
-              <SummaryStat label="Open actions" value={String(readinessMissingSteps.length)} helper="Remaining checklist items" />
-            </section>
+            </div>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
               <div className="min-w-0 grid gap-5">
@@ -909,16 +879,6 @@ function LoadingPanel({ label }: { label: string }) {
         {label}
       </div>
     </section>
-  );
-}
-
-function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{formatReadinessStatus(value)}</p>
-      <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
-    </div>
   );
 }
 
