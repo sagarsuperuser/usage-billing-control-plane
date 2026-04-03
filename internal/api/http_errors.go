@@ -63,6 +63,10 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusInternalServerError, "authorization failed")
 }
 
+// ---------------------------------------------------------------------------
+// Upstream (Stripe/billing provider) error translation
+// ---------------------------------------------------------------------------
+
 func translateUpstreamUserVisibleError(status int, fallback string, body []byte) (string, string) {
 	code := defaultErrorCodeForStatus(status)
 	if env, ok := decodeUpstreamErrorEnvelope(body); ok {
@@ -126,11 +130,8 @@ func translateStructuredUpstreamError(status int, fallback string, env upstreamE
 		}
 		return "An external billing provider rejected the request.", "provider_request_failed", true
 	case "validation_errors":
-		switch {
-		case status == http.StatusNotFound && strings.Contains(strings.ToLower(fallback), "invoice detail"):
-			return "Invoice could not be found.", "not_found", true
-		case status == http.StatusNotFound && strings.Contains(strings.ToLower(fallback), "credit notes"):
-			return "Invoice could not be found.", "not_found", true
+		if status == http.StatusNotFound {
+			return "The requested resource could not be found.", "not_found", true
 		}
 	}
 
@@ -142,149 +143,108 @@ func translateStructuredUpstreamError(status int, fallback string, env upstreamE
 	case http.StatusTooManyRequests:
 		return "Billing activity is temporarily rate limited.", "rate_limited", true
 	case http.StatusNotFound:
-		if strings.Contains(strings.ToLower(fallback), "invoice") {
-			return "Invoice could not be found.", "not_found", true
-		}
+		return "The requested resource could not be found.", "not_found", true
 	}
 
 	return "", "", false
 }
 
+// ---------------------------------------------------------------------------
+// Domain error → user-visible message translation (code-based, not string-based)
+// ---------------------------------------------------------------------------
+
+// translateUserVisibleError converts internal error messages into
+// user-friendly text. It first checks for a DomainError code, then
+// falls back to the raw message (no string matching).
 func translateUserVisibleError(status int, code, message string) (string, string) {
 	trimmed := strings.TrimSpace(message)
 	if trimmed == "" {
 		return trimmed, code
 	}
 
-	lower := strings.ToLower(trimmed)
-	switch {
-	case strings.Contains(lower, "billing setup incomplete"),
-		strings.Contains(lower, "workspace has no billing execution context"),
-		strings.Contains(lower, "workspace billing binding exists but is not ready"),
-		strings.Contains(lower, "billing setup is incomplete for this workspace"):
-		return "Billing setup is incomplete for this workspace or connection.", code
-	case strings.Contains(lower, "billing provider connection must be checked before workspace assignment"):
-		return "Check this Stripe connection before assigning it to a workspace.", code
-	case strings.Contains(lower, "meter sync adapter is required"),
-		strings.Contains(lower, "meter sync adapter is required"),
-		strings.Contains(lower, "tax sync adapter is required"),
-		strings.Contains(lower, "plan sync adapter is required"),
-		strings.Contains(lower, "subscription sync adapter is required"),
-		strings.Contains(lower, "usage sync adapter is required"):
-		return "Pricing updates are unavailable right now.", code
-	case strings.Contains(lower, "metric sync failed"),
-		strings.Contains(lower, "meter sync failed"),
-		strings.Contains(lower, "meter sync failed"),
-		strings.Contains(lower, "meter sync failed"):
-		return "Pricing metric changes could not be applied right now.", code
-	case strings.Contains(lower, "tax sync failed"):
-		return "Tax changes could not be applied right now.", code
-	case strings.Contains(lower, "plan sync failed"),
-		strings.Contains(lower, "add-on sync failed"),
-		strings.Contains(lower, "coupon sync failed"),
-		strings.Contains(lower, "fixed charge sync failed"),
-		strings.Contains(lower, "list fixed charges failed"),
-		strings.Contains(lower, "decode fixed charges response"),
-		strings.Contains(lower, "billable metric lookup failed"),
-		strings.Contains(lower, "decode billable metric response"):
-		return "Pricing changes could not be applied right now.", code
-	case strings.Contains(lower, "package pricing with overage is not yet supported"),
-		(strings.Contains(lower, "pricing mode") && strings.Contains(lower, "not supported")):
-		return "This pricing configuration is not supported yet.", code
-	case strings.Contains(lower, "subscription sync failed"),
-		strings.Contains(lower, "subscription terminate failed"),
-		strings.Contains(lower, "list applied coupons failed"),
-		strings.Contains(lower, "decode applied coupons response"),
-		strings.Contains(lower, "apply coupon failed"),
-		strings.Contains(lower, "delete applied coupon failed"):
-		return "Subscription changes could not be applied right now.", code
-	case strings.Contains(lower, "count aggregation requires quantity=1 for usage sync"),
-		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for usage sync")),
-		(strings.Contains(lower, "unsupported aggregation") && strings.Contains(lower, "for sync")):
-		return "This usage configuration is not supported yet.", code
-	case strings.Contains(lower, "usage sync failed"):
-		return "Usage could not be recorded right now.", code
-	case strings.Contains(lower, "failed to load payment receipts from billing provider"):
-		return "Payment receipts could not be loaded right now.", code
-	case strings.Contains(lower, "failed to load credit notes from billing provider"):
-		return "Credit notes could not be loaded right now.", code
-	case strings.Contains(lower, "payment retry failed"):
-		return "Payment retry could not be started right now.", code
-	case strings.Contains(lower, "failed to fetch invoice"):
-		return "Invoice details could not be loaded right now.", code
-	case strings.Contains(lower, "failed to compute invoice explainability"):
-		return "Invoice explainability is unavailable right now.", code
-	case strings.Contains(lower, "payment status service is required"):
-		return "Billing activity is unavailable right now.", code
-	case strings.Contains(lower, "invoice billing adapter is required"),
-		strings.Contains(lower, "invoice billing adapter is required"):
-		return "Billing actions are unavailable right now.", code
-	case strings.Contains(lower, "customer billing adapter is required"):
-		return "Customer billing is unavailable right now.", code
-	case strings.Contains(lower, "stripe_secret_key is required"),
-		strings.Contains(lower, "stripe_secret_key is required"),
-		strings.Contains(lower, "stripe secret key is required"):
-		return "Stripe credentials are required.", code
-	case strings.Contains(lower, "stripe verification request failed"):
-		return "Stripe could not be reached right now.", code
-	case strings.Contains(lower, "payment provider code is required"):
-		return "A billing provider must be configured before payment setup can begin.", code
-	case strings.Contains(lower, "unsupported payment provider code"):
-		return "The configured billing provider is not supported.", code
+	// Extract DomainError code from the message prefix if present.
+	// DomainError.Error() formats as "message: cause", but we match on
+	// the code that was set when the error was created.
+	// The code is passed through classifyDomainErrorCode → writeErrorCode.
+	// Here we use the HTTP-level code parameter which may already be set.
+	if translated, ok := translateByErrorCode(code); ok {
+		return translated, code
+	}
+
+	return trimmed, code
+}
+
+// translateByErrorCode maps machine-readable DomainError codes to
+// user-visible messages. This replaces the old string-matching approach.
+func translateByErrorCode(code string) (string, bool) {
+	switch code {
+	// Billing setup
+	case service.ErrCodeBillingSetupIncomplete:
+		return "Billing setup is incomplete for this workspace or connection.", true
+	case service.ErrCodeBillingCheckRequired:
+		return "Check this Stripe connection before assigning it to a workspace.", true
+	case service.ErrCodeBillingUnavailable:
+		return "Billing activity is unavailable right now.", true
+
+	// Pricing
+	case service.ErrCodeSyncAdapterRequired:
+		return "Pricing updates are unavailable right now.", true
+	case service.ErrCodeMeterSyncFailed:
+		return "Pricing metric changes could not be applied right now.", true
+	case service.ErrCodeTaxSyncFailed:
+		return "Tax changes could not be applied right now.", true
+	case service.ErrCodePlanSyncFailed:
+		return "Pricing changes could not be applied right now.", true
+	case service.ErrCodePricingUnsupported:
+		return "This pricing configuration is not supported yet.", true
+
+	// Subscriptions
+	case service.ErrCodeSubscriptionSyncFailed:
+		return "Subscription changes could not be applied right now.", true
+
+	// Usage
+	case service.ErrCodeUsageUnsupported:
+		return "This usage configuration is not supported yet.", true
+	case service.ErrCodeUsageSyncFailed:
+		return "Usage could not be recorded right now.", true
+
+	// Invoice/Payment
+	case service.ErrCodeInvoiceFetchFailed:
+		return "Invoice details could not be loaded right now.", true
+	case service.ErrCodeExplainabilityFailed:
+		return "Invoice explainability is unavailable right now.", true
+	case service.ErrCodePaymentRetryFailed:
+		return "Payment retry could not be started right now.", true
+	case service.ErrCodePaymentReceiptsLoadFailed:
+		return "Payment receipts could not be loaded right now.", true
+	case service.ErrCodeCreditNotesLoadFailed:
+		return "Credit notes could not be loaded right now.", true
+
+	// Customer/Stripe
+	case service.ErrCodeStripeCredentialsRequired:
+		return "Stripe credentials are required.", true
+	case service.ErrCodeStripeVerificationFailed:
+		return "Stripe could not be reached right now.", true
+	case service.ErrCodePaymentProviderRequired:
+		return "A billing provider must be configured before payment setup can begin.", true
+	case service.ErrCodePaymentProviderUnsupported:
+		return "The configured billing provider is not supported.", true
+
+	// Adapter
+	case service.ErrCodeAdapterNotConfigured:
+		return "Billing actions are unavailable right now.", true
+
 	default:
-		return trimmed, code
+		return "", false
 	}
 }
 
-func coalesceErrorCode(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
+// ---------------------------------------------------------------------------
+// Domain error → HTTP status + code classification
+// ---------------------------------------------------------------------------
 
-func stringMapValue(values map[string]any, key string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	raw, ok := values[key]
-	if !ok || raw == nil {
-		return ""
-	}
-	switch typed := raw.(type) {
-	case string:
-		return typed
-	case fmt.Stringer:
-		return typed.String()
-	default:
-		return fmt.Sprint(raw)
-	}
-}
-
-func intMapValue(values map[string]any, key string) int {
-	if len(values) == 0 {
-		return 0
-	}
-	raw, ok := values[key]
-	if !ok || raw == nil {
-		return 0
-	}
-	switch typed := raw.(type) {
-	case int:
-		return typed
-	case int32:
-		return int(typed)
-	case int64:
-		return int(typed)
-	case float64:
-		return int(typed)
-	default:
-		return 0
-	}
-}
-
+// classifyDomainErrorStatus maps domain/store errors to HTTP status codes.
+// Uses sentinel errors only — no string matching.
 func classifyDomainErrorStatus(err error) int {
 	switch {
 	case err == nil:
@@ -293,6 +253,8 @@ func classifyDomainErrorStatus(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, store.ErrAlreadyExists), errors.Is(err, store.ErrDuplicateKey):
 		return http.StatusConflict
+	case errors.Is(err, store.ErrInvalidState):
+		return http.StatusBadRequest
 	case errors.Is(err, service.ErrValidation):
 		return http.StatusBadRequest
 	case errors.Is(err, service.ErrDependency):
@@ -305,20 +267,34 @@ func classifyDomainErrorStatus(err error) int {
 		return http.StatusForbidden
 	case errors.Is(err, service.ErrBrowserTenantSelection):
 		return http.StatusConflict
-	}
-
-	lower := strings.ToLower(err.Error())
-	switch {
-	case strings.Contains(lower, "not found"):
-		return http.StatusNotFound
-	case strings.Contains(lower, "validation"), strings.Contains(lower, "required"), strings.Contains(lower, "invalid"):
-		return http.StatusBadRequest
+	case errors.Is(err, service.ErrInvalidBrowserCredentials):
+		return http.StatusUnauthorized
+	case errors.Is(err, service.ErrBrowserUserDisabled):
+		return http.StatusForbidden
+	case errors.Is(err, service.ErrPasswordResetTokenExpired), errors.Is(err, service.ErrPasswordResetTokenUsed):
+		return http.StatusGone
+	case errors.Is(err, service.ErrWorkspaceInvitationExpired), errors.Is(err, service.ErrWorkspaceInvitationRevoked):
+		return http.StatusGone
+	case errors.Is(err, service.ErrWorkspaceInvitationAccepted):
+		return http.StatusConflict
+	case errors.Is(err, service.ErrWorkspaceInvitationEmailMismatch), errors.Is(err, service.ErrBrowserSSOInviteEmailMismatch):
+		return http.StatusForbidden
 	default:
+		// No string matching fallback. Unrecognized errors are 500.
 		return http.StatusInternalServerError
 	}
 }
 
+// classifyDomainErrorCode returns a machine-readable error code.
+// If the error carries a DomainError code, use that. Otherwise
+// derive from the sentinel error type.
 func classifyDomainErrorCode(err error) string {
+	// Check for DomainError code first (structured errors).
+	if code := service.DomainErrorCode(err); code != "" {
+		return code
+	}
+
+	// Fall back to sentinel-based classification.
 	switch {
 	case err == nil:
 		return "internal_error"
@@ -392,5 +368,58 @@ func classifyDomainErrorKind(err error) string {
 		return "conflict"
 	default:
 		return "internal"
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+func coalesceErrorCode(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func stringMapValue(values map[string]any, key string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	raw, ok := values[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	switch typed := raw.(type) {
+	case string:
+		return typed
+	case fmt.Stringer:
+		return typed.String()
+	default:
+		return fmt.Sprint(raw)
+	}
+}
+
+func intMapValue(values map[string]any, key string) int {
+	if len(values) == 0 {
+		return 0
+	}
+	raw, ok := values[key]
+	if !ok || raw == nil {
+		return 0
+	}
+	switch typed := raw.(type) {
+	case int:
+		return typed
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
 	}
 }

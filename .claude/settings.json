@@ -82,7 +82,10 @@
       "Read(//Users/superuser/projects/golang/usage-billing-control-plane/**)",
       "Bash(python3)",
       "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/store/postgres*.go)",
-      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/http*.go)"
+      "Bash(wc -l /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/http*.go)",
+      "Bash(grep -rn \"Err[A-Z].*= \" /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go /Users/superuser/projects/golang/usage-billing-control-plane/internal/store/store.go)",
+      "Bash(grep -rn 'fmt.Errorf.*%w.*ErrValidation\\\\|fmt.Errorf.*%w.*ErrDependency\\\\|fmt.Errorf.*%w.*ErrNotFound' /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)",
+      "Bash(grep -rn 'return.*fmt.Errorf\\(' /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)"
     ]
   }
 }

@@ -1,8 +1,11 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
+
+	"usage-billing-control-plane/internal/service"
 )
 
 func TestTranslateUserVisibleError(t *testing.T) {
@@ -16,65 +19,72 @@ func TestTranslateUserVisibleError(t *testing.T) {
 		{
 			name:        "billing setup incomplete",
 			status:      400,
-			code:        "validation_error",
+			code:        service.ErrCodeBillingSetupIncomplete,
 			message:     "validation error: billing setup incomplete",
 			wantMessage: "Billing setup is incomplete for this workspace or connection.",
 		},
 		{
-			name:        "payment retry proxy",
+			name:        "payment retry failed",
 			status:      502,
-			code:        "bad_gateway",
+			code:        service.ErrCodePaymentRetryFailed,
 			message:     "payment retry failed: boom",
 			wantMessage: "Payment retry could not be started right now.",
 		},
 		{
-			name:        "billing activity unavailable",
+			name:        "billing unavailable",
 			status:      503,
-			code:        "service_unavailable",
+			code:        service.ErrCodeBillingUnavailable,
 			message:     "payment status service is required",
 			wantMessage: "Billing activity is unavailable right now.",
 		},
 		{
 			name:        "stripe credentials required",
 			status:      400,
-			code:        "validation_error",
+			code:        service.ErrCodeStripeCredentialsRequired,
 			message:     "validation error: stripe_secret_key is required",
 			wantMessage: "Stripe credentials are required.",
 		},
 		{
 			name:        "unsupported provider code",
 			status:      400,
-			code:        "validation_error",
-			message:     "validation error: unsupported payment provider code \"foo\"",
+			code:        service.ErrCodePaymentProviderUnsupported,
+			message:     "validation error: unsupported payment provider code",
 			wantMessage: "The configured billing provider is not supported.",
 		},
 		{
 			name:        "pricing sync failure",
 			status:      502,
-			code:        "dependency_error",
-			message:     "plan sync failed (create_status=500 create_body=boom update_status=500 update_body=boom)",
+			code:        service.ErrCodePlanSyncFailed,
+			message:     "plan sync failed",
 			wantMessage: "Pricing changes could not be applied right now.",
 		},
 		{
 			name:        "subscription sync failure",
 			status:      502,
-			code:        "dependency_error",
-			message:     "subscription sync failed (create_status=500 create_body=boom update_status=500 update_body=boom)",
+			code:        service.ErrCodeSubscriptionSyncFailed,
+			message:     "subscription sync failed",
 			wantMessage: "Subscription changes could not be applied right now.",
 		},
 		{
 			name:        "unsupported pricing configuration",
 			status:      502,
-			code:        "dependency_error",
-			message:     "pricing mode \"graduated\" is not supported",
+			code:        service.ErrCodePricingUnsupported,
+			message:     "pricing mode not supported",
 			wantMessage: "This pricing configuration is not supported yet.",
 		},
 		{
-			name:        "usage sync unsupported aggregation",
+			name:        "usage unsupported aggregation",
 			status:      502,
-			code:        "dependency_error",
-			message:     "unsupported aggregation \"avg\" for usage sync",
+			code:        service.ErrCodeUsageUnsupported,
+			message:     "unsupported aggregation for usage sync",
 			wantMessage: "This usage configuration is not supported yet.",
+		},
+		{
+			name:        "unknown code passes through raw message",
+			status:      500,
+			code:        "internal_error",
+			message:     "database connection pool exhausted",
+			wantMessage: "database connection pool exhausted",
 		},
 	}
 
@@ -98,39 +108,28 @@ func TestTranslateUpstreamUserVisibleError(t *testing.T) {
 		wantCode    string
 	}{
 		{
-			name:     "stripe auth failure from provider error",
-			status:   http.StatusUnprocessableEntity,
-			fallback: "Connection could not be refreshed right now.",
-			body: `{
-				"status":422,
-				"error":"Unprocessable Entity",
-				"code":"provider_error",
-				"provider":{"code":"stripe"},
-				"error_details":{"message":"Invalid API Key provided","http_status":401}
-			}`,
+			name:        "stripe auth failure",
+			status:      http.StatusUnauthorized,
+			fallback:    "billing check failed",
+			body:        `{"error":"Unauthorized","code":"provider_error","provider":{"code":"stripe"},"error_details":{"message":"Invalid API key","http_status":401}}`,
 			wantMessage: "Stripe credentials could not be verified.",
 			wantCode:    "stripe_authentication_failed",
 		},
 		{
-			name:     "provider throttling",
-			status:   http.StatusTooManyRequests,
-			fallback: "Connection could not be refreshed right now.",
-			body: `{
-				"status":429,
-				"error":"Too Many Provider Requests",
-				"code":"too_many_provider_requests",
-				"error_details":{"provider_name":"stripe","message":"too many requests"}
-			}`,
+			name:        "stripe rate limit",
+			status:      http.StatusTooManyRequests,
+			fallback:    "too many requests",
+			body:        `{"error":"too many requests","code":"too_many_provider_requests","provider":{"code":"stripe"}}`,
 			wantMessage: "Stripe is rate limiting requests right now.",
 			wantCode:    "stripe_rate_limited",
 		},
 		{
-			name:        "invoice not found",
-			status:      http.StatusNotFound,
-			fallback:    "Invoice details could not be loaded right now.",
-			body:        `{"status":404,"error":"Not Found","code":"invoice_not_found"}`,
-			wantMessage: "Invoice could not be found.",
-			wantCode:    "not_found",
+			name:        "generic 502 with no body",
+			status:      http.StatusBadGateway,
+			fallback:    "upstream failed",
+			body:        "",
+			wantMessage: "upstream failed",
+			wantCode:    "bad_gateway",
 		},
 	}
 
@@ -142,6 +141,42 @@ func TestTranslateUpstreamUserVisibleError(t *testing.T) {
 			}
 			if gotCode != tt.wantCode {
 				t.Fatalf("translateUpstreamUserVisibleError() code = %q, want %q", gotCode, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestClassifyDomainErrorStatus_NoStringMatchFallback(t *testing.T) {
+	// Errors without sentinel wrapping should return 500, not be classified
+	// by string matching on their message content.
+	tests := []struct {
+		name       string
+		message    string
+		wantStatus int
+	}{
+		{
+			name:       "message containing 'required' is NOT auto-classified as 400",
+			message:    "database connection required",
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "message containing 'not found' is NOT auto-classified as 404",
+			message:    "config file not found on disk",
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "message containing 'invalid' is NOT auto-classified as 400",
+			message:    "invalid TLS certificate in pool",
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := fmt.Errorf("%s", tt.message)
+			got := classifyDomainErrorStatus(err)
+			if got != tt.wantStatus {
+				t.Fatalf("classifyDomainErrorStatus(%q) = %d, want %d", tt.message, got, tt.wantStatus)
 			}
 		})
 	}
