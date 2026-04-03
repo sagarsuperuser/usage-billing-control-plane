@@ -155,6 +155,10 @@ jobs:
               tag: "${WEB_SHA}"
           EOF
 
+      - name: Clean stale Helm hooks
+        run: |
+          kubectl delete job -n lago-alpha -l app.kubernetes.io/component=migrate --ignore-not-found=true 2>/dev/null || true
+
       - name: Helm upgrade
         run: |
           helm upgrade lago-alpha deploy/helm/lago-alpha \
