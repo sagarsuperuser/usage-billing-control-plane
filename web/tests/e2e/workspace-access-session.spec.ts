@@ -277,8 +277,8 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await expect(page.getByTestId("service-account-detail").getByText("ERP export worker")).toBeVisible();
   await expect(page.getByText(/last used/i).first()).toBeVisible();
 
-  // Audit button on SA row switches to audit tab and pre-selects that SA
-  await page.getByTestId("inspect-service-account-svc_erp").locator("..").getByRole("button", { name: "Audit" }).click();
+  // Navigate to the Audit log tab directly
+  await page.getByRole("tab", { name: "Audit log" }).click();
   await page.getByLabel("Audit service account").selectOption("svc_erp");
   await expect(page.getByText("Credential rotated")).toBeVisible();
   await page.getByRole("button", { name: /View service account audit details for Credential rotated/i }).click();
