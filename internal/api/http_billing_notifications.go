@@ -6,9 +6,24 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"usage-billing-control-plane/internal/service"
 )
+
+type billingNotificationDispatchResponse struct {
+	DispatchedAt time.Time `json:"dispatched_at"`
+	Dispatched   bool      `json:"dispatched"`
+	Action       string    `json:"action"`
+	Domain       string    `json:"domain"`
+	Backend      string    `json:"backend"`
+}
+
+type resendInvoiceEmailRequest struct {
+	To  []string `json:"to"`
+	Cc  []string `json:"cc"`
+	Bcc []string `json:"bcc"`
+}
 
 func (s *Server) handleInvoiceResendEmail(w http.ResponseWriter, r *http.Request, invoiceID string) {
 	if s.notificationService == nil || !s.notificationService.CanResendInvoiceEmail() {
