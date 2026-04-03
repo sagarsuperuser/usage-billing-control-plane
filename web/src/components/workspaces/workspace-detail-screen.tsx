@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,10 +25,12 @@ import {
   updateWorkspaceMember,
   updateTenantWorkspaceBilling,
   updateTenantWorkspaceBillingSettings,
+  selectPendingWorkspace,
 } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeTenantMissingStep, describeTenantSectionStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import type { WorkspaceBillingSettings } from "@/lib/types";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function readinessTone(status?: string): string {
@@ -87,10 +90,22 @@ function formatWorkspaceBillingDiagnosisCode(code?: string): string {
 }
 
 export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isPlatformAdmin, scope, session } = useUISession();
   const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [selectedConnectionID, setSelectedConnectionID] = useState("");
+
+  const enterWorkspaceMutation = useMutation({
+    mutationFn: () => selectPendingWorkspace({ runtimeBaseURL: apiBaseURL, csrfToken, tenantID }),
+    onSuccess: () => {
+      queryClient.clear();
+      router.push("/customers");
+    },
+    onError: (err: Error) => {
+      showError("Could not enter workspace", err.message);
+    },
+  });
   const [latestInviteURL, setLatestInviteURL] = useState("");
   const { register: registerInvite, handleSubmit: handleInviteSubmit, reset: resetInvite } = useForm({
     resolver: zodResolver(z.object({ email: z.string().email(), role: z.enum(["reader", "writer", "admin"]) })),
@@ -338,13 +353,23 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
                     {formatReadinessStatus(selectedReadiness.status)}
                   </span>
                 </div>
-                <Link
-                  href="/workspaces/new"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
-                >
-                  <Building2 className="h-3.5 w-3.5" />
-                  New workspace
-                </Link>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => enterWorkspaceMutation.mutate()}
+                    disabled={!csrfToken || enterWorkspaceMutation.isPending || selectedTenant.status !== "active"}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Enter workspace
+                  </button>
+                  <Link
+                    href="/workspaces/new"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 px-3 text-xs font-medium text-slate-600 transition hover:bg-stone-50"
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    New
+                  </Link>
+                </div>
               </div>
             </div>
 

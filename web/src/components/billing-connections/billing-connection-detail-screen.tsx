@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
   disableBillingProviderConnection,
@@ -277,10 +278,14 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
                           Edit
                         </button>
                       )}
-                      <button type="button" onClick={() => disableMutation.mutate()} disabled={!csrfToken || anyPending || connection.status === "disabled"} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40">
-                        {disableMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
-                        Disable
-                      </button>
+                      <ConfirmDialog title="Disable this connection?" description="This connection will stop processing payments for linked workspaces." confirmLabel="Disable connection" onConfirm={async () => { await disableMutation.mutateAsync(); }}>
+                        {(open) => (
+                          <button type="button" onClick={open} disabled={!csrfToken || anyPending || connection.status === "disabled"} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40">
+                            <ShieldOff className="h-3.5 w-3.5" />
+                            Disable
+                          </button>
+                        )}
+                      </ConfirmDialog>
                     </div>
                   </div>
                   <p className="mt-1.5 text-xs text-slate-500">
