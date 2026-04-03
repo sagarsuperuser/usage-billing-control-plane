@@ -35,9 +35,6 @@ jobs:
               - 'internal/**'
               - 'cmd/**'
               - 'migrations/**'
-              - 'config/lago-baseline.env'
-              - 'fixtures/lago-ci/**'
-              - 'scripts/bootstrap_lago.sh'
               - 'scripts/test_integration.sh'
               - 'scripts/test_real_env_smoke.sh'
               - 'docker-compose*.yml'
@@ -51,11 +48,9 @@ jobs:
               - 'internal/dunningflow/**'
               - 'internal/paymentsync/**'
               - 'internal/billingcheck/**'
+              - 'internal/billingcycle/**'
               - 'cmd/**'
               - 'migrations/**'
-              - 'config/lago-baseline.env'
-              - 'fixtures/lago-ci/**'
-              - 'scripts/bootstrap_lago.sh'
               - 'scripts/test_integration.sh'
               - 'docker-compose*.yml'
               - 'go.mod'
@@ -110,35 +105,15 @@ jobs:
     timeout-minutes: 35
     permissions:
       contents: read
-      id-token: write
     env:
       COMPOSE_FILE: docker-compose.postgres.yml
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
       TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
       TEST_TEMPORAL_NAMESPACE: default
-      TEST_LAGO_API_KEY: lago_alpha_test_api_key
-      BOOTSTRAP_LAGO_FOR_TESTS: 1
-      CLEANUP_LAGO_ON_EXIT: 1
       CLEANUP_ON_EXIT: 1
-      LAGO_COMPOSE_FILE: fixtures/lago-ci/docker-compose.yml
     steps:
-      - name: Checkout alpha repo
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Load Lago baseline
-        id: lago_baseline
-        run: |
-          source config/lago-baseline.env
-          echo "lago_backend_image=$LAGO_STAGING_BACKEND_IMAGE_OVERRIDE" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials for Lago image pull
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -158,8 +133,6 @@ jobs:
         run: ./scripts/verify_codeowners.sh
 
       - name: Run composed integration smoke suite
-        env:
-          LAGO_BACKEND_IMAGE_OVERRIDE: ${{ steps.lago_baseline.outputs.lago_backend_image }}
         run: make test-real-env-smoke
 
   integration-full:
@@ -172,39 +145,19 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      id-token: write
     env:
       COMPOSE_FILE: docker-compose.postgres.yml
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
       TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
       TEST_TEMPORAL_NAMESPACE: default
-      TEST_LAGO_API_KEY: lago_alpha_test_api_key
       RUN_LARGE_REPLAY_DATASET: 1
       LARGE_REPLAY_EVENT_COUNT: 2000
       LARGE_REPLAY_MAX_MISMATCH_ROWS: 0
       LARGE_REPLAY_MAX_TOTAL_ABS_DELTA_CENTS: 0
-      BOOTSTRAP_LAGO_FOR_TESTS: 1
-      CLEANUP_LAGO_ON_EXIT: 1
       CLEANUP_ON_EXIT: 1
-      LAGO_COMPOSE_FILE: fixtures/lago-ci/docker-compose.yml
     steps:
-      - name: Checkout alpha repo
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Load Lago baseline
-        id: lago_baseline
-        run: |
-          source config/lago-baseline.env
-          echo "lago_backend_image=$LAGO_STAGING_BACKEND_IMAGE_OVERRIDE" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials for Lago image pull
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -224,6 +177,4 @@ jobs:
         run: ./scripts/verify_codeowners.sh
 
       - name: Run full composed integration suite
-        env:
-          LAGO_BACKEND_IMAGE_OVERRIDE: ${{ steps.lago_baseline.outputs.lago_backend_image }}
         run: make test-integration
