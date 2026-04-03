@@ -31,7 +31,8 @@
       "Bash(sed -i '' 's/name: \"Billing Connections\"/name: \"Connections\"/g' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)",
       "Bash(git commit -m ':*)",
       "Bash(gh run:*)",
-      "Bash(chmod +x /Users/superuser/projects/golang/usage-billing-control-plane/scripts/test_integration.sh)"
+      "Bash(chmod +x /Users/superuser/projects/golang/usage-billing-control-plane/scripts/test_integration.sh)",
+      "Bash(xargs -I {} gh run view {} --log-failed)"
     ]
   }
 }

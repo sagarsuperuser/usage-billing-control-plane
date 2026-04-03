@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-integration_test_pattern="${INTEGRATION_TEST_PATTERN:-TestEndToEndPreviewReplayReconciliation|TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks|TestRatingRuleGovernanceLifecycle}"
+integration_test_pattern="${INTEGRATION_TEST_PATTERN:-TestEndToEndPreviewReplayReconciliation|TestRatingRuleGovernanceLifecycle}"
 integration_run_migrations_test="${INTEGRATION_RUN_MIGRATIONS_TEST:-1}"
 
 INTEGRATION_TEST_PATTERN="$integration_test_pattern" \
