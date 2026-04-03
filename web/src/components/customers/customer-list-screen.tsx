@@ -8,6 +8,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
 import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
@@ -36,6 +37,7 @@ export function CustomerListScreen() {
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, statusFilter],
@@ -49,6 +51,9 @@ export function CustomerListScreen() {
     if (!term) return customers;
     return customers.filter((customer) => customer.external_id.toLowerCase().includes(term) || customer.display_name.toLowerCase().includes(term));
   }, [search, customersQuery.data]);
+
+  const PAGE_SIZE = 20;
+  const paginatedCustomers = useMemo(() => filteredCustomers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredCustomers, page]);
 
   const readinessQueries = useQueries({
     queries: filteredCustomers.map((customer) => ({
@@ -104,13 +109,13 @@ export function CustomerListScreen() {
               <div className="flex items-center gap-2">
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                   placeholder="Search..."
                   className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
                   className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All statuses</option>
@@ -129,6 +134,7 @@ export function CustomerListScreen() {
             ) : filteredCustomers.length === 0 ? (
               <EmptyState />
             ) : (
+              <>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
@@ -139,7 +145,7 @@ export function CustomerListScreen() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {filteredCustomers.map((customer) => {
+                  {paginatedCustomers.map((customer) => {
                     const readiness = readinessByCustomer.get(customer.external_id);
                     const diagnosis = readiness ? diagnoseCustomerCollection(readiness) : null;
                     return (
@@ -170,6 +176,8 @@ export function CustomerListScreen() {
                   })}
                 </tbody>
               </table>
+              <Pagination page={page} pageSize={PAGE_SIZE} total={filteredCustomers.length} onPageChange={setPage} />
+              </>
             )}
           </div>
         ) : null}

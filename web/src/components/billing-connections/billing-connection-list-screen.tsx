@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchBillingProviderConnections } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
@@ -34,6 +35,7 @@ export function BillingConnectionListScreen() {
   const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const connectionsQuery = useQuery({
     queryKey: ["billing-provider-connections", apiBaseURL, statusFilter],
@@ -56,6 +58,9 @@ export function BillingConnectionListScreen() {
         .some((value) => value?.toLowerCase().includes(term))
     );
   }, [connectionsQuery.data, search]);
+
+  const PAGE_SIZE = 20;
+  const paginatedConnections = useMemo(() => filteredConnections.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredConnections, page]);
 
   const summary = useMemo(
     () => ({
@@ -122,13 +127,13 @@ export function BillingConnectionListScreen() {
               <div className="flex gap-2">
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                   placeholder="Search by name, provider, or environment"
                   className="h-8 min-w-[260px] rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
                   className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All statuses</option>
@@ -146,9 +151,10 @@ export function BillingConnectionListScreen() {
               ) : filteredConnections.length === 0 ? (
                 <EmptyState />
               ) : (
-                filteredConnections.map((connection) => <ConnectionRow key={connection.id} connection={connection} />)
+                paginatedConnections.map((connection) => <ConnectionRow key={connection.id} connection={connection} />)
               )}
             </div>
+            <Pagination page={page} pageSize={PAGE_SIZE} total={filteredConnections.length} onPageChange={setPage} />
           </div>
         ) : null}
       </main>

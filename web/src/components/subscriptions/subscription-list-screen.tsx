@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchSubscriptions } from "@/lib/api";
 import { type SubscriptionSummary } from "@/lib/types";
@@ -45,6 +46,7 @@ export function SubscriptionListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const subscriptionsQuery = useQuery({
     queryKey: ["subscriptions", apiBaseURL],
@@ -60,6 +62,9 @@ export function SubscriptionListScreen() {
       [item.display_name, item.code, item.customer_display_name, item.customer_external_id, item.plan_name, item.plan_code].some((value) => value.toLowerCase().includes(term)),
     );
   }, [subscriptionsQuery.data, search]);
+
+  const PAGE_SIZE = 20;
+  const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
   return (
     <div className="text-slate-900">
@@ -83,7 +88,7 @@ export function SubscriptionListScreen() {
               <div className="flex items-center gap-2">
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                   placeholder="Search..."
                   className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
@@ -98,6 +103,7 @@ export function SubscriptionListScreen() {
             ) : filtered.length === 0 ? (
               <EmptyState />
             ) : (
+              <>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
@@ -109,7 +115,7 @@ export function SubscriptionListScreen() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {filtered.map((item) => (
+                  {paginated.map((item) => (
                     <tr key={item.id} className="transition hover:bg-stone-50">
                       <td className="px-5 py-3">
                         <Link href={`/subscriptions/${encodeURIComponent(item.id)}`} className="block">
@@ -131,6 +137,8 @@ export function SubscriptionListScreen() {
                   ))}
                 </tbody>
               </table>
+              <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
+              </>
             )}
           </div>
         ) : null}

@@ -8,6 +8,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTenantOnboardingStatus, fetchTenants } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
@@ -80,6 +81,7 @@ export function WorkspaceListScreen() {
   const canViewPlatformSurface = isAuthenticated && scope === "platform" && isPlatformAdmin;
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const tenantsQuery = useQuery({
     queryKey: ["tenants", apiBaseURL, statusFilter],
@@ -93,6 +95,9 @@ export function WorkspaceListScreen() {
     if (!term) return tenants;
     return tenants.filter((tenant) => tenant.id.toLowerCase().includes(term) || tenant.name.toLowerCase().includes(term));
   }, [search, tenantsQuery.data]);
+
+  const PAGE_SIZE = 20;
+  const paginatedTenants = useMemo(() => filteredTenants.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredTenants, page]);
 
   const readinessQueries = useQueries({
     queries: filteredTenants.map((tenant) => ({
@@ -132,13 +137,13 @@ export function WorkspaceListScreen() {
               <div className="flex items-center gap-2">
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                   placeholder="Search..."
                   className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
                   className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All statuses</option>
@@ -157,6 +162,7 @@ export function WorkspaceListScreen() {
             ) : filteredTenants.length === 0 ? (
               <EmptyState />
             ) : (
+              <>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
@@ -168,7 +174,7 @@ export function WorkspaceListScreen() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {filteredTenants.map((tenant) => {
+                  {paginatedTenants.map((tenant) => {
                     const readiness = readinessByTenant.get(tenant.id);
                     return (
                       <tr key={tenant.id} className="transition hover:bg-stone-50">
@@ -195,6 +201,8 @@ export function WorkspaceListScreen() {
                   })}
                 </tbody>
               </table>
+              <Pagination page={page} pageSize={PAGE_SIZE} total={filteredTenants.length} onPageChange={setPage} />
+              </>
             )}
           </div>
         ) : null}

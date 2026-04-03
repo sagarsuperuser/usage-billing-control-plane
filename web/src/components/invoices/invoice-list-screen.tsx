@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
 import { fetchInvoices } from "@/lib/api";
 import { billingFailureDiagnosis } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
@@ -69,6 +70,7 @@ export function InvoiceListScreen() {
   const [paymentOverdue, setPaymentOverdue] = useState<"all" | "true" | "false">("all");
   const [sortBy, setSortBy] = useState<InvoiceStatusFilters["sort_by"]>("last_event_at");
   const [order, setOrder] = useState<InvoiceStatusFilters["order"]>("desc");
+  const [page, setPage] = useState(1);
 
   const filters = useMemo<InvoiceStatusFilters>(
     () => ({
@@ -92,6 +94,9 @@ export function InvoiceListScreen() {
 
   const items = useMemo(() => invoicesQuery.data?.items ?? [], [invoicesQuery.data?.items]);
 
+  const PAGE_SIZE = 20;
+  const paginatedItems = useMemo(() => items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [items, page]);
+
   return (
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
@@ -114,13 +119,13 @@ export function InvoiceListScreen() {
               <div className="flex items-center gap-2">
                 <input
                   value={customerExternalID}
-                  onChange={(event) => setCustomerExternalID(event.target.value)}
+                  onChange={(event) => { setCustomerExternalID(event.target.value); setPage(1); }}
                   placeholder="Customer ID..."
                   className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
                 <select
                   value={invoiceStatus}
-                  onChange={(event) => setInvoiceStatus(event.target.value)}
+                  onChange={(event) => { setInvoiceStatus(event.target.value); setPage(1); }}
                   className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All invoice statuses</option>
@@ -131,7 +136,7 @@ export function InvoiceListScreen() {
                 </select>
                 <select
                   value={paymentStatus}
-                  onChange={(event) => setPaymentStatus(event.target.value)}
+                  onChange={(event) => { setPaymentStatus(event.target.value); setPage(1); }}
                   className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All payment statuses</option>
@@ -143,7 +148,7 @@ export function InvoiceListScreen() {
                 </select>
                 <select
                   value={paymentOverdue}
-                  onChange={(event) => setPaymentOverdue(event.target.value as "all" | "true" | "false")}
+                  onChange={(event) => { setPaymentOverdue(event.target.value as "all" | "true" | "false"); setPage(1); }}
                   className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="all">All due states</option>
@@ -175,6 +180,7 @@ export function InvoiceListScreen() {
             ) : items.length === 0 ? (
               <EmptyState />
             ) : (
+              <>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
@@ -187,7 +193,7 @@ export function InvoiceListScreen() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {items.map((item) => {
+                  {paginatedItems.map((item) => {
                     const diagnosis = billingFailureDiagnosis(item);
                     return (
                       <tr key={item.invoice_id} className="transition hover:bg-stone-50">
@@ -214,6 +220,8 @@ export function InvoiceListScreen() {
                   })}
                 </tbody>
               </table>
+              <Pagination page={page} pageSize={PAGE_SIZE} total={items.length} onPageChange={setPage} />
+              </>
             )}
           </div>
         ) : null}
