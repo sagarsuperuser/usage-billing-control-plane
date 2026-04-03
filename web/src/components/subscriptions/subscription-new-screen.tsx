@@ -101,14 +101,6 @@ export function SubscriptionNewScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: "New" }]} />
 
-        {isTenantSession ? (
-          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
-            <h1 className="mt-2 text-lg font-semibold text-slate-950">Create subscription</h1>
-            <p className="mt-3 max-w-3xl text-sm text-slate-600">Choose the customer and plan, then decide whether Alpha should start hosted payment setup immediately.</p>
-          </section>
-        ) : null}
-
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
           <ScopeNotice title="Workspace session required" body="Subscriptions are workspace-scoped. Sign in with a workspace account to create them." actionHref="/billing-connections" actionLabel="Open platform home" />
@@ -141,84 +133,64 @@ export function SubscriptionNewScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <form
-              className="rounded-lg border border-stone-200 bg-white shadow-sm p-5"
-              onSubmit={onSubmit}
-              noValidate
-            >
-              <div className="grid gap-5">
-                
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Commercial record</p>
-                  <h2 className="mt-2 text-lg font-semibold text-slate-950">Customer and plan selection</h2>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Field label="Subscription name" hint="Optional. Alpha can generate a default.">
-                      <input data-testid="subscription-name" placeholder="Acme Growth" className={inputClass} {...register("display_name")} />
-                    </Field>
-                    <Field label="Code" hint="Optional stable internal reference.">
-                      <input data-testid="subscription-code" placeholder="acme_growth" className={inputClass} {...register("code")} />
-                    </Field>
-                    <Field label="Customer" hint="The account that is subscribing." error={errors.customer_external_id?.message}>
-                      <select data-testid="subscription-customer" className={errors.customer_external_id ? inputErrorClass : inputClass} {...register("customer_external_id")}>
-                        <option value="">Select customer</option>
-                        {customers.map((customer) => (
-                          <option key={customer.id} value={customer.external_id}>{customer.display_name} ({customer.external_id})</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Plan" hint="The commercial package this customer is signing up for." error={errors.plan_id?.message}>
-                      <select data-testid="subscription-plan" className={errors.plan_id ? inputErrorClass : inputClass} {...register("plan_id")}>
-                        <option value="">Select plan</option>
-                        {plans.map((plan) => (
-                          <option key={plan.id} value={plan.id}>{plan.name} ({plan.code})</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                </section>
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
+              <div>
+                <h1 className="text-base font-semibold text-slate-900">Create subscription</h1>
+                <p className="mt-0.5 text-xs text-slate-500">Choose the customer and plan, then decide whether to start hosted payment setup.</p>
+              </div>
+              <Link href="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+            </div>
+            <form onSubmit={onSubmit} noValidate>
+              <div className="grid gap-4 p-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Subscription name" hint="Optional. Alpha can generate a default.">
+                    <input data-testid="subscription-name" placeholder="Acme Growth" className={inputClass} {...register("display_name")} />
+                  </Field>
+                  <Field label="Code" hint="Optional stable internal reference.">
+                    <input data-testid="subscription-code" placeholder="acme_growth" className={inputClass} {...register("code")} />
+                  </Field>
+                  <Field label="Customer" hint="The account that is subscribing." error={errors.customer_external_id?.message}>
+                    <select data-testid="subscription-customer" className={errors.customer_external_id ? inputErrorClass : inputClass} {...register("customer_external_id")}>
+                      <option value="">Select customer</option>
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.external_id}>{customer.display_name} ({customer.external_id})</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Plan" hint="The commercial package this customer is signing up for." error={errors.plan_id?.message}>
+                    <select data-testid="subscription-plan" className={errors.plan_id ? inputErrorClass : inputClass} {...register("plan_id")}>
+                      <option value="">Select plan</option>
+                      {plans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>{plan.name} ({plan.code})</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
 
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Payment setup</p>
-                  <h2 className="mt-2 text-lg font-semibold text-slate-950">Collect payment from the customer</h2>
-                  <label className="flex items-start gap-3 text-sm text-slate-700">
-                    <input data-testid="subscription-request-payment-setup" type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300" {...register("request_payment_setup")} />
-                    <span>
-                      <span className="font-semibold text-slate-950">Request payment setup now</span>
-                      <span className="mt-1 block text-slate-600">Alpha generates a secure hosted link. Send it to the customer — they complete card or bank setup on their end.</span>
-                    </span>
-                  </label>
-                  <div className="mt-4 max-w-sm">
-                    <Field label="Payment method type" hint="Defaults to card.">
-                      <input data-testid="subscription-payment-method-type" placeholder="card" className={inputClass} {...register("payment_method_type")} />
-                    </Field>
-                  </div>
-                </section>
-
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
-                    <ChecklistLine done={Boolean(watched.customer_external_id)} text="Customer selected" />
-                    <ChecklistLine done={Boolean(watched.plan_id)} text="Plan selected" />
-                    <ChecklistLine done={Boolean(csrfToken)} text="Writable workspace session present" />
-                    <ChecklistLine done={Boolean(watched.request_payment_setup)} text="Hosted payment setup will start" />
-                  </div>
-                </section>
+                <label className="flex items-start gap-3 text-sm text-slate-700">
+                  <input data-testid="subscription-request-payment-setup" type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300" {...register("request_payment_setup")} />
+                  <span>
+                    <span className="font-semibold text-slate-950">Request payment setup now</span>
+                    <span className="mt-1 block text-slate-600">Alpha generates a secure hosted link. Send it to the customer — they complete card or bank setup on their end.</span>
+                  </span>
+                </label>
+                <div className="max-w-sm">
+                  <Field label="Payment method type" hint="Defaults to card.">
+                    <input data-testid="subscription-payment-method-type" placeholder="card" className={inputClass} {...register("payment_method_type")} />
+                  </Field>
+                </div>
 
                 {errors.root?.message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
-
-                <div className="flex flex-wrap gap-3">
-                  <button type="submit" data-testid="subscription-submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                    {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                    Create subscription
-                  </button>
-                  <Link href="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
-                </div>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
+                <Link href="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <button type="submit" data-testid="subscription-submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  Create subscription
+                </button>
               </div>
             </form>
-
-            <aside className="grid gap-5 self-start">
-            </aside>
           </div>
         ) : null}
       </main>
@@ -233,16 +205,5 @@ function Field({ label, hint, error, children }: { label: string; hint?: string;
       {children}
       {error ? <span className="text-xs text-rose-600">{error}</span> : hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
     </label>
-  );
-}
-
-function ChecklistLine({ done, text }: { done: boolean; text: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
-      <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-        {done ? "OK" : "!"}
-      </span>
-      <p className="text-sm text-slate-800">{text}</p>
-    </div>
   );
 }

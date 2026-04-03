@@ -34,15 +34,12 @@ export function PricingTaxNewScreen() {
   const {
     register,
     handleSubmit,
-    watch,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<FormFields>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", code: "", description: "", status: "active", rate: "18" },
   });
-
-  const watched = watch();
 
   const mutation = useMutation({
     mutationFn: (data: FormFields) =>
@@ -76,67 +73,41 @@ export function PricingTaxNewScreen() {
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to create one." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
         {isTenantSession ? (
-          <>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace operator flow</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-950">Create tax</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">Define a reusable tax code and rate that Alpha can assign to customer billing profiles and workspace billing settings.</p>
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <form onSubmit={onSubmit} noValidate>
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <div className="grid gap-5">
-                    
-                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Tax rule</p>
-                      <h2 className="text-lg font-semibold text-slate-950">Tax basics</h2>
-                      <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <Field label="Tax name" placeholder="India GST 18" testID="pricing-tax-name" error={errors.name?.message} {...register("name")} />
-                        <Field label="Tax code" placeholder="gst_in_18" testID="pricing-tax-code" error={errors.code?.message} {...register("code")} />
-                        <SelectField label="Status" options={["active", "draft", "archived"]} error={errors.status?.message} {...register("status")} />
-                        <Field label="Rate (%)" placeholder="18" testID="pricing-tax-rate" error={errors.rate?.message} {...register("rate")} />
-                        <div className="md:col-span-2">
-                          <TextareaField label="Description" placeholder="Applied to domestic B2C sales." testID="pricing-tax-description" error={errors.description?.message} {...register("description")} />
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preflight</p>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2">
-                        <ChecklistLine done={(watched.name ?? "").trim().length > 0} text="Tax name is set" />
-                        <ChecklistLine done={(watched.code ?? "").trim().length > 0} text="Tax code is set" />
-                        <ChecklistLine done={(watched.rate ?? "").trim().length > 0} text="Tax rate is set" />
-                        <ChecklistLine done={Boolean(csrfToken)} text="Writable workspace session present" />
-                      </div>
-                    </section>
-
-                    {errors.root?.message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
-
-                    <div className="flex flex-wrap gap-3">
-                      <button data-testid="pricing-tax-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                        {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                        Create tax
-                      </button>
-                      <Link href="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
-                    </div>
-                  </div>
-                </section>
-              </form>
-
-              <aside className="grid gap-5 self-start">
-              </aside>
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
+              <div>
+                <h1 className="text-base font-semibold text-slate-900">Create tax</h1>
+                <p className="mt-0.5 text-xs text-slate-500">Reusable tax code and rate for customer billing profiles.</p>
+              </div>
+              <Link href="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
-          </>
+            <form onSubmit={onSubmit} noValidate>
+              <div className="grid gap-4 p-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Tax name" placeholder="India GST 18" testID="pricing-tax-name" error={errors.name?.message} {...register("name")} />
+                  <Field label="Tax code" placeholder="gst_in_18" testID="pricing-tax-code" error={errors.code?.message} {...register("code")} />
+                  <SelectField label="Status" options={["active", "draft", "archived"]} error={errors.status?.message} {...register("status")} />
+                  <Field label="Rate (%)" placeholder="18" testID="pricing-tax-rate" error={errors.rate?.message} {...register("rate")} />
+                  <div className="md:col-span-2">
+                    <TextareaField label="Description" placeholder="Applied to domestic B2C sales." testID="pricing-tax-description" error={errors.description?.message} {...register("description")} />
+                  </div>
+                </div>
+
+                {errors.root?.message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+              </div>
+              <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
+                <Link href="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <button data-testid="pricing-tax-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  Create tax
+                </button>
+              </div>
+            </form>
+          </div>
         ) : null}
       </main>
     </div>
   );
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p></section>;
 }
 
 function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & InputHTMLAttributes<HTMLInputElement>) {
@@ -168,20 +139,5 @@ function TextareaField({ label, error, testID, ...textareaProps }: { label: stri
       <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
-  );
-}
-
-function InfoCard({ title, body }: { title: string; body: string }) {
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-950">{title}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p></section>;
-}
-
-function ChecklistLine({ done, text }: { done: boolean; text: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
-      <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-        {done ? "OK" : "!"}
-      </span>
-      <p className="text-sm text-slate-800">{text}</p>
-    </div>
   );
 }
