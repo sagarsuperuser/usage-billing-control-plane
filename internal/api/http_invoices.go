@@ -25,7 +25,7 @@ func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w)
 		return
 	}
-	if s.lagoWebhookSvc == nil {
+	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
 		return
 	}
@@ -51,7 +51,7 @@ func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
 		customerExternalID = strings.TrimSpace(r.URL.Query().Get("customer_id"))
 	}
 
-	items, err := s.lagoWebhookSvc.ListInvoicePaymentStatusViews(
+	items, err := s.paymentStatusSvc.ListInvoicePaymentStatusViews(
 		requestTenantID(r),
 		service.ListInvoicePaymentStatusViewsRequest{
 			OrganizationID:     r.URL.Query().Get("organization_id"),
@@ -112,7 +112,7 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 		return 0, nil, invoiceDetailResponse{}, fmt.Errorf("%w: invoice billing adapter is required", service.ErrValidation)
 	}
 
-	ctx = service.ContextWithLagoTenant(ctx, tenantID)
+	ctx = service.ContextWithBillingTenant(ctx, tenantID)
 	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
 	if err != nil {
 		return 0, nil, invoiceDetailResponse{}, err
@@ -131,8 +131,8 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 		customer  *domain.Customer
 		lifecycle *service.InvoicePaymentLifecycle
 	)
-	if s.lagoWebhookSvc != nil {
-		item, viewErr := s.lagoWebhookSvc.GetInvoicePaymentStatusView(tenantID, invoiceID)
+	if s.paymentStatusSvc != nil {
+		item, viewErr := s.paymentStatusSvc.GetInvoicePaymentStatusView(tenantID, invoiceID)
 		if viewErr != nil && !errors.Is(viewErr, store.ErrNotFound) {
 			return 0, nil, invoiceDetailResponse{}, viewErr
 		}
@@ -144,7 +144,7 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 		}
 		if view != nil {
 			if viewErr == nil {
-				itemLifecycle, lifecycleErr := s.lagoWebhookSvc.GetInvoicePaymentLifecycle(tenantID, invoiceID, 50)
+				itemLifecycle, lifecycleErr := s.paymentStatusSvc.GetInvoicePaymentLifecycle(tenantID, invoiceID, 50)
 				if lifecycleErr != nil {
 					return 0, nil, invoiceDetailResponse{}, lifecycleErr
 				}
@@ -198,7 +198,7 @@ func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+	ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 	statusCode, body, err := s.invoiceBillingAdapter.ListPaymentReceipts(ctx, url.Values{
 		"invoice_id": []string{invoiceID},
 	})
@@ -233,7 +233,7 @@ func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request
 	}
 
 	tenantID := requestTenantID(r)
-	ctx := service.ContextWithLagoTenant(r.Context(), tenantID)
+	ctx := service.ContextWithBillingTenant(r.Context(), tenantID)
 	customerExternalID, statusCode, body, err := s.loadInvoiceCustomerExternalID(ctx, invoiceID)
 	if err != nil {
 		writeDomainError(w, err)

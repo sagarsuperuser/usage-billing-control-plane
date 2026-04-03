@@ -97,12 +97,12 @@ func TestPaymentsListEndpointReturnsNormalizedSummaries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 
@@ -170,12 +170,12 @@ func TestPaymentsListEndpointSupportsExtendedFiltersAndCSV(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 
@@ -347,12 +347,12 @@ func TestPaymentDetailEndpointReturnsLifecycleAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 
@@ -493,12 +493,12 @@ func TestPaymentDetailEndpointKeepsRetryWhenCustomerPaymentSetupReady(t *testing
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 

@@ -825,7 +825,7 @@ func TestLagoWebhookVisibilityFlow(t *testing.T) {
 	}
 	mustSetTenantMappings(t, repo, "tenant_a", "org_test_1", "stripe_test")
 	mustSetTenantMappings(t, repo, "tenant_b", "org_test_2", "stripe_test")
-	lagoWebhookSvc := service.NewLagoWebhookService(
+	paymentStatusSvc := service.NewLagoWebhookService(
 		repo,
 		service.NoopLagoWebhookVerifier{},
 		nil,
@@ -835,7 +835,7 @@ func TestLagoWebhookVisibilityFlow(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 
@@ -953,7 +953,7 @@ func TestCustomerPaymentSetupAutoRefreshFromWebhook(t *testing.T) {
 	customerBillingAdapter := service.NewLagoCustomerBillingAdapter(lagoTransport)
 	mustSetTenantMappings(t, repo, "tenant_a", "org_test_1", "stripe_test")
 
-	lagoWebhookSvc := service.NewLagoWebhookService(
+	paymentStatusSvc := service.NewLagoWebhookService(
 		repo,
 		service.NoopLagoWebhookVerifier{},
 		nil,
@@ -964,7 +964,7 @@ func TestCustomerPaymentSetupAutoRefreshFromWebhook(t *testing.T) {
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithCustomerBillingAdapter(customerBillingAdapter),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 
@@ -1074,7 +1074,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 	mustSetTenantMappings(t, repo, "tenant_a", "org_test_1", "stripe_test")
 	mustSetTenantMappings(t, repo, "tenant_b", "org_test_2", "stripe_test")
 
-	lagoWebhookSvc := service.NewLagoWebhookService(
+	paymentStatusSvc := service.NewLagoWebhookService(
 		repo,
 		service.NoopLagoWebhookVerifier{},
 		nil,
@@ -1085,7 +1085,7 @@ func TestPaymentFailureLifecycleRetryAndOutOfOrderWebhooks(t *testing.T) {
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 
@@ -2819,7 +2819,7 @@ func TestCustomerCRUDAndReadiness(t *testing.T) {
 		ID:                          "wbb_onboarding_default",
 		WorkspaceID:                 "default",
 		BillingProviderConnectionID: connection.ID,
-		Backend:                     domain.WorkspaceBillingBackendLago,
+		Backend:                     domain.WorkspaceBillingBackendStripe,
 		BackendOrganizationID:       connection.LagoOrganizationID,
 		BackendProviderCode:         connection.LagoProviderCode,
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
@@ -3063,7 +3063,7 @@ func TestCustomerOnboardingWorkflow(t *testing.T) {
 		ID:                          "wbb_onboarding_default",
 		WorkspaceID:                 "default",
 		BillingProviderConnectionID: connection.ID,
-		Backend:                     domain.WorkspaceBillingBackendLago,
+		Backend:                     domain.WorkspaceBillingBackendStripe,
 		BackendOrganizationID:       connection.LagoOrganizationID,
 		BackendProviderCode:         connection.LagoProviderCode,
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
@@ -4101,13 +4101,13 @@ func TestRetryPaymentMaterializesPendingProjectionWithoutWebhook(t *testing.T) {
 		t.Fatalf("new lago transport: %v", err)
 	}
 
-	lagoWebhookSvc := service.NewLagoWebhookService(repo, service.NoopLagoWebhookVerifier{}, nil, nil)
+	paymentStatusSvc := service.NewLagoWebhookService(repo, service.NoopLagoWebhookVerifier{}, nil, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 

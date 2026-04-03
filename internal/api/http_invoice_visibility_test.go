@@ -64,12 +64,12 @@ func TestInvoiceListEndpointReturnsNormalizedSummaries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 	).Handler())
 	defer ts.Close()
 
@@ -249,12 +249,12 @@ func TestInvoiceDetailEndpointReturnsNormalizedDetail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	lagoWebhookSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithLagoWebhookService(lagoWebhookSvc),
+		api.WithPaymentStatusService(paymentStatusSvc),
 		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(transport)),
 	).Handler())
 	defer ts.Close()

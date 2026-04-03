@@ -43,7 +43,7 @@ const (
 type WorkspaceBillingBackend string
 
 const (
-	WorkspaceBillingBackendLago WorkspaceBillingBackend = "lago"
+	WorkspaceBillingBackendStripe WorkspaceBillingBackend = "stripe"
 )
 
 type WorkspaceBillingIsolationMode string
@@ -651,19 +651,22 @@ const (
 )
 
 type Subscription struct {
-	ID                      string                  `json:"id"`
-	TenantID                string                  `json:"tenant_id,omitempty"`
-	Code                    string                  `json:"code"`
-	DisplayName             string                  `json:"display_name"`
-	CustomerID              string                  `json:"customer_id"`
-	PlanID                  string                  `json:"plan_id"`
-	Status                  SubscriptionStatus      `json:"status"`
-	BillingTime             SubscriptionBillingTime `json:"billing_time"`
-	StartedAt               *time.Time              `json:"started_at,omitempty"`
-	PaymentSetupRequestedAt *time.Time              `json:"payment_setup_requested_at,omitempty"`
-	ActivatedAt             *time.Time              `json:"activated_at,omitempty"`
-	CreatedAt               time.Time               `json:"created_at"`
-	UpdatedAt               time.Time               `json:"updated_at"`
+	ID                         string                  `json:"id"`
+	TenantID                   string                  `json:"tenant_id,omitempty"`
+	Code                       string                  `json:"code"`
+	DisplayName                string                  `json:"display_name"`
+	CustomerID                 string                  `json:"customer_id"`
+	PlanID                     string                  `json:"plan_id"`
+	Status                     SubscriptionStatus      `json:"status"`
+	BillingTime                SubscriptionBillingTime `json:"billing_time"`
+	StartedAt                  *time.Time              `json:"started_at,omitempty"`
+	PaymentSetupRequestedAt    *time.Time              `json:"payment_setup_requested_at,omitempty"`
+	ActivatedAt                *time.Time              `json:"activated_at,omitempty"`
+	CurrentBillingPeriodStart  *time.Time              `json:"current_billing_period_start,omitempty"`
+	CurrentBillingPeriodEnd    *time.Time              `json:"current_billing_period_end,omitempty"`
+	NextBillingAt              *time.Time              `json:"next_billing_at,omitempty"`
+	CreatedAt                  time.Time               `json:"created_at"`
+	UpdatedAt                  time.Time               `json:"updated_at"`
 }
 
 type UsageEvent struct {
@@ -808,7 +811,7 @@ type ReconciliationReport struct {
 	GeneratedAt        time.Time           `json:"generated_at"`
 }
 
-type LagoWebhookEvent struct {
+type BillingEvent struct {
 	ID                   string         `json:"id"`
 	TenantID             string         `json:"tenant_id"`
 	OrganizationID       string         `json:"-"`
@@ -1045,4 +1048,115 @@ type APIKeyAuditExportJob struct {
 	StartedAt           *time.Time               `json:"started_at,omitempty"`
 	CompletedAt         *time.Time               `json:"completed_at,omitempty"`
 	ExpiresAt           *time.Time               `json:"expires_at,omitempty"`
+}
+
+// ---------------------------------------------------------------------------
+// Invoices (first-class, replaces Lago-hosted invoices)
+// ---------------------------------------------------------------------------
+
+type InvoiceStatus string
+
+const (
+	InvoiceStatusDraft     InvoiceStatus = "draft"
+	InvoiceStatusFinalized InvoiceStatus = "finalized"
+	InvoiceStatusPaid      InvoiceStatus = "paid"
+	InvoiceStatusVoided    InvoiceStatus = "voided"
+)
+
+type InvoicePaymentStatus string
+
+const (
+	InvoicePaymentPending    InvoicePaymentStatus = "pending"
+	InvoicePaymentProcessing InvoicePaymentStatus = "processing"
+	InvoicePaymentSucceeded  InvoicePaymentStatus = "succeeded"
+	InvoicePaymentFailed     InvoicePaymentStatus = "failed"
+)
+
+type Invoice struct {
+	ID                     string               `json:"id"`
+	TenantID               string               `json:"tenant_id,omitempty"`
+	CustomerID             string               `json:"customer_id"`
+	SubscriptionID         string               `json:"subscription_id"`
+	InvoiceNumber          string               `json:"invoice_number"`
+	Status                 InvoiceStatus         `json:"status"`
+	PaymentStatus          InvoicePaymentStatus  `json:"payment_status"`
+	Currency               string               `json:"currency"`
+	SubtotalCents          int64                `json:"subtotal_cents"`
+	DiscountCents          int64                `json:"discount_cents"`
+	TaxAmountCents         int64                `json:"tax_amount_cents"`
+	TotalAmountCents       int64                `json:"total_amount_cents"`
+	AmountDueCents         int64                `json:"amount_due_cents"`
+	AmountPaidCents        int64                `json:"amount_paid_cents"`
+	BillingPeriodStart     time.Time            `json:"billing_period_start"`
+	BillingPeriodEnd       time.Time            `json:"billing_period_end"`
+	IssuedAt               *time.Time           `json:"issued_at,omitempty"`
+	DueAt                  *time.Time           `json:"due_at,omitempty"`
+	PaidAt                 *time.Time           `json:"paid_at,omitempty"`
+	VoidedAt               *time.Time           `json:"voided_at,omitempty"`
+	StripePaymentIntentID  string               `json:"stripe_payment_intent_id,omitempty"`
+	LastPaymentError       string               `json:"last_payment_error,omitempty"`
+	PaymentOverdue         bool                 `json:"payment_overdue"`
+	PDFObjectKey           string               `json:"-"`
+	NetPaymentTermDays     int                  `json:"net_payment_term_days"`
+	Memo                   string               `json:"memo,omitempty"`
+	Footer                 string               `json:"footer,omitempty"`
+	Metadata               map[string]any       `json:"metadata,omitempty"`
+	CreatedAt              time.Time            `json:"created_at"`
+	UpdatedAt              time.Time            `json:"updated_at"`
+}
+
+type InvoiceLineItemType string
+
+const (
+	LineTypeBaseFee  InvoiceLineItemType = "base_fee"
+	LineTypeUsage    InvoiceLineItemType = "usage"
+	LineTypeAddOn    InvoiceLineItemType = "add_on"
+	LineTypeDiscount InvoiceLineItemType = "discount"
+	LineTypeTax      InvoiceLineItemType = "tax"
+)
+
+type InvoiceLineItem struct {
+	ID                   string              `json:"id"`
+	InvoiceID            string              `json:"invoice_id"`
+	TenantID             string              `json:"tenant_id,omitempty"`
+	LineType             InvoiceLineItemType `json:"line_type"`
+	MeterID              string              `json:"meter_id,omitempty"`
+	AddOnID              string              `json:"add_on_id,omitempty"`
+	CouponID             string              `json:"coupon_id,omitempty"`
+	TaxID                string              `json:"tax_id,omitempty"`
+	Description          string              `json:"description"`
+	Quantity             int64               `json:"quantity"`
+	UnitAmountCents      int64               `json:"unit_amount_cents"`
+	AmountCents          int64               `json:"amount_cents"`
+	TaxRate              float64             `json:"tax_rate"`
+	TaxAmountCents       int64               `json:"tax_amount_cents"`
+	TotalAmountCents     int64               `json:"total_amount_cents"`
+	PricingMode          string              `json:"pricing_mode,omitempty"`
+	RatingRuleVersionID  string              `json:"rating_rule_version_id,omitempty"`
+	BillingPeriodStart   *time.Time          `json:"billing_period_start,omitempty"`
+	BillingPeriodEnd     *time.Time          `json:"billing_period_end,omitempty"`
+	Metadata             map[string]any      `json:"metadata,omitempty"`
+	CreatedAt            time.Time           `json:"created_at"`
+}
+
+// ---------------------------------------------------------------------------
+// Stripe webhook events (replaces BillingEvent for payment lifecycle)
+// ---------------------------------------------------------------------------
+
+type StripeWebhookEvent struct {
+	ID                 string         `json:"id"`
+	TenantID           string         `json:"tenant_id"`
+	StripeEventID      string         `json:"stripe_event_id"`
+	EventType          string         `json:"event_type"`
+	ObjectType         string         `json:"object_type"`
+	InvoiceID          string         `json:"invoice_id,omitempty"`
+	CustomerExternalID string         `json:"customer_external_id,omitempty"`
+	PaymentIntentID    string         `json:"payment_intent_id,omitempty"`
+	PaymentStatus      string         `json:"payment_status,omitempty"`
+	AmountCents        *int64         `json:"amount_cents,omitempty"`
+	Currency           string         `json:"currency,omitempty"`
+	FailureMessage     string         `json:"failure_message,omitempty"`
+	Payload            map[string]any `json:"payload"`
+	ReceivedAt         time.Time      `json:"received_at"`
+	OccurredAt         time.Time      `json:"occurred_at"`
 }

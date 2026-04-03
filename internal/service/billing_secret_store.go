@@ -21,8 +21,9 @@ type BillingSecretStore interface {
 }
 
 type BillingProviderSecrets struct {
-	StripeSecretKey    string `json:"stripe_secret_key,omitempty"`
-	LagoWebhookHMACKey string `json:"lago_webhook_hmac_key,omitempty"`
+	StripeSecretKey     string `json:"stripe_secret_key,omitempty"`
+	StripeWebhookSecret string `json:"stripe_webhook_secret,omitempty"`
+	LagoWebhookHMACKey  string `json:"lago_webhook_hmac_key,omitempty"`
 }
 
 type MemoryBillingSecretStore struct {

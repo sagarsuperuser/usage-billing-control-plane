@@ -49,7 +49,7 @@ type BillingProviderConnectionService struct {
 	secretStore               BillingSecretStore
 	adapter                   BillingProviderAdapter
 	verifier                  StripeConnectionVerifier
-	defaultLagoOrganizationID string
+	defaultOrganizationID string
 }
 
 type CreateBillingProviderConnectionRequest struct {
@@ -108,19 +108,19 @@ func NewBillingProviderConnectionService(repo store.Repository, secretStore Bill
 	return &BillingProviderConnectionService{store: repo, secretStore: secretStore, adapter: adapter}
 }
 
-func (s *BillingProviderConnectionService) WithDefaultLagoOrganizationID(id string) *BillingProviderConnectionService {
+func (s *BillingProviderConnectionService) WithDefaultOrganizationID(id string) *BillingProviderConnectionService {
 	if s == nil {
 		return nil
 	}
-	s.defaultLagoOrganizationID = strings.TrimSpace(id)
+	s.defaultOrganizationID = strings.TrimSpace(id)
 	return s
 }
 
-func (s *BillingProviderConnectionService) DefaultLagoOrganizationID() string {
+func (s *BillingProviderConnectionService) DefaultOrganizationID() string {
 	if s == nil {
 		return ""
 	}
-	return strings.TrimSpace(s.defaultLagoOrganizationID)
+	return strings.TrimSpace(s.defaultOrganizationID)
 }
 
 func (s *BillingProviderConnectionService) WithStripeConnectionVerifier(verifier StripeConnectionVerifier) *BillingProviderConnectionService {

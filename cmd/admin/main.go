@@ -28,7 +28,7 @@ type cleanupCounts struct {
 	PaymentSmokeCustomerBillingProfiles int64 `json:"payment_smoke_customer_billing_profiles"`
 	PaymentSmokeCustomerPaymentSetup    int64 `json:"payment_smoke_customer_payment_setup"`
 	PaymentSmokeInvoicePaymentViews     int64 `json:"payment_smoke_invoice_payment_status_views"`
-	PaymentSmokeLagoWebhookEvents       int64 `json:"payment_smoke_lago_webhook_events"`
+	PaymentSmokeBillingEvents       int64 `json:"payment_smoke_lago_webhook_events"`
 	PlaywrightLivePlatformAPIKeys       int64 `json:"playwright_live_platform_api_keys"`
 	PlaywrightLiveTenantAPIKeys         int64 `json:"playwright_live_tenant_api_keys"`
 	PlaywrightLiveAPIKeyAuditEvents     int64 `json:"playwright_live_api_key_audit_events"`
@@ -191,7 +191,7 @@ func collectCleanupCounts(ctx context.Context, db *sql.DB, includeReplay, includ
 		if counts.PaymentSmokeInvoicePaymentViews, err = countQuery(ctx, db, `SELECT count(*) FROM invoice_payment_status_views WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR customer_external_id LIKE 'cust_payment_smoke_%'`); err != nil {
 			return cleanupCounts{}, err
 		}
-		if counts.PaymentSmokeLagoWebhookEvents, err = countQuery(ctx, db, `SELECT count(*) FROM lago_webhook_events WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR customer_external_id LIKE 'cust_payment_smoke_%'`); err != nil {
+		if counts.PaymentSmokeBillingEvents, err = countQuery(ctx, db, `SELECT count(*) FROM lago_webhook_events WHERE customer_external_id IN ('cust_e2e_success', 'cust_e2e_failure') OR customer_external_id LIKE 'cust_payment_smoke_%'`); err != nil {
 			return cleanupCounts{}, err
 		}
 	}
@@ -305,7 +305,7 @@ func printCleanupText(res cleanupResult) {
 	fmt.Printf("payment_smoke_customer_billing_profiles=%d\n", res.Counts.PaymentSmokeCustomerBillingProfiles)
 	fmt.Printf("payment_smoke_customer_payment_setup=%d\n", res.Counts.PaymentSmokeCustomerPaymentSetup)
 	fmt.Printf("payment_smoke_invoice_payment_status_views=%d\n", res.Counts.PaymentSmokeInvoicePaymentViews)
-	fmt.Printf("payment_smoke_lago_webhook_events=%d\n", res.Counts.PaymentSmokeLagoWebhookEvents)
+	fmt.Printf("payment_smoke_lago_webhook_events=%d\n", res.Counts.PaymentSmokeBillingEvents)
 	fmt.Printf("playwright_live_platform_api_keys=%d\n", res.Counts.PlaywrightLivePlatformAPIKeys)
 	fmt.Printf("playwright_live_tenant_api_keys=%d\n", res.Counts.PlaywrightLiveTenantAPIKeys)
 	fmt.Printf("playwright_live_api_key_audit_events=%d\n", res.Counts.PlaywrightLiveAPIKeyAuditEvents)

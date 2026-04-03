@@ -372,7 +372,7 @@ func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string,
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	ctx = ContextWithLagoScope(ctx, customer.TenantID, organizationID)
+	ctx = ContextWithBillingScope(ctx, customer.TenantID, organizationID)
 	checkoutURL, err := s.billingAdapter.GetCustomerCheckoutURL(ctx, customer.ExternalID)
 	if err != nil {
 		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: %v", ErrValidation, err)
@@ -531,7 +531,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 		workspaceSettings = defaultWorkspaceBillingSettings(customer.TenantID)
 	}
 
-	ctx = ContextWithLagoScope(ctx, customer.TenantID, organizationID)
+	ctx = ContextWithBillingScope(ctx, customer.TenantID, organizationID)
 	result, err := s.billingAdapter.SyncCustomer(ctx, providerCode, customer, profile, setup, workspaceSettings)
 	if err != nil {
 		return s.recordCustomerSyncFailure(customer, profile, setup, err.Error())

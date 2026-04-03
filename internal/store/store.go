@@ -213,7 +213,7 @@ type InvoicePaymentStatusSummary struct {
 	InvoiceStatusCounts    map[string]int64
 }
 
-type LagoWebhookEventListFilter struct {
+type BillingEventListFilter struct {
 	TenantID       string
 	OrganizationID string
 	InvoiceID      string
@@ -222,6 +222,29 @@ type LagoWebhookEventListFilter struct {
 	SortDesc       bool
 	Limit          int
 	Offset         int
+}
+
+type InvoiceListFilter struct {
+	TenantID       string
+	CustomerID     string
+	SubscriptionID string
+	Status         string
+	PaymentStatus  string
+	PaymentOverdue *bool
+	SortBy         string
+	SortDesc       bool
+	Limit          int
+	Offset         int
+}
+
+type StripeWebhookEventListFilter struct {
+	TenantID  string
+	InvoiceID string
+	EventType string
+	SortBy    string
+	SortDesc  bool
+	Limit     int
+	Offset    int
 }
 
 type InvoicePaymentSyncCandidateFilter struct {
@@ -290,6 +313,7 @@ type Repository interface {
 	CreateTax(input domain.Tax) (domain.Tax, error)
 	ListTaxes(tenantID string) ([]domain.Tax, error)
 	GetTax(tenantID, id string) (domain.Tax, error)
+	GetTaxByCode(tenantID, code string) (domain.Tax, error)
 	CreateUser(input domain.User) (domain.User, error)
 	GetUser(id string) (domain.User, error)
 	GetUserByEmail(email string) (domain.User, error)
@@ -364,12 +388,12 @@ type Repository interface {
 	ListQueuedReplayJobs(limit int) ([]domain.ReplayJob, error)
 	CompleteReplayJob(id string, processedRecords int64, completedAt time.Time) (domain.ReplayJob, error)
 	FailReplayJob(id string, errMessage string, completedAt time.Time) (domain.ReplayJob, error)
-	IngestLagoWebhookEvent(input domain.LagoWebhookEvent) (domain.LagoWebhookEvent, bool, error)
+	IngestBillingEvent(input domain.BillingEvent) (domain.BillingEvent, bool, error)
 	ListInvoicePaymentStatusViews(filter InvoicePaymentStatusListFilter) ([]domain.InvoicePaymentStatusView, error)
 	GetInvoicePaymentStatusView(tenantID, invoiceID string) (domain.InvoicePaymentStatusView, error)
 	UpsertInvoicePaymentStatusView(input domain.InvoicePaymentStatusView) (domain.InvoicePaymentStatusView, error)
 	GetInvoicePaymentStatusSummary(filter InvoicePaymentStatusSummaryFilter) (InvoicePaymentStatusSummary, error)
-	ListLagoWebhookEvents(filter LagoWebhookEventListFilter) ([]domain.LagoWebhookEvent, error)
+	ListBillingEvents(filter BillingEventListFilter) ([]domain.BillingEvent, error)
 	ListInvoicePaymentSyncCandidates(filter InvoicePaymentSyncCandidateFilter) ([]InvoicePaymentSyncCandidate, error)
 	GetDunningPolicy(tenantID string) (domain.DunningPolicy, error)
 	UpsertDunningPolicy(input domain.DunningPolicy) (domain.DunningPolicy, error)
@@ -407,4 +431,26 @@ type Repository interface {
 	TouchPlatformAPIKeyLastUsed(id string, usedAt time.Time) error
 	CountActivePlatformAPIKeys(at time.Time) (int, error)
 	RevokeActivePlatformAPIKeysByName(name string, revokedAt time.Time) (int, error)
+
+	// Invoices (first-class, replaces Lago-hosted invoices).
+	CreateInvoice(input domain.Invoice) (domain.Invoice, error)
+	GetInvoice(tenantID, id string) (domain.Invoice, error)
+	GetInvoiceByNumber(tenantID, number string) (domain.Invoice, error)
+	GetInvoiceByStripePaymentIntentID(tenantID, stripePaymentIntentID string) (domain.Invoice, error)
+	ListInvoices(filter InvoiceListFilter) ([]domain.Invoice, int, error)
+	UpdateInvoiceStatus(tenantID, id string, status domain.InvoiceStatus, updatedAt time.Time) (domain.Invoice, error)
+	UpdateInvoicePayment(tenantID, id string, paymentStatus domain.InvoicePaymentStatus, stripePaymentIntentID string, lastPaymentError string, paidAt *time.Time, updatedAt time.Time) (domain.Invoice, error)
+	CreateInvoiceLineItem(input domain.InvoiceLineItem) (domain.InvoiceLineItem, error)
+	ListInvoiceLineItems(tenantID, invoiceID string) ([]domain.InvoiceLineItem, error)
+
+	// Subscription billing cycle tracking.
+	GetSubscriptionsDueBilling(before time.Time, limit int) ([]domain.Subscription, error)
+	UpdateSubscriptionBillingCycle(tenantID, id string, periodStart, periodEnd time.Time, nextBillingAt time.Time) error
+
+	// Usage aggregation for billing.
+	AggregateUsageForBillingPeriod(tenantID, subscriptionID string, meterIDs []string, from, to time.Time) (map[string]int64, error)
+
+	// Stripe webhook events.
+	IngestStripeWebhookEvent(input domain.StripeWebhookEvent) (domain.StripeWebhookEvent, bool, error)
+	ListStripeWebhookEvents(filter StripeWebhookEventListFilter) ([]domain.StripeWebhookEvent, error)
 }

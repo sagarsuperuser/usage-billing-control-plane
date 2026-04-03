@@ -1405,7 +1405,7 @@ func (s *DunningService) dispatchRetryPayment(tenantID, runID string, requireDue
 		return RetryPaymentResult{}, err
 	}
 
-	retryCtx := ContextWithLagoTenant(context.Background(), tenantID)
+	retryCtx := ContextWithBillingTenant(context.Background(), tenantID)
 	statusCode, body, retryErr := s.invoiceRetries.RetryInvoicePayment(retryCtx, run.InvoiceID, []byte("{}"))
 	now := s.now()
 	updatedRun := run

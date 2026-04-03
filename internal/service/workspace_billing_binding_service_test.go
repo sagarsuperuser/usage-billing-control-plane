@@ -72,7 +72,7 @@ func TestWorkspaceBillingBindingService_ResolveBackfillsBindingFromTenantFields(
 	if resolved.Source != "binding" {
 		t.Fatalf("expected binding source after backfill, got %q", resolved.Source)
 	}
-	if resolved.Backend != domain.WorkspaceBillingBackendLago {
+	if resolved.Backend != domain.WorkspaceBillingBackendStripe {
 		t.Fatalf("expected lago backend, got %q", resolved.Backend)
 	}
 	if resolved.BackendOrganizationID != "org_legacy" || resolved.BackendProviderCode != "provider_legacy" {

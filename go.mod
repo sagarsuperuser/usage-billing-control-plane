@@ -15,6 +15,7 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.18.0
+	github.com/stripe/stripe-go/v82 v82.5.1
 	github.com/ulule/limiter/v3 v3.11.2
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.41.0

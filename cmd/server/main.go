@@ -22,6 +22,7 @@ import (
 	"usage-billing-control-plane/internal/api"
 	"usage-billing-control-plane/internal/appconfig"
 	"usage-billing-control-plane/internal/billingcheck"
+	"usage-billing-control-plane/internal/billingcycle"
 	"usage-billing-control-plane/internal/dunningflow"
 	"usage-billing-control-plane/internal/logging"
 	"usage-billing-control-plane/internal/paymentsync"
@@ -75,6 +76,8 @@ func main() {
 		"payment_reconcile_scheduler", cfg.Roles.RunPaymentReconcileScheduler,
 		"dunning_worker", cfg.Roles.RunDunningWorker,
 		"dunning_scheduler", cfg.Roles.RunDunningScheduler,
+		"billing_cycle_worker", cfg.Roles.RunBillingCycleWorker,
+		"billing_cycle_scheduler", cfg.Roles.RunBillingCycleScheduler,
 	)
 
 	var (
@@ -83,9 +86,10 @@ func main() {
 		temporalBillingCheckWorker temporalsdkworker.Worker
 		temporalPaymentWorker      temporalsdkworker.Worker
 		temporalDunningWorker      temporalsdkworker.Worker
+		temporalBillingCycleWorker temporalsdkworker.Worker
 		replayTemporalDispatcher   *replay.TemporalDispatcher
 		rateLimiterCloser          interface{ Close() error }
-		lagoResolver               *service.TenantBackedLagoTransportResolver
+		stripeClient               *service.StripeClient
 		invoiceBillingAdapter      service.InvoiceBillingAdapter
 		customerBillingAdapter     service.CustomerBillingAdapter
 		billingSecretStore         service.BillingSecretStore
@@ -117,7 +121,7 @@ func main() {
 			}
 		}
 	}
-	if cfg.Roles.RunReplayWorker || cfg.Roles.RunReplayDispatcher || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler || cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler {
+	if cfg.Roles.RunReplayWorker || cfg.Roles.RunReplayDispatcher || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingConnectionCheckScheduler || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunPaymentReconcileScheduler || cfg.Roles.RunDunningWorker || cfg.Roles.RunDunningScheduler || cfg.Roles.RunBillingCycleWorker || cfg.Roles.RunBillingCycleScheduler {
 		temporalClient, err = temporalclient.Dial(temporalclient.Options{
 			HostPort:  cfg.Temporal.Address,
 			Namespace: cfg.Temporal.Namespace,
@@ -169,18 +173,10 @@ func main() {
 	needNotificationRuntime := cfg.Roles.RunAPIServer || cfg.Roles.RunDunningWorker
 
 	if needBillingAdapters {
-		lagoResolver, err = service.NewTenantBackedLagoTransportResolver(repo, service.LagoClientConfig{
-			BaseURL: cfg.Lago.APIURL,
-			APIKey:  cfg.Lago.APIKey,
-			Timeout: cfg.Lago.HTTPTimeout,
-		})
-		if err != nil {
-			closeReplayRuntime()
-			fatal(logger, "initialize lago transport resolver", "error", err)
-		}
-		invoiceBillingAdapter = service.NewTenantAwareLagoInvoiceAdapter(lagoResolver)
-		customerBillingAdapter = service.NewTenantAwareLagoCustomerBillingAdapter(lagoResolver)
-		logger.Info("lago adapter enabled", "component", "server", "base_url", cfg.Lago.APIURL, "default_api_key_enabled", strings.TrimSpace(cfg.Lago.APIKey) != "", "admin_bootstrap_enabled", strings.TrimSpace(cfg.Lago.AdminAPIKey) != "")
+		stripeClient = service.NewStripeClient()
+		invoiceBillingAdapter = service.NewStripeInvoiceBillingAdapter(repo, stripeClient, billingSecretStore)
+		customerBillingAdapter = service.NewStripeCustomerBillingAdapter(repo, stripeClient, billingSecretStore, cfg.BillingProviders.StripeSuccessRedirectURL)
+		logger.Info("stripe direct adapters enabled", "component", "server")
 	}
 
 	if needBillingProviderConnections {
@@ -190,22 +186,20 @@ func main() {
 				closeReplayRuntime()
 				fatal(logger, "initialize billing provider secret store", "error", err)
 			}
-			billingProviderSvc = service.NewBillingProviderConnectionService(
-				repo,
-				billingSecretStore,
-				service.NewTenantAwareLagoBillingProviderAdapter(lagoResolver, cfg.BillingProviders.StripeSuccessRedirectURL),
-			).WithDefaultLagoOrganizationID(cfg.BillingProviders.DefaultLagoOrganizationID)
-			stripeVerifier, verifyErr := service.NewHTTPStripeConnectionVerifier("", cfg.Lago.HTTPTimeout)
+			stripeVerifier, verifyErr := service.NewHTTPStripeConnectionVerifier("", 15*time.Second)
 			if verifyErr != nil {
 				closeReplayRuntime()
 				fatal(logger, "initialize stripe connection verifier", "error", verifyErr)
 			}
-			billingProviderSvc = billingProviderSvc.WithStripeConnectionVerifier(stripeVerifier)
+			billingProviderSvc = service.NewBillingProviderConnectionService(
+				repo,
+				billingSecretStore,
+				service.NewStripeBillingProviderAdapter(billingSecretStore, stripeVerifier),
+			).WithStripeConnectionVerifier(stripeVerifier)
 			logger.Info(
 				"billing provider connections enabled",
 				"component", "server",
 				"secret_store_backend", cfg.BillingProviders.SecretStoreBackend,
-				"default_lago_organization_id", cfg.BillingProviders.DefaultLagoOrganizationID,
 				"stripe_success_redirect_url", cfg.BillingProviders.StripeSuccessRedirectURL,
 			)
 		} else {
@@ -473,6 +467,50 @@ func main() {
 		}
 	}
 
+	if cfg.Roles.RunBillingCycleWorker || cfg.Roles.RunBillingCycleScheduler {
+		if temporalClient == nil {
+			closeReplayRuntime()
+			fatal(logger, "temporal client is required when billing cycle roles are enabled")
+		}
+		stripeClient := service.NewStripeClient()
+		if cfg.Roles.RunBillingCycleWorker {
+			temporalBillingCycleWorker = temporalsdkworker.New(temporalClient, cfg.BillingCycle.TaskQueue, temporalsdkworker.Options{})
+			if err := billingcycle.RegisterBillingCycleWorker(temporalBillingCycleWorker, repo, db, stripeClient, billingSecretStore); err != nil {
+				closeReplayRuntime()
+				fatal(logger, "register billing cycle worker", "error", err)
+			}
+			if err := temporalBillingCycleWorker.Start(); err != nil {
+				closeReplayRuntime()
+				fatal(logger, "start billing cycle worker", "error", err)
+			}
+			logger.Info(
+				"billing cycle worker started",
+				"component", "server",
+				"task_queue", cfg.BillingCycle.TaskQueue,
+			)
+		}
+		if cfg.Roles.RunBillingCycleScheduler {
+			startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := billingcycle.EnsureBillingCycleCronWorkflow(startCtx, temporalClient, cfg.BillingCycle.TaskQueue, cfg.BillingCycle.WorkflowID, cfg.BillingCycle.CronSchedule, billingcycle.GenerateInvoicesWorkflowInput{
+				TenantID: cfg.BillingCycle.TenantID,
+				Batch:    cfg.BillingCycle.Batch,
+			})
+			cancel()
+			if err != nil {
+				closeReplayRuntime()
+				fatal(logger, "ensure billing cycle cron workflow", "error", err)
+			}
+			logger.Info(
+				"billing cycle scheduler ensured",
+				"component", "server",
+				"task_queue", cfg.BillingCycle.TaskQueue,
+				"workflow_id", cfg.BillingCycle.WorkflowID,
+				"cron_schedule", cfg.BillingCycle.CronSchedule,
+				"batch", cfg.BillingCycle.Batch,
+			)
+		}
+	}
+
 	if !cfg.Roles.RunAPIServer {
 		logger.Info("roles only mode waiting for shutdown", "component", "server")
 		<-ctx.Done()
@@ -534,74 +572,44 @@ func main() {
 
 	serverOpts = append(
 		serverOpts,
-		api.WithMeterSyncAdapter(service.NewTenantAwareLagoMeterSyncAdapter(lagoResolver)),
-		api.WithTaxSyncAdapter(service.NewTenantAwareLagoTaxSyncAdapter(lagoResolver)),
-		api.WithPlanSyncAdapter(service.NewTenantAwareLagoPlanSyncAdapter(lagoResolver, repo)),
-		api.WithSubscriptionSyncAdapter(service.NewTenantAwareLagoSubscriptionSyncAdapter(lagoResolver, repo)),
-		api.WithUsageSyncAdapter(service.NewTenantAwareLagoUsageSyncAdapter(lagoResolver)),
+		api.WithMeterSyncAdapter(&service.DirectMeterSyncAdapter{}),
+		api.WithTaxSyncAdapter(&service.DirectTaxSyncAdapter{}),
+		api.WithPlanSyncAdapter(&service.DirectPlanSyncAdapter{}),
+		api.WithSubscriptionSyncAdapter(service.NewDirectSubscriptionSyncAdapter(repo)),
+		api.WithUsageSyncAdapter(&service.DirectUsageSyncAdapter{}),
 		api.WithInvoiceBillingAdapter(invoiceBillingAdapter),
 		api.WithCustomerBillingAdapter(customerBillingAdapter),
 	)
-	if strings.TrimSpace(cfg.Lago.AdminAPIKey) != "" {
-		lagoOrgBootstrapper, bootstrapErr := service.NewLagoAdminOrganizationBootstrapper(service.LagoClientConfig{
-			BaseURL: cfg.Lago.APIURL,
-			Timeout: cfg.Lago.HTTPTimeout,
-		}, cfg.Lago.AdminAPIKey)
-		if bootstrapErr != nil {
-			fatal(logger, "initialize lago admin bootstrapper", "error", bootstrapErr)
-		}
-		serverOpts = append(serverOpts, api.WithLagoOrganizationBootstrapper(lagoOrgBootstrapper))
-	}
+	// Organization bootstrapper (no-op without Lago).
+	serverOpts = append(serverOpts, api.WithOrganizationBootstrapper(service.NoopOrganizationBootstrapper{}))
 
 	if billingProviderSvc != nil {
 		serverOpts = append(serverOpts, api.WithBillingProviderConnectionService(billingProviderSvc))
 	}
 
-	var webhookKeyProvider service.LagoWebhookHMACKeyProvider
-	var tenantWebhookKeyProvider service.LagoWebhookHMACKeyProvider
-	var staticWebhookKeyProvider service.LagoWebhookHMACKeyProvider
-	if billingSecretStore != nil {
-		tenantWebhookKeyProvider = service.NewTenantBackedLagoWebhookHMACKeyProvider(repo, billingSecretStore)
-	}
-	if strings.TrimSpace(cfg.Lago.WebhookHMACKey) != "" {
-		staticWebhookKeyProvider, err = service.NewStaticLagoWebhookHMACKeyProvider(cfg.Lago.WebhookHMACKey)
-		if err != nil {
-			fatal(logger, "initialize static lago webhook hmac key", "error", err)
-		}
-	}
-	switch {
-	case tenantWebhookKeyProvider != nil && staticWebhookKeyProvider != nil:
-		webhookKeyProvider, err = service.NewFallbackLagoWebhookHMACKeyProvider(tenantWebhookKeyProvider, staticWebhookKeyProvider)
-		if err != nil {
-			fatal(logger, "initialize fallback lago webhook hmac key provider", "error", err)
-		}
-		logger.Info("using tenant-backed lago webhook hmac verification with static fallback", "component", "server")
-	case tenantWebhookKeyProvider != nil:
-		webhookKeyProvider = tenantWebhookKeyProvider
-		logger.Info("using tenant-backed lago webhook hmac verification", "component", "server")
-	case staticWebhookKeyProvider != nil:
-		webhookKeyProvider = staticWebhookKeyProvider
-		logger.Info("using static lago webhook hmac verification", "component", "server")
-	default:
-		fatal(logger, "initialize lago webhook verifier", "error", fmt.Errorf("lago webhook hmac verification requires billing provider secret store or LAGO_WEBHOOK_HMAC_KEY"))
-	}
-	webhookVerifier, err := service.NewLagoHMACWebhookVerifier(webhookKeyProvider)
-	if err != nil {
-		fatal(logger, "initialize lago webhook verifier", "error", err)
-	}
+	// Payment status service (replaces LagoWebhookService for query/read methods).
 	workspaceBillingBindingService := service.NewWorkspaceBillingBindingService(repo)
 	webhookDunningSvc, err := service.NewDunningService(repo)
 	if err != nil {
 		fatal(logger, "initialize webhook dunning service", "error", err)
 	}
-	lagoWebhookSvc := service.NewLagoWebhookService(
+	paymentStatusSvc := service.NewPaymentStatusService(
 		repo,
-		webhookVerifier,
-		service.NewTenantBackedLagoOrganizationTenantMapper(repo),
 		service.NewCustomerService(repo, customerBillingAdapter).WithWorkspaceBillingBindingService(workspaceBillingBindingService),
 	).WithDunningService(webhookDunningSvc)
-	serverOpts = append(serverOpts, api.WithLagoWebhookService(lagoWebhookSvc))
-	logger.Info("lago webhook sync enabled", "component", "server", "mapper_backend", "tenant_store")
+	serverOpts = append(serverOpts, api.WithPaymentStatusService(paymentStatusSvc))
+
+	// Stripe webhook service.
+	if stripeClient == nil {
+		stripeClient = service.NewStripeClient()
+	}
+	stripeWebhookSvc := service.NewStripeWebhookService(
+		repo,
+		stripeClient,
+		service.NewCustomerService(repo, customerBillingAdapter).WithWorkspaceBillingBindingService(workspaceBillingBindingService),
+	).WithDunningService(webhookDunningSvc)
+	serverOpts = append(serverOpts, api.WithStripeWebhookService(stripeWebhookSvc))
+	logger.Info("stripe webhook service enabled", "component", "server")
 
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
 	if err != nil {

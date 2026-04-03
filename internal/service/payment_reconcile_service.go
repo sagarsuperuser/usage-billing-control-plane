@@ -85,7 +85,7 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 	for _, candidate := range candidates {
 		result.Scanned++
 
-		lagoCtx := ContextWithLagoScope(ctx, candidate.TenantID, candidate.OrganizationID)
+		lagoCtx := ContextWithBillingScope(ctx, candidate.TenantID, candidate.OrganizationID)
 		statusCode, body, err := s.invoiceAdapter.GetInvoice(lagoCtx, candidate.InvoiceID)
 		if err != nil {
 			result.Failures++
@@ -101,7 +101,7 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 			result.Failures++
 			continue
 		}
-		stored, created, err := s.repo.IngestLagoWebhookEvent(event)
+		stored, created, err := s.repo.IngestBillingEvent(event)
 		if err != nil {
 			result.Failures++
 			continue
@@ -118,24 +118,24 @@ func (s *PaymentReconcileService) ReconcileBatch(ctx context.Context, req Paymen
 	return result, nil
 }
 
-func BuildLagoInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizationID string) (domain.LagoWebhookEvent, error) {
+func BuildLagoInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizationID string) (domain.BillingEvent, error) {
 	if !json.Valid(payload) {
-		return domain.LagoWebhookEvent{}, fmt.Errorf("%w: lago invoice payload must be valid json", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: lago invoice payload must be valid json", ErrValidation)
 	}
 
 	var decoded map[string]any
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return domain.LagoWebhookEvent{}, fmt.Errorf("%w: decode lago invoice payload", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: decode lago invoice payload", ErrValidation)
 	}
 
 	invoicePayload, ok := decoded["invoice"].(map[string]any)
 	if !ok || invoicePayload == nil {
-		return domain.LagoWebhookEvent{}, fmt.Errorf("%w: lago invoice payload missing invoice", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: lago invoice payload missing invoice", ErrValidation)
 	}
 
 	invoiceID := strings.TrimSpace(stringValue(invoicePayload["lago_id"]))
 	if invoiceID == "" {
-		return domain.LagoWebhookEvent{}, fmt.Errorf("%w: lago invoice id is required", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: lago invoice id is required", ErrValidation)
 	}
 
 	organizationID := strings.TrimSpace(stringValue(invoicePayload["organization_id"]))
@@ -143,7 +143,7 @@ func BuildLagoInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizati
 		organizationID = strings.TrimSpace(fallbackOrganizationID)
 	}
 	if organizationID == "" {
-		return domain.LagoWebhookEvent{}, fmt.Errorf("%w: organization_id is required", ErrValidation)
+		return domain.BillingEvent{}, fmt.Errorf("%w: organization_id is required", ErrValidation)
 	}
 
 	receivedAt := time.Now().UTC()
@@ -161,7 +161,7 @@ func BuildLagoInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizati
 		stringValue(invoicePayload["last_payment_error"]),
 	)
 
-	event := domain.LagoWebhookEvent{
+	event := domain.BillingEvent{
 		TenantID:             normalizeTenantID(tenantID),
 		OrganizationID:       organizationID,
 		WebhookType:          "invoice.payment_status_reconciled",
@@ -185,7 +185,7 @@ func BuildLagoInvoiceReconcileEvent(payload []byte, tenantID, fallbackOrganizati
 	return event, nil
 }
 
-func buildInvoiceReconcileWebhookKey(event domain.LagoWebhookEvent) string {
+func buildInvoiceReconcileWebhookKey(event domain.BillingEvent) string {
 	due := int64ValueOrZero(event.TotalDueAmountCents)
 	paid := int64ValueOrZero(event.TotalPaidAmountCents)
 	total := int64ValueOrZero(event.TotalAmountCents)

@@ -15,7 +15,7 @@ type TenantService struct {
 	store                          store.Repository
 	workspaceBillingBindingService *WorkspaceBillingBindingService
 	billingProviderConnectionSvc   *BillingProviderConnectionService
-	organizationBootstrapper       LagoOrganizationBootstrapper
+	organizationBootstrapper       OrganizationBootstrapper
 }
 
 type EnsureTenantRequest struct {
@@ -73,7 +73,7 @@ func (s *TenantService) WithBillingProviderConnectionService(connectionSvc *Bill
 	return s
 }
 
-func (s *TenantService) WithLagoOrganizationBootstrapper(bootstrapper LagoOrganizationBootstrapper) *TenantService {
+func (s *TenantService) WithOrganizationBootstrapper(bootstrapper OrganizationBootstrapper) *TenantService {
 	if s == nil {
 		return nil
 	}
@@ -362,15 +362,15 @@ func (s *TenantService) UpdateTenant(id string, req UpdateTenantRequest, actorAP
 	return out, nil
 }
 
-func (s *TenantService) bootstrapTenantOrganization(name string) (LagoOrganizationBootstrapResult, error) {
+func (s *TenantService) bootstrapTenantOrganization(name string) (OrganizationBootstrapResult, error) {
 	if s == nil || s.organizationBootstrapper == nil {
-		return LagoOrganizationBootstrapResult{}, fmt.Errorf("%w: lago organization bootstrapper is required", ErrValidation)
+		return OrganizationBootstrapResult{}, fmt.Errorf("%w: lago organization bootstrapper is required", ErrValidation)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	result, err := s.organizationBootstrapper.BootstrapOrganization(ctx, name)
 	if err != nil {
-		return LagoOrganizationBootstrapResult{}, fmt.Errorf("bootstrap lago organization for tenant %q: %w", strings.TrimSpace(name), err)
+		return OrganizationBootstrapResult{}, fmt.Errorf("bootstrap lago organization for tenant %q: %w", strings.TrimSpace(name), err)
 	}
 	return result, nil
 }
@@ -482,7 +482,7 @@ func (s *TenantService) ensureBindingBackedTenantBillingConfiguration(workspaceI
 	binding, _, err := s.workspaceBillingBindingService.EnsureWorkspaceBillingBinding(EnsureWorkspaceBillingBindingRequest{
 		WorkspaceID:                 workspaceID,
 		BillingProviderConnectionID: resolvedConnectionID,
-		Backend:                     string(domain.WorkspaceBillingBackendLago),
+		Backend:                     string(domain.WorkspaceBillingBackendStripe),
 		BackendOrganizationID:       resolvedOrg,
 		BackendProviderCode:         resolvedCode,
 		IsolationMode:               string(domain.WorkspaceBillingIsolationModeShared),

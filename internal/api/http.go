@@ -60,7 +60,7 @@ type Server struct {
 	apiKeyService                      *service.APIKeyService
 	onboardingService                  *service.TenantOnboardingService
 	auditExportSvc                     *service.AuditExportService
-	lagoOrganizationBootstrapper       service.LagoOrganizationBootstrapper
+	organizationBootstrapper       service.OrganizationBootstrapper
 	meterSyncAdapter                   service.MeterSyncAdapter
 	taxSyncAdapter                     service.TaxSyncAdapter
 	planSyncAdapter                    service.PlanSyncAdapter
@@ -68,7 +68,8 @@ type Server struct {
 	usageSyncAdapter                   service.UsageSyncAdapter
 	invoiceBillingAdapter              service.InvoiceBillingAdapter
 	customerBillingAdapter             service.CustomerBillingAdapter
-	lagoWebhookSvc                     *service.LagoWebhookService
+	paymentStatusSvc                   *service.PaymentStatusService
+	stripeWebhookSvc                   *service.StripeWebhookService
 	replayService                      *replay.Service
 	recService                         *reconcile.Service
 	authorizer                         APIKeyAuthorizer
@@ -650,9 +651,9 @@ func WithAuditExportService(auditExportSvc *service.AuditExportService) ServerOp
 	}
 }
 
-func WithLagoOrganizationBootstrapper(bootstrapper service.LagoOrganizationBootstrapper) ServerOption {
+func WithOrganizationBootstrapper(bootstrapper service.OrganizationBootstrapper) ServerOption {
 	return func(s *Server) {
-		s.lagoOrganizationBootstrapper = bootstrapper
+		s.organizationBootstrapper = bootstrapper
 	}
 }
 
@@ -746,9 +747,15 @@ func WithUIPublicBaseURL(baseURL string) ServerOption {
 	}
 }
 
-func WithLagoWebhookService(lagoWebhookSvc *service.LagoWebhookService) ServerOption {
+func WithPaymentStatusService(svc *service.PaymentStatusService) ServerOption {
 	return func(s *Server) {
-		s.lagoWebhookSvc = lagoWebhookSvc
+		s.paymentStatusSvc = svc
+	}
+}
+
+func WithStripeWebhookService(stripeWebhookSvc *service.StripeWebhookService) ServerOption {
+	return func(s *Server) {
+		s.stripeWebhookSvc = stripeWebhookSvc
 	}
 }
 
@@ -815,7 +822,7 @@ func NewServer(repo store.Repository, opts ...ServerOption) *Server {
 	s.tenantService = service.NewTenantService(repo).
 		WithWorkspaceBillingBindingService(s.workspaceBillingBindingService).
 		WithBillingProviderConnectionService(s.billingProviderConnectionService).
-		WithLagoOrganizationBootstrapper(s.lagoOrganizationBootstrapper)
+		WithOrganizationBootstrapper(s.organizationBootstrapper)
 	s.customerService = service.NewCustomerService(repo, s.customerBillingAdapter).WithWorkspaceBillingBindingService(s.workspaceBillingBindingService)
 	s.customerPaymentSetupRequestService = service.NewCustomerPaymentSetupRequestService(repo, s.customerService, s.notificationService)
 	if dunningSvc, err := service.NewDunningService(repo); err == nil {
@@ -1181,7 +1188,7 @@ func (s *Server) preAuthRateLimitTarget(r *http.Request, protected bool) (policy
 	switch {
 	case path == "/health":
 		return "", "", false, false
-	case path == "/internal/lago/webhooks":
+	case path == "/internal/lago/webhooks", path == "/internal/stripe/webhooks":
 		return RateLimitPolicyWebhook, "ip:" + requestClientIP(r), s.rateLimitFailOpen, true
 	case protected:
 		return RateLimitPolicyPreAuthProtected, "ip:" + requestClientIP(r) + ":route:" + normalizeMetricsRoute(path), s.rateLimitFailOpen, true
@@ -1622,7 +1629,7 @@ func requiredRoleForRequest(r *http.Request) (Role, bool) {
 	if path == "/internal/ready" {
 		return RoleAdmin, true
 	}
-	if path == "/internal/lago/webhooks" {
+	if path == "/internal/stripe/webhooks" || path == "/internal/lago/webhooks" {
 		return "", false
 	}
 	if path == "/internal/tenants/audit" {
@@ -1921,6 +1928,8 @@ func normalizeMetricsRoute(path string) string {
 		return "/internal/onboarding/tenants/{id}"
 	case path == "/internal/lago/webhooks":
 		return "/internal/lago/webhooks"
+	case path == "/internal/stripe/webhooks":
+		return "/internal/stripe/webhooks"
 	case path == "/internal/tenants/audit":
 		return "/internal/tenants/audit"
 	case path == "/internal/billing-provider-connections":
@@ -2167,6 +2176,7 @@ func isTenantMatch(resourceTenantID, requestTenantID string) bool {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/health", s.handleHealth)
 	s.mux.HandleFunc("/internal/lago/webhooks", s.handleLagoWebhooks)
+	s.mux.HandleFunc("/internal/stripe/webhooks", s.handleStripeWebhooks)
 	s.mux.HandleFunc("/internal/onboarding/tenants", s.handleInternalOnboardingTenants)
 	s.mux.HandleFunc("/internal/onboarding/tenants/", s.handleInternalOnboardingTenantByID)
 	s.mux.HandleFunc("/internal/billing-provider-connections", s.handleInternalBillingProviderConnections)
@@ -4616,12 +4626,47 @@ func randomURLToken(numBytes int) (string, error) {
 	return strings.TrimRight(base64.RawURLEncoding.EncodeToString(buf), "="), nil
 }
 
+func (s *Server) handleStripeWebhooks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.stripeWebhookSvc == nil {
+		writeError(w, http.StatusServiceUnavailable, "stripe webhook service is required")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	sigHeader := r.Header.Get("Stripe-Signature")
+	webhookSecret := r.Header.Get("X-Webhook-Secret") // Resolved by the caller or from config.
+	tenantID := r.Header.Get("X-Tenant-ID")
+
+	result, err := s.stripeWebhookSvc.Ingest(r.Context(), body, sigHeader, webhookSecret, tenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusAccepted
+	if result.Idempotent {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, map[string]any{
+		"idempotent": result.Idempotent,
+		"event":      result.Event,
+	})
+}
+
 func (s *Server) handleLagoWebhooks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
 		return
 	}
-	if s.lagoWebhookSvc == nil {
+	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
 		return
 	}
@@ -4632,7 +4677,7 @@ func (s *Server) handleLagoWebhooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.lagoWebhookSvc.Ingest(r.Context(), r.Header, body)
+	result, err := s.paymentStatusSvc.Ingest(r.Context(), r.Header, body)
 	if err != nil {
 		writeDomainError(w, err)
 		return
@@ -4652,7 +4697,7 @@ func (s *Server) handleInvoicePaymentStatuses(w http.ResponseWriter, r *http.Req
 		writeMethodNotAllowed(w)
 		return
 	}
-	if s.lagoWebhookSvc == nil {
+	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
 		return
 	}
@@ -4673,7 +4718,7 @@ func (s *Server) handleInvoicePaymentStatuses(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	items, err := s.lagoWebhookSvc.ListInvoicePaymentStatusViews(
+	items, err := s.paymentStatusSvc.ListInvoicePaymentStatusViews(
 		requestTenantID(r),
 		service.ListInvoicePaymentStatusViewsRequest{
 			OrganizationID: r.URL.Query().Get("organization_id"),
@@ -4710,7 +4755,7 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 		writeMethodNotAllowed(w)
 		return
 	}
-	if s.lagoWebhookSvc == nil {
+	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
 		return
 	}
@@ -4728,7 +4773,7 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		summary, err := s.lagoWebhookSvc.GetInvoicePaymentStatusSummary(
+		summary, err := s.paymentStatusSvc.GetInvoicePaymentStatusSummary(
 			requestTenantID(r),
 			service.GetInvoicePaymentStatusSummaryRequest{
 				OrganizationID:    r.URL.Query().Get("organization_id"),
@@ -4744,7 +4789,7 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 	}
 
 	if len(parts) == 1 {
-		item, err := s.lagoWebhookSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
+		item, err := s.paymentStatusSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
 		if err != nil {
 			writeDomainError(w, err)
 			return
@@ -4764,9 +4809,9 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		events, err := s.lagoWebhookSvc.ListLagoWebhookEvents(
+		events, err := s.paymentStatusSvc.ListBillingEvents(
 			requestTenantID(r),
-			service.ListLagoWebhookEventsRequest{
+			service.ListBillingEventsRequest{
 				OrganizationID: r.URL.Query().Get("organization_id"),
 				InvoiceID:      invoiceID,
 				WebhookType:    r.URL.Query().Get("webhook_type"),
@@ -4795,12 +4840,12 @@ func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.R
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		view, err := s.lagoWebhookSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
+		view, err := s.paymentStatusSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
 		if err != nil {
 			writeDomainError(w, err)
 			return
 		}
-		lifecycle, err := s.lagoWebhookSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, eventLimit)
+		lifecycle, err := s.paymentStatusSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, eventLimit)
 		if err != nil {
 			writeDomainError(w, err)
 			return
@@ -5002,7 +5047,7 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			rawBody = []byte("{}")
 		}
 
-		ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to proxy retry payment to lago: "+err.Error())
@@ -5054,7 +5099,7 @@ func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 		statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to fetch invoice from lago: "+err.Error())

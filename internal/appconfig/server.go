@@ -11,6 +11,7 @@ import (
 
 	"usage-billing-control-plane/internal/api"
 	"usage-billing-control-plane/internal/billingcheck"
+	"usage-billing-control-plane/internal/billingcycle"
 	"usage-billing-control-plane/internal/dunningflow"
 	"usage-billing-control-plane/internal/paymentsync"
 	"usage-billing-control-plane/internal/replay"
@@ -27,11 +28,11 @@ type ServerConfig struct {
 	UISession        UISessionConfig
 	SSO              SSOConfig
 	RateLimit        RateLimitConfig
-	Lago             LagoConfig
 	BillingProviders BillingProviderConfig
 	BillingChecks    BillingConnectionCheckConfig
 	Payment          PaymentReconcileConfig
 	Dunning          DunningConfig
+	BillingCycle     BillingCycleConfig
 	APIKeysRaw       string
 	AuditExport      AuditExportConfig
 	Email            InvitationEmailConfig
@@ -58,6 +59,8 @@ type RoleConfig struct {
 	RunPaymentReconcileScheduler       bool
 	RunDunningWorker                   bool
 	RunDunningScheduler                bool
+	RunBillingCycleWorker              bool
+	RunBillingCycleScheduler           bool
 }
 
 type TemporalConfig struct {
@@ -102,14 +105,6 @@ type RateLimitConfig struct {
 	PolicyRates   map[string]string
 }
 
-type LagoConfig struct {
-	APIURL         string
-	APIKey         string
-	AdminAPIKey    string
-	HTTPTimeout    time.Duration
-	WebhookHMACKey string
-}
-
 type BillingProviderConfig struct {
 	SecretStoreBackend         string
 	SecretStoreAWSRegion       string
@@ -118,7 +113,7 @@ type BillingProviderConfig struct {
 	SecretStoreAccessKeyID     string
 	SecretStoreSecretAccessKey string
 	SecretStoreSessionToken    string
-	DefaultLagoOrganizationID  string
+	DefaultOrganizationID  string
 	StripeSuccessRedirectURL   string
 }
 
@@ -139,6 +134,14 @@ type BillingConnectionCheckConfig struct {
 }
 
 type DunningConfig struct {
+	TaskQueue    string
+	CronSchedule string
+	WorkflowID   string
+	Batch        int
+	TenantID     string
+}
+
+type BillingCycleConfig struct {
 	TaskQueue    string
 	CronSchedule string
 	WorkflowID   string
@@ -177,9 +180,11 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		RunPaymentReconcileScheduler:       getBoolEnv("RUN_PAYMENT_RECONCILE_SCHEDULER", false),
 		RunDunningWorker:                   getBoolEnv("RUN_DUNNING_WORKER", false),
 		RunDunningScheduler:                getBoolEnv("RUN_DUNNING_SCHEDULER", false),
+		RunBillingCycleWorker:              getBoolEnv("RUN_BILLING_CYCLE_WORKER", false),
+		RunBillingCycleScheduler:           getBoolEnv("RUN_BILLING_CYCLE_SCHEDULER", false),
 	}
-	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunBillingConnectionCheckWorker && !roles.RunBillingConnectionCheckScheduler && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler && !roles.RunDunningWorker && !roles.RunDunningScheduler {
-		return ServerConfig{}, fmt.Errorf("at least one role must be enabled: RUN_API_SERVER, RUN_REPLAY_WORKER, RUN_REPLAY_DISPATCHER, RUN_BILLING_CONNECTION_CHECK_WORKER, RUN_BILLING_CONNECTION_CHECK_SCHEDULER, RUN_PAYMENT_RECONCILE_WORKER, RUN_PAYMENT_RECONCILE_SCHEDULER, RUN_DUNNING_WORKER, RUN_DUNNING_SCHEDULER")
+	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunBillingConnectionCheckWorker && !roles.RunBillingConnectionCheckScheduler && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler && !roles.RunDunningWorker && !roles.RunDunningScheduler && !roles.RunBillingCycleWorker && !roles.RunBillingCycleScheduler {
+		return ServerConfig{}, fmt.Errorf("at least one role must be enabled")
 	}
 	uiSessionCookieSecure := getBoolEnv("UI_SESSION_COOKIE_SECURE", productionLike)
 	uiSessionCookieSameSite, uiSessionCookieSameSiteName := parseSameSiteMode(strings.TrimSpace(os.Getenv("UI_SESSION_COOKIE_SAMESITE")))
@@ -226,15 +231,6 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		return ServerConfig{}, fmt.Errorf("UI_PUBLIC_BASE_URL is required when UI_OIDC_PROVIDERS_JSON is configured")
 	}
 
-	lagoAPIURL := strings.TrimSpace(os.Getenv("LAGO_API_URL"))
-	if lagoAPIURL == "" {
-		return ServerConfig{}, fmt.Errorf("LAGO_API_URL is required")
-	}
-	lagoAPIKey := strings.TrimSpace(os.Getenv("LAGO_API_KEY"))
-	lagoAdminAPIKey := strings.TrimSpace(os.Getenv("LAGO_ADMIN_API_KEY"))
-	if lagoAPIKey == "" && lagoAdminAPIKey == "" {
-		return ServerConfig{}, fmt.Errorf("at least one of LAGO_API_KEY or LAGO_ADMIN_API_KEY is required")
-	}
 	billingProviderSecretStoreBackend := strings.ToLower(strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_BACKEND")))
 	billingProviderSecretStoreAccessKeyID := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_ACCESS_KEY_ID"))
 	if billingProviderSecretStoreAccessKeyID == "" {
@@ -249,7 +245,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		billingProviderSecretStoreSessionToken = strings.TrimSpace(os.Getenv("AWS_SESSION_TOKEN"))
 	}
 	billingProviderStripeSuccessRedirectURL := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_STRIPE_SUCCESS_REDIRECT_URL"))
-	billingProviderDefaultLagoOrganizationID := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_DEFAULT_LAGO_ORGANIZATION_ID"))
+	billingProviderDefaultOrganizationID := strings.TrimSpace(os.Getenv("BILLING_PROVIDER_DEFAULT_ORGANIZATION_ID"))
 	if billingProviderSecretStoreBackend != "" {
 		switch billingProviderSecretStoreBackend {
 		case "memory", "aws-secretsmanager":
@@ -318,13 +314,6 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			OIDCProviders:      oidcProviders,
 		},
 		RateLimit: rateLimit,
-		Lago: LagoConfig{
-			APIURL:         lagoAPIURL,
-			APIKey:         lagoAPIKey,
-			AdminAPIKey:    lagoAdminAPIKey,
-			HTTPTimeout:    time.Duration(getIntEnv("LAGO_HTTP_TIMEOUT_MS", 10000)) * time.Millisecond,
-			WebhookHMACKey: strings.TrimSpace(os.Getenv("LAGO_WEBHOOK_HMAC_KEY")),
-		},
 		BillingProviders: BillingProviderConfig{
 			SecretStoreBackend:         billingProviderSecretStoreBackend,
 			SecretStoreAWSRegion:       firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_PROVIDER_SECRET_STORE_AWS_REGION")), strings.TrimSpace(os.Getenv("AWS_REGION")), strings.TrimSpace(os.Getenv("AWS_DEFAULT_REGION"))),
@@ -333,7 +322,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			SecretStoreAccessKeyID:     billingProviderSecretStoreAccessKeyID,
 			SecretStoreSecretAccessKey: billingProviderSecretStoreSecretAccessKey,
 			SecretStoreSessionToken:    billingProviderSecretStoreSessionToken,
-			DefaultLagoOrganizationID:  billingProviderDefaultLagoOrganizationID,
+			DefaultOrganizationID:  billingProviderDefaultOrganizationID,
 			StripeSuccessRedirectURL:   billingProviderStripeSuccessRedirectURL,
 		},
 		BillingChecks: BillingConnectionCheckConfig{
@@ -356,6 +345,13 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			WorkflowID:   firstNonEmpty(strings.TrimSpace(os.Getenv("DUNNING_WORKFLOW_ID")), dunningflow.DefaultDunningWorkflowID),
 			Batch:        getIntEnv("DUNNING_BATCH", 20),
 			TenantID:     firstNonEmpty(strings.TrimSpace(os.Getenv("DUNNING_TENANT_ID")), "default"),
+		},
+		BillingCycle: BillingCycleConfig{
+			TaskQueue:    firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CYCLE_TEMPORAL_TASK_QUEUE")), billingcycle.DefaultBillingCycleTaskQueue),
+			CronSchedule: firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CYCLE_CRON_SCHEDULE")), billingcycle.DefaultBillingCycleCronSchedule),
+			WorkflowID:   firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CYCLE_WORKFLOW_ID")), billingcycle.DefaultBillingCycleWorkflowID),
+			Batch:        getIntEnv("BILLING_CYCLE_BATCH", 50),
+			TenantID:     firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CYCLE_TENANT_ID")), "default"),
 		},
 		APIKeysRaw: strings.TrimSpace(os.Getenv("API_KEYS")),
 		AuditExport: AuditExportConfig{

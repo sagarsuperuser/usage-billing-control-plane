@@ -35,8 +35,8 @@ func (stubWorkspaceBillingProviderAdapter) EnsureStripeProvider(_ context.Contex
 
 type stubWorkspaceOrgBootstrapper struct{}
 
-func (stubWorkspaceOrgBootstrapper) BootstrapOrganization(_ context.Context, name string) (service.LagoOrganizationBootstrapResult, error) {
-	return service.LagoOrganizationBootstrapResult{
+func (stubWorkspaceOrgBootstrapper) BootstrapOrganization(_ context.Context, name string) (service.OrganizationBootstrapResult, error) {
+	return service.OrganizationBootstrapResult{
 		OrganizationID: "org_" + normalizeTestSlug(name),
 		APIKey:         "api_" + normalizeTestSlug(name),
 	}, nil
@@ -115,7 +115,7 @@ func TestTenantOnboardingUsesBillingProviderConnection(t *testing.T) {
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithBillingProviderConnectionService(billingSvc),
-		api.WithLagoOrganizationBootstrapper(stubWorkspaceOrgBootstrapper{}),
+		api.WithOrganizationBootstrapper(stubWorkspaceOrgBootstrapper{}),
 	).Handler())
 	defer ts.Close()
 
@@ -211,7 +211,7 @@ func TestTenantResponseUsesEffectiveWorkspaceBillingWhenTenantFieldIsEmpty(t *te
 		ID:                          "wbb_workspace_effective_only",
 		WorkspaceID:                 "tenant_workspace_effective_only",
 		BillingProviderConnectionID: connection.ID,
-		Backend:                     domain.WorkspaceBillingBackendLago,
+		Backend:                     domain.WorkspaceBillingBackendStripe,
 		BackendOrganizationID:       connection.LagoOrganizationID,
 		BackendProviderCode:         connection.LagoProviderCode,
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
@@ -310,7 +310,7 @@ func TestTenantResponseDoesNotMarkVerificationFailedWorkspaceBillingConnected(t 
 		ID:                          "wbb_workspace_verification_failed",
 		WorkspaceID:                 "tenant_workspace_verification_failed",
 		BillingProviderConnectionID: connection.ID,
-		Backend:                     domain.WorkspaceBillingBackendLago,
+		Backend:                     domain.WorkspaceBillingBackendStripe,
 		BackendOrganizationID:       connection.LagoOrganizationID,
 		BackendProviderCode:         connection.LagoProviderCode,
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
@@ -412,7 +412,7 @@ func TestTenantOnboardingStatusMarksVerificationFailedBillingPending(t *testing.
 		ID:                          "wbb_onboarding_verification_failed",
 		WorkspaceID:                 "tenant_onboarding_verification_failed",
 		BillingProviderConnectionID: connection.ID,
-		Backend:                     domain.WorkspaceBillingBackendLago,
+		Backend:                     domain.WorkspaceBillingBackendStripe,
 		BackendOrganizationID:       connection.LagoOrganizationID,
 		BackendProviderCode:         connection.LagoProviderCode,
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,
@@ -564,7 +564,7 @@ func TestTenantWorkspaceBillingSubresourceUpdatesActiveConnection(t *testing.T) 
 		ID:                          "wbb_workspace_billing",
 		WorkspaceID:                 "tenant_workspace_billing",
 		BillingProviderConnectionID: connectionA.ID,
-		Backend:                     domain.WorkspaceBillingBackendLago,
+		Backend:                     domain.WorkspaceBillingBackendStripe,
 		BackendOrganizationID:       connectionA.LagoOrganizationID,
 		BackendProviderCode:         connectionA.LagoProviderCode,
 		IsolationMode:               domain.WorkspaceBillingIsolationModeShared,

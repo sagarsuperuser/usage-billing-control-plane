@@ -352,7 +352,7 @@ func (s *WorkspaceBillingBindingService) ensureBindingFromTenantLegacy(tenant do
 	return s.EnsureWorkspaceBillingBinding(EnsureWorkspaceBillingBindingRequest{
 		WorkspaceID:                 tenant.ID,
 		BillingProviderConnectionID: tenant.BillingProviderConnectionID,
-		Backend:                     string(domain.WorkspaceBillingBackendLago),
+		Backend:                     string(domain.WorkspaceBillingBackendStripe),
 		BackendOrganizationID:       tenant.LagoOrganizationID,
 		BackendProviderCode:         tenant.LagoBillingProviderCode,
 		IsolationMode:               string(domain.WorkspaceBillingIsolationModeShared),
@@ -407,10 +407,10 @@ func sameTimePointer(a, b *time.Time) bool {
 func normalizeWorkspaceBillingBackend(value string) (domain.WorkspaceBillingBackend, error) {
 	backend := domain.WorkspaceBillingBackend(strings.ToLower(strings.TrimSpace(value)))
 	if backend == "" {
-		return domain.WorkspaceBillingBackendLago, nil
+		return domain.WorkspaceBillingBackendStripe, nil
 	}
 	switch backend {
-	case domain.WorkspaceBillingBackendLago:
+	case domain.WorkspaceBillingBackendStripe:
 		return backend, nil
 	default:
 		return "", fmt.Errorf("%w: unsupported workspace billing backend %q", ErrValidation, value)

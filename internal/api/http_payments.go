@@ -46,7 +46,7 @@ func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w)
 		return
 	}
-	if s.lagoWebhookSvc == nil {
+	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
 		return
 	}
@@ -75,7 +75,7 @@ func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
 	invoiceNumber := strings.TrimSpace(r.URL.Query().Get("invoice_number"))
 	lastEventType := strings.TrimSpace(r.URL.Query().Get("last_event_type"))
 
-	items, err := s.lagoWebhookSvc.ListInvoicePaymentStatusViews(
+	items, err := s.paymentStatusSvc.ListInvoicePaymentStatusViews(
 		requestTenantID(r),
 		service.ListInvoicePaymentStatusViewsRequest{
 			OrganizationID:     r.URL.Query().Get("organization_id"),
@@ -161,7 +161,7 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 		if len(strings.TrimSpace(string(rawBody))) == 0 {
 			rawBody = []byte("{}")
 		}
-		ctx := service.ContextWithLagoTenant(r.Context(), requestTenantID(r))
+		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to proxy payment retry to lago: "+err.Error())
@@ -180,7 +180,7 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.lagoWebhookSvc == nil {
+	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "lago webhook service is required")
 		return
 	}
@@ -200,9 +200,9 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		events, err := s.lagoWebhookSvc.ListLagoWebhookEvents(
+		events, err := s.paymentStatusSvc.ListBillingEvents(
 			requestTenantID(r),
-			service.ListLagoWebhookEventsRequest{
+			service.ListBillingEventsRequest{
 				OrganizationID: r.URL.Query().Get("organization_id"),
 				InvoiceID:      invoiceID,
 				WebhookType:    r.URL.Query().Get("webhook_type"),
@@ -230,12 +230,12 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view, err := s.lagoWebhookSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
+	view, err := s.paymentStatusSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	lifecycle, err := s.lagoWebhookSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, 50)
+	lifecycle, err := s.paymentStatusSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, 50)
 	if err != nil {
 		writeDomainError(w, err)
 		return
@@ -308,7 +308,7 @@ func (s *Server) materializeRetryPaymentProjection(ctx context.Context, tenantID
 	if s == nil || s.repo == nil || s.invoiceBillingAdapter == nil {
 		return nil
 	}
-	ctx = service.ContextWithLagoTenant(ctx, tenantID)
+	ctx = service.ContextWithBillingTenant(ctx, tenantID)
 	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, strings.TrimSpace(invoiceID))
 	if err != nil {
 		return err
