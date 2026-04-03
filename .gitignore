@@ -9,3 +9,4 @@ infra/terraform/aws/backends/*.hcl
 !infra/terraform/aws/environments/*.tfvars.example
 !infra/terraform/aws/backends/*.hcl.example
 scratch.txt
+server
