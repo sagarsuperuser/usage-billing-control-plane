@@ -28,7 +28,10 @@
       "Bash(npx next:*)",
       "Bash(sed -i '' '/Workspace Setup.*toBeVisible/d' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)",
       "Bash(sed -i '' '/Workspace Setup.*toHaveCount/d' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)",
-      "Bash(sed -i '' 's/name: \"Billing Connections\"/name: \"Connections\"/g' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)"
+      "Bash(sed -i '' 's/name: \"Billing Connections\"/name: \"Connections\"/g' /Users/superuser/projects/golang/usage-billing-control-plane/web/tests/e2e/control-plane-overview-session.spec.ts)",
+      "Bash(git commit -m ':*)",
+      "Bash(gh run:*)",
+      "Bash(chmod +x /Users/superuser/projects/golang/usage-billing-control-plane/scripts/test_integration.sh)"
     ]
   }
 }

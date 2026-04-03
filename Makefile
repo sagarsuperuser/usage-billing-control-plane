@@ -1,22 +1,11 @@
 SHELL := /bin/bash
 
--include config/lago-baseline.env
-
 GO ?= go
 COMPOSE_FILE ?= docker-compose.postgres.yml
 DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha?sslmode=disable
 TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
 TEST_TEMPORAL_ADDRESS ?= 127.0.0.1:17233
 TEST_TEMPORAL_NAMESPACE ?= default
-LAGO_REPO_PATH ?= ../lago
-LAGO_COMPOSE_FILE ?= fixtures/lago-ci/docker-compose.yml
-TEST_LAGO_API_URL ?=
-TEST_LAGO_API_KEY ?= lago_alpha_test_api_key
-BOOTSTRAP_LAGO_FOR_TESTS ?= 1
-CLEANUP_LAGO_ON_EXIT ?= 0
-VERIFY_LAGO_BACKEND_FOR_TESTS ?= 0
-LAGO_VERIFY_COMPOSE_FILE ?= docker-compose.dev.yml
-LAGO_BASELINE ?= lago-fork-v1.44.0-alpha.1
 CHECK_GITHUB ?= 0
 RUN_GO_TESTS ?= 1
 RUN_TERRAFORM_VALIDATE ?= 0
@@ -30,19 +19,11 @@ IMAGE_TAG ?= $(shell git rev-parse HEAD)
 API_IMAGE_REPOSITORY ?=
 WEB_IMAGE_REPOSITORY ?=
 REVISION ?=
-LAGO_STAGING_BACKEND_IMAGE_OVERRIDE ?= 139831607173.dkr.ecr.us-east-1.amazonaws.com/lago-alpha-staging/api:lago-fork-v1.44.0-alpha.1
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt tidy test test-unit test-browser-mocked test-smoke-local test-integration-local test-browser-staging-smoke test-staging-payment-smoke test-staging-pricing-journey test-staging-subscription-journey test-staging-payment-setup-journey test-staging-access-invite-journey test-staging-customer-onboarding-journey test-staging-replay-smoke verify-governance preflight-release preflight-staging preflight-prod db-up db-down db-ps db-logs wait-db migrate migrate-up migrate-status migrate-verify run bootstrap-platform-admin-key bootstrap-platform-admin-key-cluster mint-live-e2e-keys-cluster bootstrap-live-e2e-browser-users-cluster cleanup-staging-flow-data cleanup-staging-flow-data-local lago-up lago-down lago-ps lago-verify lago-baseline lago-staging-deploy lago-staging-sync-secrets lago-staging-verify lago-staging-checklist lago-staging-bootstrap-payments temporal-staging-deploy temporal-staging-sync-secrets temporal-staging-verify external-secrets-install reloader-install ingress-nginx-install-staging cert-manager-install cert-manager-apply-issuer cloudflare-sync-dns-token build-staging-images test-integration test-real-env-smoke prepare-real-payment-fixture test-real-payment-e2e verify-staging-runtime verify-replay-smoke-staging web-install web-dev web-lint web-build web-e2e web-e2e-live tf-fmt tf-validate tf-plan tf-plan-staging tf-plan-prod tf-apply-staging tf-apply-prod helm-lint helm-template-staging helm-template-prod deploy-staging deploy-prod rollback-staging rollback-prod ci
-
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
-
-lago-baseline: ## Print the Lago baseline used by integration CI and staging wiring
-	@printf 'LAGO_BASELINE=%s\n' '$(LAGO_BASELINE)'
-	@printf 'LAGO_STAGING_BACKEND_IMAGE_OVERRIDE=%s\n' '$(LAGO_STAGING_BACKEND_IMAGE_OVERRIDE)'
-	@printf 'LAGO_COMPOSE_FILE=%s\n' '$(LAGO_COMPOSE_FILE)'
 
 fmt: ## Format Go code
 	@$(GO) fmt ./...
@@ -65,14 +46,11 @@ test-integration-local: test-integration ## Run full local integration workflow
 verify-governance: ## Verify governance metadata (CODEOWNERS)
 	@./scripts/verify_codeowners.sh
 
-preflight-release: ## Run release preflight checks (ENVIRONMENT=staging|prod, optional CHECK_GITHUB=1)
+preflight-release: ## Run release preflight checks
 	@ENVIRONMENT='$(ENVIRONMENT)' CHECK_GITHUB='$(CHECK_GITHUB)' RUN_GO_TESTS='$(RUN_GO_TESTS)' RUN_TERRAFORM_VALIDATE='$(RUN_TERRAFORM_VALIDATE)' GITHUB_REPOSITORY='$(GITHUB_REPOSITORY)' ./scripts/preflight_staging.sh
 
 preflight-staging: ## Run release preflight checks for staging
 	@ENVIRONMENT='staging' CHECK_GITHUB='$(CHECK_GITHUB)' RUN_GO_TESTS='$(RUN_GO_TESTS)' RUN_TERRAFORM_VALIDATE='$(RUN_TERRAFORM_VALIDATE)' GITHUB_REPOSITORY='$(GITHUB_REPOSITORY)' ./scripts/preflight_staging.sh
-
-preflight-prod: ## Run release preflight checks for prod
-	@ENVIRONMENT='prod' CHECK_GITHUB='$(CHECK_GITHUB)' RUN_GO_TESTS='$(RUN_GO_TESTS)' RUN_TERRAFORM_VALIDATE='$(RUN_TERRAFORM_VALIDATE)' GITHUB_REPOSITORY='$(GITHUB_REPOSITORY)' ./scripts/preflight_staging.sh
 
 db-up: ## Start local Postgres via docker compose
 	@docker compose -f $(COMPOSE_FILE) up -d
@@ -92,9 +70,9 @@ wait-db: ## Wait for Postgres health status
 migrate: ## Run SQL migrations using cmd/migrate
 	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/migrate
 
-migrate-up: migrate ## Alias for migrate (apply pending migrations)
+migrate-up: migrate ## Alias for migrate
 
-migrate-status: ## Show migration status (available/applied/pending/unknown)
+migrate-status: ## Show migration status
 	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/migrate status
 
 migrate-verify: ## Verify no pending or unknown applied migrations remain
@@ -103,106 +81,62 @@ migrate-verify: ## Verify no pending or unknown applied migrations remain
 run: ## Start API server
 	@DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/server
 
-bootstrap-platform-admin-key: ## Bootstrap the first platform admin API key (requires DATABASE_URL)
+bootstrap-platform-admin-key: ## Bootstrap the first platform admin API key
 	@bash ./scripts/bootstrap_platform_admin_key.sh
 
-bootstrap-platform-admin-key-cluster: ## Bootstrap a platform admin API key from inside the current cluster using the deployed API workload wiring
+bootstrap-platform-admin-key-cluster: ## Bootstrap a platform admin API key from inside the cluster
 	@bash ./scripts/bootstrap_platform_admin_key_cluster.sh
 
-mint-live-e2e-keys-cluster: ## Mint fresh platform/writer/reader API keys for live API/runtime verification from inside the current cluster
+mint-live-e2e-keys-cluster: ## Mint fresh API keys for live verification from inside the cluster
 	@bash ./scripts/mint_live_e2e_keys_cluster.sh
 
-bootstrap-live-e2e-browser-users-cluster: ## Ensure fresh live browser users for Playwright staging smoke from inside the current cluster
+bootstrap-live-e2e-browser-users-cluster: ## Ensure fresh live browser users for Playwright staging smoke
 	@bash ./scripts/bootstrap_live_e2e_browser_users_cluster.sh
 
-bootstrap-staging-payment-fixtures: ## Bootstrap per-run Lago staging payment fixtures through a dedicated bootstrap job
-	@RUN_ID='$(RUN_ID)' LAGO_NAMESPACE='$(LAGO_NAMESPACE)' LAGO_API_DEPLOYMENT='$(LAGO_API_DEPLOYMENT)' LAGO_ORG_ID='$(LAGO_ORG_ID)' LAGO_ORG_NAME='$(LAGO_ORG_NAME)' STRIPE_PROVIDER_CODE='$(STRIPE_PROVIDER_CODE)' STRIPE_PROVIDER_NAME='$(STRIPE_PROVIDER_NAME)' STRIPE_SECRET_KEY='$(STRIPE_SECRET_KEY)' STRIPE_SUCCESS_REDIRECT_URL='$(STRIPE_SUCCESS_REDIRECT_URL)' LAGO_WEBHOOK_URL='$(LAGO_WEBHOOK_URL)' LAGO_WEBHOOK_SIGNATURE_ALGO='$(LAGO_WEBHOOK_SIGNATURE_ALGO)' STAGING_CONTACT_EMAIL='$(STAGING_CONTACT_EMAIL)' STAGING_CONTACT_FIRSTNAME='$(STAGING_CONTACT_FIRSTNAME)' STAGING_CONTACT_LASTNAME='$(STAGING_CONTACT_LASTNAME)' STAGING_CURRENCY='$(STAGING_CURRENCY)' SUCCESS_CUSTOMER_EXTERNAL_ID='$(SUCCESS_CUSTOMER_EXTERNAL_ID)' FAILURE_CUSTOMER_EXTERNAL_ID='$(FAILURE_CUSTOMER_EXTERNAL_ID)' SUCCESS_PAYMENT_METHOD_FIXTURE='$(SUCCESS_PAYMENT_METHOD_FIXTURE)' SUCCESS_ADDRESS_LINE1='$(SUCCESS_ADDRESS_LINE1)' SUCCESS_CITY='$(SUCCESS_CITY)' SUCCESS_STATE='$(SUCCESS_STATE)' SUCCESS_ZIPCODE='$(SUCCESS_ZIPCODE)' SUCCESS_COUNTRY='$(SUCCESS_COUNTRY)' bash ./scripts/bootstrap_lago_stripe_staging.sh
-
-cleanup-staging-flow-data: ## Dry-run or apply cleanup of generated stale staging flow fixtures from inside the cluster
+cleanup-staging-flow-data: ## Dry-run or apply cleanup of stale staging flow fixtures from inside the cluster
 	@ENVIRONMENT='$(ENVIRONMENT)' OUTPUT='$(OUTPUT)' APPLY='$(APPLY)' CONFIRM_STAGING_FLOW_CLEANUP='$(CONFIRM_STAGING_FLOW_CLEANUP)' INCLUDE_REPLAY_FIXTURES='$(INCLUDE_REPLAY_FIXTURES)' INCLUDE_PAYMENT_FIXTURES='$(INCLUDE_PAYMENT_FIXTURES)' INCLUDE_LIVE_BROWSER_FIXTURES='$(INCLUDE_LIVE_BROWSER_FIXTURES)' bash ./scripts/cleanup_staging_flow_data_cluster.sh
 
-cleanup-staging-flow-data-local: ## Legacy local psql cleanup path (requires DATABASE_URL)
+cleanup-staging-flow-data-local: ## Legacy local psql cleanup path
 	@DATABASE_URL='$(DATABASE_URL)' ENVIRONMENT='$(ENVIRONMENT)' APPLY='$(APPLY)' CONFIRM_STAGING_FLOW_CLEANUP='$(CONFIRM_STAGING_FLOW_CLEANUP)' bash ./scripts/cleanup_staging_flow_data.sh
 
-lago-up: ## Start Lago services and provision deterministic API key for tests
-	@LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' bash ./scripts/bootstrap_lago.sh
-
-lago-down: ## Stop Lago compose stack
-	@cd '$(LAGO_REPO_PATH)' && docker compose -f '$(LAGO_COMPOSE_FILE)' down
-
-lago-ps: ## Show Lago compose service status
-	@cd '$(LAGO_REPO_PATH)' && docker compose -f '$(LAGO_COMPOSE_FILE)' ps
-
-lago-verify: ## Run Lago replay/correctness verification suites
-	@cd '$(LAGO_REPO_PATH)' && ./scripts/verify_e2e.sh
-
-lago-staging-deploy: ## Deploy Lago staging into the current cluster (expects deploy/lago/environments/staging-values.yaml; defaults to validated fork backend override)
-	@LAGO_BACKEND_IMAGE_OVERRIDE='$(LAGO_STAGING_BACKEND_IMAGE_OVERRIDE)' ./scripts/deploy_lago_staging.sh
-
-lago-staging-sync-secrets: ## Sync Lago staging runtime secrets from AWS Secrets Manager into Kubernetes
-	@./scripts/sync_lago_staging_secrets.sh
-
-lago-staging-verify: ## Verify Lago staging namespace, services, and optional API reachability
-	@./scripts/verify_lago_staging.sh
-
-lago-staging-checklist: ## Print first-time manual Lago bootstrap steps
-	@./scripts/print_lago_bootstrap_checklist.sh
-
-lago-staging-bootstrap-payments: bootstrap-staging-payment-fixtures ## Bootstrap Lago Stripe/webhook/test-customer payment fixtures in staging
-
-temporal-staging-deploy: ## Deploy Temporal staging into the current cluster (official Helm chart, internal only)
+temporal-staging-deploy: ## Deploy Temporal staging into the current cluster
 	@./scripts/deploy_temporal_staging.sh
 
-temporal-staging-sync-secrets: ## Sync Temporal SQL password secret from the RDS master secret into Kubernetes
+temporal-staging-sync-secrets: ## Sync Temporal SQL password secret from the RDS master secret
 	@./scripts/sync_temporal_staging_secrets.sh
 
 temporal-staging-verify: ## Verify Temporal staging deployments and the default namespace
 	@./scripts/verify_temporal_staging.sh
 
-external-secrets-install: ## Install the external-secrets operator with staging IRSA wiring
+external-secrets-install: ## Install the external-secrets operator
 	@./scripts/install_external_secrets.sh
 
-reloader-install: ## Install or upgrade Stakater Reloader in the current cluster
+reloader-install: ## Install or upgrade Stakater Reloader
 	@./scripts/install_reloader.sh
 
-ingress-nginx-install-staging: ## Install or upgrade ingress-nginx with tracked staging values
+ingress-nginx-install-staging: ## Install or upgrade ingress-nginx
 	@./scripts/install_ingress_nginx.sh
 
-cert-manager-install: ## Install or upgrade cert-manager in the current cluster
+cert-manager-install: ## Install or upgrade cert-manager
 	@./scripts/install_cert_manager.sh
 
-cert-manager-apply-issuer: ## Apply a cert-manager ClusterIssuer manifest (ISSUER_FILE=...)
+cert-manager-apply-issuer: ## Apply a cert-manager ClusterIssuer manifest
 	@ISSUER_FILE='$(ISSUER_FILE)' ./scripts/apply_cluster_issuer.sh
 
-cloudflare-sync-dns-token: ## Create/update the cert-manager Cloudflare API token secret (requires CLOUDFLARE_API_TOKEN)
+cloudflare-sync-dns-token: ## Create/update the cert-manager Cloudflare API token secret
 	@./scripts/sync_cloudflare_dns_token.sh
 
-build-staging-images: ## Build and push linux/amd64 staging images to ECR (requires IMAGE_TAG/API_IMAGE_REPOSITORY/WEB_IMAGE_REPOSITORY)
+build-staging-images: ## Build and push staging images to ECR
 	@ENVIRONMENT=staging IMAGE_TAG='$(IMAGE_TAG)' API_IMAGE_REPOSITORY='$(API_IMAGE_REPOSITORY)' WEB_IMAGE_REPOSITORY='$(WEB_IMAGE_REPOSITORY)' AWS_REGION='$(AWS_REGION)' ./scripts/build_and_push_images.sh
 
-test-integration: ## Run integration tests with real Postgres + real Lago
-	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' TEST_TEMPORAL_ADDRESS='$(TEST_TEMPORAL_ADDRESS)' TEST_TEMPORAL_NAMESPACE='$(TEST_TEMPORAL_NAMESPACE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' BOOTSTRAP_LAGO_FOR_TESTS='$(BOOTSTRAP_LAGO_FOR_TESTS)' LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' CLEANUP_LAGO_ON_EXIT='$(CLEANUP_LAGO_ON_EXIT)' VERIFY_LAGO_BACKEND_FOR_TESTS='$(VERIFY_LAGO_BACKEND_FOR_TESTS)' LAGO_VERIFY_COMPOSE_FILE='$(LAGO_VERIFY_COMPOSE_FILE)' bash ./scripts/test_integration.sh
+test-integration: ## Run integration tests with real Postgres + Temporal
+	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' TEST_TEMPORAL_ADDRESS='$(TEST_TEMPORAL_ADDRESS)' TEST_TEMPORAL_NAMESPACE='$(TEST_TEMPORAL_NAMESPACE)' bash ./scripts/test_integration.sh
 
-test-real-env-smoke: ## Run fast real-env smoke suite (Postgres + Temporal + Lago)
-	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' TEST_TEMPORAL_ADDRESS='$(TEST_TEMPORAL_ADDRESS)' TEST_TEMPORAL_NAMESPACE='$(TEST_TEMPORAL_NAMESPACE)' TEST_LAGO_API_URL='$(TEST_LAGO_API_URL)' TEST_LAGO_API_KEY='$(TEST_LAGO_API_KEY)' BOOTSTRAP_LAGO_FOR_TESTS='$(BOOTSTRAP_LAGO_FOR_TESTS)' LAGO_REPO_PATH='$(LAGO_REPO_PATH)' LAGO_COMPOSE_FILE='$(LAGO_COMPOSE_FILE)' CLEANUP_LAGO_ON_EXIT='$(CLEANUP_LAGO_ON_EXIT)' VERIFY_LAGO_BACKEND_FOR_TESTS='$(VERIFY_LAGO_BACKEND_FOR_TESTS)' LAGO_VERIFY_COMPOSE_FILE='$(LAGO_VERIFY_COMPOSE_FILE)' bash ./scripts/test_real_env_smoke.sh
+test-real-env-smoke: ## Run fast real-env smoke suite (Postgres + Temporal)
+	@COMPOSE_FILE='$(COMPOSE_FILE)' TEST_DATABASE_URL='$(TEST_DATABASE_URL)' TEST_TEMPORAL_ADDRESS='$(TEST_TEMPORAL_ADDRESS)' TEST_TEMPORAL_NAMESPACE='$(TEST_TEMPORAL_NAMESPACE)' bash ./scripts/test_real_env_smoke.sh
 
-prepare-real-payment-fixture: ## Prepare collectible Lago invoice fixture (requires LAGO_API_URL/LAGO_API_KEY/CUSTOMER_EXTERNAL_ID)
-	@bash ./scripts/prepare_real_payment_invoice_fixture.sh
-
-test-real-payment-e2e: ## Run manual real payment collection E2E (requires staging/prod credentials + invoice id)
-	@bash ./scripts/test_real_payment_e2e.sh
-
-test-staging-payment-smoke: ## Run live staging payment smoke with minted platform/writer/reader keys (requires LAGO_API_KEY)
-	@bash ./scripts/run_staging_payment_smoke_with_minted_keys.sh
-
-test-staging-pricing-journey: ## Run live staging pricing configuration journey with minted writer/reader keys
+test-staging-pricing-journey: ## Run live staging pricing configuration journey
 	@bash ./scripts/run_staging_pricing_journey_with_minted_keys.sh
-
-test-staging-subscription-journey: ## Run live staging subscription billing journey with minted platform/writer/reader keys (requires LAGO_API_KEY)
-	@bash ./scripts/run_staging_subscription_journey_with_minted_keys.sh
-
-test-staging-payment-setup-journey: ## Run live staging payment setup and collect-payment journey with minted platform/writer/reader keys (requires LAGO_API_KEY)
-	@bash ./scripts/run_staging_payment_setup_journey_with_minted_keys.sh
 
 test-staging-access-invite-journey: ## Run live staging access and invite membership journey
 	@bash ./scripts/run_staging_access_invite_journey.sh
@@ -210,18 +144,30 @@ test-staging-access-invite-journey: ## Run live staging access and invite member
 test-staging-customer-onboarding-journey: ## Run live staging customer onboarding journey
 	@bash ./scripts/run_staging_customer_onboarding_journey.sh
 
-verify-staging-runtime: ## Verify staging runtime payment visibility + isolated pre-auth login rate limiting (requires ALPHA_API_BASE_URL/ALPHA_READER_API_KEY)
+verify-staging-runtime: ## Verify staging runtime payment visibility + rate limiting
 	@bash ./scripts/verify_staging_runtime.sh
 
-verify-replay-smoke-staging: ## Create and verify a fresh live replay fixture in staging (requires ALPHA_API_BASE_URL/ALPHA_WRITER_API_KEY/ALPHA_READER_API_KEY)
+verify-replay-smoke-staging: ## Create and verify a fresh live replay fixture in staging
 	@bash ./scripts/verify_replay_smoke_staging.sh
 
 test-staging-replay-smoke: verify-replay-smoke-staging ## Run live staging replay smoke
 
-web-e2e: ## Run browser E2E tests for control-plane UI
+web-install: ## Install web dependencies
+	@cd web && pnpm install
+
+web-dev: ## Start web dev server
+	@cd web && pnpm dev
+
+web-lint: ## Lint web code
+	@cd web && pnpm lint
+
+web-build: ## Build web app
+	@cd web && pnpm build
+
+web-e2e: ## Run browser E2E tests
 	@cd web && npx -y pnpm@10.30.0 exec playwright install --with-deps chromium && npx -y pnpm@10.30.0 build && npx -y pnpm@10.30.0 e2e
 
-web-e2e-live: ## Run live staging browser smoke for overview, payments, replay ops, and invoice explainability (requires PLAYWRIGHT_LIVE_BASE_URL plus browser-user email/password envs; optional invoice/replay fixture ids)
+web-e2e-live: ## Run live staging browser smoke
 	@PLAYWRIGHT_LIVE_BASE_URL='$(PLAYWRIGHT_LIVE_BASE_URL)' PLAYWRIGHT_LIVE_API_BASE_URL='$(PLAYWRIGHT_LIVE_API_BASE_URL)' PLAYWRIGHT_LIVE_PLATFORM_EMAIL='$(PLAYWRIGHT_LIVE_PLATFORM_EMAIL)' PLAYWRIGHT_LIVE_PLATFORM_PASSWORD='$(PLAYWRIGHT_LIVE_PLATFORM_PASSWORD)' PLAYWRIGHT_LIVE_WRITER_EMAIL='$(PLAYWRIGHT_LIVE_WRITER_EMAIL)' PLAYWRIGHT_LIVE_WRITER_PASSWORD='$(PLAYWRIGHT_LIVE_WRITER_PASSWORD)' PLAYWRIGHT_LIVE_READER_EMAIL='$(PLAYWRIGHT_LIVE_READER_EMAIL)' PLAYWRIGHT_LIVE_READER_PASSWORD='$(PLAYWRIGHT_LIVE_READER_PASSWORD)' PLAYWRIGHT_LIVE_PAYMENT_INVOICE_ID='$(PLAYWRIGHT_LIVE_PAYMENT_INVOICE_ID)' PLAYWRIGHT_LIVE_PAYMENT_SETUP_INVOICE_ID='$(PLAYWRIGHT_LIVE_PAYMENT_SETUP_INVOICE_ID)' PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID='$(PLAYWRIGHT_LIVE_EXPLAINABILITY_INVOICE_ID)' PLAYWRIGHT_LIVE_REPLAY_JOB_ID='$(PLAYWRIGHT_LIVE_REPLAY_JOB_ID)' PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID='$(PLAYWRIGHT_LIVE_REPLAY_CUSTOMER_ID)' PLAYWRIGHT_LIVE_REPLAY_METER_ID='$(PLAYWRIGHT_LIVE_REPLAY_METER_ID)' bash ./scripts/run_live_browser_smoke.sh
 
 test-browser-staging-smoke: web-e2e-live ## Run live staging browser smoke with real browser users
@@ -229,23 +175,20 @@ test-browser-staging-smoke: web-e2e-live ## Run live staging browser smoke with 
 tf-fmt: ## Format Terraform code
 	@terraform fmt -recursive $(TF_DIR)
 
-tf-validate: ## Validate Terraform config (without backend)
+tf-validate: ## Validate Terraform config
 	@terraform -chdir=$(TF_DIR) init -backend=false
 	@terraform -chdir=$(TF_DIR) validate
 
-tf-plan: ## Run Terraform plan (requires configured backend/vars)
-	@ENVIRONMENT='$(ENVIRONMENT)' TF_DIR='$(TF_DIR)' ./scripts/terraform_plan.sh
-
-tf-plan-staging: ## Run Terraform plan for staging using env/backends files
+tf-plan-staging: ## Run Terraform plan for staging
 	@ENVIRONMENT='staging' TF_DIR='$(TF_DIR)' ./scripts/terraform_plan.sh
 
-tf-plan-prod: ## Run Terraform plan for prod using env/backends files
+tf-plan-prod: ## Run Terraform plan for prod
 	@ENVIRONMENT='prod' TF_DIR='$(TF_DIR)' ./scripts/terraform_plan.sh
 
-tf-apply-staging: ## Apply previously created staging plan
+tf-apply-staging: ## Apply staging Terraform plan
 	@ENVIRONMENT='staging' TF_DIR='$(TF_DIR)' ./scripts/terraform_apply.sh
 
-tf-apply-prod: ## Apply previously created prod plan
+tf-apply-prod: ## Apply prod Terraform plan
 	@ENVIRONMENT='prod' TF_DIR='$(TF_DIR)' ./scripts/terraform_apply.sh
 
 helm-lint: ## Lint Helm chart
@@ -259,16 +202,16 @@ helm-template-prod: ## Render Helm prod manifests
 	@helm template lago-alpha $(HELM_CHART) -f $(HELM_CHART)/environments/prod-values.yaml >/tmp/lago-alpha-prod.yaml
 	@echo "rendered /tmp/lago-alpha-prod.yaml"
 
-deploy-staging: ## Deploy Helm release to staging (requires kubectl context + image vars)
+deploy-staging: ## Deploy Helm release to staging
 	@ENVIRONMENT=staging RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' IMAGE_TAG='$(IMAGE_TAG)' API_IMAGE_REPOSITORY='$(API_IMAGE_REPOSITORY)' WEB_IMAGE_REPOSITORY='$(WEB_IMAGE_REPOSITORY)' ./scripts/deploy_helm.sh
 
-deploy-prod: ## Deploy Helm release to prod (requires kubectl context + image vars)
+deploy-prod: ## Deploy Helm release to prod
 	@ENVIRONMENT=prod RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' IMAGE_TAG='$(IMAGE_TAG)' API_IMAGE_REPOSITORY='$(API_IMAGE_REPOSITORY)' WEB_IMAGE_REPOSITORY='$(WEB_IMAGE_REPOSITORY)' ./scripts/deploy_helm.sh
 
-rollback-staging: ## Helm rollback in staging (requires REVISION and kubectl context)
+rollback-staging: ## Helm rollback in staging
 	@ENVIRONMENT=staging RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' REVISION='$(REVISION)' ./scripts/rollback_helm.sh
 
-rollback-prod: ## Helm rollback in prod (requires REVISION and kubectl context)
+rollback-prod: ## Helm rollback in prod
 	@ENVIRONMENT=prod RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' REVISION='$(REVISION)' ./scripts/rollback_helm.sh
 
-ci: fmt test ## CI convenience target (format + full tests)
+ci: fmt test ## CI convenience target

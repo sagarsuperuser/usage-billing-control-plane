@@ -309,8 +309,6 @@ env:
   DB_CONN_MAX_LIFETIME_MIN: "30"
   DB_QUERY_TIMEOUT_MS: "5000"
   DB_MIGRATION_TIMEOUT_SEC: "120"
-  LAGO_HTTP_TIMEOUT_MS: "10000"
-  LAGO_WEBHOOK_HMAC_KEY: ""
   TEMPORAL_NAMESPACE: "default"
   REPLAY_TEMPORAL_TASK_QUEUE: "alpha-replay-jobs"
   REPLAY_TEMPORAL_DISPATCH_POLL_MS: "750"
@@ -336,8 +334,8 @@ env:
 
 secretEnv:
   # secretRefName must contain these keys after ExternalSecret sync:
-  # runtime configuration such as LAGO_API_URL, LAGO_API_KEY, TEMPORAL_ADDRESS, AUDIT_EXPORT_S3_BUCKET, RATE_LIMIT_REDIS_URL
-  # optional keys: AUDIT_EXPORT_S3_ENDPOINT, LAGO_ORG_TENANT_MAP
+  # runtime configuration such as TEMPORAL_ADDRESS, AUDIT_EXPORT_S3_BUCKET, RATE_LIMIT_REDIS_URL
+  # optional keys: AUDIT_EXPORT_S3_ENDPOINT
   secretRefName: "lago-alpha-runtime"
 
 dbSecretEnv:
