@@ -261,7 +261,7 @@ test("tenant writer can edit the customer billing profile", async ({ page }) => 
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
-  await expect(page.getByText("Billing profile")).toBeVisible();
+  await expect(page.getByText("Billing profile").first()).toBeVisible();
   await expect(page.getByLabel("Tax identifier")).toHaveValue("");
 
   await page.getByLabel("Tax identifier").fill("GSTIN-29ABCDE1234F2Z5");

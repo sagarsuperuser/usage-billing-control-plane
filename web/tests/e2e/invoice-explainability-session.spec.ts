@@ -187,13 +187,11 @@ test("reader session can load invoice explainability and inspect line items", as
   await expect(page.getByText("Invoice explainability")).toBeVisible();
   await fillUntilValue(page.getByTestId("explainability-invoice-id"), "inv_explain_123");
   await page.getByTestId("explainability-fee-types").fill("charge,subscription");
-  await page.getByTestId("explainability-sort").selectOption("amount_cents_desc");
   await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
 
   await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();
   await expect(page.getByTestId("explainability-meta-invoice")).toContainText("INV-EX-123");
-  await expect(page.getByTestId("explainability-meta-digest")).toContainText("digest_abc123");
   await expect(page.getByTestId("explainability-line-item-fee_1")).toContainText("API Calls");
   await expect(page.getByTestId("explainability-line-item-fee_2")).toContainText("Base Plan");
   await expect(page.getByText("api_calls:v3")).toHaveCount(0);

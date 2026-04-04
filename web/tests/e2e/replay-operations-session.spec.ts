@@ -240,6 +240,7 @@ test("writer session can queue replay jobs and inspect diagnostics", async ({ pa
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
   await expect(page.getByRole("heading", { name: "Replay jobs" })).toBeVisible();
+  await page.getByRole("button", { name: "New job" }).click();
   await page.getByTestId("replay-create-customer-id").fill("cust_new");
   await page.getByTestId("replay-create-meter-id").fill("meter_new");
   await page.getByTestId("replay-create-idempotency-key").fill("replay-new-1");
@@ -280,8 +281,11 @@ test("reader session is read-only for replay queue and retry actions", async ({ 
 
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
-  await expect(page.getByTestId("replay-create-submit")).toBeDisabled();
+  // Reader cannot retry failed jobs
   await expect(page.getByTestId("replay-retry-job-job_failed")).toBeDisabled();
+  // Reader can open create modal but submit is disabled
+  await page.getByRole("button", { name: "New job" }).click();
+  await expect(page.getByTestId("replay-create-submit")).toBeDisabled();
 
   await page.getByTestId("replay-open-diagnostics-job_failed").click();
   await expect(page.getByTestId("replay-diagnostics-drawer")).toBeVisible();
