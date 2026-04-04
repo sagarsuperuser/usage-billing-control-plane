@@ -187,7 +187,7 @@ test("invoice detail follows lifecycle guidance instead of exposing retry premat
 
   // The redesigned invoice detail shows lifecycle guidance inline
   await expect(page.getByText("collect payment").first()).toBeVisible();
-  await expect(page.getByText("card_declined")).toBeVisible();
+  await expect(page.getByText("card_declined").first()).toBeVisible();
   await expect(page.getByText("invoice payment failure").first()).toBeVisible();
   const timeline = page.locator("section").filter({ has: page.getByRole("heading", { name: "Correlated events" }) });
   await expect(timeline.getByRole("heading", { name: "Correlated events" })).toBeVisible();

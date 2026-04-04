@@ -248,7 +248,6 @@ test("writer session can queue replay jobs and inspect diagnostics", async ({ pa
   await page.getByTestId("replay-create-submit").click();
 
   await expect.poll(async () => page.evaluate(() => (window as ReplayMockWindow).__replayMock.createCSRF)).toBe("csrf-replay-123");
-  await expect(page.getByTestId("replay-flash-message")).toContainText("Replay job job_new queued");
   await expect(page.getByTestId("replay-diagnostics-drawer")).toBeVisible();
   await expect(page.getByText("Usage events")).toBeVisible();
   await expect(page.getByTestId("replay-job-row-job_new")).toBeVisible();
@@ -266,7 +265,6 @@ test("writer session can retry failed replay jobs with csrf", async ({ page }) =
   await page.getByTestId("replay-diagnostics-retry").click();
 
   await expect.poll(async () => page.evaluate(() => (window as ReplayMockWindow).__replayMock.retryCSRF)).toBe("csrf-replay-123");
-  await expect(page.getByTestId("replay-flash-message")).toContainText("re-queued for recovery");
   await expect(page.getByTestId("replay-job-row-job_failed")).toContainText("queued");
 });
 

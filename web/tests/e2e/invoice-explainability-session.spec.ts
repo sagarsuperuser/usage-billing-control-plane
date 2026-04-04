@@ -186,7 +186,7 @@ test("reader session can load invoice explainability and inspect line items", as
 
   await expect(page.getByText("Invoice explainability")).toBeVisible();
   await fillUntilValue(page.getByTestId("explainability-invoice-id"), "inv_explain_123");
-  await page.getByTestId("explainability-fee-types").fill("charge,subscription");
+  await page.getByTestId("explainability-fee-types").selectOption("charge");
   await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
 
