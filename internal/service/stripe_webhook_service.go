@@ -237,10 +237,16 @@ func buildStripeWebhookEvent(stripeEvent stripe.Event, tenantID string) domain.S
 		}
 	}
 
-	// Extract invoice ID from metadata (set during PaymentIntent creation).
+	// Extract invoice ID and tenant ID from metadata (set during PaymentIntent creation).
 	if metadata, ok := data["metadata"].(map[string]any); ok {
 		if invID, ok := metadata["invoice_id"].(string); ok {
 			event.InvoiceID = invID
+		}
+		// Use tenant_id from metadata as fallback when not provided by the handler.
+		if event.TenantID == "" {
+			if tid, ok := metadata["tenant_id"].(string); ok {
+				event.TenantID = tid
+			}
 		}
 	}
 

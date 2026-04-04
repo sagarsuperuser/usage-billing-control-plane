@@ -611,6 +611,12 @@ func main() {
 		service.NewCustomerService(repo, customerBillingAdapter).WithWorkspaceBillingBindingService(workspaceBillingBindingService),
 	).WithDunningService(webhookDunningSvc)
 	serverOpts = append(serverOpts, api.WithStripeWebhookService(stripeWebhookSvc))
+	if cfg.BillingProviders.StripeWebhookSecret != "" {
+		serverOpts = append(serverOpts, api.WithStripeWebhookSecret(cfg.BillingProviders.StripeWebhookSecret))
+		logger.Info("stripe webhook signature verification enabled", "component", "server")
+	} else {
+		logger.Warn("stripe webhook signature verification disabled (STRIPE_WEBHOOK_SECRET not set)", "component", "server")
+	}
 	logger.Info("stripe webhook service enabled", "component", "server")
 
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)

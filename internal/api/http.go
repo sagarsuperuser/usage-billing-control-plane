@@ -66,6 +66,8 @@ type Server struct {
 	customerBillingAdapter             service.CustomerBillingAdapter
 	paymentStatusSvc                   *service.PaymentStatusService
 	stripeWebhookSvc                   *service.StripeWebhookService
+	stripeWebhookSecret                string
+	invoicePDFService                  *service.InvoicePDFService
 	replayService                      *replay.Service
 	recService                         *reconcile.Service
 	authorizer                         APIKeyAuthorizer
@@ -422,6 +424,12 @@ func WithPaymentStatusService(svc *service.PaymentStatusService) ServerOption {
 func WithStripeWebhookService(stripeWebhookSvc *service.StripeWebhookService) ServerOption {
 	return func(s *Server) {
 		s.stripeWebhookSvc = stripeWebhookSvc
+	}
+}
+
+func WithStripeWebhookSecret(secret string) ServerOption {
+	return func(s *Server) {
+		s.stripeWebhookSecret = secret
 	}
 }
 

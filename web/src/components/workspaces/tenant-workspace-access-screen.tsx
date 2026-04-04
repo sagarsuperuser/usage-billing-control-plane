@@ -401,19 +401,7 @@ export function TenantWorkspaceAccessScreen() {
 
         {isAuthenticated && scope === "tenant" && isAdmin ? (
           <>
-            <div>
-              <h1 className="text-sm font-semibold text-slate-950">Team &amp; access</h1>
-              <p className="mt-1 text-sm text-slate-500">Members, service accounts, and credential audit for this workspace.</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <SummaryMetric label="Members" value={String(members.length)} hint={`${activeMembers.length} active`} />
-              <SummaryMetric label="Pending invites" value={String(pendingInvitations.length)} hint="Awaiting acceptance" />
-              <SummaryMetric label="Service accounts" value={String(serviceAccounts.length)} hint={`${disabledServiceAccounts.length} disabled`} />
-              <SummaryMetric label="Active credentials" value={String(activeCredentialCount)} hint="Machine secrets currently usable" />
-            </div>
-
-            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
               <div className="flex border-b border-stone-200" role="tablist">
                 {(
                   [
@@ -1048,16 +1036,6 @@ function ServiceAccountAuditRow({
   );
 }
 
-function SummaryMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
-    </div>
-  );
-}
-
 function StatusChip({
   tone,
   children,
@@ -1109,8 +1087,8 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
     .sort(([left], [right]) => left.localeCompare(right));
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
-      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Selected event</p>
+    <div className="rounded-lg border border-stone-200 bg-white px-4 py-4">
+      <p className="text-xs font-medium text-slate-500">Selected event</p>
       <p className="mt-2 text-lg font-semibold text-slate-950">{presentation.title}</p>
       <p className="mt-2 text-sm text-slate-700">{presentation.summary}</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1194,7 +1172,7 @@ function PaginationControls({
   }
 
   return (
-    <div className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2 py-2">
+    <div className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-2 py-2">
       <button
         type="button"
         onClick={() => onPageChange(page - 1)}
@@ -1236,7 +1214,7 @@ function CursorPaginationControls({
   label: string;
 }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2 py-2">
+    <div className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-2 py-2">
       <button
         type="button"
         onClick={onPrevious}

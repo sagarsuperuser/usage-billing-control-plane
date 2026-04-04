@@ -115,6 +115,7 @@ type BillingProviderConfig struct {
 	SecretStoreSessionToken    string
 	DefaultOrganizationID  string
 	StripeSuccessRedirectURL   string
+	StripeWebhookSecret       string
 }
 
 type PaymentReconcileConfig struct {
@@ -324,6 +325,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 			SecretStoreSessionToken:    billingProviderSecretStoreSessionToken,
 			DefaultOrganizationID:  billingProviderDefaultOrganizationID,
 			StripeSuccessRedirectURL:   billingProviderStripeSuccessRedirectURL,
+			StripeWebhookSecret:       strings.TrimSpace(os.Getenv("STRIPE_WEBHOOK_SECRET")),
 		},
 		BillingChecks: BillingConnectionCheckConfig{
 			TaskQueue:         firstNonEmpty(strings.TrimSpace(os.Getenv("BILLING_CONNECTION_CHECK_TEMPORAL_TASK_QUEUE")), billingcheck.DefaultTemporalBillingConnectionCheckTaskQueue),

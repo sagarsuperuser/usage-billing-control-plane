@@ -1014,6 +1014,10 @@ func (s *Server) handleStripeWebhooks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "stripe webhook service is required")
 		return
 	}
+	if s.stripeWebhookSecret == "" {
+		writeError(w, http.StatusServiceUnavailable, "stripe webhook secret is not configured")
+		return
+	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -1022,10 +1026,17 @@ func (s *Server) handleStripeWebhooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sigHeader := r.Header.Get("Stripe-Signature")
-	webhookSecret := r.Header.Get("X-Webhook-Secret") // Resolved by the caller or from config.
+	if sigHeader == "" {
+		writeError(w, http.StatusBadRequest, "Stripe-Signature header is required")
+		return
+	}
+
+	// Tenant ID is extracted from PaymentIntent metadata by the webhook service
+	// after signature verification. For events without metadata (e.g. customer.*),
+	// we fall back to X-Tenant-ID header if provided.
 	tenantID := r.Header.Get("X-Tenant-ID")
 
-	result, err := s.stripeWebhookSvc.Ingest(r.Context(), body, sigHeader, webhookSecret, tenantID)
+	result, err := s.stripeWebhookSvc.Ingest(r.Context(), body, sigHeader, s.stripeWebhookSecret, tenantID)
 	if err != nil {
 		writeDomainError(w, err)
 		return

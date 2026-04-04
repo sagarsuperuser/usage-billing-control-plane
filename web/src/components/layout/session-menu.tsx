@@ -41,7 +41,7 @@ export function SessionMenu() {
   const accessLabel = scope === "platform" ? platformRole ?? "platform" : session.role ?? "reader";
   const contextLabel = scope === "platform" ? "Platform admin" : session.tenant_id || "Workspace";
   const identityLabel = session.user_email || contextLabel;
-  const homeHref = scope === "platform" ? "/control-plane" : "/customers";
+  const homeHref = "/control-plane";
   const secondaryHref = scope === "platform" ? "/workspaces" : "/workspace-access";
   const secondaryLabel = scope === "platform" ? "Workspaces" : "Access";
   const closeMenu = () => {

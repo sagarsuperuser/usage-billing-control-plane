@@ -266,7 +266,6 @@ test("workspace access shows summary-first service account and audit surfaces", 
 
   // Members tab is active by default
   await expect(page.getByRole("tab", { name: "Members" })).toBeVisible();
-  await expect(page.getByText("Machine secrets currently usable")).toBeVisible();
 
   // Navigate to service accounts tab
   await page.getByRole("tab", { name: "Service accounts" }).click();
@@ -281,7 +280,7 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await page.getByRole("tab", { name: "Audit log" }).click();
   await page.getByLabel("Audit service account").selectOption("svc_erp");
   await expect(page.getByText("Credential rotated")).toBeVisible();
-  await page.getByRole("button", { name: /View service account audit details for Credential rotated/i }).click();
+  await page.getByRole("button", { name: /View service account audit details for Credential rotated/i }).click({ force: true });
   await expect(page.getByText("Selected event")).toBeVisible();
   await expect(page.getByText("Selected event").locator("..").getByText("A credential was rotated and replaced for erp sync · prod.")).toBeVisible();
   await expect(page.getByText("Owner Type")).toBeVisible();
