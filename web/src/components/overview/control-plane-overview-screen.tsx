@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
@@ -99,7 +98,7 @@ export function ControlPlaneOverviewScreen() {
                 {attentionItems.filter((item) => item.value > 0).map((item) => (
                   <Link
                     key={item.title}
-                    href={item.href}
+                    to={item.href}
                     className="flex items-center justify-between py-2 text-sm transition hover:bg-stone-50"
                   >
                     <span className="text-slate-700">
@@ -133,7 +132,7 @@ export function ControlPlaneOverviewScreen() {
 
 function GettingStartedStep({ step, title, description, href }: { step: string; title: string; description: string; href: string }) {
   return (
-    <Link href={href} className="group flex flex-col gap-2 rounded-lg border border-stone-200 bg-stone-50 p-3 transition hover:border-slate-300 hover:bg-white">
+    <Link to={href} className="group flex flex-col gap-2 rounded-lg border border-stone-200 bg-stone-50 p-3 transition hover:border-slate-300 hover:bg-white">
       <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">{step}</span>
       <div>
         <p className="text-sm font-medium text-slate-900">{title}</p>

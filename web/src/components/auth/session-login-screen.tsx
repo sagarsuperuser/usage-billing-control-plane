@@ -1,7 +1,6 @@
-"use client";
-
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 import { useQuery } from "@tanstack/react-query";
 
 import { SessionLoginCard } from "@/components/auth/session-login-card";
@@ -15,8 +14,8 @@ function resolveTarget(session: UISession | null, nextPath: string | null): stri
 }
 
 export function SessionLoginScreen() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const searchParams = useSearchParamsCompat();
   const { session, isAuthenticated, apiBaseURL } = useUISession();
   const requestedNext = searchParams.get("next");
   const accessSwitch = searchParams.get("switch") === "1";
@@ -32,9 +31,9 @@ export function SessionLoginScreen() {
 
   useEffect(() => {
     if (isAuthenticated && !accessSwitch) {
-      router.replace(resolveTarget(session, requestedNext));
+      navigate({ to: resolveTarget(session, requestedNext), replace: true });
     }
-  }, [accessSwitch, isAuthenticated, requestedNext, router, session]);
+  }, [accessSwitch, isAuthenticated, requestedNext, navigate, session]);
 
   if (isAuthenticated && !accessSwitch) {
     return (
@@ -116,10 +115,10 @@ export function SessionLoginScreen() {
               authErrorCode={authError}
               nextPath={requestedNext}
               onSuccess={(nextSession) => {
-                router.replace(resolveTarget(nextSession, requestedNext));
+                navigate({ to: resolveTarget(nextSession, requestedNext), replace: true });
               }}
               onInvitationPending={(nextPath) => {
-                router.replace(normalizeNextPath(nextPath, "/"));
+                navigate({ to: normalizeNextPath(nextPath, "/"), replace: true });
               }}
             />
           </div>

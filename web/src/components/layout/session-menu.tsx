@@ -1,7 +1,6 @@
-"use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import {
   Building2,
   Check,
@@ -155,7 +154,7 @@ export function SessionMenu() {
                       );
                     })}
                     <Link
-                      href="/workspace-setup"
+                      to="/workspace-setup"
                       onClick={closeMenu}
                       className="flex h-8 w-full items-center gap-2.5 px-3.5 text-xs text-slate-500 transition hover:bg-stone-100"
                     >
@@ -173,7 +172,7 @@ export function SessionMenu() {
           {/* Links */}
           <div className="border-t border-stone-100">
             <Link
-              href="/workspace-access"
+              to="/workspace-access"
               onClick={closeMenu}
               className="flex h-9 items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-50"
             >

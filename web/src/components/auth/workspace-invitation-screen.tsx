@@ -1,8 +1,5 @@
-"use client";
-
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle, MailCheck, PanelsTopLeft } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -12,7 +9,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { useSessionStore } from "@/store/use-session-store";
 
 export function WorkspaceInvitationScreen({ token }: { token: string }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, session, isAuthenticated, isLoading } = useUISession();
   const { setSession } = useSessionStore();
@@ -51,7 +48,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
     onSuccess: (payload) => {
       setSession(payload.session);
       queryClient.setQueryData(["ui-session", apiBaseURL], payload.session);
-      router.replace(normalizeNextPath("/customers", getDefaultLandingPath(payload.session)));
+      navigate({ to: normalizeNextPath("/customers", getDefaultLandingPath(payload.session)), replace: true });
     },
   });
   const registerMutation = useMutation({
@@ -66,7 +63,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
       setSession(payload.session);
       queryClient.setQueryData(["ui-session", apiBaseURL], payload.session);
       setPassword("");
-      router.replace(normalizeNextPath("/customers", getDefaultLandingPath(payload.session)));
+      navigate({ to: normalizeNextPath("/customers", getDefaultLandingPath(payload.session)), replace: true });
     },
   });
 
@@ -113,7 +110,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
             </p>
             <div className="mt-5">
               <Link
-                href="/login"
+                to="/login"
                 className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
               >
                 Open login
@@ -188,7 +185,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
 
               {preview.account_exists ? (
                 <Link
-                  href={loginHref}
+                  to={loginHref}
                   className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
                 >
                   Sign in with email and password
@@ -248,7 +245,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
                 Accept invitation
               </button>
               <Link
-                href={accessSwitchHref}
+                to={accessSwitchHref}
                 className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
               >
                 Switch account

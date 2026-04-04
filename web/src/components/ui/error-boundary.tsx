@@ -1,4 +1,3 @@
-"use client";
 
 import { Component, type ReactNode, type ErrorInfo } from "react";
 
@@ -42,7 +41,6 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, PageSt
             >
               Try again
             </button>
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/"
               className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"

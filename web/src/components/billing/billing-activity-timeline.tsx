@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 
 import type { DunningRunDetail, LagoWebhookEvent } from "@/lib/types";
 import { formatExactTimestamp } from "@/lib/format";
@@ -116,7 +115,7 @@ export function BillingActivityTimeline({
           </span>
           {dunningRunHref ? (
             <Link
-              href={dunningRunHref}
+              to={dunningRunHref}
               className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
             >
               Open dunning run

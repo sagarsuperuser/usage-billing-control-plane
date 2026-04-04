@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -54,7 +53,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">Add-on not available</p>
             <p className="mt-1 text-sm text-slate-500">The requested add-on could not be loaded.</p>
-            <Link href="/pricing/add-ons" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+            <Link to="/pricing/add-ons" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
               <ArrowLeft className="h-3.5 w-3.5" />
               Back to add-ons
             </Link>
@@ -71,7 +70,7 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
                       {addOn.status}
                     </span>
                   </div>
-                  <Link href="/pricing/add-ons" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                  <Link to="/pricing/add-ons" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                     <ArrowLeft className="h-3.5 w-3.5" />
                     Back to add-ons
                   </Link>

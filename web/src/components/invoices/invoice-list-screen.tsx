@@ -1,10 +1,8 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -59,7 +57,7 @@ function paymentTone(status?: string): string {
 }
 
 export function InvoiceListScreen() {
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParamsCompat();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -188,7 +186,7 @@ export function InvoiceListScreen() {
                     return (
                       <tr key={item.invoice_id} className="transition hover:bg-stone-50">
                         <td className="px-5 py-3">
-                          <Link href={`/invoices/${encodeURIComponent(item.invoice_id)}`} className="block">
+                          <Link to={`/invoices/${encodeURIComponent(item.invoice_id)}`} className="block">
                             <p className="font-medium text-slate-900">{item.invoice_number || item.invoice_id}</p>
                           </Link>
                         </td>
@@ -241,7 +239,7 @@ function EmptyState() {
     <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
       <p className="text-sm font-medium text-slate-700">No invoices</p>
       <p className="text-xs text-slate-500">Invoices appear once a billing cycle completes for an active subscription.</p>
-      <Link href="/subscriptions" className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">
+      <Link to="/subscriptions" className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">
         View subscriptions
       </Link>
     </div>

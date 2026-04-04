@@ -1,10 +1,8 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { LoaderCircle, Save, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -56,7 +54,7 @@ function stateBadgeClass(state?: string): string {
 const PAGE_SIZE = 20;
 
 export function DunningConsoleScreen() {
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParamsCompat();
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
@@ -201,7 +199,7 @@ export function DunningConsoleScreen() {
                         <td className="px-4 py-3 text-slate-600">{run.attempt_count}</td>
                         <td className="px-4 py-3">
                           <Link
-                            href={`/dunning/${encodeURIComponent(run.id)}`}
+                            to={`/dunning/${encodeURIComponent(run.id)}`}
                             className="text-sm font-medium text-slate-600 hover:text-slate-900"
                           >
                             View →

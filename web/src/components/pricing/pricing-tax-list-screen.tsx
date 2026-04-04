@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { Plus, Receipt } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -65,7 +64,7 @@ export function PricingTaxListScreen() {
                   placeholder="Search..."
                   className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
-                <Link href="/pricing/taxes/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+                <Link to="/pricing/taxes/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
                   <Plus className="h-3.5 w-3.5" />
                   New
                 </Link>
@@ -90,7 +89,7 @@ export function PricingTaxListScreen() {
                     {paginated.map((tax) => (
                       <tr key={tax.id} className="transition hover:bg-stone-50">
                         <td className="px-5 py-3">
-                          <Link href={`/pricing/taxes/${encodeURIComponent(tax.id)}`} className="block font-medium text-slate-900">
+                          <Link to={`/pricing/taxes/${encodeURIComponent(tax.id)}`} className="block font-medium text-slate-900">
                             {tax.name}
                           </Link>
                         </td>
@@ -135,7 +134,7 @@ function EmptyState() {
       <Receipt className="h-8 w-8 text-slate-300" />
       <p className="text-sm font-medium text-slate-700">No taxes yet</p>
       <p className="text-xs text-slate-500">Create the first tax, then assign it to customer profiles or workspace billing settings.</p>
-      <Link href="/pricing/taxes/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+      <Link to="/pricing/taxes/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
         <Plus className="h-3.5 w-3.5" />
         New tax
       </Link>

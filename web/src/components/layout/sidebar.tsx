@@ -1,8 +1,5 @@
-"use client";
-
 import type { ComponentType } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, useLocation } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRightLeft,
@@ -54,7 +51,7 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 export function AppSidebar() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const { isAuthenticated, isLoading } = useUISession();
 
   if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return null;
@@ -63,7 +60,7 @@ export function AppSidebar() {
     <aside className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-stone-200 bg-white">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <Link href="/control-plane" className="flex items-center gap-2.5">
+        <Link to="/control-plane" className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900">
             <svg width="14" height="14" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.5"/>
@@ -112,8 +109,8 @@ function NavGroup({ label, items, pathname }: { label: string; items: NavItem[];
           return (
             <Link
               key={item.href}
-              href={item.href}
-              prefetch={false}
+              to={item.href}
+             
               className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors ${
                 active
                   ? "bg-slate-100 text-slate-900"
@@ -132,7 +129,7 @@ function NavGroup({ label, items, pathname }: { label: string; items: NavItem[];
 
 /** Wrapper that adds left padding when the sidebar is visible. */
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const isAuthPage = AUTH_PATHS.some((p) => pathname.startsWith(p));
 
   if (isAuthPage) {

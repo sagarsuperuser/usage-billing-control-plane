@@ -1,9 +1,7 @@
-"use client";
-
 import { useMemo, useState } from "react";
 import { LoaderCircle, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -15,7 +13,7 @@ import { type InvoiceExplainabilityLineItem } from "@/lib/types";
 const feeTypeOptions = ["", "charge", "subscription", "add_on", "credit", "minimum_commitment"] as const;
 
 export function InvoiceExplainabilityScreen() {
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParamsCompat();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const initialInvoiceID = searchParams.get("invoice_id") || "";

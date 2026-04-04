@@ -1,8 +1,5 @@
-"use client";
-
-import Link from "next/link";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { LoaderCircle, UserPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,15 +17,15 @@ const registrationSchema = z.object({
 type RegistrationFields = z.infer<typeof registrationSchema>;
 
 export function RegistrationScreen() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { isAuthenticated, apiBaseURL } = useUISession();
   const [serverError, setServerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/control-plane");
+      navigate({ to: "/control-plane", replace: true });
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, navigate]);
 
   const {
     register,
@@ -171,7 +168,7 @@ export function RegistrationScreen() {
 
               <p className="mt-6 text-center text-sm text-slate-500">
                 Already have an account?{" "}
-                <Link href="/login" className="font-medium text-slate-700 transition hover:text-slate-900">
+                <Link to="/login" className="font-medium text-slate-700 transition hover:text-slate-900">
                   Sign in
                 </Link>
               </p>

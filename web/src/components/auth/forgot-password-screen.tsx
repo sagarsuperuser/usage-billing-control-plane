@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -76,7 +75,7 @@ export function ForgotPasswordScreen() {
           {resetMutation.isError ? <p className="mt-4 text-xs text-rose-700">{resetMutation.error.message}</p> : null}
 
           <div className="mt-5">
-            <Link href="/login" prefetch={false} className="text-sm text-slate-600 transition hover:text-slate-900">
+            <Link to="/login" className="text-sm text-slate-600 transition hover:text-slate-900">
               Back to login
             </Link>
           </div>

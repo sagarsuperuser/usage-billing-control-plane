@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
 export type BreadcrumbItem = {
@@ -19,7 +18,7 @@ export function AppBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
         return (
           <div key={`${item.label}-${index}`} className="flex items-center gap-2">
             {item.href && !last ? (
-              <Link href={item.href} prefetch={false} className="transition hover:text-slate-700">
+              <Link to={item.href} className="transition hover:text-slate-700">
                 {item.label}
               </Link>
             ) : (

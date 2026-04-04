@@ -1,8 +1,6 @@
-"use client";
-
 import { useEffect } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 import { LoaderCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -12,8 +10,8 @@ import { buildAccessSwitchPath, buildLoginPath, getDefaultLandingPath, normalize
 import { useSessionStore } from "@/store/use-session-store";
 
 export function WorkspaceSelectionScreen() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const searchParams = useSearchParamsCompat();
   const queryClient = useQueryClient();
   const { session, isAuthenticated, isLoading, apiBaseURL } = useUISession();
   const { setSession } = useSessionStore();
@@ -28,9 +26,9 @@ export function WorkspaceSelectionScreen() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && !selectionQuery.data?.required) {
-      router.replace(normalizeNextPath(requestedNext, getDefaultLandingPath(session)));
+      navigate({ to: normalizeNextPath(requestedNext, getDefaultLandingPath(session)), replace: true });
     }
-  }, [isAuthenticated, isLoading, requestedNext, router, selectionQuery.data?.required, session]);
+  }, [isAuthenticated, isLoading, requestedNext, navigate, selectionQuery.data?.required, session]);
 
   const selectMutation = useMutation({
     mutationFn: (tenantID: string) =>
@@ -42,7 +40,7 @@ export function WorkspaceSelectionScreen() {
     onSuccess: (nextSession) => {
       setSession(nextSession);
       queryClient.setQueryData(["ui-session", apiBaseURL], nextSession);
-      router.replace(normalizeNextPath(requestedNext, getDefaultLandingPath(nextSession)));
+      navigate({ to: normalizeNextPath(requestedNext, getDefaultLandingPath(nextSession)), replace: true });
     },
   });
 
@@ -72,7 +70,7 @@ export function WorkspaceSelectionScreen() {
               </p>
               <div className="mt-6">
                 <Link
-                  href={buildAccessSwitchPath(requestedNext || "/customers")}
+                  to={buildAccessSwitchPath(requestedNext || "/customers")}
                   className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   Back to sign in
@@ -133,7 +131,7 @@ export function WorkspaceSelectionScreen() {
 
             <div className="mt-5 border-t border-stone-200 pt-5">
               <Link
-                href={buildAccessSwitchPath(requestedNext || "/customers")}
+                to={buildAccessSwitchPath(requestedNext || "/customers")}
                 className="text-sm text-slate-400 transition hover:text-slate-700"
               >
                 Sign in with a different account

@@ -1,4 +1,3 @@
-"use client";
 
 import { AlertCircle, CheckCircle2, TriangleAlert } from "lucide-react";
 

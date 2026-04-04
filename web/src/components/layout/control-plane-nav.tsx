@@ -1,8 +1,5 @@
-"use client";
-
 import type { ComponentType } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, useLocation } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRightLeft,
@@ -108,8 +105,8 @@ function NavSection({
           return (
             <Link
               key={item.href}
-              href={item.href}
-              prefetch={false}
+              to={item.href}
+             
               className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
                 active
                   ? "border-slate-900 bg-slate-900 text-white"
@@ -127,7 +124,7 @@ function NavSection({
 }
 
 export function ControlPlaneNav() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const { isAuthenticated, isLoading, session, scope } = useUISession();
 
   const contextLabel = isLoading

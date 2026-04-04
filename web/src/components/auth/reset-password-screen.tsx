@@ -1,16 +1,14 @@
-"use client";
-
-import Link from "next/link";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 import { useMutation } from "@tanstack/react-query";
 
 import { resetPassword } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function ResetPasswordScreen() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const searchParams = useSearchParamsCompat();
   const { apiBaseURL } = useUISession();
   const token = useMemo(() => searchParams.get("token")?.trim() ?? "", [searchParams]);
   const [password, setPassword] = useState("");
@@ -18,7 +16,7 @@ export function ResetPasswordScreen() {
   const resetMutation = useMutation({
     mutationFn: () => resetPassword({ runtimeBaseURL: apiBaseURL, token, password }),
     onSuccess: () => {
-      router.replace("/login?reset=success");
+      navigate({ to: "/login?reset=success", replace: true });
     },
   });
 
@@ -87,7 +85,7 @@ export function ResetPasswordScreen() {
           {resetMutation.isError ? <p className="mt-4 text-xs text-rose-700">{resetMutation.error.message}</p> : null}
 
           <div className="mt-5">
-            <Link href="/login" prefetch={false} className="text-sm text-slate-600 transition hover:text-slate-900">
+            <Link to="/login" className="text-sm text-slate-600 transition hover:text-slate-900">
               Back to login
             </Link>
           </div>

@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type InputHTMLAttributes, useEffect, useState } from "react";
@@ -234,12 +233,12 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
-                      href={`/invoices?customer_external_id=${encodeURIComponent(customer.external_id)}`}
+                      to={`/invoices?customer_external_id=${encodeURIComponent(customer.external_id)}`}
                       className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       View invoices
                     </Link>
-                    <Link href="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
+                    <Link to="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
                       <CreditCard className="h-3.5 w-3.5" />
                       New customer
                     </Link>
@@ -442,7 +441,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     Retry billing sync
                   </button>
                   <Link
-                    href={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
+                    to={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
                     className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Open subscriptions

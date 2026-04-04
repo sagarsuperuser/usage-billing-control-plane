@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 
 import { formatExactTimestamp } from "@/lib/format";
@@ -61,7 +60,7 @@ export function DunningSummaryPanel({
       ) : null}
       {runHref ? (
         <Link
-          href={runHref}
+          to={runHref}
           className="mt-4 inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
         >
           Open dunning run

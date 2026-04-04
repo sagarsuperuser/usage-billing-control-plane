@@ -27,8 +27,8 @@ export default defineConfig({
     ? undefined
     : {
         command: useProductionServer
-          ? `mkdir -p .next/standalone/.next/static && cp -R .next/static/. .next/standalone/.next/static && PORT=${port} HOSTNAME=127.0.0.1 node .next/standalone/server.js`
-          : `npx -y pnpm@10.30.0 exec next dev --webpack --port ${port} --hostname 127.0.0.1`,
+          ? `npx -y pnpm@10.30.0 exec vite preview --port ${port} --host 127.0.0.1`
+          : `npx -y pnpm@10.30.0 exec vite --port ${port} --host 127.0.0.1`,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

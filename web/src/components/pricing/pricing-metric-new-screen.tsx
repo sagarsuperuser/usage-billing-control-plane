@@ -1,9 +1,6 @@
-"use client";
-
-import Link from "next/link";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,7 +23,7 @@ const schema = z.object({
 type FormFields = z.infer<typeof schema>;
 
 export function PricingMetricNewScreen() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -43,7 +40,7 @@ export function PricingMetricNewScreen() {
   const mutation = useMutation({
     mutationFn: (data: FormFields) =>
       createPricingMetric({ runtimeBaseURL: apiBaseURL, csrfToken, body: data }),
-    onSuccess: (metric) => router.push(`/pricing/metrics/${encodeURIComponent(metric.id)}`),
+    onSuccess: (metric) => navigate({ to: `/pricing/metrics/${encodeURIComponent(metric.id)}` }),
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create metric", err.message);
@@ -68,7 +65,7 @@ export function PricingMetricNewScreen() {
                 <h1 className="text-base font-semibold text-slate-900">Create metric</h1>
                 <p className="mt-0.5 text-xs text-slate-500">Define the usage record plans will price against.</p>
               </div>
-              <Link href="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -83,7 +80,7 @@ export function PricingMetricNewScreen() {
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link href="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <Link to="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
                 <button data-testid="pricing-metric-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create metric

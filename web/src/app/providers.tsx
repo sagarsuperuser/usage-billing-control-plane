@@ -1,5 +1,3 @@
-"use client";
-
 import { ReactNode } from "react";
 
 import { PageErrorBoundary } from "@/components/ui/error-boundary";

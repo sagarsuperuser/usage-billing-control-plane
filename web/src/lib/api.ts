@@ -65,14 +65,27 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+type RuntimeWindow = Window & typeof globalThis & {
+  __RUNTIME_CONFIG__?: { apiBaseURL?: string };
+  __LAGO_ALPHA_RUNTIME__?: { apiBaseURL?: string };
+};
+
 export function getConfiguredAPIBaseURL(): string {
   if (typeof window !== "undefined") {
-    const runtimeConfig = (window as Window & { __LAGO_ALPHA_RUNTIME__?: { apiBaseURL?: string } }).__LAGO_ALPHA_RUNTIME__;
-    if (runtimeConfig?.apiBaseURL) {
-      return trimTrailingSlash(runtimeConfig.apiBaseURL);
+    const w = window as RuntimeWindow;
+    // Production: injected by Docker entrypoint
+    const rc = w.__RUNTIME_CONFIG__;
+    if (rc?.apiBaseURL && !rc.apiBaseURL.includes("PLACEHOLDER")) {
+      return trimTrailingSlash(rc.apiBaseURL);
+    }
+    // Legacy / test compat
+    const legacy = w.__LAGO_ALPHA_RUNTIME__;
+    if (legacy?.apiBaseURL) {
+      return trimTrailingSlash(legacy.apiBaseURL);
     }
   }
-  return trimTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "");
+  // Vite dev: VITE_API_BASE_URL from .env
+  return trimTrailingSlash(import.meta.env.VITE_API_BASE_URL?.trim() ?? "");
 }
 
 export async function fetchRuntimeConfig(): Promise<{ apiBaseURL: string }> {
@@ -87,9 +100,9 @@ export async function fetchRuntimeConfig(): Promise<{ apiBaseURL: string }> {
   const payload = (await response.json()) as { apiBaseURL?: string };
   const apiBaseURL = trimTrailingSlash(payload.apiBaseURL?.trim() ?? "");
   if (typeof window !== "undefined") {
-    (window as Window & { __LAGO_ALPHA_RUNTIME__?: { apiBaseURL?: string } }).__LAGO_ALPHA_RUNTIME__ = {
-      apiBaseURL,
-    };
+    const w = window as RuntimeWindow;
+    w.__RUNTIME_CONFIG__ = { apiBaseURL };
+    w.__LAGO_ALPHA_RUNTIME__ = { apiBaseURL };
   }
   return { apiBaseURL };
 }

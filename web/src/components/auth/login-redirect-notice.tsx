@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { useUISession } from "@/hooks/use-ui-session";
 import { buildLoginPath } from "@/lib/session-routing";
@@ -12,16 +10,21 @@ import { buildLoginPath } from "@/lib/session-routing";
  * Screens render their own skeleton during the loading phase.
  */
 export function LoginRedirectNotice() {
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { isLoading, isAuthenticated } = useUISession();
   const loginHref = buildLoginPath(pathname || "/control-plane");
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace(loginHref);
-    }
-  }, [isLoading, isAuthenticated, loginHref, router]);
+    if (isLoading) return;
+    if (isAuthenticated) return;
+    // Small delay to prevent race condition during session hydration.
+    // TanStack Router SPA renders before the async session fetch settles.
+    const timer = setTimeout(() => {
+      navigate({ to: loginHref, replace: true });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [isLoading, isAuthenticated, loginHref, navigate]);
 
   return null;
 }

@@ -1,7 +1,6 @@
-"use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { CreditCard, LoaderCircle, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 

@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { Plus, Puzzle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -65,7 +64,7 @@ export function PricingAddOnListScreen() {
                   placeholder="Search..."
                   className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
-                <Link href="/pricing/add-ons/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+                <Link to="/pricing/add-ons/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
                   <Plus className="h-3.5 w-3.5" />
                   New
                 </Link>
@@ -90,7 +89,7 @@ export function PricingAddOnListScreen() {
                     {paginated.map((addOn) => (
                       <tr key={addOn.id} className="transition hover:bg-stone-50">
                         <td className="px-5 py-3">
-                          <Link href={`/pricing/add-ons/${encodeURIComponent(addOn.id)}`} className="block font-medium text-slate-900">
+                          <Link to={`/pricing/add-ons/${encodeURIComponent(addOn.id)}`} className="block font-medium text-slate-900">
                             {addOn.name}
                           </Link>
                         </td>
@@ -135,7 +134,7 @@ function EmptyState() {
       <Puzzle className="h-8 w-8 text-slate-300" />
       <p className="text-sm font-medium text-slate-700">No add-ons yet</p>
       <p className="text-xs text-slate-500">Create the first add-on, then attach it to plans.</p>
-      <Link href="/pricing/add-ons/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+      <Link to="/pricing/add-ons/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
         <Plus className="h-3.5 w-3.5" />
         New add-on
       </Link>

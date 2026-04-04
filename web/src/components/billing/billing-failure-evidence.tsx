@@ -1,4 +1,3 @@
-"use client";
 
 import type { BillingEvidenceItem } from "@/lib/billing-lifecycle";
 

@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -131,7 +130,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     ) : null}
                     {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
                       <Link
-                        href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
+                        to={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
                         className="inline-flex h-8 items-center rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
                       >
                         Open customer setup
@@ -211,21 +210,21 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 <div className="flex flex-wrap gap-2">
                   {payment.customer_external_id ? (
                     <Link
-                      href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
+                      to={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
                       className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open customer
                     </Link>
                   ) : null}
                   <Link
-                    href={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
+                    to={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
                     className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Open invoice
                   </Link>
                   {actionConfig?.showExplainability ? (
                     <Link
-                      href={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
+                      to={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
                       className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open explainability
@@ -233,7 +232,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   ) : null}
                   {actionConfig?.showRecovery && payment.customer_external_id ? (
                     <Link
-                      href={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
+                      to={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
                       className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open recovery tools

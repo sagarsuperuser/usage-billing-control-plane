@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 
 export function ScopeNotice({
@@ -20,8 +19,8 @@ export function ScopeNotice({
       <p className="mt-2 max-w-2xl text-amber-800">{body}</p>
       {actionHref && actionLabel ? (
         <Link
-          href={actionHref}
-          prefetch={false}
+          to={actionHref}
+         
           className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-amber-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 transition hover:bg-amber-100"
         >
           {actionLabel}

@@ -22,7 +22,7 @@ type TenantSessionPayload = {
 };
 
 async function waitForNavigationIntent(page: Page, pattern: RegExp) {
-  await page.waitForRequest((request) => pattern.test(request.url()), { timeout: 10_000 });
+  await page.waitForURL(pattern, { timeout: 10_000 });
 }
 
 async function installLoginMock(context: BrowserContext, session: PlatformSessionPayload | TenantSessionPayload) {

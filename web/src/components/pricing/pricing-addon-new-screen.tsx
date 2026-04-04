@@ -1,9 +1,6 @@
-"use client";
-
-import Link from "next/link";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -28,7 +25,7 @@ const schema = z.object({
 type FormFields = z.infer<typeof schema>;
 
 export function PricingAddOnNewScreen() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -57,7 +54,7 @@ export function PricingAddOnNewScreen() {
           amount_cents: Math.round(Number(data.amount) * 100),
         },
       }),
-    onSuccess: (item) => router.push(`/pricing/add-ons/${encodeURIComponent(item.id)}`),
+    onSuccess: (item) => navigate({ to: `/pricing/add-ons/${encodeURIComponent(item.id)}` }),
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create add-on", err.message);
@@ -82,7 +79,7 @@ export function PricingAddOnNewScreen() {
                 <h1 className="text-base font-semibold text-slate-900">Create add-on</h1>
                 <p className="mt-0.5 text-xs text-slate-500">Fixed recurring extras that can be attached to multiple plans.</p>
               </div>
-              <Link href="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -101,7 +98,7 @@ export function PricingAddOnNewScreen() {
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link href="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <Link to="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
                 <button data-testid="pricing-addon-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create add-on

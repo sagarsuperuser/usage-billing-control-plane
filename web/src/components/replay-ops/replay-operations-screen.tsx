@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo, useState } from "react";
 import {
   ChevronLeft,
@@ -11,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -52,7 +50,7 @@ function replayBadgeClass(status?: string): string {
 }
 
 export function ReplayOperationsScreen() {
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParamsCompat();
   const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, isLoading: sessionLoading, canWrite, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";

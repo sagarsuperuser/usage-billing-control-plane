@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { LoaderCircle, LogIn } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -113,7 +112,7 @@ export function SessionLoginCard({
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Password</label>
             {passwordResetEnabled ? (
-              <Link href="/forgot-password" className="text-xs text-slate-400 transition hover:text-slate-700">
+              <Link to="/forgot-password" className="text-xs text-slate-400 transition hover:text-slate-700">
                 Forgot password?
               </Link>
             ) : null}
@@ -148,7 +147,7 @@ export function SessionLoginCard({
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="font-medium text-slate-700 transition hover:text-slate-900">
+        <Link to="/register" className="font-medium text-slate-700 transition hover:text-slate-900">
           Create one
         </Link>
       </p>

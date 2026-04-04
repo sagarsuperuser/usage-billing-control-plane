@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { ArrowRight, LoaderCircle, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -82,11 +81,11 @@ export function PricingHomeScreen() {
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Pricing catalog</h1>
               <div className="flex items-center gap-2">
-                <Link href="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
+                <Link to="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
                   <Plus className="h-3.5 w-3.5" />
                   New metric
                 </Link>
-                <Link href="/pricing/plans/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 px-3 text-xs font-medium text-slate-600 transition hover:bg-stone-50">
+                <Link to="/pricing/plans/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 px-3 text-xs font-medium text-slate-600 transition hover:bg-stone-50">
                   <Plus className="h-3.5 w-3.5" />
                   New plan
                 </Link>
@@ -124,10 +123,10 @@ export function PricingHomeScreen() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Link href={row.href} className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 px-2.5 text-xs text-slate-600 transition hover:bg-stone-50">
+                          <Link to={row.href} className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 px-2.5 text-xs text-slate-600 transition hover:bg-stone-50">
                             Open <ArrowRight className="h-3 w-3" />
                           </Link>
-                          <Link href={row.createHref} className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 px-2.5 text-xs text-slate-600 transition hover:bg-stone-50">
+                          <Link to={row.createHref} className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 px-2.5 text-xs text-slate-600 transition hover:bg-stone-50">
                             <Plus className="h-3 w-3" /> New
                           </Link>
                         </div>

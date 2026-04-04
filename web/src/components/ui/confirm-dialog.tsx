@@ -1,4 +1,3 @@
-"use client";
 
 import { type ReactNode, useState } from "react";
 import { AlertTriangle } from "lucide-react";

@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -113,7 +112,7 @@ export function CustomerListScreen() {
                   <option value="suspended">Suspended</option>
                   <option value="archived">Archived</option>
                 </select>
-                <Link href="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+                <Link to="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
                   <Plus className="h-3.5 w-3.5" />
                   New
                 </Link>
@@ -141,7 +140,7 @@ export function CustomerListScreen() {
                     return (
                       <tr key={customer.external_id} className="transition hover:bg-stone-50">
                         <td className="px-5 py-3">
-                          <Link href={`/customers/${encodeURIComponent(customer.external_id)}`} className="block">
+                          <Link to={`/customers/${encodeURIComponent(customer.external_id)}`} className="block">
                             <p className="font-medium text-slate-900">{customer.display_name}</p>
                             <p className="mt-0.5 font-mono text-xs text-slate-400">{customer.external_id}</p>
                           </Link>
@@ -195,7 +194,7 @@ function EmptyState() {
     <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
       <p className="text-sm font-medium text-slate-700">No customers</p>
       <p className="text-xs text-slate-500">Create a customer to get started.</p>
-      <Link href="/customers/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+      <Link to="/customers/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
         <Plus className="h-3.5 w-3.5" />
         New customer
       </Link>

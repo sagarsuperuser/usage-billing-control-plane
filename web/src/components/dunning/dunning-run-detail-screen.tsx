@@ -1,6 +1,5 @@
-"use client";
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -90,7 +89,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
               <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
                 <div className="flex items-center gap-3">
                   <h1 className="text-sm font-semibold text-slate-900">Dunning run</h1>
-                  <Link href={`/invoices/${encodeURIComponent(run.invoice_id)}`} className="font-mono text-sm text-slate-600 hover:text-slate-900">
+                  <Link to={`/invoices/${encodeURIComponent(run.invoice_id)}`} className="font-mono text-sm text-slate-600 hover:text-slate-900">
                     {run.invoice_id}
                   </Link>
                   {diagnosis ? (
