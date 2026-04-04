@@ -123,7 +123,11 @@
       "Bash(sed -i '' 's/return 0, 0, fmt.Errorf\\(\"validation error: limit must be between 1 and 100\"\\)/return 0, 0, fmt.Errorf\\(\"%w: limit must be between 1 and 100\", ErrValidation\\)/' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
       "Bash(sed -i '' 's/return 0, 0, fmt.Errorf\\(\"validation error: offset must be >= 0\"\\)/return 0, 0, fmt.Errorf\\(\"%w: offset must be >= 0\", ErrValidation\\)/' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
       "Bash(sed -i '' 's/return nil, \"\", fmt.Errorf\\(\"validation error: invalid cursor\"\\)/return nil, \"\", fmt.Errorf\\(\"%w: invalid cursor\", ErrValidation\\)/g' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(grep \"usage-billing-control-plane/internal/replay\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)",
+      "Bash(sed -i '' '/^var ErrValidation = errors.New\\(\"validation error\"\\)/d' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
+      "Bash(sed -i '' 's|\"usage-billing-control-plane/internal/domain\"|\"usage-billing-control-plane/internal/domain\"\\\\n\\\\t\"usage-billing-control-plane/internal/service\"|' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
+      "Bash(sed -i '' 's/ErrValidation\\)/service.ErrValidation\\)/g' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)"
     ]
   }
 }
