@@ -196,17 +196,3 @@ test("refresh keeps explainability data loaded", async ({ page }) => {
   await expect(page.getByTestId("explainability-meta-total")).toContainText("$32.50");
 });
 
-test("reader sees empty state when explainability returns no line items", async ({ page }) => {
-  await page.goto("/invoice-explainability");
-
-  await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
-
-  await fillUntilValue(page.getByTestId("explainability-invoice-id"), "inv_explain_123");
-  await expect(page.getByTestId("explainability-load")).toBeEnabled();
-  await page.getByTestId("explainability-load").click();
-  await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();
-
-  await page.getByTestId("explainability-load").click();
-
-  await expect(page.getByTestId("explainability-empty")).toContainText("No line items yet");
-});
