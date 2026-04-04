@@ -10,3 +10,5 @@ infra/terraform/aws/backends/*.hcl
 !infra/terraform/aws/backends/*.hcl.example
 scratch.txt
 server
+dist/
+.tanstack/
