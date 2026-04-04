@@ -284,6 +284,8 @@ test("reader session is read-only for replay queue and retry actions", async ({ 
   // Reader can open create modal but submit is disabled
   await page.getByRole("button", { name: "New job" }).click();
   await expect(page.getByTestId("replay-create-submit")).toBeDisabled();
+  // Close modal before interacting with the table
+  await page.keyboard.press("Escape");
 
   await page.getByTestId("replay-job-row-job_failed").click();
   await expect(page.getByTestId("replay-diagnostics-drawer")).toBeVisible();
