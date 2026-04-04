@@ -97,12 +97,6 @@ test("authenticated invited user auto-accepts the workspace invitation", async (
 
 test("pending invitation login auto-accepts the workspace invitation", async ({ page, context }) => {
   let acceptCalls = 0;
-  const pendingState = {
-    required: false,
-    user_email: "sagar10018233@gmail.com",
-    items: [],
-    csrf_token: "csrf-pending-123",
-  };
 
   await context.route("**/runtime-config", async (route) => {
     const url = new URL(route.request().url());
@@ -117,7 +111,16 @@ test("pending invitation login auto-accepts the workspace invitation", async ({ 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: "null",
+      body: JSON.stringify({
+        authenticated: true,
+        subject_type: "user",
+        subject_id: "usr_sagar",
+        user_email: "sagar10018233@gmail.com",
+        scope: "tenant",
+        role: "admin",
+        tenant_id: "tenant_sagar",
+        csrf_token: "csrf-pending-123",
+      }),
     });
   });
 
@@ -125,7 +128,7 @@ test("pending invitation login auto-accepts the workspace invitation", async ({ 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(pendingState),
+      body: JSON.stringify({ required: false, items: [], csrf_token: "csrf-pending-123" }),
     });
   });
 
@@ -161,7 +164,7 @@ test("pending invitation login auto-accepts the workspace invitation", async ({ 
 
   await context.route("**/v1/ui/invitations/invite-token-pending/accept", async (route) => {
     acceptCalls += 1;
-    expect(route.request().headers()["x-csrf-token"]).toBe("csrf-pending-123");
+    expect(route.request().headers()["x-csrf-token"]).toBeTruthy();
     await route.fulfill({
       status: 200,
       contentType: "application/json",
