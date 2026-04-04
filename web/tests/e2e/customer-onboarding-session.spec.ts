@@ -15,7 +15,7 @@ type CustomerRecord = {
   display_name: string;
   email?: string;
   status: "active" | "suspended" | "archived";
-  lago_customer_id?: string;
+  provider_customer_id?: string;
   created_at: string;
   updated_at: string;
 };
@@ -26,7 +26,7 @@ type CustomerReadiness = {
   customer_exists: boolean;
   customer_active: boolean;
   billing_provider_configured: boolean;
-  lago_customer_synced: boolean;
+  provider_customer_synced: boolean;
   default_payment_method_verified: boolean;
   billing_profile_status: string;
   payment_setup_status: string;
@@ -59,7 +59,7 @@ function buildReadiness(): CustomerReadiness {
     customer_exists: true,
     customer_active: true,
     billing_provider_configured: true,
-    lago_customer_synced: true,
+    provider_customer_synced: true,
     default_payment_method_verified: false,
     billing_profile_status: "ready",
     payment_setup_status: "pending",
@@ -120,7 +120,7 @@ async function installCustomerOnboardingMock(page: Page, session: TenantSessionP
         display_name: String(body.display_name ?? ""),
         email: typeof body.email === "string" ? body.email : undefined,
         status: "active",
-        lago_customer_id: "lago_cust_1",
+        provider_customer_id: "cus_1",
         created_at: now,
         updated_at: now,
       };

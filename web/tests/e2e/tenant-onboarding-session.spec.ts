@@ -13,8 +13,8 @@ type TenantRecord = {
   name: string;
   status: "active" | "suspended" | "deleted";
   billing_provider_connection_id?: string;
-  lago_organization_id?: string;
-  lago_billing_provider_code?: string;
+  stripe_account_id?: string;
+  stripe_provider_code?: string;
   created_at: string;
   updated_at: string;
 };
@@ -26,8 +26,8 @@ type BillingProviderConnection = {
   display_name: string;
   scope: "platform";
   status: "connected" | "pending" | "sync_error" | "disabled";
-  lago_organization_id?: string;
-  lago_provider_code?: string;
+  stripe_account_id?: string;
+  stripe_provider_code?: string;
   secret_configured: boolean;
   created_by_type: string;
   created_at: string;
@@ -113,8 +113,8 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
     display_name: "Stripe Sandbox",
     scope: "platform",
     status: "connected",
-    lago_organization_id: "org_acme",
-    lago_provider_code: "alpha_stripe_test_bpc_alpha",
+    stripe_account_id: "org_acme",
+    stripe_provider_code: "alpha_stripe_test_bpc_alpha",
     secret_configured: true,
     created_by_type: "platform_api_key",
     created_at: new Date().toISOString(),
@@ -171,8 +171,8 @@ async function installTenantOnboardingMock(page: Page, session: PlatformSessionP
         name: body.name || body.id,
         status: "active",
         billing_provider_connection_id: body.billing_provider_connection_id,
-        lago_organization_id: connection.lago_organization_id,
-        lago_billing_provider_code: connection.lago_provider_code,
+        stripe_account_id: connection.stripe_account_id,
+        stripe_provider_code: connection.stripe_provider_code,
         created_at: now,
         updated_at: now,
       };

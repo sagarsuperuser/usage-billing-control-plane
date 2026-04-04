@@ -22,8 +22,8 @@ type TenantRecord = {
   name: string;
   status: "active" | "suspended" | "deleted";
   billing_provider_connection_id?: string;
-  lago_organization_id?: string;
-  lago_billing_provider_code?: string;
+  stripe_account_id?: string;
+  stripe_provider_code?: string;
   created_at: string;
   updated_at: string;
 };
@@ -61,7 +61,7 @@ type CustomerRecord = {
   display_name: string;
   email?: string;
   status: "active" | "suspended" | "archived";
-  lago_customer_id?: string;
+  provider_customer_id?: string;
   created_at: string;
   updated_at: string;
 };
@@ -72,7 +72,7 @@ type CustomerReadiness = {
   customer_exists: boolean;
   customer_active: boolean;
   billing_provider_configured: boolean;
-  lago_customer_synced: boolean;
+  provider_customer_synced: boolean;
   default_payment_method_verified: boolean;
   billing_profile_status: string;
   payment_setup_status: string;
@@ -131,12 +131,12 @@ function buildCustomerReadiness(
     status: paymentReady && !syncError ? "ready" : "pending",
     missing_steps: [
       ...(paymentReady ? [] : ["payment_setup_ready", "default_payment_method_verified"]),
-      ...(syncError ? ["lago_customer_synced"] : []),
+      ...(syncError ? ["provider_customer_synced"] : []),
     ],
     customer_exists: true,
     customer_active: true,
     billing_provider_configured: true,
-    lago_customer_synced: !syncError,
+    provider_customer_synced: !syncError,
     default_payment_method_verified: paymentReady,
     billing_profile_status: syncError ? "sync_error" : "ready",
     payment_setup_status: paymentReady ? "ready" : "pending",
@@ -176,8 +176,8 @@ async function installPlatformOverviewMock(page: Page, session: PlatformSessionP
       name: "Tenant Alpha",
       status: "active",
       billing_provider_connection_id: "bpc_alpha",
-      lago_organization_id: "org_alpha",
-      lago_billing_provider_code: "stripe_default",
+      stripe_account_id: "org_alpha",
+      stripe_provider_code: "stripe_default",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -256,7 +256,7 @@ async function installTenantOverviewMock(page: Page, session: TenantSessionPaylo
       external_id: "cust_alpha",
       display_name: "Customer Alpha",
       status: "active",
-      lago_customer_id: "lago_cust_alpha",
+      provider_customer_id: "cus_alpha",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -265,7 +265,7 @@ async function installTenantOverviewMock(page: Page, session: TenantSessionPaylo
       external_id: "cust_beta",
       display_name: "Customer Beta",
       status: "active",
-      lago_customer_id: "lago_cust_beta",
+      provider_customer_id: "cus_beta",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },

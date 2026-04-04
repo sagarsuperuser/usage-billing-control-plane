@@ -26,8 +26,8 @@ type BillingProviderConnection = {
   check_blocker_code?: "disabled" | "missing_secret";
   check_blocker_summary?: string;
   linked_workspace_count: number;
-  lago_organization_id?: string;
-  lago_provider_code?: string;
+  stripe_account_id?: string;
+  stripe_provider_code?: string;
   secret_configured: boolean;
   created_by_type: string;
   created_at: string;
@@ -116,7 +116,7 @@ async function installBillingConnectionMock(context: BrowserContext, session: Pl
             sync_state: "healthy",
             sync_summary: "Stripe credentials are verified and ready for workspace assignment.",
             check_ready: true,
-            lago_provider_code: "alpha_stripe_test_bpc_alpha",
+            stripe_provider_code: "alpha_stripe_test_bpc_alpha",
             connected_at: now,
             last_synced_at: now,
             updated_at: now,
@@ -396,7 +396,7 @@ test("platform admin sees explicit verification checks for a failed billing conn
       sync_summary: "provider timeout",
       check_ready: true,
       linked_workspace_count: 2,
-      lago_organization_id: "org_original",
+      stripe_account_id: "org_original",
       secret_configured: true,
       created_by_type: "platform_api_key",
       created_at: seededNow,

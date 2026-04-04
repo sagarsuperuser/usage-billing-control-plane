@@ -13,8 +13,8 @@ type TenantRecord = {
   name: string;
   status: "active" | "suspended" | "deleted";
   billing_provider_connection_id?: string;
-  lago_organization_id?: string;
-  lago_billing_provider_code?: string;
+  stripe_account_id?: string;
+  stripe_provider_code?: string;
   workspace_billing: {
     configured: boolean;
     connected: boolean;
@@ -76,8 +76,8 @@ type BillingProviderConnection = {
   id: string;
   display_name: string;
   status: string;
-  lago_organization_id?: string;
-  lago_provider_code?: string;
+  stripe_account_id?: string;
+  stripe_provider_code?: string;
 };
 
 type WorkspaceMember = {
@@ -147,15 +147,15 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       id: "bpc_alpha",
       display_name: "Stripe Alpha",
       status: "connected",
-      lago_organization_id: "org_alpha",
-      lago_provider_code: "stripe_alpha",
+      stripe_account_id: "org_alpha",
+      stripe_provider_code: "stripe_alpha",
     },
     bpc_beta: {
       id: "bpc_beta",
       display_name: "Stripe Beta",
       status: "connected",
-      lago_organization_id: "org_beta",
-      lago_provider_code: "stripe_beta",
+      stripe_account_id: "org_beta",
+      stripe_provider_code: "stripe_beta",
     },
   };
   const tenants: TenantRecord[] = [
@@ -164,8 +164,8 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       name: "Tenant Alpha",
       status: "active",
       billing_provider_connection_id: "bpc_alpha",
-      lago_organization_id: "org_alpha",
-      lago_billing_provider_code: "stripe_alpha",
+      stripe_account_id: "org_alpha",
+      stripe_provider_code: "stripe_alpha",
       workspace_billing: {
         configured: true,
         connected: true,
@@ -186,8 +186,8 @@ async function installWorkspaceMock(page: Page, session: PlatformSessionPayload)
       name: "Tenant Beta",
       status: "active",
       billing_provider_connection_id: "bpc_beta",
-      lago_organization_id: "org_beta",
-      lago_billing_provider_code: "stripe_beta",
+      stripe_account_id: "org_beta",
+      stripe_provider_code: "stripe_beta",
       workspace_billing: {
         configured: true,
         connected: true,

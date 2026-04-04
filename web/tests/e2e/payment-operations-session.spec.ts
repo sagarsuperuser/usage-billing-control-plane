@@ -184,7 +184,7 @@ async function installPaymentOpsMock(page: Page, session: SessionPayload) {
         w.__billingMock.retryCSRF = retryCSRF;
         return json(200, {
           invoice: {
-            lago_id: "inv_123",
+            id: "inv_123",
             payment_status: "pending",
           },
         });
