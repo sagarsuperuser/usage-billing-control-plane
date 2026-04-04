@@ -441,6 +441,7 @@ type Repository interface {
 	UpdateInvoicePayment(tenantID, id string, paymentStatus domain.InvoicePaymentStatus, stripePaymentIntentID string, lastPaymentError string, paidAt *time.Time, updatedAt time.Time) (domain.Invoice, error)
 	CreateInvoiceLineItem(input domain.InvoiceLineItem) (domain.InvoiceLineItem, error)
 	ListInvoiceLineItems(tenantID, invoiceID string) ([]domain.InvoiceLineItem, error)
+	SetInvoicePDFKey(tenantID, invoiceID, pdfObjectKey string) error
 
 	// Subscription billing cycle tracking.
 	GetSubscriptionsDueBilling(before time.Time, limit int) ([]domain.Subscription, error)

@@ -509,3 +509,20 @@ func scanInvoiceLineItem(s rowScanner) (domain.InvoiceLineItem, error) {
 	return out, nil
 }
 
+
+func (s *PostgresStore) SetInvoicePDFKey(tenantID, invoiceID, pdfObjectKey string) error {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return err
+	}
+	defer rollbackSilently(tx)
+
+	_, err = tx.ExecContext(ctx, `UPDATE invoices SET pdf_object_key = $1, updated_at = NOW() WHERE id = $2`, pdfObjectKey, invoiceID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}

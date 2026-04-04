@@ -11,12 +11,41 @@ import (
 	"usage-billing-control-plane/internal/domain"
 )
 
-// InvoicePDFService generates PDF invoices from domain Invoice + LineItems.
-// Uses gofpdf (pure Go, no external dependencies like wkhtmltopdf or Chrome).
-type InvoicePDFService struct{}
+// InvoicePDFService generates PDF invoices and optionally stores them in S3.
+// Uses go-pdf/fpdf (pure Go, no external dependencies like wkhtmltopdf or Chrome).
+type InvoicePDFService struct {
+	objectStore ObjectStore // nil = in-memory only (no S3 upload)
+}
 
-func NewInvoicePDFService() *InvoicePDFService {
-	return &InvoicePDFService{}
+func NewInvoicePDFService(objectStore ObjectStore) *InvoicePDFService {
+	return &InvoicePDFService{objectStore: objectStore}
+}
+
+// GenerateAndStore creates a PDF, uploads to S3, and returns the object key.
+// If no object store is configured, returns empty key (PDF not persisted).
+func (s *InvoicePDFService) GenerateAndStore(invoice domain.Invoice, lineItems []domain.InvoiceLineItem, customerName string) (string, error) {
+	pdfBytes, err := s.Generate(invoice, lineItems, customerName)
+	if err != nil {
+		return "", err
+	}
+
+	if s.objectStore == nil {
+		return "", nil
+	}
+
+	key := fmt.Sprintf("invoices/%s/%s.pdf", invoice.TenantID, invoice.ID)
+	if err := s.objectStore.PutObject(nil, key, pdfBytes, "application/pdf"); err != nil {
+		return "", fmt.Errorf("upload invoice pdf: %w", err)
+	}
+	return key, nil
+}
+
+// GetDownloadURL returns a presigned URL for an existing PDF.
+func (s *InvoicePDFService) GetDownloadURL(objectKey string) (string, error) {
+	if s.objectStore == nil || objectKey == "" {
+		return "", fmt.Errorf("pdf not available")
+	}
+	return s.objectStore.PresignGetObject(nil, objectKey, 1*time.Hour)
 }
 
 // Generate creates a PDF for the given invoice and line items, returning raw bytes.

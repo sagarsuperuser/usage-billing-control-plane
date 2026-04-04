@@ -17,6 +17,7 @@ type InvoiceFinalizationService struct {
 	store        store.Repository
 	stripeClient *StripeClient
 	secretStore  BillingSecretStore
+	pdfService   *InvoicePDFService
 }
 
 func NewInvoiceFinalizationService(repo store.Repository, stripeClient *StripeClient, secretStore BillingSecretStore) *InvoiceFinalizationService {
@@ -25,6 +26,11 @@ func NewInvoiceFinalizationService(repo store.Repository, stripeClient *StripeCl
 		stripeClient: stripeClient,
 		secretStore:  secretStore,
 	}
+}
+
+func (s *InvoiceFinalizationService) WithPDFService(pdfService *InvoicePDFService) *InvoiceFinalizationService {
+	s.pdfService = pdfService
+	return s
 }
 
 type FinalizeInvoiceInput struct {
@@ -145,6 +151,16 @@ func (s *InvoiceFinalizationService) Finalize(ctx context.Context, input Finaliz
 	if err != nil {
 		// Non-fatal: the view is a convenience projection, not critical path.
 		_ = err
+	}
+
+	// Generate and store PDF (non-fatal — invoice is already finalized).
+	if s.pdfService != nil {
+		lineItems, _ := s.store.ListInvoiceLineItems(input.TenantID, invoice.ID)
+		pdfKey, pdfErr := s.pdfService.GenerateAndStore(updated, lineItems, input.StripeCustomerID)
+		if pdfErr == nil && pdfKey != "" {
+			_ = s.store.SetInvoicePDFKey(input.TenantID, invoice.ID, pdfKey)
+			updated.PDFObjectKey = pdfKey
+		}
 	}
 
 	return FinalizeInvoiceResult{

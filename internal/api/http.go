@@ -427,6 +427,12 @@ func WithStripeWebhookService(stripeWebhookSvc *service.StripeWebhookService) Se
 	}
 }
 
+func WithInvoicePDFService(svc *service.InvoicePDFService) ServerOption {
+	return func(s *Server) {
+		s.invoicePDFService = svc
+	}
+}
+
 func WithStripeWebhookSecret(secret string) ServerOption {
 	return func(s *Server) {
 		s.stripeWebhookSecret = secret
@@ -1652,6 +1658,7 @@ func (s *Server) registerRoutes() {
 		r.Get("/v1/subscriptions/*", s.handleSubscriptionByID)
 		r.Get("/v1/invoices", s.handleInvoices)
 		r.Get("/v1/invoices/preview", s.handleInvoicePreview)
+		r.Get("/v1/invoices/{id}/pdf", s.handleInvoicePDF)
 		r.Get("/v1/invoices/*", s.handleInvoiceByID)
 		r.Get("/v1/payment-receipts/*", s.handlePaymentReceiptByID)
 		r.Get("/v1/credit-notes/*", s.handleCreditNoteByID)

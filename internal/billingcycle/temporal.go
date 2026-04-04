@@ -83,7 +83,8 @@ func NewBillingCycleActivities(
 ) *BillingCycleActivities {
 	return &BillingCycleActivities{
 		generationSvc:   service.NewInvoiceGenerationService(repo, db),
-		finalizationSvc: service.NewInvoiceFinalizationService(repo, stripeClient, secretStore),
+		finalizationSvc: service.NewInvoiceFinalizationService(repo, stripeClient, secretStore).
+			WithPDFService(service.NewInvoicePDFService(nil)),
 		store:           repo,
 	}
 }

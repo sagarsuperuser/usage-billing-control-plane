@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 	"time"
 
 	"usage-billing-control-plane/internal/domain"
@@ -654,4 +656,58 @@ func viewTimePtr(view *domain.InvoicePaymentStatusView, getter func(*domain.Invo
 func invoiceCustomerExternalID(invoice map[string]any) string {
 	customer := objectValue(invoice["customer"])
 	return strings.TrimSpace(stringValue(customer["external_id"]))
+}
+
+func (s *Server) handleInvoicePDF(w http.ResponseWriter, r *http.Request) {
+	if s.invoicePDFService == nil {
+		writeError(w, http.StatusServiceUnavailable, "PDF generation is not configured")
+		return
+	}
+
+	invoiceID := chi.URLParam(r, "id")
+	if invoiceID == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
+		return
+	}
+
+	tenantID := requestTenantID(r)
+	invoice, err := s.repo.GetInvoice(tenantID, invoiceID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// If PDF is already stored in S3, redirect to presigned URL.
+	if invoice.PDFObjectKey != "" {
+		url, err := s.invoicePDFService.GetDownloadURL(invoice.PDFObjectKey)
+		if err == nil {
+			http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+			return
+		}
+		// Fall through to on-demand generation if presign fails.
+	}
+
+	// Generate on-demand.
+	lineItems, err := s.repo.ListInvoiceLineItems(tenantID, invoiceID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	customer, _ := s.repo.GetCustomer(tenantID, invoice.CustomerID)
+	customerName := customer.DisplayName
+	if customerName == "" {
+		customerName = invoice.CustomerID
+	}
+
+	pdfBytes, err := s.invoicePDFService.Generate(invoice, lineItems, customerName)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate PDF")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"invoice-%s.pdf\"", invoice.InvoiceNumber))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(pdfBytes)
 }
