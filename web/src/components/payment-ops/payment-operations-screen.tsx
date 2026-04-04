@@ -80,7 +80,7 @@ function diagnosisBadgeClass(tone: "healthy" | "warning" | "danger"): string {
 export function PaymentOperationsScreen() {
   const queryClient = useQueryClient();
   const { selectedInvoiceID, setSelectedInvoiceID } = useSessionStore();
-  const { apiBaseURL, csrfToken, isAuthenticated, canWrite, role, scope } = useUISession();
+  const { apiBaseURL, csrfToken, isAuthenticated, isLoading: sessionLoading, canWrite, role, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [organizationID, setOrganizationID] = useState("");
@@ -220,10 +220,9 @@ export function PaymentOperationsScreen() {
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <>
+        <>
             <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
               {/* ---- Header ---- */}
               <div className="px-5 py-4">
@@ -443,7 +442,6 @@ export function PaymentOperationsScreen() {
               </div>
             ) : null}
           </>
-        ) : null}
       </main>
 
       {/* ---- Slide-out timeline panel ---- */}

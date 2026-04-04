@@ -58,7 +58,7 @@ const PAGE_SIZE = 20;
 export function DunningConsoleScreen() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [state, setState] = useState(searchParams.get("state") || "");
@@ -130,10 +130,9 @@ export function DunningConsoleScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Dunning" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Dunning runs{runs.length > 0 ? ` (${runs.length})` : ""}</h1>
               <div className="flex items-center gap-2">
@@ -158,7 +157,7 @@ export function DunningConsoleScreen() {
               </div>
             </div>
 
-            {runsQuery.isLoading ? (
+            {sessionLoading || runsQuery.isLoading ? (
               <div className="divide-y divide-stone-100">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-4 px-5 py-3">
@@ -222,7 +221,6 @@ export function DunningConsoleScreen() {
               </div>
             ) : null}
           </div>
-        ) : null}
       </main>
 
       {/* Policy edit modal */}

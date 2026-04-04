@@ -32,7 +32,7 @@ function tone(status?: string): string {
 }
 
 export function CustomerListScreen() {
-  const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -89,10 +89,9 @@ export function CustomerListScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Customers" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <div className="flex items-center gap-3">
                 <h1 className="text-sm font-semibold text-slate-900">Customers{filteredCustomers.length > 0 ? ` (${filteredCustomers.length})` : ""}</h1>
@@ -120,7 +119,7 @@ export function CustomerListScreen() {
                 </Link>
               </div>
             </div>
-            {customersQuery.isLoading ? (
+            {sessionLoading || customersQuery.isLoading ? (
               <LoadingState />
             ) : filteredCustomers.length === 0 ? (
               <EmptyState />
@@ -171,7 +170,6 @@ export function CustomerListScreen() {
               </>
             )}
           </div>
-        ) : null}
       </main>
     </div>
   );

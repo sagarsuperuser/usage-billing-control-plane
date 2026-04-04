@@ -28,7 +28,7 @@ function statusTone(status: string): string {
 }
 
 export function PricingAddOnListScreen() {
-  const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -53,10 +53,9 @@ export function PricingAddOnListScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Add-ons" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Add-ons{filtered.length > 0 ? ` (${filtered.length})` : ""}</h1>
               <div className="flex items-center gap-2">
@@ -72,7 +71,7 @@ export function PricingAddOnListScreen() {
                 </Link>
               </div>
             </div>
-            {addOnsQuery.isLoading ? (
+            {sessionLoading || addOnsQuery.isLoading ? (
               <LoadingState />
             ) : filtered.length === 0 ? (
               <EmptyState />
@@ -110,7 +109,6 @@ export function PricingAddOnListScreen() {
               </>
             )}
           </div>
-        ) : null}
       </main>
     </div>
   );

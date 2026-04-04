@@ -47,7 +47,7 @@ function toISOOrUndefined(value: string): string | undefined {
 }
 
 export function UsageEventsScreen() {
-  const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [submitted, setSubmitted] = useState<FilterState>(defaultFilters);
@@ -103,10 +103,9 @@ export function UsageEventsScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Usage events" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             {/* Header with title + inline filters */}
             <div className="flex flex-wrap items-center gap-2 border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Usage events{items.length > 0 ? ` (${items.length})` : ""}</h1>
@@ -155,7 +154,7 @@ export function UsageEventsScreen() {
             </div>
 
             {/* Table body */}
-            {query.isLoading ? (
+            {sessionLoading || query.isLoading ? (
               <LoadingState />
             ) : query.isError ? (
               <ErrorState message={query.error instanceof Error ? query.error.message : "Loading usage events failed."} />
@@ -230,7 +229,6 @@ export function UsageEventsScreen() {
               </div>
             ) : null}
           </div>
-        ) : null}
       </main>
     </div>
   );

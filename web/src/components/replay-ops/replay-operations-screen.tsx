@@ -53,7 +53,7 @@ function replayBadgeClass(status?: string): string {
 export function ReplayOperationsScreen() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const { apiBaseURL, csrfToken, isAuthenticated, canWrite, scope } = useUISession();
+  const { apiBaseURL, csrfToken, isAuthenticated, isLoading: sessionLoading, canWrite, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [customerFilter, setCustomerFilter] = useState(searchParams.get("customer_id") || "");
@@ -156,10 +156,9 @@ export function ReplayOperationsScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Recovery" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Replay jobs</h1>
               <button
@@ -193,7 +192,7 @@ export function ReplayOperationsScreen() {
               />
             </div>
 
-            {jobsQuery.isLoading ? (
+            {sessionLoading || jobsQuery.isLoading ? (
               <div className="px-5 py-10 text-center text-sm text-slate-500">Loading replay jobs...</div>
             ) : filteredJobs.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
@@ -280,7 +279,6 @@ export function ReplayOperationsScreen() {
               </div>
             ) : null}
           </div>
-        ) : null}
       </main>
 
       {/* Create job modal */}

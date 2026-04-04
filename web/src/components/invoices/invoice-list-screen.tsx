@@ -60,7 +60,7 @@ function paymentTone(status?: string): string {
 
 export function InvoiceListScreen() {
   const searchParams = useSearchParams();
-  const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [customerExternalID, setCustomerExternalID] = useState(searchParams.get("customer_external_id") || "");
@@ -101,10 +101,9 @@ export function InvoiceListScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Invoices" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Invoices{items.length > 0 ? ` (${items.length})` : ""}</h1>
               <div className="flex items-center gap-2">
@@ -166,7 +165,7 @@ export function InvoiceListScreen() {
                 </select>
               </div>
             </div>
-            {invoicesQuery.isLoading ? (
+            {sessionLoading || invoicesQuery.isLoading ? (
               <LoadingState />
             ) : items.length === 0 ? (
               <EmptyState />
@@ -215,7 +214,6 @@ export function InvoiceListScreen() {
               </>
             )}
           </div>
-        ) : null}
       </main>
     </div>
   );

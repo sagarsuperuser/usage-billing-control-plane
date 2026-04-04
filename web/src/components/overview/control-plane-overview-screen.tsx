@@ -62,7 +62,7 @@ export function ControlPlaneOverviewScreen() {
   return (
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
         <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
           {/* Header */}

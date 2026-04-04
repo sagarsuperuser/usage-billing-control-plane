@@ -15,7 +15,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 const PAGE_SIZE = 20;
 
 export function PricingMetricListScreen() {
-  const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -40,30 +40,29 @@ export function PricingMetricListScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Metrics" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
-              <h1 className="text-sm font-semibold text-slate-900">Metrics{filtered.length > 0 ? ` (${filtered.length})` : ""}</h1>
-              <div className="flex items-center gap-2">
-                <input
-                  value={search}
-                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
-                  placeholder="Search..."
-                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-                />
-                <Link href="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
-                  <Plus className="h-3.5 w-3.5" />
-                  New
-                </Link>
-              </div>
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+            <h1 className="text-sm font-semibold text-slate-900">Metrics{filtered.length > 0 ? ` (${filtered.length})` : ""}</h1>
+            <div className="flex items-center gap-2">
+              <input
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                placeholder="Search..."
+                className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+              />
+              <Link href="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+                <Plus className="h-3.5 w-3.5" />
+                New
+              </Link>
             </div>
-            {metricsQuery.isLoading ? (
-              <LoadingState />
-            ) : filtered.length === 0 ? (
-              <EmptyState />
-            ) : (
+          </div>
+          {sessionLoading || metricsQuery.isLoading ? (
+            <LoadingState />
+          ) : filtered.length === 0 ? (
+            <EmptyState />
+          ) : (
               <>
                 <table className="w-full text-sm">
                   <thead>
@@ -93,7 +92,6 @@ export function PricingMetricListScreen() {
               </>
             )}
           </div>
-        ) : null}
       </main>
     </div>
   );

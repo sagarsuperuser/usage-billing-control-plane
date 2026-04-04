@@ -16,7 +16,7 @@ const feeTypeOptions = ["", "charge", "subscription", "add_on", "credit", "minim
 
 export function InvoiceExplainabilityScreen() {
   const searchParams = useSearchParams();
-  const { apiBaseURL, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const initialInvoiceID = searchParams.get("invoice_id") || "";
   const [invoiceID, setInvoiceID] = useState(initialInvoiceID);
@@ -52,10 +52,9 @@ export function InvoiceExplainabilityScreen() {
           ]}
         />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
 
-        {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             {/* Header with search */}
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Invoice explainability</h1>
@@ -172,7 +171,6 @@ export function InvoiceExplainabilityScreen() {
               </table>
             ) : null}
           </div>
-        ) : null}
       </main>
 
       {/* Line item detail slide-out */}
