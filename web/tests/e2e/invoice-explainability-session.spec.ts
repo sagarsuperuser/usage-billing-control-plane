@@ -186,7 +186,6 @@ test("reader session can load invoice explainability and inspect line items", as
 
   await expect(page.getByText("Invoice explainability")).toBeVisible();
   await fillUntilValue(page.getByTestId("explainability-invoice-id"), "inv_explain_123");
-  await page.getByTestId("explainability-fee-types").selectOption("charge");
   await expect(page.getByTestId("explainability-load")).toBeEnabled();
   await page.getByTestId("explainability-load").click();
 
@@ -225,7 +224,6 @@ test("reader sees empty state when explainability returns no line items", async 
   await page.getByTestId("explainability-load").click();
   await expect(page.getByTestId("explainability-line-item-fee_1")).toBeVisible();
 
-  await page.getByTestId("explainability-fee-types").fill("tax_only");
   await page.getByTestId("explainability-refresh").click();
 
   await expect(page.getByTestId("explainability-empty")).toContainText("No line items yet");

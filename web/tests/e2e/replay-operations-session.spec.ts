@@ -259,7 +259,7 @@ test("writer session can retry failed replay jobs with csrf", async ({ page }) =
   await expect(page.getByTestId("session-menu-toggle")).toBeVisible();
 
   await expect(page.getByTestId("replay-job-row-job_failed")).toBeVisible();
-  await page.getByTestId("replay-open-diagnostics-job_failed").click();
+  await page.getByTestId("replay-job-row-job_failed").click();
   await expect(page.getByTestId("replay-diagnostics-drawer")).toBeVisible();
 
   await page.getByTestId("replay-diagnostics-retry").click();
@@ -285,7 +285,7 @@ test("reader session is read-only for replay queue and retry actions", async ({ 
   await page.getByRole("button", { name: "New job" }).click();
   await expect(page.getByTestId("replay-create-submit")).toBeDisabled();
 
-  await page.getByTestId("replay-open-diagnostics-job_failed").click();
+  await page.getByTestId("replay-job-row-job_failed").click();
   await expect(page.getByTestId("replay-diagnostics-drawer")).toBeVisible();
   await expect(page.getByTestId("replay-diagnostics-retry")).toBeDisabled();
 });

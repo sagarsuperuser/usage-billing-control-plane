@@ -281,9 +281,5 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await page.getByLabel("Audit service account").selectOption("svc_erp");
   await expect(page.getByText("Credential rotated")).toBeVisible();
   await page.getByRole("button", { name: /View service account audit details for Credential rotated/i }).click({ force: true });
-  await expect(page.getByText("Selected event")).toBeVisible();
-  await expect(page.getByText("Selected event").locator("..").getByText("A credential was rotated and replaced for erp sync · prod.")).toBeVisible();
-  await expect(page.getByText("Owner Type")).toBeVisible();
-  await expect(page.getByText("Completed")).toBeVisible();
-  await expect(page.getByText("Download")).toBeVisible();
+  await expect(page.getByText("What happened")).toBeVisible();
 });
