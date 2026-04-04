@@ -127,7 +127,8 @@
       "Bash(grep \"usage-billing-control-plane/internal/replay\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/service/*.go)",
       "Bash(sed -i '' '/^var ErrValidation = errors.New\\(\"validation error\"\\)/d' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
       "Bash(sed -i '' 's|\"usage-billing-control-plane/internal/domain\"|\"usage-billing-control-plane/internal/domain\"\\\\n\\\\t\"usage-billing-control-plane/internal/service\"|' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
-      "Bash(sed -i '' 's/ErrValidation\\)/service.ErrValidation\\)/g' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)"
+      "Bash(sed -i '' 's/ErrValidation\\)/service.ErrValidation\\)/g' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
+      "Bash([ -f \"/Users/superuser/projects/golang/usage-billing-control-plane/docs/runbooks/$f\" ])"
     ]
   }
 }

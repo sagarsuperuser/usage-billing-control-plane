@@ -1,129 +1,102 @@
 # Architecture
 
-## System Model
+## System model
 
-**Alpha** is the product surface, control plane, and orchestration layer.  
-**Lago** is the billing execution engine behind the scenes.
-
-Operators and customers enter through Alpha. Normal workflows never require direct Lago access.
+Alpha is a multi-tenant usage-based billing control plane. It owns the full billing lifecycle: pricing catalog, customer onboarding, subscription management, usage metering, invoice generation, payment execution via Stripe, dunning automation, and operator tooling.
 
 ```
 Operators / Customers
-        │
-        ▼
-  Alpha Control Plane  (auth, tenancy, replay, audit, orchestration)
-        │  HTTP
-        ▼
-    Lago API  (invoice generation, payment execution, billing engine)
-        │
-   Lago Events Processor  (Kafka, high-throughput metering)
+        |
+        v
+  Alpha Control Plane
+  (auth, tenancy, pricing, invoicing, dunning, audit)
+        |
+        v
+  Stripe (payment execution only — PaymentIntents, Checkout Sessions, refunds)
 ```
 
----
+Stripe handles payment processing (2.9% + 30c). Alpha owns everything else.
 
 ## Workloads
 
 | Workload | Type | Responsibility |
 |----------|------|----------------|
-| `alpha-api` | Stateless HTTP | Tenant auth/RBAC, Lago proxy, replay/reconcile APIs, webhook ingestion |
-| `alpha-replay-worker` | Temporal worker | Replay job activities — scales on queue throughput |
-| `alpha-replay-dispatcher` | Temporal starter | Polls queued jobs in Postgres, starts Temporal workflows |
-| `alpha-payment-reconcile` | Temporal cron (optional) | Backfills stale payment projections from Lago |
-| `alpha-dunning-worker` | Temporal worker | Payment reminder campaigns |
-| `alpha-web` | Next.js | Operator UI — payment ops, invoice explainability, control plane |
-
----
+| `alpha-api` | Stateless HTTP (chi/v5) | Tenant auth/RBAC, all API endpoints, webhook ingestion |
+| `alpha-replay-worker` | Temporal worker | Replay job activities — re-rates historical usage |
+| `alpha-replay-dispatcher` | Temporal starter | Polls queued replay jobs, starts Temporal workflows |
+| `alpha-billing-cycle-worker` | Temporal worker | Invoice generation + Stripe PaymentIntent creation |
+| `alpha-billing-cycle-scheduler` | Temporal cron | Schedules billing cycle runs (@every 5m) |
+| `alpha-payment-reconcile` | Temporal cron | Backfills stale payment status from Stripe |
+| `alpha-dunning-worker` | Temporal worker | Payment retry + collection reminder campaigns |
+| `alpha-dunning-scheduler` | Temporal cron | Schedules dunning batch runs (@every 2m) |
+| `alpha-billing-check` | Temporal cron | Periodic Stripe connection health verification |
+| `alpha-web` | Next.js | Operator UI |
 
 ## Dependencies
 
 | Dependency | Role |
 |------------|------|
-| Postgres (RDS) | System of record — tenants, customers, replay jobs, API keys, audit |
-| Temporal | Durable orchestration for replay, dunning, payment reconciliation |
-| S3 | Audit export and replay artifact storage |
-| AWS Secrets Manager + ESO | Runtime config/secret distribution to workloads |
+| PostgreSQL (RDS) | System of record — all billing data, RLS per tenant |
+| Temporal | Durable orchestration for billing cycle, replay, dunning |
+| Stripe | Payment execution via PaymentIntents (no Stripe Billing) |
+| S3 | Audit export storage, invoice PDF storage |
+| AWS Secrets Manager | Stripe API keys per tenant (via External Secrets) |
 | Redis | Distributed rate limiting |
-| Lago API | Billing engine — invoices, payments, subscriptions, billable metrics |
 
----
-
-## Ownership Boundary
+## Ownership boundary
 
 ### Alpha owns
-- Platform identities and operator access
-- Tenant lifecycle and onboarding state
-- Pricing intent and product-side configuration
-- Customer onboarding and billing profile readiness
-- Replay, reconciliation, and explainability workflows
-- Audit trails
-- Payment status projections (read model from Lago webhooks)
+- Multi-tenant identity and workspace isolation (RLS)
+- Pricing catalog (metrics, plans, add-ons, coupons, taxes)
+- Customer onboarding and billing profile management
+- Subscription lifecycle and billing cycle scheduling
+- Usage event ingestion, aggregation, and rating (ComputeAmountCents)
+- Invoice generation (line items, taxes, discounts, totals)
+- Invoice finalization (Stripe PaymentIntent creation)
+- Payment status tracking (from Stripe webhooks)
+- Dunning automation (retry scheduling, payment reminders, escalation)
+- Replay/re-rating pipeline
+- Reconciliation engine (usage vs billed entries)
+- Audit trails and credential management
+- Operator UI
 
-### Lago owns
-- Invoice generation and execution state
-- Payment execution state
-- Provider-facing billing details (Stripe integration)
-- Billing engine internals
+### Stripe owns
+- Payment execution (charging cards, bank transfers)
+- Payment method collection (Checkout Sessions)
+- Refund execution
+- Webhook delivery
 
-### Allowed duplication
-- Alpha projections for fast reads (payment status, invoice summaries)
-- External ID mappings between Alpha and Lago records
-- Alpha-authored config synced into Lago (meters, plans, customers)
+## Adapter boundary
 
-### Not allowed
-- Two canonical sources of truth for invoice or payment execution
-- Alpha becoming a second billing engine
-- Operator workflows that require understanding Lago internals
+All Stripe access goes through `internal/service/stripe_client.go` — a thin wrapper around `stripe-go/v82` with per-request API keys for multi-tenant isolation.
 
----
-
-## Adapter Boundary
-
-All Lago access goes through adapter interfaces in `internal/service/lago_client.go`. No service outside the adapter layer calls Lago directly.
-
-Key adapters:
-- `MeterSyncAdapter` — syncs meters to Lago billable metrics
-- `PlanSyncAdapter` — syncs plans and charges
-- `SubscriptionSyncAdapter` — creates/terminates Lago subscriptions
-- `CustomerBillingAdapter` — upserts customers, verifies payment methods
-- `InvoiceBillingAdapter` — passthrough for invoice/receipt/credit-note queries
-- `BillingEntitySettingsSyncAdapter` — syncs workspace billing settings
-
-This keeps the product model stable if the billing backend changes.
-
----
+Billing adapters (defined in `internal/service/adapter_interfaces.go`):
+- `MeterSyncAdapter` — no-op (meters are local-only)
+- `PlanSyncAdapter` — no-op (plans are local-only)
+- `SubscriptionSyncAdapter` — initializes billing cycle fields
+- `CustomerBillingAdapter` — Stripe Customer CRUD + Checkout Sessions
+- `InvoiceBillingAdapter` — local invoice reads + PaymentIntent retries
+- `BillingProviderAdapter` — Stripe key verification
 
 ## Scaling
 
-- API: HPA on CPU/memory + request rate (2–20 replicas)
-- Replay worker: scale on queue depth + workflow activity latency
-- Dispatcher: scale independently to avoid API contention on fan-out
+- API: HPA on CPU/memory (2-20 replicas)
+- Billing cycle worker: scale on subscription count
+- Replay worker: scale on queue depth
 - Web: independently deployable, autoscaled
 
-## Reliability Controls
+## Reliability
 
 - Multi-AZ EKS + Multi-AZ RDS with automated backups
-- Idempotency keys on replay/event/billed-entry mutation paths
-- Temporal workflow IDs per replay job for deterministic deduplication
-- Pod disruption budgets per workload
+- Idempotent billing cycles (UNIQUE constraint on subscription + period)
+- Exactly-once payment execution (one PaymentIntent per invoice)
+- Temporal workflow IDs for deterministic deduplication
+- Row-level security per tenant in PostgreSQL
 
-## Recommended SLOs
+## Deployment flow
 
-| Metric | Target |
-|--------|--------|
-| API p95 latency | < 300ms (excluding Lago downstream) |
-| Replay queue pickup | < 30s |
-| Replay workflow success rate | > 99.5% |
-| Financial mismatch false-positive rate | < 0.1% |
-
----
-
-## Deployment Flow
-
-1. Terraform provisions/updates AWS infrastructure
-2. CI builds and pushes API + web images to ECR
-3. Helm deploys chart with environment values and immutable image tags
-4. Post-deploy checks:
-   - `/health` endpoint for API
-   - Replay dispatcher metrics non-erroring
-   - Temporal worker task poll active
-   - Lago webhook ingress path healthy
+1. Push to `main` triggers CI (fast + deep) and staging deploy
+2. CI Fast: Go build + lint + unit tests + E2E browser tests
+3. CI Deep: integration tests against real Postgres + Temporal
+4. Deploy: Docker build → ECR push → Helm upgrade with immutable tags
+5. Post-deploy: `/health` endpoint, Temporal worker poll active

@@ -8,7 +8,6 @@
 |---------|-----|
 | UI | https://staging.sagarwaidande.org |
 | API | https://api-staging.sagarwaidande.org |
-| Lago | https://lago-api-staging.sagarwaidande.org |
 
 > Stripe account is India-based — billing address on success-path customers must match India or a Stripe-accepted region.
 
@@ -98,7 +97,7 @@ Walk these in order. Each has a clear pass condition. Do this before every demo 
 | Hard refresh on customer detail | Page restores correctly, no blank screen |
 | Hard refresh on invoice detail | Page restores correctly |
 | Breadcrumbs | All links navigate correctly |
-| No "Lago" leaked in UI | No raw provider names, sync states, or internal IDs visible to operators |
+| No internal IDs leaked in UI | No raw provider names, sync states, or internal IDs visible to operators |
 | Reader account | Can view but save/action buttons are disabled |
 
 ---

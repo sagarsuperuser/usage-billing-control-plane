@@ -23,7 +23,7 @@ Rules:
 
 ## External Adapters
 
-All external systems (Lago, SMTP, OAuth, payment providers) are wrapped behind adapter interfaces.
+All external systems (Stripe, SMTP, OAuth) are wrapped behind adapter interfaces.
 
 - Interface at the consumer boundary
 - Adapter struct implements it
@@ -71,7 +71,7 @@ API responses must reflect Alpha concepts, not engine internals.
 - Use explicit product DTOs
 - Stable response envelopes
 - Clear error codes
-- `json:"-"` on any field that is provider-internal (Lago IDs, provider codes)
+- `json:"-"` on any field that is provider-internal (Stripe account IDs, secret refs)
 
 Never expose transport contracts that mirror storage layout or backend engine fields.
 
