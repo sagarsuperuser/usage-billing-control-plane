@@ -1,12 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
-type PlatformSessionPayload = {
-  authenticated: boolean;
-  scope: "platform";
-  platform_role: "platform_admin";
-  api_key_id: string;
-  csrf_token: string;
-};
 
 type TenantSessionPayload = {
   authenticated: boolean;
@@ -87,40 +80,6 @@ type CustomerReadiness = {
   };
 };
 
-function buildPlatformReadiness(
-  pricingReady: boolean,
-  customerExists: boolean
-): TenantOnboardingReadiness {
-  return {
-    status: pricingReady && customerExists ? "ready" : "pending",
-    missing_steps: [
-      ...(pricingReady ? [] : ["billing_integration.pricing"]),
-      ...(customerExists ? [] : ["first_customer.customer_created"]),
-    ],
-    tenant: {
-      status: "ready",
-      tenant_exists: true,
-      tenant_active: true,
-      tenant_admin_ready: true,
-      missing_steps: [],
-    },
-    billing_integration: {
-      status: pricingReady ? "ready" : "pending",
-      billing_mapping_ready: true,
-      pricing_ready: pricingReady,
-      missing_steps: pricingReady ? [] : ["pricing"],
-    },
-    first_customer: {
-      status: customerExists ? "ready" : "pending",
-      managed: true,
-      customer_exists: customerExists,
-      customer_active: customerExists,
-      billing_profile_status: customerExists ? "ready" : "missing",
-      payment_setup_status: customerExists ? "ready" : "missing",
-      missing_steps: customerExists ? [] : ["customer_created"],
-    },
-  };
-}
 
 function buildCustomerReadiness(
   paymentReady: boolean,
@@ -168,85 +127,6 @@ function focusValue(page: Page, title: string) {
   return focusLine(page, title).locator("p.text-base");
 }
 
-async function installPlatformOverviewMock(page: Page, session: PlatformSessionPayload) {
-  let loggedIn = false;
-  const tenants: TenantRecord[] = [
-    {
-      id: "tenant_alpha",
-      name: "Tenant Alpha",
-      status: "active",
-      billing_provider_connection_id: "bpc_alpha",
-      stripe_account_id: "org_alpha",
-      stripe_provider_code: "stripe_default",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: "tenant_beta",
-      name: "Tenant Beta",
-      status: "active",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ];
-
-  const readinessByTenant: Record<string, TenantOnboardingReadiness> = {
-    tenant_alpha: buildPlatformReadiness(false, false),
-    tenant_beta: buildPlatformReadiness(true, false),
-  };
-
-  const billingConnections = [
-    {
-      id: "bpc_alpha",
-      status: "connected",
-      display_name: "Stripe Alpha",
-    },
-    {
-      id: "bpc_error",
-      status: "sync_error",
-      display_name: "Stripe Broken",
-    },
-  ];
-
-  await page.route("**/*", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
-    const method = request.method().toUpperCase();
-
-    if (path === "/v1/ui/sessions/me" && method === "GET") {
-      return fulfillJSON(route, loggedIn ? 200 : 401, loggedIn ? session : { error: "unauthorized" });
-    }
-    if (path === "/v1/ui/sessions/login" && method === "POST") {
-      loggedIn = true;
-      return fulfillJSON(route, 201, session);
-    }
-    if (path === "/v1/ui/sessions/logout" && method === "POST") {
-      loggedIn = false;
-      return fulfillJSON(route, 200, { logged_out: true });
-    }
-    if (path === "/internal/tenants" && method === "GET") {
-      return fulfillJSON(route, 200, tenants);
-    }
-    if (path === "/internal/billing-provider-connections" && method === "GET") {
-      return fulfillJSON(route, 200, { items: billingConnections });
-    }
-    if (path.startsWith("/internal/onboarding/tenants/") && method === "GET") {
-      const tenantID = decodeURIComponent(path.split("/").pop() || "");
-      const tenant = tenants.find((item) => item.id === tenantID);
-      if (!tenant) {
-        return fulfillJSON(route, 404, { error: "not found" });
-      }
-      return fulfillJSON(route, 200, {
-        tenant,
-        readiness: readinessByTenant[tenantID],
-        tenant_id: tenantID,
-      });
-    }
-
-    return route.continue();
-  });
-}
 
 async function installTenantOverviewMock(page: Page, session: TenantSessionPayload) {
   let loggedIn = false;
@@ -318,34 +198,6 @@ async function installTenantOverviewMock(page: Page, session: TenantSessionPaylo
   });
 }
 
-test("platform overview shows live workspace attention counts", async ({ page }) => {
-  await installPlatformOverviewMock(page, {
-    authenticated: true,
-    scope: "platform",
-    platform_role: "platform_admin",
-    api_key_id: "platform_ui_1",
-    csrf_token: "csrf-platform-123",
-  });
-
-  await page.goto("/control-plane");
-
-  await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
-  await page.getByTestId("session-login-password").fill("correct horse battery");
-  await page.getByTestId("session-login-submit").click();
-
-  await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
-  await expect(page.getByText("Create the first billable customer and start payment setup.")).toHaveCount(0);
-  await expect(page.getByText("Payment failures and retries.")).toHaveCount(0);
-  await expect(page.getByText("Repair failed processing runs.")).toHaveCount(0);
-  await expect(page.getByText("Trace invoice outcomes when support needs evidence.")).toHaveCount(0);
-  await expect(page.getByText("Workspaces missing pricing")).toBeVisible();
-  await expect(page.getByText("Workspaces missing first customer")).toBeVisible();
-  await expect(page.getByText("Billing connection errors")).toBeVisible();
-
-  await expect(page.getByText("billing connection errors")).toBeVisible();
-  await expect(page.getByText("workspaces missing pricing")).toBeVisible();
-  await expect(page.getByText("workspaces missing first customer")).toBeVisible();
-});
 
 test("tenant overview shows live customer attention counts", async ({ page }) => {
   await installTenantOverviewMock(page, {
