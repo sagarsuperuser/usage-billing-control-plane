@@ -6,7 +6,6 @@ import { CreditCard, LoaderCircle, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchPlans, fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup, updateSubscription } from "@/lib/api";
@@ -124,14 +123,6 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: subscription?.display_name || subscriptionID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Subscription detail is workspace-scoped. Sign in with a workspace account to inspect readiness and request payment setup."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         {isTenantSession ? (
           detailQuery.isLoading ? (

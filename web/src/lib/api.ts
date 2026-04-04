@@ -234,6 +234,35 @@ export async function loginUISession(input: {
   return payload as unknown as UISession;
 }
 
+export async function registerUser(input: {
+  runtimeBaseURL?: string;
+  email: string;
+  password: string;
+  display_name: string;
+}): Promise<{ registered: boolean; workspace_id: string; csrf_token: string }> {
+  const baseURL = resolveBaseURL(input.runtimeBaseURL);
+  const endpoint = baseURL ? `${baseURL}/v1/ui/register` : "/v1/ui/register";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: input.email,
+      password: input.password,
+      display_name: input.display_name,
+    }),
+    cache: "no-store",
+    credentials: "include",
+  });
+  const isJSON = response.headers.get("content-type")?.includes("application/json");
+  const payload = isJSON ? ((await response.json()) as Record<string, unknown>) : null;
+  if (!response.ok) {
+    throw new Error((payload && typeof payload.error === "string" && payload.error) || `Registration failed (${response.status})`);
+  }
+  return payload as unknown as { registered: boolean; workspace_id: string; csrf_token: string };
+}
+
 export async function fetchUISession(input: {
   runtimeBaseURL?: string;
 }): Promise<UISession | null> {

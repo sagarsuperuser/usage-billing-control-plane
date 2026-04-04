@@ -8,7 +8,7 @@ import { LoaderCircle, LogOut, PanelsTopLeft, UserRoundCog } from "lucide-react"
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function SessionMenu() {
-  const { session, scope, platformRole, csrfToken, logout, loggingOut } = useUISession();
+  const { session, csrfToken, logout, loggingOut } = useUISession();
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const pathname = usePathname();
 
@@ -38,12 +38,10 @@ export function SessionMenu() {
     return null;
   }
 
-  const accessLabel = scope === "platform" ? platformRole ?? "platform" : session.role ?? "reader";
-  const contextLabel = scope === "platform" ? "Platform admin" : session.tenant_id || "Workspace";
+  const accessLabel = session.role ?? "reader";
+  const contextLabel = session.tenant_id || "Workspace";
   const identityLabel = session.user_email || contextLabel;
   const homeHref = "/control-plane";
-  const secondaryHref = scope === "platform" ? "/workspaces" : "/workspace-access";
-  const secondaryLabel = scope === "platform" ? "Workspaces" : "Access";
   const closeMenu = () => {
     if (detailsRef.current?.open) {
       detailsRef.current.open = false;
@@ -79,14 +77,6 @@ export function SessionMenu() {
           >
             <PanelsTopLeft className="h-3 w-3 text-slate-400" />
             Home
-          </Link>
-          <Link
-            href={secondaryHref}
-            prefetch={false}
-            onClick={closeMenu}
-            className="flex h-7 items-center gap-2 rounded-md px-2 text-xs text-slate-600 transition hover:bg-stone-50"
-          >
-            {secondaryLabel}
           </Link>
         </div>
         <div className="border-t border-stone-100" />

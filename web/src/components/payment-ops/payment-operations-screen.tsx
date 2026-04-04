@@ -15,7 +15,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { fetchInvoiceEvents, fetchInvoiceLifecycle, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
 import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -222,14 +221,6 @@ export function PaymentOperationsScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Payment operations are workspace-scoped. Sign in with a workspace account to inspect invoice payment status or retry failed payments."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         {isTenantSession ? (
           <>

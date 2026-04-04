@@ -6,7 +6,6 @@ import { LoaderCircle } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
@@ -71,14 +70,6 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
         />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Dunning run detail is workspace-scoped. Sign in with a workspace account to inspect collection workflow history."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         {detailQuery.error ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

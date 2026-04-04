@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -132,14 +131,6 @@ export function DunningConsoleScreen() {
         <AppBreadcrumbs items={[{ label: "Dunning" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Dunning is workspace-scoped. Sign in with a workspace account to inspect collection policy and invoice-level runs."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         {isTenantSession ? (
           <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">

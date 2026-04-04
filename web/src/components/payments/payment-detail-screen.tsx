@@ -9,7 +9,6 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
 import { BillingFailureEvidence } from "@/components/billing/billing-failure-evidence";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { DunningSummaryPanel } from "@/components/billing/dunning-summary-panel";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
@@ -86,14 +85,6 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
         />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Payments are workspace-scoped. Sign in with a workspace account to inspect payment state, lifecycle signals, and retry actions."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         {isTenantSession ? (
           paymentQuery.isLoading ? (

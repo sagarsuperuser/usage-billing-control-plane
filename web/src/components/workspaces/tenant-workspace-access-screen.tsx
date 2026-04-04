@@ -33,14 +33,6 @@ export function TenantWorkspaceAccessScreen() {
         <AppBreadcrumbs items={[{ label: "Access" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Switch to a workspace session to manage members, invites, and service accounts."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
         {isAuthenticated && scope === "tenant" && !isAdmin ? (
           <ScopeNotice
             title="Workspace admin role required"

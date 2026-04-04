@@ -9,7 +9,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import {
@@ -206,14 +205,6 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
         <AppBreadcrumbs items={[{ href: "/customers", label: "Customers" }, { label: customer?.display_name || externalID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Customer detail is workspace-scoped. Sign in with a workspace reader, writer, or admin account to inspect readiness and run recovery actions."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         {isTenantSession ? (
           customersQuery.isLoading || readinessQuery.isLoading ? (

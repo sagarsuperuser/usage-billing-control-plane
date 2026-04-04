@@ -10,7 +10,6 @@ import { z } from "zod";
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createTax } from "@/lib/api";
 import { showError } from "@/lib/toast";
@@ -70,7 +69,7 @@ export function PricingTaxNewScreen() {
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/taxes", label: "Taxes" }, { label: "New" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to create one." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
+
 
         {isTenantSession ? (
           <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">

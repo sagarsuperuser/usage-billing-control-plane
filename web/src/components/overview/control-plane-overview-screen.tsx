@@ -7,64 +7,27 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  fetchBillingProviderConnections,
   fetchCustomerReadiness,
   fetchCustomers,
-  fetchTenantOnboardingStatus,
-  fetchTenants,
 } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function ControlPlaneOverviewScreen() {
-  const { apiBaseURL, isAuthenticated, isLoading, scope, isPlatformAdmin, session } = useUISession();
-
-  const tenantsQuery = useQuery({
-    queryKey: ["overview-tenants", apiBaseURL],
-    queryFn: () => fetchTenants({ runtimeBaseURL: apiBaseURL }),
-    enabled: isAuthenticated && scope === "platform" && isPlatformAdmin,
-  });
-
-  const billingConnectionsQuery = useQuery({
-    queryKey: ["overview-billing-provider-connections", apiBaseURL],
-    queryFn: () => fetchBillingProviderConnections({ runtimeBaseURL: apiBaseURL, limit: 100 }),
-    enabled: isAuthenticated && scope === "platform" && isPlatformAdmin,
-  });
+  const { apiBaseURL, isAuthenticated, isLoading } = useUISession();
 
   const customersQuery = useQuery({
     queryKey: ["overview-customers", apiBaseURL],
     queryFn: () => fetchCustomers({ runtimeBaseURL: apiBaseURL, limit: 100 }),
-    enabled: isAuthenticated && scope === "tenant",
-  });
-
-  const tenantReadinessQueries = useQueries({
-    queries: (tenantsQuery.data ?? []).map((tenant) => ({
-      queryKey: ["overview-tenant-readiness", apiBaseURL, tenant.id],
-      queryFn: () => fetchTenantOnboardingStatus({ runtimeBaseURL: apiBaseURL, tenantID: tenant.id }),
-      enabled: isAuthenticated && scope === "platform" && isPlatformAdmin,
-    })),
+    enabled: isAuthenticated,
   });
 
   const customerReadinessQueries = useQueries({
     queries: (customersQuery.data ?? []).map((customer) => ({
       queryKey: ["overview-customer-readiness", apiBaseURL, customer.external_id],
       queryFn: () => fetchCustomerReadiness({ runtimeBaseURL: apiBaseURL, externalID: customer.external_id }),
-      enabled: isAuthenticated && scope === "tenant",
+      enabled: isAuthenticated,
     })),
   });
-
-  const platformMetrics = useMemo(() => {
-    const tenants = tenantsQuery.data ?? [];
-    const readiness = tenantReadinessQueries.flatMap((query) => (query.data ? [query.data.readiness] : []));
-    const connections = billingConnectionsQuery.data ?? [];
-    return {
-      total: tenants.length,
-      missingBilling: tenants.filter((tenant) => !tenant.workspace_billing?.connected).length,
-      missingPricing: readiness.filter((item) => !item.billing_integration?.pricing_ready).length,
-      missingFirstCustomer: readiness.filter((item) => !item.first_customer?.customer_exists).length,
-      connectedProviders: connections.filter((item) => item.status === "connected").length,
-      providerErrors: connections.filter((item) => item.status === "sync_error").length,
-    };
-  }, [billingConnectionsQuery.data, tenantReadinessQueries, tenantsQuery.data]);
 
   const tenantMetrics = useMemo(() => {
     const customers = customersQuery.data ?? [];
@@ -79,37 +42,20 @@ export function ControlPlaneOverviewScreen() {
   }, [customerReadinessQueries, customersQuery.data]);
 
   const attentionLoading =
-    tenantsQuery.isLoading ||
-    billingConnectionsQuery.isLoading ||
     customersQuery.isLoading ||
-    tenantReadinessQueries.some((query) => query.isLoading) ||
     customerReadinessQueries.some((query) => query.isLoading);
 
-  const summaryItems =
-    scope === "platform"
-      ? [
-          { label: "Workspaces", value: platformMetrics.total, tone: "default" as const },
-          { label: "Connected", value: platformMetrics.connectedProviders, tone: "success" as const },
-          { label: "Errors", value: platformMetrics.providerErrors, tone: "danger" as const },
-        ]
-      : [
-          { label: "Customers", value: tenantMetrics.total, tone: "default" as const },
-          { label: "Billing-ready", value: tenantMetrics.billingReady, tone: "success" as const },
-          { label: "Errors", value: tenantMetrics.syncErrors, tone: "danger" as const },
-        ];
+  const summaryItems = [
+    { label: "Customers", value: tenantMetrics.total, tone: "default" as const },
+    { label: "Billing-ready", value: tenantMetrics.billingReady, tone: "success" as const },
+    { label: "Errors", value: tenantMetrics.syncErrors, tone: "danger" as const },
+  ];
 
-  const attentionItems =
-    scope === "platform"
-      ? [
-          { title: "Billing connection errors", value: platformMetrics.providerErrors, href: "/billing-connections" },
-          { title: "Workspaces missing pricing", value: platformMetrics.missingPricing, href: "/workspaces" },
-          { title: "Workspaces missing first customer", value: platformMetrics.missingFirstCustomer, href: "/workspaces" },
-        ]
-      : [
-          { title: "Customers waiting on payment setup", value: tenantMetrics.pendingPayment, href: "/subscriptions" },
-          { title: "Customers with billing sync errors", value: tenantMetrics.syncErrors, href: "/payments" },
-          { title: "Billing-ready customers", value: tenantMetrics.billingReady, href: "/customers" },
-        ];
+  const attentionItems = [
+    { title: "Customers waiting on payment setup", value: tenantMetrics.pendingPayment, href: "/subscriptions" },
+    { title: "Customers with billing sync errors", value: tenantMetrics.syncErrors, href: "/payments" },
+    { title: "Billing-ready customers", value: tenantMetrics.billingReady, href: "/customers" },
+  ];
 
   const hasAttention = attentionItems.some((item) => item.value > 0);
 
@@ -167,8 +113,8 @@ export function ControlPlaneOverviewScreen() {
             </div>
           ) : null}
 
-          {/* Getting started -- only when 0 customers in tenant scope */}
-          {scope === "tenant" && !attentionLoading && tenantMetrics.total === 0 ? (
+          {/* Getting started -- only when 0 customers */}
+          {!attentionLoading && tenantMetrics.total === 0 ? (
             <div className="px-5 py-4">
               <h2 className="text-sm font-semibold text-slate-900">Getting started</h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

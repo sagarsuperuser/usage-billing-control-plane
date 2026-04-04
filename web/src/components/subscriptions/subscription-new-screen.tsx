@@ -10,7 +10,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createSubscription, fetchCustomers, fetchPlans } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
@@ -102,9 +101,6 @@ export function SubscriptionNewScreen() {
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: "New" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice title="Workspace session required" body="Subscriptions are workspace-scoped. Sign in with a workspace account to create them." actionHref="/billing-connections" actionLabel="Open platform home" />
-        ) : null}
 
         {isTenantSession && mutation.isSuccess ? (
           <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 shadow-sm">

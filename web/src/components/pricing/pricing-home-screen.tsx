@@ -5,7 +5,6 @@ import { ArrowRight, LoaderCircle, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import {
   fetchAddOns,
@@ -17,15 +16,13 @@ import {
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingHomeScreen() {
-  const { apiBaseURL, isAuthenticated, scope } = useUISession();
-  const isTenantSession = isAuthenticated && scope === "tenant";
-  const requiresTenantSession = isAuthenticated && scope !== "tenant";
+  const { apiBaseURL, isAuthenticated } = useUISession();
 
-  const metricsQuery = useQuery({ queryKey: ["pricing-metrics", apiBaseURL], queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
-  const plansQuery = useQuery({ queryKey: ["plans", apiBaseURL], queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
-  const addOnsQuery = useQuery({ queryKey: ["add-ons", apiBaseURL], queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
-  const couponsQuery = useQuery({ queryKey: ["coupons", apiBaseURL], queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
-  const taxesQuery = useQuery({ queryKey: ["taxes", apiBaseURL], queryFn: () => fetchTaxes({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
+  const metricsQuery = useQuery({ queryKey: ["pricing-metrics", apiBaseURL], queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated });
+  const plansQuery = useQuery({ queryKey: ["plans", apiBaseURL], queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated });
+  const addOnsQuery = useQuery({ queryKey: ["add-ons", apiBaseURL], queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated });
+  const couponsQuery = useQuery({ queryKey: ["coupons", apiBaseURL], queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated });
+  const taxesQuery = useQuery({ queryKey: ["taxes", apiBaseURL], queryFn: () => fetchTaxes({ runtimeBaseURL: apiBaseURL }), enabled: isAuthenticated });
 
   const loading = metricsQuery.isLoading || plansQuery.isLoading || addOnsQuery.isLoading || couponsQuery.isLoading || taxesQuery.isLoading;
   const metricCount = metricsQuery.data?.length ?? 0;
@@ -79,16 +76,8 @@ export function PricingHomeScreen() {
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {requiresTenantSession ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Pricing is workspace-scoped. Sign in with a workspace account to define metrics and plans."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
-        {isTenantSession ? (
+        {isAuthenticated ? (
           <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <h1 className="text-sm font-semibold text-slate-900">Pricing catalog</h1>

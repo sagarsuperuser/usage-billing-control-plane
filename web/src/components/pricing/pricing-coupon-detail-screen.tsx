@@ -5,7 +5,6 @@ import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchCoupon } from "@/lib/api";
@@ -53,7 +52,7 @@ export function PricingCouponDetailScreen({ couponID }: { couponID: string }) {
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/coupons", label: "Coupons" }, { label: coupon?.name || couponID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Coupons are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
+
 
         {isTenantSession ? couponQuery.isLoading ? (
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

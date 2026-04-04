@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { fetchUsageEvents } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
@@ -105,14 +104,6 @@ export function UsageEventsScreen() {
         <AppBreadcrumbs items={[{ label: "Usage events" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="Usage events are workspace-scoped. Sign in with a workspace session to inspect event ingestion."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
 
         {isTenantSession ? (
           <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">

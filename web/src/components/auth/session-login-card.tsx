@@ -152,6 +152,13 @@ export function SessionLoginCard({
           <p className="text-xs text-rose-600">{errors.root?.message || loginError?.message}</p>
         ) : null}
       </form>
+
+      <p className="mt-6 text-center text-sm text-slate-500">
+        Don&apos;t have an account?{" "}
+        <Link href="/register" className="font-medium text-slate-700 transition hover:text-slate-900">
+          Create one
+        </Link>
+      </p>
     </div>
   );
 }

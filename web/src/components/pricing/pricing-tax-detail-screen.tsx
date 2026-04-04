@@ -5,7 +5,6 @@ import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
-import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchTax } from "@/lib/api";
@@ -42,7 +41,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/taxes", label: "Taxes" }, { label: tax?.name || taxID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
+
 
         {isTenantSession ? taxQuery.isLoading ? (
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

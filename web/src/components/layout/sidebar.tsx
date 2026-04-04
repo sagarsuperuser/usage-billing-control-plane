@@ -7,10 +7,8 @@ import {
   Activity,
   ArrowRightLeft,
   BellRing,
-  Building2,
   CircleDollarSign,
   CreditCard,
-  FileSearch,
   Home,
   Layers3,
   ReceiptText,
@@ -23,20 +21,13 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { SessionMenu } from "@/components/layout/session-menu";
 
 // Pages that render without the sidebar (auth flow).
-const AUTH_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/workspace-select"];
+const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/invite", "/workspace-select"];
 
 type NavItem = {
   href: string;
   label: string;
   icon: ComponentType<{ className?: string }>;
 };
-
-const platformItems: NavItem[] = [
-  { href: "/control-plane", label: "Overview", icon: Home },
-  { href: "/billing-connections", label: "Connections", icon: CreditCard },
-  { href: "/workspaces", label: "Workspaces", icon: Building2 },
-  { href: "/tenant-audit", label: "Audit", icon: FileSearch },
-];
 
 const revenueItems: NavItem[] = [
   { href: "/control-plane", label: "Overview", icon: Home },
@@ -64,18 +55,15 @@ function isActive(pathname: string, href: string): boolean {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { isAuthenticated, isLoading, scope, session } = useUISession();
+  const { isAuthenticated, isLoading } = useUISession();
 
   if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return null;
-
-  const showPlatform = !isLoading && (!isAuthenticated || scope === "platform");
-  const showTenant = !isLoading && (!isAuthenticated || scope === "tenant");
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-stone-200 bg-white">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <Link href={scope === "platform" ? "/control-plane" : "/control-plane"} className="flex items-center gap-2.5">
+        <Link href="/control-plane" className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900">
             <svg width="14" height="14" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.5"/>
@@ -97,15 +85,8 @@ export function AppSidebar() {
           </div>
         ) : (
           <div className="space-y-5">
-            {showPlatform ? (
-              <NavGroup label="Platform" items={platformItems} pathname={pathname} />
-            ) : null}
-            {showTenant ? (
-              <>
-                <NavGroup label="Revenue" items={revenueItems} pathname={pathname} />
-                <NavGroup label="Operations" items={operationsItems} pathname={pathname} />
-              </>
-            ) : null}
+            <NavGroup label="Revenue" items={revenueItems} pathname={pathname} />
+            <NavGroup label="Operations" items={operationsItems} pathname={pathname} />
           </div>
         )}
       </nav>

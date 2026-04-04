@@ -120,14 +120,6 @@ export function CustomerOnboardingScreen() {
         <AppBreadcrumbs items={[{ href: "/customers", label: "Customers" }, { label: "New" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
-        {isAuthenticated && scope !== "tenant" ? (
-          <ScopeNotice
-            title="Workspace session required"
-            body="This screen drives workspace-scoped customer and payment APIs. Sign in with a workspace account."
-            actionHref="/billing-connections"
-            actionLabel="Open platform home"
-          />
-        ) : null}
         {isTenantSession && !canWrite ? (
           <ScopeNotice
             title="Read-only session"
