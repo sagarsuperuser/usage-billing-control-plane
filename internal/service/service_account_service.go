@@ -242,7 +242,7 @@ func (s *ServiceAccountService) IssueWorkspaceServiceAccountCredential(workspace
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		name = account.Name + " credential " + time.Now().UTC().Format("20060102-150405")
+		name = account.Name + "-" + time.Now().UTC().Format("0102-1504")
 	}
 	ownerType := strings.TrimSpace(req.OwnerType)
 	if ownerType == "" {

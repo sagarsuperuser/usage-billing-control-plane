@@ -248,25 +248,21 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
         </div>
       )}
 
-      {/* Main layout: table + optional detail panel (58/42 split) */}
+      {/* Main layout: list + optional detail panel */}
       <div className={`flex ${selectedServiceAccount ? "divide-x divide-stone-200" : ""}`}>
-        <div className={`min-w-0 ${selectedServiceAccount ? "w-[58%]" : "w-full"}`}>
-          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Service accounts</p>
-              <p className="mt-0.5 text-xs text-slate-500">API identities for automation and integrations. Issue or rotate credentials as needed.</p>
+        <div className={`min-w-0 ${selectedServiceAccount ? "w-[340px] shrink-0" : "w-full"}`}>
+          <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setServiceAccountPage(1); }}
+                placeholder="Search..."
+                className="h-8 w-40 rounded-lg border border-stone-200 bg-white pl-8 pr-3 text-xs text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+              />
             </div>
             <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setServiceAccountPage(1); }}
-                  placeholder="Search accounts..."
-                  className="h-8 w-44 rounded-lg border border-stone-200 bg-white pl-8 pr-3 text-xs text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-                />
-              </div>
               <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
               <button
                 type="button"
@@ -280,49 +276,29 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
             </div>
           </div>
           {pagedServiceAccounts.items.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-stone-100 text-left text-xs font-medium text-slate-400">
-                  <th className="px-6 py-2.5 font-semibold">Name</th>
-                  <th className="px-4 py-2.5 font-semibold">Role</th>
-                  <th className="px-4 py-2.5 font-semibold">Env</th>
-                  <th className="px-4 py-2.5 font-semibold">Status</th>
-                  <th className="px-4 py-2.5 font-semibold">Credentials</th>
-                  <th className="px-4 py-2.5 font-semibold">Last used</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {pagedServiceAccounts.items.map((account) => {
-                  const selected = selectedServiceAccountIDValue === account.id;
-                  return (
-                    <tr
-                      key={account.id}
-                      data-testid={`inspect-service-account-${account.id}`}
-                      onClick={() => setSelectedServiceAccountID(selected ? "" : account.id)}
-                      className={`cursor-pointer transition ${selected ? "bg-sky-50" : "hover:bg-stone-50"}`}
-                    >
-                      <td className="px-6 py-3.5">
-                        <p className="font-medium text-slate-900">{account.name}</p>
-                        <p className="mt-0.5 truncate text-xs text-slate-500">{account.description || "No description"}</p>
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600">{formatServiceAccountRole(account.role)}</td>
-                      <td className="px-4 py-3.5 text-slate-500">{account.environment || "\u2014"}</td>
-                      <td className="px-4 py-3.5">
-                        <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        {account.active_credential_count === 0 ? (
-                          <StatusChip tone="warning">None</StatusChip>
-                        ) : (
-                          <span className="text-slate-600">{account.active_credential_count} active</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5 text-xs text-slate-500">{describeLastUsed(account)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="divide-y divide-stone-100">
+              {pagedServiceAccounts.items.map((account) => {
+                const selected = selectedServiceAccountIDValue === account.id;
+                return (
+                  <div
+                    key={account.id}
+                    data-testid={`inspect-service-account-${account.id}`}
+                    onClick={() => setSelectedServiceAccountID(selected ? "" : account.id)}
+                    className={`flex cursor-pointer items-center gap-3 px-5 py-3 transition ${selected ? "bg-sky-50" : "hover:bg-stone-50"}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-900">{account.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-slate-500">
+                        {formatServiceAccountRole(account.role)}
+                        {account.environment ? ` · ${account.environment}` : ""}
+                        {` · ${account.active_credential_count} credential${account.active_credential_count === 1 ? "" : "s"}`}
+                      </p>
+                    </div>
+                    <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
               <ServerCog className="h-8 w-8 text-slate-300" />
@@ -345,21 +321,38 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
 
         {/* Detail panel */}
         {selectedServiceAccount && (
-          <div data-testid="service-account-detail" className="w-[42%] shrink-0 overflow-y-auto">
-            <div className="flex items-start justify-between gap-2 border-b border-stone-200 px-5 py-4">
+          <div data-testid="service-account-detail" className="min-w-0 flex-1 overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
               <div className="min-w-0">
-                <p className="font-semibold text-slate-900">{selectedServiceAccount.name}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{selectedServiceAccount.description || "No description"}</p>
-                <p className="mt-2 text-xs text-slate-500">
-                  <span className="font-medium text-slate-700">{formatServiceAccountRole(selectedServiceAccount.role)}</span>
-                  {selectedServiceAccount.environment ? <> · <span className="font-medium text-slate-700">{selectedServiceAccount.environment}</span></> : null}
-                  {selectedServiceAccount.purpose ? <> · <span className="text-slate-500">{selectedServiceAccount.purpose}</span></> : null}
-                  {" · "}
-                  <span className="text-slate-500">{describeServiceAccountActivity(selectedServiceAccount)}</span>
+                <div className="flex items-center gap-2">
+                  <p className="truncate font-semibold text-slate-900">{selectedServiceAccount.name}</p>
+                  <StatusChip tone={selectedServiceAccount.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(selectedServiceAccount.status)}</StatusChip>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {formatServiceAccountRole(selectedServiceAccount.role)}
+                  {selectedServiceAccount.environment ? ` · ${selectedServiceAccount.environment}` : ""}
+                  {selectedServiceAccount.purpose ? ` · ${selectedServiceAccount.purpose}` : ""}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                <StatusChip tone={selectedServiceAccount.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(selectedServiceAccount.status)}</StatusChip>
+                <button
+                  type="button"
+                  onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)}
+                  disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {issueCredentialMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <KeyRound className="h-3 w-3" />}
+                  Issue credential
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateServiceAccountStatusMutation.mutate({ serviceAccountID: selectedServiceAccount.id, status: selectedServiceAccount.status === "active" ? "disabled" : "active" })}
+                  disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ShieldOff className="h-3 w-3" />
+                  {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
+                </button>
                 <button
                   type="button"
                   onClick={() => setSelectedServiceAccountID("")}
@@ -368,27 +361,6 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 border-b border-stone-200 px-5 py-3.5">
-              <button
-                type="button"
-                onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)}
-                disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {issueCredentialMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <KeyRound className="h-3 w-3" />}
-                Issue credential
-              </button>
-              <button
-                type="button"
-                onClick={() => updateServiceAccountStatusMutation.mutate({ serviceAccountID: selectedServiceAccount.id, status: selectedServiceAccount.status === "active" ? "disabled" : "active" })}
-                disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <ShieldOff className="h-3 w-3" />
-                {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
-              </button>
             </div>
 
             {latestCredentialSecret && (
@@ -402,49 +374,59 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
               </div>
             )}
 
-            <div className="mt-4 border-t border-stone-200">
+            <div className="border-t border-stone-200">
               <div className="flex items-center justify-between px-5 py-3">
                 <p className="text-xs font-semibold text-slate-700">Credentials</p>
                 <PaginationControls page={pagedCredentials.page} totalPages={pagedCredentials.totalPages} onPageChange={setCredentialPage} label="Credentials" />
               </div>
-              <div className="divide-y divide-stone-100">
-                {pagedCredentials.items.length > 0 ? (
-                  pagedCredentials.items.map((credential) => {
-                    const isRevoked = Boolean(credential.revoked_at);
-                    return (
-                      <div key={credential.id} className="flex items-center gap-3 px-5 py-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-xs font-medium text-slate-900">{credential.name}</p>
+              {pagedCredentials.items.length > 0 ? (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-y border-stone-100 text-left text-[11px] font-medium text-slate-400">
+                      <th className="px-5 py-2 font-semibold">Key prefix</th>
+                      <th className="px-3 py-2 font-semibold">Status</th>
+                      <th className="px-3 py-2 font-semibold">Activity</th>
+                      <th className="px-3 py-2 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {pagedCredentials.items.map((credential) => {
+                      const isRevoked = Boolean(credential.revoked_at);
+                      return (
+                        <tr key={credential.id} className="hover:bg-stone-50">
+                          <td className="px-5 py-2.5 font-mono text-slate-700">{credential.key_prefix ? `${credential.key_prefix.slice(0, 8)}...` : "\u2014"}</td>
+                          <td className="px-3 py-2.5">
                             <StatusChip tone={isRevoked ? "danger" : "success"}>{isRevoked ? "Revoked" : "Active"}</StatusChip>
-                          </div>
-                          <p className="mt-0.5 text-[11px] text-slate-500">{describeCredentialActivity(credential)}</p>
-                        </div>
-                        {!isRevoked && (
-                          <div className="flex shrink-0 gap-1">
-                            <button type="button" onClick={() => rotateCredentialMutation.mutate({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id })} disabled={!csrfToken || rotateCredentialMutation.isPending} className="inline-flex h-7 items-center gap-1 rounded border border-stone-200 bg-white px-2 text-[11px] font-medium text-slate-600 transition hover:bg-stone-100 disabled:opacity-50">
-                              <RefreshCw className="h-2.5 w-2.5" />
-                              Rotate
-                            </button>
-                            <ConfirmDialog
-                              title="Revoke this credential?"
-                              description="This credential will immediately stop working. This action cannot be undone."
-                              confirmLabel="Revoke credential"
-                              onConfirm={async () => { await revokeCredentialMutation.mutateAsync({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id }); }}
-                            >
-                              {(open) => (
-                                <button type="button" onClick={open} disabled={!csrfToken || revokeCredentialMutation.isPending} className="inline-flex h-7 items-center rounded border border-rose-200 bg-rose-50 px-2 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50">Revoke</button>
-                              )}
-                            </ConfirmDialog>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="px-5 py-4 text-xs text-slate-500">No credentials issued yet.</p>
-                )}
-              </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-500">{describeCredentialActivity(credential)}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            {!isRevoked && (
+                              <div className="inline-flex gap-1">
+                                <button type="button" onClick={() => rotateCredentialMutation.mutate({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id })} disabled={!csrfToken || rotateCredentialMutation.isPending} className="inline-flex h-6 items-center gap-1 rounded border border-stone-200 bg-white px-1.5 text-[11px] font-medium text-slate-600 transition hover:bg-stone-100 disabled:opacity-50">
+                                  <RefreshCw className="h-2.5 w-2.5" />
+                                  Rotate
+                                </button>
+                                <ConfirmDialog
+                                  title="Revoke this credential?"
+                                  description="This credential will immediately stop working. This action cannot be undone."
+                                  confirmLabel="Revoke credential"
+                                  onConfirm={async () => { await revokeCredentialMutation.mutateAsync({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id }); }}
+                                >
+                                  {(open) => (
+                                    <button type="button" onClick={open} disabled={!csrfToken || revokeCredentialMutation.isPending} className="inline-flex h-6 items-center rounded border border-rose-200 bg-rose-50 px-1.5 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50">Revoke</button>
+                                  )}
+                                </ConfirmDialog>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="px-5 py-4 text-xs text-slate-500">No credentials issued yet.</p>
+              )}
             </div>
           </div>
         )}
@@ -550,31 +532,6 @@ function formatServiceAccountStatus(status: string): string {
   return status === "active" ? "Active" : "Disabled";
 }
 
-function describeServiceAccountActivity(account: {
-  credentials: Array<{ last_used_at?: string; revoked_at?: string }>;
-  status: "active" | "disabled";
-}): string {
-  const lastUsed = account.credentials
-    .map((credential) => credential.last_used_at)
-    .filter((value): value is string => Boolean(value))
-    .sort((left, right) => right.localeCompare(left))[0];
-
-  if (lastUsed) {
-    return `last used ${formatExactTimestamp(lastUsed)}`;
-  }
-  if (account.status === "disabled") {
-    return "disabled";
-  }
-  return "no credential use recorded";
-}
-
-function describeLastUsed(account: { credentials: Array<{ last_used_at?: string }> }): string {
-  const lastUsed = account.credentials
-    ?.map(c => c.last_used_at)
-    .filter((v): v is string => Boolean(v))
-    .sort((a, b) => b.localeCompare(a))[0];
-  return lastUsed ? formatExactTimestamp(lastUsed) : "Never";
-}
 
 function describeCredentialActivity(credential: { last_used_at?: string; revoked_at?: string }): string {
   if (credential.revoked_at) {

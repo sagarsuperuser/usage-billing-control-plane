@@ -269,12 +269,12 @@ test("workspace access shows summary-first service account and audit surfaces", 
 
   // Navigate to service accounts tab
   await page.getByRole("tab", { name: "Service accounts" }).click();
-  await expect(page.getByText("API identities for automation and integrations. Issue or rotate credentials as needed.")).toBeVisible();
-  await expect(page.getByText("created", { exact: true })).not.toBeVisible();
+  await expect(page.getByText("erp-sync")).toBeVisible();
 
   await page.getByTestId("inspect-service-account-svc_erp").click();
-  await expect(page.getByTestId("service-account-detail").getByText("ERP export worker")).toBeVisible();
-  await expect(page.getByText(/last used/i).first()).toBeVisible();
+  const detail = page.getByTestId("service-account-detail");
+  await expect(detail.getByText("erp-sync")).toBeVisible();
+  await expect(detail.getByText("Writer")).toBeVisible();
 
   // Navigate to the Audit log tab directly
   await page.getByRole("tab", { name: "Audit log" }).click();
