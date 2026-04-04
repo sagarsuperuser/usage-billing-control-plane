@@ -7,138 +7,76 @@ import { useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { fetchAddOns, fetchCoupons, fetchPlans, fetchPricingMetrics, fetchTaxes } from "@/lib/api";
+import {
+  fetchAddOns,
+  fetchCoupons,
+  fetchPlans,
+  fetchPricingMetrics,
+  fetchTaxes,
+} from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingHomeScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
-  const requiresTenantSession = isAuthenticated && !isTenantSession;
+  const requiresTenantSession = isAuthenticated && scope !== "tenant";
 
-  const metricsQuery = useQuery({
-    queryKey: ["pricing-metrics", apiBaseURL],
-    queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }),
-    enabled: isTenantSession,
-  });
-
-  const plansQuery = useQuery({
-    queryKey: ["pricing-plans", apiBaseURL],
-    queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }),
-    enabled: isTenantSession,
-  });
-
-  const addOnsQuery = useQuery({
-    queryKey: ["pricing-add-ons", apiBaseURL],
-    queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }),
-    enabled: isTenantSession,
-  });
-
-  const couponsQuery = useQuery({
-    queryKey: ["pricing-coupons", apiBaseURL],
-    queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }),
-    enabled: isTenantSession,
-  });
-
-  const taxesQuery = useQuery({
-    queryKey: ["pricing-taxes", apiBaseURL],
-    queryFn: () => fetchTaxes({ runtimeBaseURL: apiBaseURL }),
-    enabled: isTenantSession,
-  });
+  const metricsQuery = useQuery({ queryKey: ["pricing-metrics", apiBaseURL], queryFn: () => fetchPricingMetrics({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
+  const plansQuery = useQuery({ queryKey: ["plans", apiBaseURL], queryFn: () => fetchPlans({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
+  const addOnsQuery = useQuery({ queryKey: ["add-ons", apiBaseURL], queryFn: () => fetchAddOns({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
+  const couponsQuery = useQuery({ queryKey: ["coupons", apiBaseURL], queryFn: () => fetchCoupons({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
+  const taxesQuery = useQuery({ queryKey: ["taxes", apiBaseURL], queryFn: () => fetchTaxes({ runtimeBaseURL: apiBaseURL }), enabled: isTenantSession });
 
   const loading = metricsQuery.isLoading || plansQuery.isLoading || addOnsQuery.isLoading || couponsQuery.isLoading || taxesQuery.isLoading;
   const metricCount = metricsQuery.data?.length ?? 0;
   const planCount = plansQuery.data?.length ?? 0;
+  const activePlanCount = (plansQuery.data ?? []).filter((p) => p.status === "active").length;
   const addOnCount = addOnsQuery.data?.length ?? 0;
   const couponCount = couponsQuery.data?.length ?? 0;
   const taxCount = taxesQuery.data?.length ?? 0;
-  const draftPlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "draft").length;
-  const activePlanCount = (plansQuery.data ?? []).filter((plan) => plan.status === "active").length;
-  const activeTaxCount = (taxesQuery.data ?? []).filter((tax) => tax.status === "active").length;
-  const catalogCount = metricCount + taxCount + addOnCount + couponCount + planCount;
 
   const catalogRows = [
     {
       label: "Metrics",
-      itemLabel: "metric",
       count: metricCount,
-      summary: metricCount > 0 ? `${metricCount} reusable usage definitions` : "No metric definitions yet",
-      posture: metricCount > 0 ? "Ready — attach to plans to price usage" : "Required before plans can price usage",
+      status: metricCount > 0 ? `${metricCount} defined` : "None yet",
       href: "/pricing/metrics",
       createHref: "/pricing/metrics/new",
-      createLabel: "New metric",
     },
     {
       label: "Plans",
-      itemLabel: "plan",
       count: planCount,
-      summary: planCount > 0 ? `${activePlanCount} active / ${draftPlanCount} draft` : "No plans yet",
-      posture: metricCount > 0 ? (planCount > 0 ? "Review before activating" : "Ready to create your first plan") : "Create metrics first",
+      status: planCount > 0 ? `${activePlanCount} active` : "None yet",
       href: "/pricing/plans",
       createHref: "/pricing/plans/new",
-      createLabel: "New plan",
     },
     {
       label: "Add-ons",
-      itemLabel: "add-on",
       count: addOnCount,
-      summary: addOnCount > 0 ? `${addOnCount} recurring extras` : "No add-ons yet",
-      posture: addOnCount > 0 ? "Attach to plans where needed" : "Optional — use for recurring extras on top of a plan",
+      status: addOnCount > 0 ? `${addOnCount} defined` : "None yet",
       href: "/pricing/add-ons",
       createHref: "/pricing/add-ons/new",
-      createLabel: "New add-on",
     },
     {
       label: "Coupons",
-      itemLabel: "coupon",
       count: couponCount,
-      summary: couponCount > 0 ? `${couponCount} discount rules` : "No coupons yet",
-      posture: couponCount > 0 ? "Apply to plans or customer subscriptions" : "Optional — use for promotions or retention",
+      status: couponCount > 0 ? `${couponCount} defined` : "None yet",
       href: "/pricing/coupons",
       createHref: "/pricing/coupons/new",
-      createLabel: "New coupon",
     },
     {
       label: "Taxes",
-      itemLabel: "tax",
       count: taxCount,
-      summary: taxCount > 0 ? `${activeTaxCount} active / ${taxCount - activeTaxCount} inactive` : "No reusable tax rules yet",
-      posture: taxCount > 0 ? "Assign to customers via billing settings" : "Optional — add when tax compliance is needed",
+      status: taxCount > 0 ? `${taxCount} defined` : "None yet",
       href: "/pricing/taxes",
       createHref: "/pricing/taxes/new",
-      createLabel: "New tax",
     },
   ] as const;
-
-  const setupQueue = catalogRows.filter((row) => row.count === 0);
 
   return (
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <AppBreadcrumbs items={[{ href: "/pricing", label: "Workspace" }, { label: "Pricing" }]} />
-
-        {isTenantSession ? <section className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-950">Pricing catalog</h1>
-              <p className="mt-3 text-sm text-slate-600">
-                Define metrics and plans once, then reuse them across customers. Metrics define what gets charged; plans set the price and cadence.
-              </p>
-            </div>
-            {isTenantSession ? (
-              <div className="flex flex-wrap gap-3">
-                <Link href="/pricing/metrics/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-                  <Plus className="h-4 w-4" />
-                  New metric
-                </Link>
-                <Link href="/pricing/plans/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                  <Plus className="h-4 w-4" />
-                  New plan
-                </Link>
-              </div>
-            ) : null}
-          </div>
-        </section> : null}
+        <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {requiresTenantSession ? (
@@ -150,153 +88,69 @@ export function PricingHomeScreen() {
           />
         ) : null}
 
-        {!isAuthenticated || !isTenantSession ? null : (
-          <>
-            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryCell label="Catalog records" value={catalogCount} hint="Metrics, plans, add-ons, coupons, and taxes" />
-              <SummaryCell label="Active plans" value={activePlanCount} hint={planCount > 0 ? `${draftPlanCount} draft` : "No active plans yet"} />
-              <SummaryCell label="Reusable rules" value={metricCount + addOnCount + couponCount + taxCount} hint="Reusable inputs before customer assignment" />
-              <SummaryCell label="Still needed" value={setupQueue.length} hint={setupQueue.length > 0 ? "Categories missing a first record" : "Core pricing is in place"} />
-            </section>
+        {isTenantSession ? (
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <h1 className="text-sm font-semibold text-slate-900">Pricing catalog</h1>
+              <div className="flex items-center gap-2">
+                <Link href="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
+                  <Plus className="h-3.5 w-3.5" />
+                  New metric
+                </Link>
+                <Link href="/pricing/plans/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 px-3 text-xs font-medium text-slate-600 transition hover:bg-stone-50">
+                  <Plus className="h-3.5 w-3.5" />
+                  New plan
+                </Link>
+              </div>
+            </div>
 
             {loading ? (
-              <section className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                  Loading pricing…
-                </div>
-              </section>
-            ) : (
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_360px]">
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm">
-                  <div className="border-b border-slate-200 px-6 py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h2 className="text-xl font-semibold text-slate-950">Pricing setup</h2>
-                        <p className="mt-1 text-sm text-slate-600">Configure metrics, plans, add-ons, coupons, and taxes for your workspace.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="hidden grid-cols-[180px_110px_minmax(0,1fr)_auto] gap-4 border-b border-slate-200 px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 lg:grid">
-                    <span>Domain</span>
-                    <span>Count</span>
-                    <span>Status</span>
-                    <span>Actions</span>
-                  </div>
-
-                  <div className="divide-y divide-slate-200">
-                    {catalogRows.map((row) => (
-                      <CatalogRow key={row.label} {...row} />
-                    ))}
-                  </div>
-                </section>
-
-                <div className="grid gap-5">
-                  <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operating model</p>
-                    <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial setup sequence</h2>
-                                      </section>
-
-                  <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Immediate queue</p>
-                    <h2 className="mt-2 text-xl font-semibold text-slate-950">Setup gaps</h2>
-                    <div className="mt-5 grid gap-3">
-                      {setupQueue.length > 0 ? (
-                        setupQueue.map((row) => (
-                          <Link key={row.label} href={row.createHref} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300 hover:bg-slate-100">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-950">Create first {row.itemLabel}</p>
-                                <p className="mt-1 text-sm text-slate-600">{row.posture}</p>
-                              </div>
-                              <ArrowRight className="h-4 w-4 text-slate-500" />
-                            </div>
-                          </Link>
-                        ))
-                      ) : (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
-                          Core pricing is in place. Use the table below to review counts, open records, and add new variants when your offering changes.
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                </div>
+              <div className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Loading pricing catalog...
               </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                    <th className="px-5 py-2.5 font-semibold">Category</th>
+                    <th className="px-4 py-2.5 font-semibold">Records</th>
+                    <th className="px-4 py-2.5 font-semibold">Status</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {catalogRows.map((row) => (
+                    <tr key={row.label} className="transition hover:bg-stone-50">
+                      <td className="px-5 py-3 font-medium text-slate-900">{row.label}</td>
+                      <td className="px-4 py-3 text-slate-600">{row.count}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                          row.count > 0
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-stone-200 bg-stone-50 text-slate-500"
+                        }`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link href={row.href} className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 px-2.5 text-xs text-slate-600 transition hover:bg-stone-50">
+                            Open <ArrowRight className="h-3 w-3" />
+                          </Link>
+                          <Link href={row.createHref} className="inline-flex h-7 items-center gap-1 rounded-md border border-stone-200 px-2.5 text-xs text-slate-600 transition hover:bg-stone-50">
+                            <Plus className="h-3 w-3" /> New
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
-          </>
-        )}
+          </div>
+        ) : null}
       </main>
-    </div>
-  );
-}
-
-function SummaryCell({ label, value, hint }: { label: string; value: number; hint: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <div className="mt-2 flex items-end justify-between gap-3">
-        <p className="text-2xl font-semibold text-slate-950">{value}</p>
-        <p className="max-w-[180px] text-right text-xs leading-relaxed text-slate-500">{hint}</p>
-      </div>
-    </div>
-  );
-}
-
-function CatalogRow({
-  label,
-  count,
-  summary,
-  posture,
-  href,
-  createHref,
-  createLabel,
-}: {
-  label: string;
-  itemLabel: string;
-  count: number;
-  summary: string;
-  posture: string;
-  href: string;
-  createHref: string;
-  createLabel: string;
-}) {
-  return (
-    <div className="grid gap-4 px-6 py-5 lg:grid-cols-[180px_110px_minmax(0,1fr)_auto] lg:items-center">
-      <div>
-        <p className="text-sm font-semibold text-slate-950">{label}</p>
-        <p className="mt-1 text-sm text-slate-500 lg:hidden">{summary}</p>
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-slate-950">{count}</p>
-        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">records</p>
-      </div>
-      <div>
-        <p className="text-sm text-slate-700">{summary}</p>
-        <p className="mt-1 text-sm text-slate-500">{posture}</p>
-      </div>
-      <div className="flex flex-wrap gap-2 lg:justify-end">
-        <Link href={href} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition hover:bg-slate-100">
-          Open
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-        <Link href={createHref} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
-          <Plus className="h-4 w-4" />
-          {createLabel}
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function SequenceStep({ number, title, body }: { number: string; title: string; body: string }) {
-  return (
-    <div className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-700">{number}</div>
-      <div>
-        <p className="text-sm font-semibold text-slate-950">{title}</p>
-        <p className="mt-1 text-sm text-slate-600">{body}</p>
-      </div>
     </div>
   );
 }

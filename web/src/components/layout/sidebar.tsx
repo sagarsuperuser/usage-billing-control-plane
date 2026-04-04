@@ -56,9 +56,7 @@ const operationsItems: NavItem[] = [
 
 function isActive(pathname: string, href: string): boolean {
   if (pathname === href) return true;
-  // Match sub-routes (e.g. /customers/cust_123 matches /customers)
   if (href !== "/" && pathname.startsWith(href + "/")) return true;
-  // Special: /payment-operations matches /payments
   if (href === "/payments" && pathname === "/payment-operations") return true;
   return false;
 }
@@ -67,7 +65,6 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { isAuthenticated, isLoading, scope, session } = useUISession();
 
-  // Don't render sidebar on auth pages.
   if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return null;
 
   const showPlatform = !isLoading && (!isAuthenticated || scope === "platform");
@@ -75,9 +72,9 @@ export function AppSidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-stone-200 bg-white">
-      {/* Logo + session */}
-      <div className="flex items-center justify-between gap-2 border-b border-stone-200 px-4 py-3">
-        <Link href={scope === "tenant" ? "/customers" : "/control-plane"} className="flex items-center gap-2.5">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-4 py-4">
+        <Link href={scope === "platform" ? "/control-plane" : "/control-plane"} className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900">
             <svg width="14" height="14" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.5"/>
@@ -87,20 +84,10 @@ export function AppSidebar() {
           </div>
           <span className="text-sm font-semibold text-slate-900">Alpha</span>
         </Link>
-        {isAuthenticated ? <SessionMenu /> : null}
       </div>
 
-      {/* Scope indicator */}
-      {!isLoading && isAuthenticated ? (
-        <div className="border-b border-stone-100 px-4 py-2">
-          <p className="truncate text-[11px] font-medium text-slate-400">
-            {scope === "platform" ? "Platform admin" : session?.tenant_id ? `${session.tenant_id}` : "Workspace"}
-          </p>
-        </div>
-      ) : null}
-
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
+      <nav className="flex-1 overflow-y-auto border-t border-stone-100 px-3 py-3">
         {isLoading ? (
           <div className="space-y-2 px-1">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -121,6 +108,13 @@ export function AppSidebar() {
           </div>
         )}
       </nav>
+
+      {/* Session — pinned to bottom (Stripe/Linear pattern) */}
+      {isAuthenticated ? (
+        <div className="border-t border-stone-200 px-3 py-3">
+          <SessionMenu />
+        </div>
+      ) : null}
     </aside>
   );
 }
