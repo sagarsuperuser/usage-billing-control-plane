@@ -113,7 +113,10 @@
       "Bash(sed -i '' 's/decode lago invoice payload/decode invoice payload/g' internal/service/invoice_explainability_service.go)",
       "Bash(grep -c \"LagoHTTPTransport\\\\|LagoClientConfig\\\\|NewLagoHTTPTransport\\\\|NewLagoInvoiceAdapter\\\\|NewLagoCustomerBillingAdapter\\\\|NewLagoMeterSyncAdapter\\\\|NewLagoWebhookService\\\\|NoopLagoWebhookVerifier\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/*_test.go)",
       "Bash(grep -v \":0$\")",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(sed -i '' 's/needBillingAdapters := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunDunningWorker/needBillingAdapters := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunDunningWorker || cfg.Roles.RunBillingCycleWorker/' /Users/superuser/projects/golang/usage-billing-control-plane/cmd/server/main.go)",
+      "Bash(sed -i '' 's/needBillingProviderConnections := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker$/needBillingProviderConnections := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingCycleWorker/' /Users/superuser/projects/golang/usage-billing-control-plane/cmd/server/main.go)",
+      "Bash(git add:*)"
     ]
   }
 }

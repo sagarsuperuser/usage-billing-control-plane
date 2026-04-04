@@ -937,6 +937,44 @@ func (s *DunningService) ResolveRun(tenantID, runID string) (DunningRunControlRe
 	return DunningRunControlResult{Run: run, Event: event}, nil
 }
 
+// ResolveRunByInvoiceID finds the active dunning run for an invoice and resolves it.
+// Returns nil error if no active run exists (nothing to resolve).
+func (s *DunningService) ResolveRunByInvoiceID(tenantID, invoiceID, resolution string) error {
+	if s == nil || s.store == nil {
+		return nil
+	}
+	run, err := s.store.GetActiveInvoiceDunningRunByInvoiceID(normalizeTenantID(tenantID), strings.TrimSpace(invoiceID))
+	if err != nil {
+		return nil // No active run — nothing to resolve.
+	}
+	now := s.now()
+	run.Paused = false
+	run.State = domain.DunningRunStateResolved
+	run.NextActionAt = nil
+	run.NextActionType = ""
+	run.ResolvedAt = ptrTime(now)
+	run.Resolution = domain.DunningResolutionPaymentSucceeded
+	run.Reason = resolution
+	run.UpdatedAt = now
+	_, err = s.store.UpdateInvoiceDunningRun(run)
+	if err != nil {
+		return err
+	}
+	_, _ = s.store.CreateInvoiceDunningEvent(domain.InvoiceDunningEvent{
+		RunID:              run.ID,
+		TenantID:           tenantID,
+		InvoiceID:          run.InvoiceID,
+		CustomerExternalID: run.CustomerExternalID,
+		EventType:          domain.DunningEventTypeResolved,
+		State:              run.State,
+		Reason:             resolution,
+		AttemptCount:       run.AttemptCount,
+		Metadata:           map[string]any{"resolution": resolution},
+		CreatedAt:          now,
+	})
+	return nil
+}
+
 func (s *DunningService) ProcessNextCollectPaymentReminder(tenantID string) (bool, *QueueCollectPaymentReminderResult, error) {
 	runs, err := s.ListDueRuns(tenantID, ListDueDunningRunsRequest{
 		ActionType: domain.DunningActionTypeCollectPaymentReminder,

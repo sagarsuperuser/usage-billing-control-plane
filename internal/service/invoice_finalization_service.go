@@ -97,6 +97,14 @@ func (s *InvoiceFinalizationService) Finalize(ctx context.Context, input Finaliz
 		CustomerID:     input.StripeCustomerID,
 		Description:    fmt.Sprintf("Invoice %s", invoice.InvoiceNumber),
 		IdempotencyKey: fmt.Sprintf("inv_%s", invoice.ID),
+		OffSession:     true,
+		Confirm:        true,
+		Metadata: map[string]string{
+			"invoice_id":     invoice.ID,
+			"invoice_number": invoice.InvoiceNumber,
+			"tenant_id":      invoice.TenantID,
+			"customer_id":    invoice.CustomerID,
+		},
 	})
 	if err != nil {
 		return FinalizeInvoiceResult{}, fmt.Errorf("create payment intent: %w", err)

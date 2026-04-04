@@ -277,6 +277,10 @@ func (s *SubscriptionService) requestPaymentSetup(tenantID, id, paymentMethodTyp
 	if err != nil {
 		return SubscriptionPaymentSetupResult{}, err
 	}
+	plan, err := s.store.GetPlan(subscription.TenantID, subscription.PlanID)
+	if err != nil {
+		return SubscriptionPaymentSetupResult{}, err
+	}
 	readiness, err := s.customers.GetCustomerReadiness(subscription.TenantID, customer.ExternalID)
 	if err != nil {
 		return SubscriptionPaymentSetupResult{}, err
@@ -288,6 +292,10 @@ func (s *SubscriptionService) requestPaymentSetup(tenantID, id, paymentMethodTyp
 		updated, err := s.store.UpdateSubscription(subscription)
 		if err != nil {
 			return SubscriptionPaymentSetupResult{}, err
+		}
+		// Initialize billing cycle so the subscription is picked up by the billing engine.
+		if s.subscriptionSyncAdapter != nil {
+			_ = s.subscriptionSyncAdapter.SyncSubscription(context.Background(), updated, customer, plan)
 		}
 		detail, err := s.buildSubscriptionDetail(updated)
 		if err != nil {
@@ -311,6 +319,10 @@ func (s *SubscriptionService) requestPaymentSetup(tenantID, id, paymentMethodTyp
 	updated, err := s.store.UpdateSubscription(subscription)
 	if err != nil {
 		return SubscriptionPaymentSetupResult{}, err
+	}
+	// Initialize billing cycle if subscription just became active.
+	if updated.Status == domain.SubscriptionStatusActive && s.subscriptionSyncAdapter != nil {
+		_ = s.subscriptionSyncAdapter.SyncSubscription(context.Background(), updated, customer, plan)
 	}
 	detail, err := s.buildSubscriptionDetail(updated)
 	if err != nil {

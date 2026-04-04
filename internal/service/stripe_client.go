@@ -35,6 +35,9 @@ type CreatePaymentIntentInput struct {
 	CustomerID     string // Stripe customer ID (cus_xxx)
 	Description    string
 	IdempotencyKey string
+	Metadata       map[string]string
+	OffSession     bool
+	Confirm        bool
 }
 
 func (c *StripeClient) CreatePaymentIntent(_ context.Context, secretKey string, input CreatePaymentIntentInput) (*stripe.PaymentIntent, error) {
@@ -47,6 +50,15 @@ func (c *StripeClient) CreatePaymentIntent(_ context.Context, secretKey string, 
 		AutomaticPaymentMethods: &stripe.PaymentIntentAutomaticPaymentMethodsParams{
 			Enabled: stripe.Bool(true),
 		},
+	}
+	if input.OffSession {
+		params.OffSession = stripe.Bool(true)
+	}
+	if input.Confirm {
+		params.Confirm = stripe.Bool(true)
+	}
+	for k, v := range input.Metadata {
+		params.AddMetadata(k, v)
 	}
 	if input.IdempotencyKey != "" {
 		params.IdempotencyKey = stripe.String(input.IdempotencyKey)

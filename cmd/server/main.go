@@ -112,6 +112,9 @@ func main() {
 		if temporalDunningWorker != nil {
 			temporalDunningWorker.Stop()
 		}
+		if temporalBillingCycleWorker != nil {
+			temporalBillingCycleWorker.Stop()
+		}
 		if temporalClient != nil {
 			temporalClient.Close()
 		}
@@ -168,8 +171,8 @@ func main() {
 		}
 	}
 
-	needBillingAdapters := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunDunningWorker
-	needBillingProviderConnections := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker
+	needBillingAdapters := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunPaymentReconcileWorker || cfg.Roles.RunDunningWorker || cfg.Roles.RunBillingCycleWorker
+	needBillingProviderConnections := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingCycleWorker
 	needNotificationRuntime := cfg.Roles.RunAPIServer || cfg.Roles.RunDunningWorker
 
 	if needBillingAdapters {

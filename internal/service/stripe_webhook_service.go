@@ -181,16 +181,20 @@ func (s *StripeWebhookService) applyCustomerEffects(event domain.StripeWebhookEv
 	}
 }
 
-// applyDunningEffects triggers dunning runs on payment failures.
+// applyDunningEffects triggers or resolves dunning runs based on payment events.
 func (s *StripeWebhookService) applyDunningEffects(event domain.StripeWebhookEvent) error {
 	if s.dunningSvc == nil || event.TenantID == "" || event.InvoiceID == "" {
 		return nil
 	}
-	if event.EventType != "payment_intent.payment_failed" {
+	switch event.EventType {
+	case "payment_intent.payment_failed":
+		_, err := s.dunningSvc.EnsureRunForInvoice(event.TenantID, event.InvoiceID)
+		return err
+	case "payment_intent.succeeded":
+		return s.dunningSvc.ResolveRunByInvoiceID(event.TenantID, event.InvoiceID, "payment_succeeded")
+	default:
 		return nil
 	}
-	_, err := s.dunningSvc.EnsureRunForInvoice(event.TenantID, event.InvoiceID)
-	return err
 }
 
 // buildStripeWebhookEvent converts a Stripe SDK event into our domain model.
