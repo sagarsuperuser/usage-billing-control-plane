@@ -1,17 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import {
-  Activity,
-  Building2,
-  CreditCard,
-  ReceiptText,
-  ShieldCheck,
-  UserRoundPlus,
-  Workflow,
-} from "lucide-react";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,8 +16,7 @@ import {
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function ControlPlaneOverviewScreen() {
-  const { apiBaseURL, isAuthenticated, isLoading, scope, isPlatformAdmin, session, platformRole } = useUISession();
-  const scopeKey = scope === "platform" ? "platform" : "tenant";
+  const { apiBaseURL, isAuthenticated, isLoading, scope, isPlatformAdmin, session } = useUISession();
 
   const tenantsQuery = useQuery({
     queryKey: ["overview-tenants", apiBaseURL],
@@ -95,431 +85,115 @@ export function ControlPlaneOverviewScreen() {
     tenantReadinessQueries.some((query) => query.isLoading) ||
     customerReadinessQueries.some((query) => query.isLoading);
 
-  const sessionTitle =
-    scope === "platform"
-      ? "Platform overview"
-      : `Workspace overview${session?.tenant_id ? ` · ${session.tenant_id}` : ""}`;
-
-  const summaryCards =
+  const summaryItems =
     scope === "platform"
       ? [
           { label: "Workspaces", value: platformMetrics.total, tone: "default" as const },
-          { label: "Connected credentials", value: platformMetrics.connectedProviders, tone: "success" as const },
-          { label: "Missing billing", value: platformMetrics.missingBilling, tone: "warn" as const },
-          { label: "Provider errors", value: platformMetrics.providerErrors, tone: "danger" as const },
+          { label: "Connected", value: platformMetrics.connectedProviders, tone: "success" as const },
+          { label: "Errors", value: platformMetrics.providerErrors, tone: "danger" as const },
         ]
       : [
           { label: "Customers", value: tenantMetrics.total, tone: "default" as const },
           { label: "Billing-ready", value: tenantMetrics.billingReady, tone: "success" as const },
-          { label: "Pending payment setup", value: tenantMetrics.pendingPayment, tone: "warn" as const },
-          { label: "Sync errors", value: tenantMetrics.syncErrors, tone: "danger" as const },
+          { label: "Errors", value: tenantMetrics.syncErrors, tone: "danger" as const },
         ];
 
   const attentionItems =
     scope === "platform"
       ? [
-          {
-            title: "Billing connection errors",
-            value: platformMetrics.providerErrors,
-            body: "Resolve these before attaching more workspaces.",
-            href: "/billing-connections",
-          },
-          {
-            title: "Workspaces missing pricing",
-            value: platformMetrics.missingPricing,
-            body: "Finish pricing before these workspaces go live.",
-            href: "/workspaces",
-          },
-          {
-            title: "Workspaces missing first customer",
-            value: platformMetrics.missingFirstCustomer,
-            body: "Add the first billable customer to finish setup.",
-            href: "/workspaces",
-          },
+          { title: "Billing connection errors", value: platformMetrics.providerErrors, href: "/billing-connections" },
+          { title: "Workspaces missing pricing", value: platformMetrics.missingPricing, href: "/workspaces" },
+          { title: "Workspaces missing first customer", value: platformMetrics.missingFirstCustomer, href: "/workspaces" },
         ]
       : [
-          {
-            title: "Customers waiting on payment setup",
-            value: tenantMetrics.pendingPayment,
-            body: "Finish payment setup before treating these customers as live.",
-            href: "/subscriptions",
-          },
-          {
-            title: "Customers with billing sync errors",
-            value: tenantMetrics.syncErrors,
-            body: "Fix sync before retrying billing actions.",
-            href: "/payments",
-          },
-          {
-            title: "Billing-ready customers",
-            value: tenantMetrics.billingReady,
-            body: "These customers are ready for billing operations.",
-            href: "/customers",
-          },
+          { title: "Customers waiting on payment setup", value: tenantMetrics.pendingPayment, href: "/subscriptions" },
+          { title: "Customers with billing sync errors", value: tenantMetrics.syncErrors, href: "/payments" },
+          { title: "Billing-ready customers", value: tenantMetrics.billingReady, href: "/customers" },
         ];
 
-  const actionItems = [
-    {
-      href: "/billing-connections/new",
-      title: "Create billing connection",
-      body: "Create a provider credential and sync it.",
-      icon: <CreditCard className="h-4 w-4 text-emerald-700" />,
-      scope: "platform" as const,
-    },
-    {
-      href: "/workspaces/new",
-      title: "Launch workspace",
-      body: "Create a workspace and hand off access cleanly.",
-      icon: <Building2 className="h-4 w-4 text-emerald-700" />,
-      scope: "platform" as const,
-    },
-    {
-      href: "/customers/new",
-      title: "Create first customer",
-      body: "Create the first billable customer and start payment setup.",
-      icon: <UserRoundPlus className="h-4 w-4 text-emerald-700" />,
-      scope: "tenant" as const,
-    },
-  ].filter((item) => item.scope === scopeKey);
-
-  const moduleItems = [
-    {
-      href: "/billing-connections",
-      title: "Billing Connections",
-      body: "Provider credentials and sync health.",
-      icon: <CreditCard className="h-4 w-4 text-emerald-700" />,
-      scope: "platform" as const,
-    },
-    {
-      href: "/workspaces",
-      title: "Workspaces",
-      body: "Workspace readiness and billing attachment.",
-      icon: <Building2 className="h-4 w-4 text-emerald-700" />,
-      scope: "platform" as const,
-    },
-    {
-      href: "/customers",
-      title: "Customers",
-      body: "Billing readiness and payment setup.",
-      icon: <UserRoundPlus className="h-4 w-4 text-emerald-700" />,
-      scope: "tenant" as const,
-    },
-    {
-      href: "/subscriptions",
-      title: "Subscriptions",
-      body: "Activation state and payment setup.",
-      icon: <ShieldCheck className="h-4 w-4 text-emerald-700" />,
-      scope: "tenant" as const,
-    },
-    {
-      href: "/payments",
-      title: "Payments",
-      body: "Payment failures and retries.",
-      icon: <Activity className="h-4 w-4 text-emerald-700" />,
-      scope: "tenant" as const,
-    },
-    {
-      href: "/replay-operations",
-      title: "Recovery",
-      body: "Repair failed processing runs.",
-      icon: <Workflow className="h-4 w-4 text-emerald-700" />,
-      scope: "tenant" as const,
-    },
-    {
-      href: "/invoice-explainability",
-      title: "Explainability",
-      body: "Trace invoice outcomes when support needs evidence.",
-      icon: <ReceiptText className="h-4 w-4 text-emerald-700" />,
-      scope: "tenant" as const,
-    },
-  ].filter((item) => item.scope === scopeKey);
-
-  const tenantConsoleItems = [
-    ...actionItems.map((item) => ({
-      href: item.href,
-      title: item.title,
-      body: item.body,
-      icon: item.icon,
-      kind: "Next step",
-    })),
-    ...moduleItems.map((item) => ({
-      href: item.href,
-      title: item.title,
-      body: item.body,
-      icon: item.icon,
-      kind: "Surface",
-    })),
-  ];
-
-  const platformConsoleItems = [
-    ...actionItems.map((item) => ({
-      href: item.href,
-      title: item.title,
-      body: item.body,
-      icon: item.icon,
-      kind: "Action",
-    })),
-    ...moduleItems.map((item) => ({
-      href: item.href,
-      title: item.title,
-      body: item.body,
-      icon: item.icon,
-      kind: "Surface",
-    })),
-  ];
-
-  const primaryAction = actionItems[0] ?? moduleItems[0] ?? null;
+  const hasAttention = attentionItems.some((item) => item.value > 0);
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-
-        <section className="rounded-xl border border-stone-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-          <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:p-6">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Overview</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-950">{sessionTitle}</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Start with the highest-priority items, then open the matching area.
-              </p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {attentionLoading || isLoading
-                  ? Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-                        <Skeleton className="h-3 w-28" />
-                        <Skeleton className="mt-3 h-8 w-12" />
-                      </div>
-                    ))
-                  : summaryCards.map((item) => (
-                      <SummaryCard key={item.label} label={item.label} value={item.value} tone={item.tone} />
-                    ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Session</p>
-              <p className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
-                {scope === "platform" ? platformRole ?? "platform" : session?.role ?? "reader"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {scope === "platform"
-                  ? "Manage reusable billing assets and launch workspaces."
-                  : "Run pricing, customers, subscriptions, and workspace operations inside one workspace boundary."}
-              </p>
-              {session?.tenant_id ? (
-                <p className="mt-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
-                  Workspace: {session.tenant_id}
-                </p>
-              ) : null}
-              {primaryAction ? (
-                <Link
-                  href={primaryAction.href}
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-                >
-                  Open {primaryAction.title}
-                </Link>
-              ) : null}
-            </div>
-          </div>
-        </section>
-
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
-        {scope === "tenant" && !attentionLoading && tenantMetrics.total === 0 ? (
-          <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Get started</p>
-            <h2 className="mt-2 text-xl font-semibold text-slate-950">Set up your first billing flow</h2>
-            <p className="mt-1.5 text-sm text-slate-500">Follow these steps in order to go from zero to a live paying customer.</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <GettingStartedStep step="1" title="Create a metric" description="Define what you'll charge for — API calls, seats, storage." href="/pricing/metrics/new" />
-              <GettingStartedStep step="2" title="Create a plan" description="Package the metric with a price and billing cadence." href="/pricing/plans/new" />
-              <GettingStartedStep step="3" title="Add a customer" description="Create a customer and fill in their billing profile." href="/customers/new" />
-              <GettingStartedStep step="4" title="Create a subscription" description="Attach the customer to the plan to start billing." href="/subscriptions/new" />
-            </div>
-          </section>
-        ) : null}
+        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+          {/* Header */}
+          <div className="border-b border-stone-200 px-5 py-3">
+            <h1 className="text-sm font-semibold text-slate-900">Overview</h1>
+          </div>
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Needs action</p>
-                <h2 className="mt-2 text-base font-semibold text-slate-950">Action required</h2>
-              </div>
-            </div>
+          {/* Compact summary bar */}
+          <div className="flex items-center gap-6 border-b border-stone-200 px-5 py-3">
             {isLoading || attentionLoading ? (
-              <div className="mt-5 divide-y divide-stone-200">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between gap-4 py-4">
-                    <div className="min-w-0 flex-1">
-                      <Skeleton className="h-3.5 w-40" />
-                      <Skeleton className="mt-2 h-3 w-56" />
-                    </div>
-                    <Skeleton className="h-7 w-10 shrink-0 rounded-2xl" />
-                  </div>
-                ))}
-              </div>
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-5 w-8" />
+                </div>
+              ))
             ) : (
-              <div className="mt-5 divide-y divide-stone-200">
-                {attentionItems.map((item) => (
-                  <AttentionRow key={item.title} href={item.href} title={item.title} value={item.value} body={item.body} />
-                ))}
-              </div>
+              summaryItems.map((item) => (
+                <div key={item.label} className="flex items-center gap-2 text-sm">
+                  <span className="text-slate-500">{item.label}</span>
+                  <span className={`font-semibold ${item.tone === "success" ? "text-emerald-700" : item.tone === "danger" ? "text-rose-700" : "text-slate-900"}`}>
+                    {item.value}
+                  </span>
+                </div>
+              ))
             )}
           </div>
 
-          <div className="grid gap-6">
-            {scope === "tenant" ? (
-              <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace</p>
-                    <h2 className="mt-2 text-base font-semibold text-slate-950">Quick access</h2>
-                  </div>
-                </div>
-                <div className="mt-5 divide-y divide-stone-200">
-                  {tenantConsoleItems.map((item) => (
-                    <ConsoleRow key={`${item.kind}-${item.href}`} href={item.href} title={item.title} body={item.body} icon={item.icon} kind={item.kind} />
-                  ))}
-                </div>
-              </section>
-            ) : (
-              <section className="rounded-xl border border-stone-200 bg-white/92 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Platform</p>
-                    <h2 className="mt-2 text-base font-semibold text-slate-950">Quick access</h2>
-                  </div>
-                </div>
-                <div className="mt-5 divide-y divide-stone-200">
-                  {platformConsoleItems.map((item) => (
-                    <ConsoleRow key={`${item.kind}-${item.href}`} href={item.href} title={item.title} body={item.body} icon={item.icon} kind={item.kind} />
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-        </section>
+          {/* Needs attention section */}
+          {!attentionLoading && hasAttention ? (
+            <div className="border-b border-stone-200 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Needs attention</h2>
+              <div className="mt-3 divide-y divide-stone-100">
+                {attentionItems.filter((item) => item.value > 0).map((item) => (
+                  <Link
+                    key={item.title}
+                    href={item.href}
+                    className="flex items-center justify-between py-2 text-sm transition hover:bg-stone-50"
+                  >
+                    <span className="text-slate-700">
+                      <span className="font-medium text-slate-900">{item.value}</span>{" "}
+                      {item.title.toLowerCase()}
+                    </span>
+                    <span className="text-xs text-slate-400">View →</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Getting started -- only when 0 customers in tenant scope */}
+          {scope === "tenant" && !attentionLoading && tenantMetrics.total === 0 ? (
+            <div className="px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-900">Getting started</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <GettingStartedStep step="1" title="Create a metric" description="Define what you'll charge for." href="/pricing/metrics/new" />
+                <GettingStartedStep step="2" title="Create a plan" description="Package the metric with a price." href="/pricing/plans/new" />
+                <GettingStartedStep step="3" title="Add a customer" description="Create a customer with billing profile." href="/customers/new" />
+                <GettingStartedStep step="4" title="Create a subscription" description="Attach the customer to the plan." href="/subscriptions/new" />
+              </div>
+            </div>
+          ) : null}
+        </div>
       </main>
     </div>
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "default" | "success" | "warn" | "danger";
-}) {
-  const toneClass =
-    tone === "success"
-      ? "text-emerald-700"
-      : tone === "warn"
-        ? "text-amber-700"
-        : tone === "danger"
-          ? "text-rose-700"
-          : "text-slate-950";
-
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
-function AttentionRow({
-  href,
-  title,
-  value,
-  body,
-}: {
-  href: string;
-  title: string;
-  value: number;
-  body: string;
-}) {
-  return (
-    <Link href={href} className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-slate-950">{title}</p>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
-      </div>
-      <div className="shrink-0 text-right">
-        <p className="text-base font-semibold text-slate-950">{value}</p>
-        <p className="mt-1 text-[11px] text-slate-400">View →</p>
-      </div>
-    </Link>
-  );
-}
-
-function ActionRow({
-  href,
-  title,
-  body,
-  icon,
-}: {
-  href: string;
-  title: string;
-  body: string;
-  icon: ReactNode;
-}) {
-  return (
-    <Link href={href} className="flex items-start gap-4 py-4 first:pt-0 last:pb-0">
-      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-slate-950">{title}</p>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
-      </div>
-    </Link>
-  );
-}
-
-function ConsoleRow({
-  href,
-  title,
-  body,
-  icon,
-  kind,
-}: {
-  href: string;
-  title: string;
-  body: string;
-  icon: ReactNode;
-  kind: string;
-}) {
-  return (
-    <Link href={href} className="grid gap-3 py-4 first:pt-0 last:pb-0 md:grid-cols-[40px_minmax(0,1fr)_100px] md:items-start">
-      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-slate-950">{title}</p>
-          <span className="rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-            {kind}
-          </span>
-        </div>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
-      </div>
-    </Link>
-  );
-}
-
 function GettingStartedStep({ step, title, description, href }: { step: string; title: string; description: string; href: string }) {
   return (
-    <Link href={href} className="group flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 transition hover:border-slate-300 hover:bg-white">
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">{step}</span>
+    <Link href={href} className="group flex flex-col gap-2 rounded-lg border border-stone-200 bg-stone-50 p-3 transition hover:border-slate-300 hover:bg-white">
+      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">{step}</span>
       <div>
-        <p className="text-sm font-semibold text-slate-900">{title}</p>
-        <p className="mt-1 text-xs text-slate-500 leading-relaxed">{description}</p>
+        <p className="text-sm font-medium text-slate-900">{title}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
       </div>
-      <span className="mt-auto text-xs font-medium text-slate-400 transition group-hover:text-slate-700">Get started →</span>
+      <span className="mt-auto text-xs text-slate-400 transition group-hover:text-slate-700">Start →</span>
     </Link>
   );
 }

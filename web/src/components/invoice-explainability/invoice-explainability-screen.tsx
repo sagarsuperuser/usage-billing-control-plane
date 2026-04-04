@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LoaderCircle, RefreshCw, Search } from "lucide-react";
+import { LoaderCircle, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 
@@ -13,14 +13,7 @@ import { fetchInvoiceExplainability } from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { type InvoiceExplainabilityLineItem } from "@/lib/types";
 
-const sortOptions = [
-  "created_at_asc",
-  "created_at_desc",
-  "amount_cents_asc",
-  "amount_cents_desc",
-] as const;
-
-type ExplainabilitySort = (typeof sortOptions)[number];
+const feeTypeOptions = ["", "charge", "subscription", "add_on", "credit", "minimum_commitment"] as const;
 
 export function InvoiceExplainabilityScreen() {
   const searchParams = useSearchParams();
@@ -28,65 +21,30 @@ export function InvoiceExplainabilityScreen() {
   const isTenantSession = isAuthenticated && scope === "tenant";
   const initialInvoiceID = searchParams.get("invoice_id") || "";
   const [invoiceID, setInvoiceID] = useState(initialInvoiceID);
-  const [feeTypesInput, setFeeTypesInput] = useState("");
-  const [lineItemSort, setLineItemSort] = useState<ExplainabilitySort>("created_at_asc");
-  const [page, setPage] = useState("1");
-  const [limit, setLimit] = useState("50");
+  const [feeType, setFeeType] = useState("");
   const [submittedInvoiceID, setSubmittedInvoiceID] = useState(initialInvoiceID);
   const [selectedLineItemID, setSelectedLineItemID] = useState("");
 
-  const normalizedFeeTypes = useMemo(
-    () =>
-      feeTypesInput
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean),
-    [feeTypesInput]
-  );
-
-  const parsedPage = useMemo(() => {
-    const value = Number(page);
-    if (!Number.isFinite(value) || value < 0) return 1;
-    return Math.floor(value);
-  }, [page]);
-
-  const parsedLimit = useMemo(() => {
-    const value = Number(limit);
-    if (!Number.isFinite(value) || value < 0) return 50;
-    return Math.floor(value);
-  }, [limit]);
-
   const explainabilityQuery = useQuery({
-    queryKey: [
-      "invoice-explainability",
-      apiBaseURL,
-      submittedInvoiceID,
-      normalizedFeeTypes.join(","),
-      lineItemSort,
-      parsedPage,
-      parsedLimit,
-    ],
+    queryKey: ["invoice-explainability", apiBaseURL, submittedInvoiceID, feeType],
     queryFn: () =>
       fetchInvoiceExplainability({
         runtimeBaseURL: apiBaseURL,
         invoiceID: submittedInvoiceID,
-        feeTypes: normalizedFeeTypes.length > 0 ? normalizedFeeTypes : undefined,
-        lineItemSort,
-        page: parsedPage,
-        limit: parsedLimit,
+        feeTypes: feeType ? [feeType] : undefined,
+        lineItemSort: "created_at_asc",
+        page: 1,
+        limit: 100,
       }),
     enabled: isTenantSession && submittedInvoiceID.length > 0,
   });
 
   const lineItems = explainabilityQuery.data?.line_items ?? [];
-  const selectedLineItemIDValue =
-    selectedLineItemID && lineItems.some((item) => item.fee_id === selectedLineItemID) ? selectedLineItemID : "";
-  const selectedLineItem = lineItems.find((item) => item.fee_id === selectedLineItemIDValue) ?? null;
+  const selectedLineItem = lineItems.find((item) => item.fee_id === selectedLineItemID) ?? null;
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
             { href: "/control-plane", label: "Workspace" },
@@ -94,30 +52,6 @@ export function InvoiceExplainabilityScreen() {
             { label: "Explainability" },
           ]}
         />
-
-        {isTenantSession ? <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-emerald-700">Invoice explainability</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-900 md:text-4xl">
-                Line Item Computation Trace
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Review the computation digest behind each invoice line before escalating a billing dispute or replay issue.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-              <MetricCard label="Line items" value={explainabilityQuery.data?.line_items_count ?? 0} />
-              <MetricCard label="Displayed" value={lineItems.length} tone={lineItems.length > 0 ? "normal" : "muted"} />
-              <MetricCard
-                label="Status"
-                value={explainabilityQuery.data?.invoice_status || "idle"}
-                tone={explainabilityQuery.data?.invoice_status ? "normal" : "muted"}
-              />
-            </div>
-          </div>
-
-                  </section> : null}
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -129,330 +63,173 @@ export function InvoiceExplainabilityScreen() {
           />
         ) : null}
 
-        {isTenantSession && explainabilityQuery.error ? (
-          <section data-testid="explainability-error" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-            {(explainabilityQuery.error as Error).message}
-          </section>
-        ) : null}
-
-        {isTenantSession ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Trace Query</p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">Control the invoice slice you want to inspect</h2>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Narrow the digest by fee type, sort order, and pagination before loading or refreshing the trace.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-slate-600 xl:max-w-sm">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current target</p>
-              <p className="mt-2 font-medium text-slate-900">{submittedInvoiceID || invoiceID.trim() || "No invoice selected"}</p>
-              <p className="mt-1 text-xs text-slate-500">Load an invoice first, then use refresh to rerun the same trace parameters.</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="grid gap-4">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <InputField
-                  label="Invoice ID"
+        {isTenantSession ? (
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            {/* Header with search */}
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <h1 className="text-sm font-semibold text-slate-900">Invoice explainability</h1>
+              <div className="flex items-center gap-2">
+                <input
                   value={invoiceID}
-                  onChange={setInvoiceID}
-                  placeholder="inv_123"
-                  dataTestID="explainability-invoice-id"
+                  onChange={(e) => setInvoiceID(e.target.value)}
+                  placeholder="Invoice ID..."
+                  data-testid="explainability-invoice-id"
+                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
-                <InputField
-                  label="Fee Types"
-                  value={feeTypesInput}
-                  onChange={setFeeTypesInput}
-                  placeholder="charge,subscription"
-                  dataTestID="explainability-fee-types"
-                />
-                <div className="grid gap-2">
-                  <label className="text-xs font-medium uppercase tracking-wider text-slate-600">Sort</label>
-                  <select
-                    data-testid="explainability-sort"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2"
-                    value={lineItemSort}
-                    onChange={(event) => setLineItemSort(event.target.value as ExplainabilitySort)}
-                  >
-                    {sortOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <InputField
-                  label="Page"
-                  value={page}
-                  onChange={setPage}
-                  placeholder="1"
-                  className="w-full xl:max-w-[120px]"
-                  dataTestID="explainability-page"
-                />
-                <InputField
-                  label="Limit"
-                  value={limit}
-                  onChange={setLimit}
-                  placeholder="50"
-                  className="w-full xl:max-w-[120px]"
-                  dataTestID="explainability-limit"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-end gap-3">
                 <button
                   type="button"
                   data-testid="explainability-load"
                   onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
-                  disabled={!isTenantSession || !invoiceID.trim()}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!invoiceID.trim()}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Search className="h-4 w-4" />
-                  Load Explainability
+                  {explainabilityQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                  Load
                 </button>
-                <button
-                  type="button"
-                  data-testid="explainability-refresh"
-                  onClick={() => explainabilityQuery.refetch()}
-                  disabled={explainabilityQuery.isFetching || !submittedInvoiceID || !isTenantSession}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                <select
+                  value={feeType}
+                  onChange={(e) => setFeeType(e.target.value)}
+                  data-testid="explainability-fee-types"
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
-                  {explainabilityQuery.isFetching ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Refresh
-                </button>
+                  <option value="">All fee types</option>
+                  {feeTypeOptions.filter(Boolean).map((ft) => (
+                    <option key={ft} value={ft}>{ft}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Use this view</p>
-              <h3 className="mt-1 text-base font-semibold text-slate-900">Check the invoice before escalating</h3>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>Confirm invoice scope and fee filters before reading the raw properties payload.</li>
-                <li>Use the digest and generated timestamp to verify the exact computation snapshot under review.</li>
-                <li>Escalate to replay or payment recovery only after validating the billing logic itself.</li>
-              </ul>
-            </div>
-          </div>
-        </section> : null}
+            {explainabilityQuery.error ? (
+              <div data-testid="explainability-error" className="border-b border-stone-200 px-5 py-3 text-sm text-rose-700">
+                {(explainabilityQuery.error as Error).message}
+              </div>
+            ) : null}
 
-        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-stone-200 pb-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Digest Summary</p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">Invoice metadata and trace fingerprint</h2>
-            </div>
-            <p className="max-w-xl text-sm text-slate-600">
-              Validate invoice identity, currency totals, and digest version before using the line-item breakdown.
-            </p>
-          </div>
-          <div className="mt-4 grid gap-2 md:grid-cols-2">
-            <MetaRow label="Invoice" value={explainabilityQuery.data?.invoice_number || submittedInvoiceID || "-"} dataTestID="explainability-meta-invoice" />
-            <MetaRow label="Invoice ID" value={explainabilityQuery.data?.invoice_id || "-"} dataTestID="explainability-meta-invoice-id" />
-            <MetaRow
-              label="Total Amount"
-              value={
-                explainabilityQuery.data
-                  ? formatMoney(explainabilityQuery.data.total_amount_cents, explainabilityQuery.data.currency || "USD")
-                  : "-"
-              }
-              dataTestID="explainability-meta-total"
-            />
-            <MetaRow
-              label="Generated At"
-              value={explainabilityQuery.data ? formatExactTimestamp(explainabilityQuery.data.generated_at) : "-"}
-              dataTestID="explainability-meta-generated-at"
-            />
-            <MetaRow label="Digest Version" value={explainabilityQuery.data?.explainability_version || "-"} dataTestID="explainability-meta-version" />
-            <MetaRow
-              label="Digest"
-              value={explainabilityQuery.data?.explainability_digest || "-"}
-              mono
-              dataTestID="explainability-meta-digest"
-            />
-          </div>
-        </section> : null}
+            {/* Invoice metadata bar */}
+            {explainabilityQuery.data ? (
+              <div className="flex items-center gap-4 border-b border-stone-200 px-5 py-2 text-sm text-slate-600" data-testid="explainability-meta-invoice">
+                <span className="font-medium text-slate-900">{explainabilityQuery.data.invoice_number || submittedInvoiceID}</span>
+                <span>{explainabilityQuery.data.currency || "USD"}</span>
+                <span data-testid="explainability-meta-total">{formatMoney(explainabilityQuery.data.total_amount_cents, explainabilityQuery.data.currency || "USD")}</span>
+                <span>{explainabilityQuery.data.line_items_count} line item{explainabilityQuery.data.line_items_count === 1 ? "" : "s"}</span>
+                {explainabilityQuery.data.invoice_status ? (
+                  <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-600">
+                    {explainabilityQuery.data.invoice_status}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
 
-        {isTenantSession ? <section className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-stone-200 px-3 pb-4 pt-1 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Computation Breakdown</p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">Line items, rules, and raw properties</h2>
-            </div>
-            <p className="max-w-2xl text-sm text-slate-600">
-              Review the billable item, rule reference, units, and raw properties together so debugging stays tied to the amount outcome.
-            </p>
-          </div>
-          <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="overflow-auto">
-              <table className="w-full min-w-[920px] border-separate border-spacing-y-2 text-sm">
+            {/* Line items table */}
+            {lineItems.length === 0 && !explainabilityQuery.isFetching ? (
+              <div data-testid="explainability-empty" className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
+                <p className="text-sm font-medium text-slate-700">No line items</p>
+                <p className="text-xs text-slate-500">Load an invoice to inspect explainability.</p>
+              </div>
+            ) : lineItems.length > 0 ? (
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
-                    <th className="px-3 py-1">Item</th>
-                    <th className="px-3 py-1">Computation</th>
-                    <th className="px-3 py-1">Amount</th>
-                    <th className="px-3 py-1">Period</th>
-                    <th className="px-3 py-1">Actions</th>
+                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                    <th className="px-5 py-2.5 font-semibold">Fee</th>
+                    <th className="px-4 py-2.5 font-semibold">Item</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Amount</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Tax</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Total</th>
+                    <th className="px-4 py-2.5 font-semibold"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-stone-100">
                   {lineItems.map((line) => (
-                    <tr key={line.fee_id} data-testid={`explainability-line-item-${line.fee_id}`} className="bg-stone-50/80">
-                      <td className="rounded-l-xl px-3 py-3 align-top">
+                    <tr
+                      key={line.fee_id}
+                      data-testid={`explainability-line-item-${line.fee_id}`}
+                      className="cursor-pointer transition hover:bg-stone-50"
+                      onClick={() => setSelectedLineItemID(line.fee_id)}
+                    >
+                      <td className="px-5 py-3">
+                        <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-600">
+                          {line.fee_type || "-"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
                         <p className="font-medium text-slate-900">{line.item_name}</p>
-                        <p className="text-xs text-slate-500">{line.item_code || "-"}</p>
+                        <p className="mt-0.5 font-mono text-xs text-slate-400">{line.item_code || "-"}</p>
                       </td>
-                      <td className="px-3 py-3 align-top">
-                        <p>{line.computation_mode}</p>
-                        <p className="text-xs text-slate-500">{line.fee_type || "-"}</p>
+                      <td className="px-4 py-3 text-right text-slate-700">
+                        {formatMoney(line.amount_cents, explainabilityQuery.data?.currency || "USD")}
                       </td>
-                      <td className="px-3 py-3 align-top">
-                        <p>{formatMoney(line.amount_cents, explainabilityQuery.data?.currency || "USD")}</p>
-                        <p className="text-xs text-slate-500">
-                          Tax {formatMoney(line.taxes_amount_cents, explainabilityQuery.data?.currency || "USD")}
-                        </p>
-                        <p className="text-xs text-emerald-700">
-                          Total {formatMoney(line.total_amount_cents, explainabilityQuery.data?.currency || "USD")}
-                        </p>
+                      <td className="px-4 py-3 text-right text-slate-500">
+                        {formatMoney(line.taxes_amount_cents, explainabilityQuery.data?.currency || "USD")}
                       </td>
-                      <td className="px-3 py-3 align-top text-xs text-slate-600">
-                        <p>{line.from_datetime ? formatExactTimestamp(line.from_datetime) : "-"}</p>
-                        <p>{line.to_datetime ? formatExactTimestamp(line.to_datetime) : "-"}</p>
+                      <td className="px-4 py-3 text-right font-medium text-slate-900">
+                        {formatMoney(line.total_amount_cents, explainabilityQuery.data?.currency || "USD")}
                       </td>
-                      <td className="rounded-r-xl px-3 py-3 align-top">
+                      <td className="px-4 py-3">
                         <button
                           type="button"
                           data-testid={`explainability-view-line-item-${line.fee_id}`}
-                          onClick={() => setSelectedLineItemID(line.fee_id)}
-                          className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs uppercase tracking-[0.14em] text-emerald-700 transition hover:bg-emerald-100"
+                          onClick={(e) => { e.stopPropagation(); setSelectedLineItemID(line.fee_id); }}
+                          className="text-xs font-medium text-slate-600 hover:text-slate-900"
                         >
-                          View details
+                          View →
                         </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-            <ExplainabilityLineItemDetail
-              line={selectedLineItem}
-              currency={explainabilityQuery.data?.currency || "USD"}
-            />
+            ) : null}
           </div>
-          {lineItems.length === 0 && !explainabilityQuery.isFetching ? (
-            <div data-testid="explainability-empty" className="px-4 py-8 text-center text-sm text-slate-600">
-              No line items yet. Load an invoice to inspect explainability.
-            </div>
-          ) : null}
-        </section> : null}
+        ) : null}
       </main>
+
+      {/* Line item detail slide-out */}
+      {selectedLineItem ? (
+        <aside className="fixed inset-y-0 right-0 z-30 flex w-full max-w-[420px] flex-col border-l border-stone-200 bg-white shadow-lg">
+          <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+            <h2 className="text-sm font-semibold text-slate-900">{selectedLineItem.item_name}</h2>
+            <button type="button" onClick={() => setSelectedLineItemID("")} className="text-slate-400 hover:text-slate-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto px-5 py-4">
+            <dl className="grid gap-y-2 text-sm">
+              <DetailRow label="Fee ID" value={selectedLineItem.fee_id} mono />
+              <DetailRow label="Fee type" value={selectedLineItem.fee_type || "-"} />
+              <DetailRow label="Computation" value={selectedLineItem.computation_mode} />
+              <DetailRow label="Rule reference" value={selectedLineItem.rule_reference} mono />
+              <DetailRow label="Units" value={selectedLineItem.units !== undefined ? String(selectedLineItem.units) : "-"} />
+              <DetailRow label="Events" value={selectedLineItem.events_count !== undefined ? String(selectedLineItem.events_count) : "-"} />
+              <DetailRow label="Charge model" value={selectedLineItem.charge_model || "-"} />
+              <DetailRow label="Subscription" value={selectedLineItem.subscription_id || "-"} mono />
+              <DetailRow label="Charge ID" value={selectedLineItem.charge_id || "-"} mono />
+              <DetailRow label="Billable metric" value={selectedLineItem.billable_metric_code || "-"} mono />
+              <DetailRow label="Amount" value={formatMoney(selectedLineItem.amount_cents, explainabilityQuery.data?.currency || "USD")} />
+              <DetailRow label="Tax" value={formatMoney(selectedLineItem.taxes_amount_cents, explainabilityQuery.data?.currency || "USD")} />
+              <DetailRow label="Total" value={formatMoney(selectedLineItem.total_amount_cents, explainabilityQuery.data?.currency || "USD")} />
+              {selectedLineItem.from_datetime ? <DetailRow label="From" value={formatExactTimestamp(selectedLineItem.from_datetime)} /> : null}
+              {selectedLineItem.to_datetime ? <DetailRow label="To" value={formatExactTimestamp(selectedLineItem.to_datetime)} /> : null}
+            </dl>
+
+            <div className="mt-5">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">Properties</h3>
+              <pre className="mt-2 max-h-[300px] overflow-auto rounded-lg border border-stone-200 bg-stone-50 p-3 text-[11px] leading-4 text-slate-700">
+                {JSON.stringify(selectedLineItem.properties ?? {}, null, 2)}
+              </pre>
+            </div>
+          </div>
+        </aside>
+      ) : null}
     </div>
   );
 }
 
-function ExplainabilityLineItemDetail({
-  line,
-  currency,
-}: {
-  line: InvoiceExplainabilityLineItem | null;
-  currency: string;
-}) {
-  if (!line) {
-    return (
-      <aside className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-sm text-slate-600">
-        Select a line item to inspect rule references, identifiers, and raw properties.
-      </aside>
-    );
-  }
-
+function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <aside className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Line item detail</p>
-      <div className="mt-3 grid gap-3">
-        <MetaRow label="Item" value={line.item_name} />
-        <MetaRow label="Fee ID" value={line.fee_id} mono />
-        <MetaRow label="Rule reference" value={line.rule_reference} mono />
-        <MetaRow label="Units" value={line.units !== undefined ? String(line.units) : "-"} />
-        <MetaRow label="Events" value={line.events_count !== undefined ? String(line.events_count) : "-"} />
-        <MetaRow label="Charge model" value={line.charge_model || "-"} />
-        <MetaRow label="Subscription" value={line.subscription_id || "-"} mono />
-        <MetaRow label="Charge ID" value={line.charge_id || "-"} mono />
-        <MetaRow label="Billable metric" value={line.billable_metric_code || "-"} mono />
-        <MetaRow label="Line total" value={formatMoney(line.total_amount_cents, currency)} />
-      </div>
-      <div className="mt-4 rounded-xl border border-stone-200 bg-white p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Properties</p>
-        <pre className="mt-2 max-h-[280px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-4 text-slate-700">
-          {JSON.stringify(line.properties ?? {}, null, 2)}
-        </pre>
-      </div>
-    </aside>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone = "normal",
-}: {
-  label: string;
-  value: string | number;
-  tone?: "normal" | "muted";
-}) {
-  return (
-    <div
-      className={`rounded-xl border px-3 py-2 ${
-        tone === "normal" ? "border-emerald-200 bg-emerald-50" : "border-stone-200 bg-stone-50"
-      }`}
-    >
-      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-600">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
-
-function MetaRow({ label, value, mono, dataTestID }: { label: string; value: string; mono?: boolean; dataTestID?: string }) {
-  return (
-    <div data-testid={dataTestID} className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className={`mt-1 text-sm text-slate-700 ${mono ? "break-all font-mono" : ""}`}>{value}</p>
-    </div>
-  );
-}
-
-function InputField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  sensitive,
-  className,
-  dataTestID,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  sensitive?: boolean;
-  className?: string;
-  dataTestID?: string;
-}) {
-  return (
-    <div className={`grid gap-2 ${className || ""}`}>
-      <label className="text-xs font-medium uppercase tracking-wider text-slate-600">{label}</label>
-      <input
-        type={sensitive ? "password" : "text"}
-        data-testid={dataTestID}
-        className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+    <div className="flex justify-between gap-4">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className={`text-right text-slate-700 ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</dd>
     </div>
   );
 }

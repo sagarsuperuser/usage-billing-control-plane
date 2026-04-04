@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { LoaderCircle, Save, Search } from "lucide-react";
+import { LoaderCircle, Save, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningPolicy, fetchDunningRuns, updateDunningPolicy } from "@/lib/api";
-import { diagnoseDunningRun, dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
-import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
+import { dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
+import { formatExactTimestamp } from "@/lib/format";
 import type { DunningPolicy, DunningRun } from "@/lib/types";
 
 type DunningPolicyDraftState = {
@@ -37,57 +39,22 @@ function formatState(value?: string): string {
   return value.replaceAll("_", " ");
 }
 
-function MetricCard({ label, value, tone = "default" }: { label: string; value: string | number; tone?: "default" | "warn" | "danger" | "info" }) {
-  const toneClass =
-    tone === "danger"
-      ? "border-rose-200 bg-rose-50 text-rose-700"
-      : tone === "warn"
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : tone === "info"
-          ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-          : "border-stone-200 bg-stone-50 text-slate-700";
-  return (
-    <div className={`rounded-2xl border px-4 py-4 ${toneClass}`}>
-      <p className="text-xs uppercase tracking-[0.16em]">{label}</p>
-      <p className="mt-2 text-base font-semibold">{value}</p>
-    </div>
-  );
+function stateBadgeClass(state?: string): string {
+  switch (state) {
+    case "retry_due":
+      return "border-indigo-200 bg-indigo-50 text-indigo-700";
+    case "awaiting_payment_setup":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "escalated":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "resolved":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    default:
+      return "border-stone-200 bg-stone-50 text-slate-700";
+  }
 }
 
-function FieldLabel({ children }: { children: string }) {
-  return <label className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">{children}</label>;
-}
-
-function RunRow({ run }: { run: DunningRun }) {
-  const diagnosis = diagnoseDunningRun(run);
-
-  return (
-    <tr className="border-t border-stone-200 text-sm text-slate-700">
-      <td className="px-4 py-3 font-mono text-xs text-slate-500">{run.invoice_id}</td>
-      <td className="px-4 py-3">{run.customer_external_id || "-"}</td>
-      <td className="px-4 py-3 capitalize">{formatState(run.state)}</td>
-      <td className="px-4 py-3 capitalize">{formatState(run.next_action_type)}</td>
-      <td className="px-4 py-3">{formatExactTimestamp(run.next_action_at)}</td>
-      <td className="px-4 py-3">{run.attempt_count}</td>
-      <td className="px-4 py-3">
-        <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-          <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${dunningDiagnosisToneClass(diagnosis.tone)}`}>
-            {diagnosis.title}
-          </span>
-          <p className="mt-2 text-xs leading-relaxed text-slate-600">{diagnosis.nextStep}</p>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <Link
-          href={`/dunning/${encodeURIComponent(run.id)}`}
-          className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-700 transition hover:bg-slate-100"
-        >
-          Open run
-        </Link>
-      </td>
-    </tr>
-  );
-}
+const PAGE_SIZE = 20;
 
 export function DunningConsoleScreen() {
   const searchParams = useSearchParams();
@@ -95,10 +62,9 @@ export function DunningConsoleScreen() {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
-  const [invoiceID, setInvoiceID] = useState(searchParams.get("invoice_id") || "");
-  const [customerExternalID, setCustomerExternalID] = useState(searchParams.get("customer_external_id") || "");
   const [state, setState] = useState(searchParams.get("state") || "");
-  const [activeOnly, setActiveOnly] = useState(searchParams.get("active_only") !== "false");
+  const [page, setPage] = useState(1);
+  const [policyOpen, setPolicyOpen] = useState(false);
 
   const policyQuery = useQuery({
     queryKey: ["dunning-policy", apiBaseURL],
@@ -118,14 +84,12 @@ export function DunningConsoleScreen() {
 
   const filters = useMemo(
     () => ({
-      invoiceID: invoiceID.trim() || undefined,
-      customerExternalID: customerExternalID.trim() || undefined,
       state: state.trim() || undefined,
-      activeOnly,
+      activeOnly: true,
       limit: 100,
       offset: 0,
     }),
-    [activeOnly, customerExternalID, invoiceID, state],
+    [state],
   );
 
   const runsQuery = useQuery({
@@ -151,33 +115,20 @@ export function DunningConsoleScreen() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dunning-policy", apiBaseURL] });
+      setPolicyOpen(false);
     },
   });
 
   const runs = runsQuery.data?.items ?? [];
-  const updatePolicyDraft = (
-    patch: Partial<Omit<DunningPolicyDraftState, "sourceKey">>,
-  ) => {
-    setPolicyDraftState({
-      ...policyDraft,
-      ...patch,
-      sourceKey: policySourceKey,
-    });
+  const paginatedRuns = useMemo(() => runs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [runs, page]);
+
+  const updatePolicyDraft = (patch: Partial<Omit<DunningPolicyDraftState, "sourceKey">>) => {
+    setPolicyDraftState({ ...policyDraft, ...patch, sourceKey: policySourceKey });
   };
-  const stats = useMemo(
-    () => ({
-      total: runs.length,
-      awaiting: runs.filter((item) => item.state === "awaiting_payment_setup").length,
-      retryDue: runs.filter((item) => item.state === "retry_due").length,
-      escalated: runs.filter((item) => item.state === "escalated").length,
-    }),
-    [runs],
-  );
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Workspace" }, { label: "Dunning" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -191,230 +142,223 @@ export function DunningConsoleScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <>
-        <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Collections</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-900 md:text-4xl">Dunning</h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-600 md:text-base">
-                Track payment retry runs and take action on overdue invoices.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <MetricCard label="Visible runs" value={stats.total} />
-              <MetricCard label="Awaiting setup" value={stats.awaiting} tone="warn" />
-              <MetricCard label="Retry due" value={stats.retryDue} tone="info" />
-              <MetricCard label="Escalated" value={stats.escalated} tone="danger" />
-            </div>
-          </div>
-
-                  </section>
-
-        <section className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Policy</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">Collection defaults</h2>
-                <p className="mt-2 text-sm text-slate-600">Control retry cadence and final action from Alpha.</p>
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <h1 className="text-sm font-semibold text-slate-900">Dunning runs{runs.length > 0 ? ` (${runs.length})` : ""}</h1>
+              <div className="flex items-center gap-2">
+                <select
+                  value={state}
+                  onChange={(event) => { setState(event.target.value); setPage(1); }}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  <option value="">All states</option>
+                  <option value="retry_due">Retry due</option>
+                  <option value="awaiting_payment_setup">Awaiting setup</option>
+                  <option value="escalated">Escalated</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setPolicyOpen(true)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                >
+                  Edit policy
+                </button>
               </div>
-              {policyQuery.isFetching ? <LoaderCircle className="h-5 w-5 animate-spin text-slate-400" /> : null}
             </div>
 
-            {policyQuery.error ? (
-              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-                {(policyQuery.error as Error).message}
+            {runsQuery.isLoading ? (
+              <div className="divide-y divide-stone-100">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 px-5 py-3">
+                    <div className="flex-1"><Skeleton className="h-4 w-32" /><Skeleton className="mt-1 h-3 w-20" /></div>
+                    <Skeleton className="h-4 w-14 rounded-full" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                ))}
+              </div>
+            ) : paginatedRuns.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
+                <p className="text-sm font-medium text-slate-700">No dunning runs</p>
+                <p className="text-xs text-slate-500">No runs matched the current filter.</p>
+              </div>
+            ) : (
+              <>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                      <th className="px-5 py-2.5 font-semibold">Invoice</th>
+                      <th className="px-4 py-2.5 font-semibold">Customer</th>
+                      <th className="px-4 py-2.5 font-semibold">State</th>
+                      <th className="px-4 py-2.5 font-semibold">Next action</th>
+                      <th className="px-4 py-2.5 font-semibold">Next action at</th>
+                      <th className="px-4 py-2.5 font-semibold">Attempts</th>
+                      <th className="px-4 py-2.5 font-semibold"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {paginatedRuns.map((run) => (
+                      <tr key={run.id} className="transition hover:bg-stone-50">
+                        <td className="px-5 py-3 font-mono text-xs text-slate-600">{run.invoice_id}</td>
+                        <td className="px-4 py-3 text-slate-600">{run.customer_external_id || "-"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${stateBadgeClass(run.state)}`}>
+                            {formatState(run.state)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 capitalize text-slate-600">{formatState(run.next_action_type)}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatExactTimestamp(run.next_action_at)}</td>
+                        <td className="px-4 py-3 text-slate-600">{run.attempt_count}</td>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/dunning/${encodeURIComponent(run.id)}`}
+                            className="text-sm font-medium text-slate-600 hover:text-slate-900"
+                          >
+                            View →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination page={page} pageSize={PAGE_SIZE} total={runs.length} onPageChange={setPage} />
+              </>
+            )}
+
+            {runsQuery.error ? (
+              <div className="border-t border-stone-200 px-5 py-3 text-sm text-rose-700">
+                {(runsQuery.error as Error).message}
               </div>
             ) : null}
+          </div>
+        ) : null}
+      </main>
 
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-2">
-                <FieldLabel>Policy name</FieldLabel>
+      {/* Policy edit modal */}
+      {policyOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
+          <div className="w-full max-w-lg rounded-lg border border-stone-200 bg-white shadow-lg">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <h2 className="text-sm font-semibold text-slate-900">Edit dunning policy</h2>
+              <button type="button" onClick={() => setPolicyOpen(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid gap-4 px-5 py-4">
+              {policyQuery.error ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {(policyQuery.error as Error).message}
+                </div>
+              ) : null}
+
+              <label className="grid gap-1.5">
+                <span className="text-xs font-medium text-slate-600">Policy name</span>
                 <input
                   value={policyDraft.policyName}
-                  onChange={(event) => updatePolicyDraft({ policyName: event.target.value })}
+                  onChange={(e) => updatePolicyDraft({ policyName: e.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
                 />
-              </div>
+              </label>
 
-              <label className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-slate-700">
+              <label className="flex items-center gap-2.5 text-sm text-slate-700">
                 <input
                   type="checkbox"
                   checked={policyDraft.enabled}
-                  onChange={(event) => updatePolicyDraft({ enabled: event.target.checked })}
+                  onChange={(e) => updatePolicyDraft({ enabled: e.target.checked })}
                   disabled={!canWrite || policyMutation.isPending}
                   className="h-4 w-4 rounded border-stone-300"
                 />
                 Dunning enabled
               </label>
 
-              <div className="grid gap-2">
-                <FieldLabel>Retry schedule</FieldLabel>
+              <label className="grid gap-1.5">
+                <span className="text-xs font-medium text-slate-600">Retry schedule</span>
                 <input
                   value={policyDraft.retrySchedule}
-                  onChange={(event) => updatePolicyDraft({ retrySchedule: event.target.value })}
+                  onChange={(e) => updatePolicyDraft({ retrySchedule: e.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
                   placeholder="1d, 3d, 5d"
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
                 />
-              </div>
+              </label>
 
-              <div className="grid gap-2">
-                <FieldLabel>Collect-payment reminders</FieldLabel>
+              <label className="grid gap-1.5">
+                <span className="text-xs font-medium text-slate-600">Collect-payment reminders</span>
                 <input
                   value={policyDraft.collectSchedule}
-                  onChange={(event) => updatePolicyDraft({ collectSchedule: event.target.value })}
+                  onChange={(e) => updatePolicyDraft({ collectSchedule: e.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
                   placeholder="0d, 2d, 5d"
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
                 />
-              </div>
+              </label>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <FieldLabel>Max retry attempts</FieldLabel>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="grid gap-1.5">
+                  <span className="text-xs font-medium text-slate-600">Max retry attempts</span>
                   <input
                     value={policyDraft.maxRetryAttempts}
-                    onChange={(event) => updatePolicyDraft({ maxRetryAttempts: event.target.value })}
+                    onChange={(e) => updatePolicyDraft({ maxRetryAttempts: e.target.value })}
                     disabled={!canWrite || policyMutation.isPending}
                     inputMode="numeric"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
+                    className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
                   />
-                </div>
-                <div className="grid gap-2">
-                  <FieldLabel>Grace period days</FieldLabel>
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="text-xs font-medium text-slate-600">Grace period days</span>
                   <input
                     value={policyDraft.gracePeriodDays}
-                    onChange={(event) => updatePolicyDraft({ gracePeriodDays: event.target.value })}
+                    onChange={(e) => updatePolicyDraft({ gracePeriodDays: e.target.value })}
                     disabled={!canWrite || policyMutation.isPending}
                     inputMode="numeric"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
+                    className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
                   />
-                </div>
+                </label>
               </div>
 
-              <div className="grid gap-2">
-                <FieldLabel>Final action</FieldLabel>
+              <label className="grid gap-1.5">
+                <span className="text-xs font-medium text-slate-600">Final action</span>
                 <select
                   value={policyDraft.finalAction}
-                  onChange={(event) => updatePolicyDraft({ finalAction: event.target.value as "manual_review" | "pause" | "write_off_later" })}
+                  onChange={(e) => updatePolicyDraft({ finalAction: e.target.value as "manual_review" | "pause" | "write_off_later" })}
                   disabled={!canWrite || policyMutation.isPending}
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
                 >
-                  {finalActionOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
+                  {finalActionOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-              </div>
+              </label>
 
+              {policyMutation.error ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {(policyMutation.error as Error).message}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-stone-200 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setPolicyOpen(false)}
+                className="h-8 rounded-lg border border-stone-200 px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-50"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 data-testid="dunning-policy-save"
                 onClick={() => policyMutation.mutate()}
                 disabled={!canWrite || !csrfToken || policyMutation.isPending}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {policyMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {policyMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Save policy
               </button>
             </div>
-          </section>
-
-          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-            <div className="flex flex-col gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Dunning runs</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">Invoice-level dunning workflows</h2>
-                <p className="mt-2 text-sm text-slate-600">Filter by invoice, customer, or state before opening the detailed workflow record.</p>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-4">
-                <input
-                  value={invoiceID}
-                  onChange={(event) => setInvoiceID(event.target.value)}
-                  placeholder="Invoice ID"
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2"
-                />
-                <input
-                  value={customerExternalID}
-                  onChange={(event) => setCustomerExternalID(event.target.value)}
-                  placeholder="Customer external ID"
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2"
-                />
-                <input
-                  value={state}
-                  onChange={(event) => setState(event.target.value)}
-                  placeholder="State"
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-emerald-500 transition focus:ring-2"
-                />
-                <label className="flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700">
-                  <input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} className="h-4 w-4 rounded border-stone-300" />
-                  Active only
-                </label>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => runsQuery.refetch()}
-                  disabled={runsQuery.isFetching || !isTenantSession}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {runsQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  Refresh
-                </button>
-                <span className="text-sm text-slate-500">Showing {runs.length} run{runs.length === 1 ? "" : "s"}</span>
-              </div>
-            </div>
-
-            {runsQuery.error ? (
-              <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-                {(runsQuery.error as Error).message}
-              </div>
-            ) : null}
-
-            <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200">
-              <table className="min-w-full divide-y divide-stone-200 text-left">
-                <thead className="bg-stone-50 text-xs uppercase tracking-[0.14em] text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Invoice</th>
-                    <th className="px-4 py-3 font-medium">Customer</th>
-                    <th className="px-4 py-3 font-medium">State</th>
-                    <th className="px-4 py-3 font-medium">Next action</th>
-                    <th className="px-4 py-3 font-medium">Due</th>
-                    <th className="px-4 py-3 font-medium">Attempts</th>
-                    <th className="px-4 py-3 font-medium">Diagnosis</th>
-                    <th className="px-4 py-3 font-medium">Open</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-200 bg-white">
-                  {runs.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-500">
-                        No dunning runs matched the current filter.
-                      </td>
-                    </tr>
-                  ) : (
-                    runs.map((run) => <RunRow key={run.id} run={run} />)
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {runs.length > 0 ? (
-              <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-slate-600">
-                Oldest visible next action: {formatRelativeTimestamp(runs[runs.length - 1]?.next_action_at)}. Open a run to inspect state changes and reminder dispatch.
-              </div>
-            ) : null}
-          </section>
-        </section>
-          </>
-        ) : null}
-      </main>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
