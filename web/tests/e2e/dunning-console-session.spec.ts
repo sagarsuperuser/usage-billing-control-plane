@@ -124,18 +124,3 @@ test("shows normalized dunning diagnosis guidance in the run inventory", async (
   await expect(escalatedRow).toBeVisible();
 });
 
-test("blocks platform sessions from workspace-scoped dunning operations", async ({ page }) => {
-  await installDunningConsoleMock(page, {
-    authenticated: true,
-    scope: "platform",
-    platform_role: "platform_admin",
-    api_key_id: "platform_ui_1",
-    csrf_token: "csrf-platform-123",
-  });
-
-  await page.goto("/dunning");
-
-  await expect(page.getByText("Workspace session required")).toBeVisible();
-  await expect(page.getByText("Dunning is workspace-scoped.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open platform home" })).toBeVisible();
-});

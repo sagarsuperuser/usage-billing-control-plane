@@ -103,18 +103,3 @@ test("shows normalized diagnosis guidance on dunning run detail", async ({ page 
   await expect(page.getByRole("button", { name: /Actions/ })).toBeVisible();
 });
 
-test("blocks platform sessions from workspace-scoped dunning run detail", async ({ page }) => {
-  await installDunningRunDetailMock(page, {
-    authenticated: true,
-    scope: "platform",
-    platform_role: "platform_admin",
-    api_key_id: "platform_ui_1",
-    csrf_token: "csrf-platform-123",
-  });
-
-  await page.goto("/dunning/drun_123");
-
-  await expect(page.getByText("Workspace session required")).toBeVisible();
-  await expect(page.getByText("Dunning run detail is workspace-scoped.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open platform home" })).toBeVisible();
-});

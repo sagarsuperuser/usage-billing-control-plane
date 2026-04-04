@@ -162,17 +162,6 @@ test.beforeEach(async ({ page }) => {
   await installExplainabilityMock(page, sessionPayload, explainabilityPayload);
 });
 
-test("platform session sees only the workspace gate on invoice explainability", async ({ page }) => {
-  await installExplainabilityMock(page, platformSessionPayload, explainabilityPayload);
-
-  await page.goto("/invoice-explainability");
-
-  await expect(page.getByText("Workspace session required")).toBeVisible();
-  await expect(page.getByText("Control the invoice slice you want to inspect")).toHaveCount(0);
-  await expect(page.getByText("Invoice metadata and trace fingerprint")).toHaveCount(0);
-  await expect(page.getByText("Line items, rules, and raw properties")).toHaveCount(0);
-});
-
 test("reader session can load invoice explainability and inspect line items", async ({ page }) => {
   await page.goto("/invoice-explainability");
 

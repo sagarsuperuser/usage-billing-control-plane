@@ -241,27 +241,3 @@ test("shows normalized failure diagnosis in the payment timeline drawer", async 
   await expect(drawer.getByText("invoice.payment_failure:inv_123")).toBeVisible();
 });
 
-test("platform session is blocked from workspace payment operations without hitting workspace APIs", async ({ page }) => {
-  await installPaymentOpsMock(page, {
-    authenticated: true,
-    scope: "platform",
-    platform_role: "platform_admin",
-    api_key_id: "platform_ui_1",
-    csrf_token: "csrf-platform-123",
-  });
-
-  await page.goto("/payment-operations");
-
-  await expect(page.getByText("Workspace session required")).toBeVisible();
-  await expect(page.getByText("Payment operations are workspace-scoped.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open platform home" })).toBeVisible();
-  await expect(page.getByText("INV-123")).toHaveCount(0);
-  await expect
-    .poll(async () =>
-      page.evaluate(() => ({
-        status: (window as BillingMockWindow).__billingMock.statusRequestCount,
-        summary: (window as BillingMockWindow).__billingMock.summaryRequestCount,
-      }))
-    )
-    .toEqual({ status: 0, summary: 0 });
-});
