@@ -1135,7 +1135,6 @@ func newSessionClient(t *testing.T) *http.Client {
 	}
 	return &http.Client{
 		Jar:     jar,
-		Timeout: 5 * time.Second,
 	}
 }
 

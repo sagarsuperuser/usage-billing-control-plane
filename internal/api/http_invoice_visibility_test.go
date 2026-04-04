@@ -64,7 +64,7 @@ func TestInvoiceListEndpointReturnsNormalizedSummaries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewPaymentStatusService(repo, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
@@ -203,59 +203,17 @@ func TestInvoiceDetailEndpointReturnsNormalizedDetail(t *testing.T) {
 		t.Fatalf("create dunning notification intent: %v", err)
 	}
 
-	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/invoices/inv_123" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{
-			"invoice": {
-				"lago_id": "inv_123",
-				"billing_entity_code": "be_default",
-				"number": "INV-123",
-				"status": "finalized",
-				"payment_status": "failed",
-				"payment_overdue": true,
-				"currency": "USD",
-				"issuing_date": "2026-03-01T00:00:00Z",
-				"payment_due_date": "2026-03-15T00:00:00Z",
-				"total_amount_cents": 12500,
-				"total_due_amount_cents": 12500,
-				"total_paid_amount_cents": 0,
-				"payment_error": "card_declined",
-				"created_at": "2026-03-01T00:00:00Z",
-				"updated_at": "2026-03-10T00:00:00Z",
-				"customer": {
-					"external_id": "cust_123"
-				},
-				"fees": [],
-				"metadata": [],
-				"applied_taxes": []
-			}
-		}`))
-	}))
-	defer lago.Close()
-
-	transport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lago.URL,
-		APIKey:  "test",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewPaymentStatusService(repo, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
 		api.WithPaymentStatusService(paymentStatusSvc),
-		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(transport)),
+		api.WithInvoiceBillingAdapter(service.NewStripeInvoiceBillingAdapter(repo, nil, nil)),
 	).Handler())
 	defer ts.Close()
 
@@ -317,39 +275,6 @@ func TestInvoicePaymentReceiptsEndpointReturnsLinkedReceipts(t *testing.T) {
 
 	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
 
-	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/payment_receipts" && r.URL.Query().Get("invoice_id") == "inv_123" {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{
-				"payment_receipts": [{
-					"lago_id": "pr_123",
-					"number": "PR-123",
-					"file_url": "https://files.test/pr_123.pdf",
-					"xml_url": "https://files.test/pr_123.xml",
-					"created_at": "2026-03-02T00:00:00Z",
-					"payment": {
-						"lago_id": "pay_123",
-						"invoice_ids": ["inv_123"],
-						"amount_cents": 12500,
-						"amount_currency": "USD",
-						"payment_status": "succeeded"
-					}
-				}]
-			}`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer lago.Close()
-
-	transport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lago.URL,
-		APIKey:  "test",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
@@ -358,7 +283,7 @@ func TestInvoicePaymentReceiptsEndpointReturnsLinkedReceipts(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(transport)),
+		api.WithInvoiceBillingAdapter(service.NewStripeInvoiceBillingAdapter(repo, nil, nil)),
 	).Handler())
 	defer ts.Close()
 
@@ -399,60 +324,6 @@ func TestInvoiceCreditNotesEndpointReturnsInvoiceScopedNotes(t *testing.T) {
 
 	mustCreateAPIKey(t, repo, "tenant-a-reader", api.RoleReader, "default")
 
-	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/invoices/inv_123":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{
-				"invoice": {
-					"lago_id": "inv_123",
-					"customer": {
-						"external_id": "cust_123"
-					}
-				}
-			}`))
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/credit_notes" && r.URL.Query().Get("external_customer_id") == "cust_123":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{
-				"credit_notes": [
-					{
-						"lago_id": "cn_123",
-						"number": "CN-123",
-						"lago_invoice_id": "inv_123",
-						"invoice_number": "INV-123",
-						"credit_status": "available",
-						"refund_status": "pending",
-						"currency": "USD",
-						"total_amount_cents": 2400,
-						"created_at": "2026-03-03T00:00:00Z"
-					},
-					{
-						"lago_id": "cn_other",
-						"number": "CN-999",
-						"lago_invoice_id": "inv_other",
-						"invoice_number": "INV-999",
-						"credit_status": "available",
-						"refund_status": "pending",
-						"currency": "USD",
-						"total_amount_cents": 1200,
-						"created_at": "2026-03-04T00:00:00Z"
-					}
-				]
-			}`))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer lago.Close()
-
-	transport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lago.URL,
-		APIKey:  "test",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
 	authorizer, err := api.NewDBAPIKeyAuthorizer(repo)
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
@@ -461,7 +332,7 @@ func TestInvoiceCreditNotesEndpointReturnsInvoiceScopedNotes(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(transport)),
+		api.WithInvoiceBillingAdapter(service.NewStripeInvoiceBillingAdapter(repo, nil, nil)),
 	).Handler())
 	defer ts.Close()
 

@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -54,46 +53,11 @@ func TestSubscriptionEndpoints(t *testing.T) {
 		t.Fatalf("new authorizer: %v", err)
 	}
 
-	customerPaymentMethodReady := false
-	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_sub","external_id":"cust_sub","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_sub","provider_payment_methods":["card"]}}}`))
-			return
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_sub/payment_methods":
-			w.Header().Set("Content-Type", "application/json")
-			if customerPaymentMethodReady {
-				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_sub","is_default":true,"provider_method_id":"pm_sub_default"}]}`))
-				return
-			}
-			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
-			return
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_sub/checkout_url":
-			customerPaymentMethodReady = true
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_sub","checkout_url":"https://checkout.example.test/cust_sub"}}`))
-			return
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer lagoMock.Close()
-
-	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lagoMock.URL,
-		APIKey:  "test-api-key",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
-
 	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+		api.WithCustomerBillingAdapter(service.NewStripeCustomerBillingAdapter(repo, nil, nil, "")),
 		api.WithSubscriptionSyncAdapter(stubSubscriptionSyncAdapter{}),
 	).Handler())
 	defer ts.Close()

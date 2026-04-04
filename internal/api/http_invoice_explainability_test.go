@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"usage-billing-control-plane/internal/api"
 	"usage-billing-control-plane/internal/service"
@@ -14,57 +13,7 @@ func TestInvoiceExplainabilityEndpoint(t *testing.T) {
 	t.Skip("requires Lago mock server; will be rewritten for Stripe-direct adapter")
 	t.Parallel()
 
-	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/invoices/inv_123" {
-			http.NotFound(w, r)
-			return
-		}
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{
-			"invoice": {
-				"lago_id": "inv_123",
-				"number": "INV-123",
-				"status": "finalized",
-				"currency": "USD",
-				"total_amount_cents": 300,
-				"fees": [
-					{
-						"lago_id":"fee_1",
-						"amount_cents":100,
-						"taxes_amount_cents":20,
-						"total_amount_cents":120,
-						"created_at":"2026-03-10T10:00:00Z",
-						"amount_details":{"charge_model":"graduated"},
-						"item":{"type":"charge","code":"api_calls","name":"API Calls"}
-					},
-					{
-						"lago_id":"fee_2",
-						"amount_cents":180,
-						"taxes_amount_cents":0,
-						"total_amount_cents":180,
-						"created_at":"2026-03-10T10:01:00Z",
-						"item":{"type":"subscription","code":"startup","name":"Startup"}
-					}
-				]
-			}
-		}`))
-	}))
-	defer lago.Close()
-
-	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lago.URL,
-		APIKey:  "test",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
-
-	ts := httptest.NewServer(api.NewServer(nil, api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
+	ts := httptest.NewServer(api.NewServer(nil, api.WithMeterSyncAdapter(&service.DirectMeterSyncAdapter{}), api.WithInvoiceBillingAdapter(service.NewStripeInvoiceBillingAdapter(nil, nil, nil))).Handler())
 	defer ts.Close()
 
 	resp := getJSON(t, ts.URL+"/v1/invoices/inv_123/explainability?fee_types=charge&line_item_sort=amount_cents_desc&limit=1&page=1", "", http.StatusOK)
@@ -93,22 +42,7 @@ func TestInvoiceExplainabilityEndpoint(t *testing.T) {
 func TestInvoiceExplainabilityEndpoint_InvalidSort(t *testing.T) {
 	t.Parallel()
 
-	lago := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"invoice":{"lago_id":"inv_123","number":"INV-123","status":"finalized","currency":"USD","total_amount_cents":0,"fees":[]}}`))
-	}))
-	defer lago.Close()
-
-	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lago.URL,
-		APIKey:  "test",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
-
-	ts := httptest.NewServer(api.NewServer(nil, api.WithMeterSyncAdapter(service.NewLagoMeterSyncAdapter(lagoTransport)), api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport))).Handler())
+	ts := httptest.NewServer(api.NewServer(nil, api.WithMeterSyncAdapter(&service.DirectMeterSyncAdapter{}), api.WithInvoiceBillingAdapter(service.NewStripeInvoiceBillingAdapter(nil, nil, nil))).Handler())
 	defer ts.Close()
 
 	resp := getJSON(t, ts.URL+"/v1/invoices/inv_123/explainability?line_item_sort=bad_sort", "", http.StatusBadRequest)

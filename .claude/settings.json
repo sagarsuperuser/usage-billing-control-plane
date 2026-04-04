@@ -110,7 +110,10 @@
       "Bash(sed -i '' 's/LagoSubscriptionID/SubscriptionID/g' internal/service/invoice_explainability_service.go)",
       "Bash(sed -i '' 's/lagoFeeItemRaw/feeItemRaw/g' internal/service/invoice_explainability_service.go)",
       "Bash(sed -i '' 's/lago invoice payload must be valid json/invoice payload must be valid json/g' internal/service/invoice_explainability_service.go)",
-      "Bash(sed -i '' 's/decode lago invoice payload/decode invoice payload/g' internal/service/invoice_explainability_service.go)"
+      "Bash(sed -i '' 's/decode lago invoice payload/decode invoice payload/g' internal/service/invoice_explainability_service.go)",
+      "Bash(grep -c \"LagoHTTPTransport\\\\|LagoClientConfig\\\\|NewLagoHTTPTransport\\\\|NewLagoInvoiceAdapter\\\\|NewLagoCustomerBillingAdapter\\\\|NewLagoMeterSyncAdapter\\\\|NewLagoWebhookService\\\\|NoopLagoWebhookVerifier\" /Users/superuser/projects/golang/usage-billing-control-plane/internal/api/*_test.go)",
+      "Bash(grep -v \":0$\")",
+      "Bash(git checkout:*)"
     ]
   }
 }

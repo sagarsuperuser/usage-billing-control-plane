@@ -193,46 +193,13 @@ func TestDunningCollectPaymentReminderDispatchEndpoint(t *testing.T) {
 		t.Fatalf("new authorizer: %v", err)
 	}
 
-	customerPaymentMethodReady := false
-	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"customer":{"lago_id":"lago_cust_alpha","external_id":"cust_alpha","billing_configuration":{"payment_provider":"stripe","payment_provider_code":"stripe_test","provider_customer_id":"pcus_123","provider_payment_methods":["card"]}}}`))
-			return
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/customers/cust_alpha/payment_methods":
-			w.Header().Set("Content-Type", "application/json")
-			if customerPaymentMethodReady {
-				_, _ = w.Write([]byte(`{"payment_methods":[{"lago_id":"pm_lago_alpha","is_default":true,"provider_method_id":"pm_123"}]}`))
-				return
-			}
-			_, _ = w.Write([]byte(`{"payment_methods":[]}`))
-			return
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/customers/cust_alpha/checkout_url":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"customer":{"external_customer_id":"cust_alpha","checkout_url":"https://checkout.example.test/cust_alpha"}}`))
-			return
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer lagoMock.Close()
-
-	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lagoMock.URL,
-		APIKey:  "test-api-key",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
 	mustSetTenantMappings(t, repo, "default", "org_default", "stripe_test")
 
 	emailSender := &fakeCustomerPaymentSetupRequestEmailSender{}
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithCustomerBillingAdapter(service.NewLagoCustomerBillingAdapter(lagoTransport)),
+		api.WithCustomerBillingAdapter(service.NewStripeCustomerBillingAdapter(repo, nil, nil, "")),
 		api.WithNotificationService(service.NewNotificationService(nil, nil, emailSender, nil)),
 	).Handler())
 	defer ts.Close()
@@ -346,25 +313,6 @@ func TestDunningRetryNowEndpoint(t *testing.T) {
 		t.Fatalf("new authorizer: %v", err)
 	}
 
-	lagoMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/invoices/inv_retry_123/retry_payment" {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"invoice":{"lago_id":"inv_retry_123"},"status":"queued"}`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer lagoMock.Close()
-
-	lagoTransport, err := service.NewLagoHTTPTransport(service.LagoClientConfig{
-		BaseURL: lagoMock.URL,
-		APIKey:  "test-api-key",
-		Timeout: 2 * time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new lago transport: %v", err)
-	}
-
 	now := time.Now().UTC().Truncate(time.Second)
 	policy, err := repo.UpsertDunningPolicy(domain.DunningPolicy{
 		TenantID:         "default",
@@ -398,7 +346,7 @@ func TestDunningRetryNowEndpoint(t *testing.T) {
 	ts := httptest.NewServer(api.NewServer(
 		repo,
 		api.WithAPIKeyAuthorizer(authorizer),
-		api.WithInvoiceBillingAdapter(service.NewLagoInvoiceAdapter(lagoTransport)),
+		api.WithInvoiceBillingAdapter(service.NewStripeInvoiceBillingAdapter(repo, nil, nil)),
 	).Handler())
 	defer ts.Close()
 

@@ -97,7 +97,7 @@ func TestPaymentsListEndpointReturnsNormalizedSummaries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewPaymentStatusService(repo, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
@@ -170,7 +170,7 @@ func TestPaymentsListEndpointSupportsExtendedFiltersAndCSV(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewPaymentStatusService(repo, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
@@ -347,7 +347,7 @@ func TestPaymentDetailEndpointReturnsLifecycleAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewPaymentStatusService(repo, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
@@ -492,7 +492,7 @@ func TestPaymentDetailEndpointKeepsRetryWhenCustomerPaymentSetupReady(t *testing
 	if err != nil {
 		t.Fatalf("new authorizer: %v", err)
 	}
-	paymentStatusSvc := service.NewLagoWebhookService(repo, nil, nil, nil)
+	paymentStatusSvc := service.NewPaymentStatusService(repo, nil)
 
 	ts := httptest.NewServer(api.NewServer(
 		repo,
