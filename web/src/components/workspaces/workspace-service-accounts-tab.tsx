@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,11 +12,14 @@ import {
   LoaderCircle,
   Plus,
   RefreshCw,
+  Search,
   ServerCog,
   ShieldOff,
   X,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import {
   createTenantWorkspaceServiceAccount,
@@ -62,6 +65,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
   const [serviceAccountPage, setServiceAccountPage] = useState(1);
   const [credentialPage, setCredentialPage] = useState(1);
   const [showNewSAModal, setShowNewSAModal] = useState(false);
+  const [search, setSearch] = useState("");
 
   /* --- Queries ---------------------------------------------------- */
 
@@ -150,12 +154,20 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
   /* --- Derived ---------------------------------------------------- */
 
   const serviceAccounts = serviceAccountsQuery.data ?? [];
+  const filteredServiceAccounts = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return serviceAccounts;
+    return serviceAccounts.filter(sa =>
+      sa.name.toLowerCase().includes(term) ||
+      (sa.description || "").toLowerCase().includes(term)
+    );
+  }, [serviceAccounts, search]);
   const selectedServiceAccountIDValue = selectedServiceAccountID || serviceAccounts[0]?.id || "";
   const selectedServiceAccount =
     serviceAccounts.find((item) => item.id === selectedServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
   const selectedServiceAccountCredentials = selectedServiceAccount?.credentials ?? [];
 
-  const pagedServiceAccounts = paginateItems(serviceAccounts, serviceAccountPage, 5);
+  const pagedServiceAccounts = paginateItems(filteredServiceAccounts, serviceAccountPage, 5);
   const pagedCredentials = paginateItems(selectedServiceAccountCredentials, credentialPage, 4);
 
   /* --- Render ----------------------------------------------------- */
@@ -245,6 +257,16 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
               <p className="mt-0.5 text-xs text-slate-500">API identities for automation and integrations. Issue or rotate credentials as needed.</p>
             </div>
             <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setServiceAccountPage(1); }}
+                  placeholder="Search accounts..."
+                  className="h-8 w-44 rounded-lg border border-stone-200 bg-white pl-8 pr-3 text-xs text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+              </div>
               <PaginationControls page={pagedServiceAccounts.page} totalPages={pagedServiceAccounts.totalPages} onPageChange={setServiceAccountPage} label="Service accounts" />
               <button
                 type="button"
@@ -262,10 +284,11 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
               <thead>
                 <tr className="border-b border-stone-100 text-left text-xs font-medium text-slate-400">
                   <th className="px-6 py-2.5 font-semibold">Name</th>
-                  {!selectedServiceAccount && <th className="px-4 py-2.5 font-semibold">Role</th>}
-                  {!selectedServiceAccount && <th className="px-4 py-2.5 font-semibold">Env</th>}
+                  <th className="px-4 py-2.5 font-semibold">Role</th>
+                  <th className="px-4 py-2.5 font-semibold">Env</th>
                   <th className="px-4 py-2.5 font-semibold">Status</th>
                   <th className="px-4 py-2.5 font-semibold">Credentials</th>
+                  <th className="px-4 py-2.5 font-semibold">Last used</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -282,12 +305,8 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                         <p className="font-medium text-slate-900">{account.name}</p>
                         <p className="mt-0.5 truncate text-xs text-slate-500">{account.description || "No description"}</p>
                       </td>
-                      {!selectedServiceAccount && (
-                        <td className="px-4 py-3.5 text-slate-600">{formatServiceAccountRole(account.role)}</td>
-                      )}
-                      {!selectedServiceAccount && (
-                        <td className="px-4 py-3.5 text-slate-500">{account.environment || "\u2014"}</td>
-                      )}
+                      <td className="px-4 py-3.5 text-slate-600">{formatServiceAccountRole(account.role)}</td>
+                      <td className="px-4 py-3.5 text-slate-500">{account.environment || "\u2014"}</td>
                       <td className="px-4 py-3.5">
                         <StatusChip tone={account.status === "active" ? "success" : "neutral"}>{formatServiceAccountStatus(account.status)}</StatusChip>
                       </td>
@@ -298,6 +317,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                           <span className="text-slate-600">{account.active_credential_count} active</span>
                         )}
                       </td>
+                      <td className="px-4 py-3.5 text-xs text-slate-500">{describeLastUsed(account)}</td>
                     </tr>
                   );
                 })}
@@ -406,7 +426,16 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                               <RefreshCw className="h-2.5 w-2.5" />
                               Rotate
                             </button>
-                            <button type="button" onClick={() => revokeCredentialMutation.mutate({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id })} disabled={!csrfToken || revokeCredentialMutation.isPending} className="inline-flex h-7 items-center rounded border border-rose-200 bg-rose-50 px-2 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50">Revoke</button>
+                            <ConfirmDialog
+                              title="Revoke this credential?"
+                              description="This credential will immediately stop working. This action cannot be undone."
+                              confirmLabel="Revoke credential"
+                              onConfirm={async () => { await revokeCredentialMutation.mutateAsync({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id }); }}
+                            >
+                              {(open) => (
+                                <button type="button" onClick={open} disabled={!csrfToken || revokeCredentialMutation.isPending} className="inline-flex h-7 items-center rounded border border-rose-200 bg-rose-50 px-2 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50">Revoke</button>
+                              )}
+                            </ConfirmDialog>
                           </div>
                         )}
                       </div>
@@ -537,6 +566,14 @@ function describeServiceAccountActivity(account: {
     return "disabled";
   }
   return "no credential use recorded";
+}
+
+function describeLastUsed(account: { credentials: Array<{ last_used_at?: string }> }): string {
+  const lastUsed = account.credentials
+    ?.map(c => c.last_used_at)
+    .filter((v): v is string => Boolean(v))
+    .sort((a, b) => b.localeCompare(a))[0];
+  return lastUsed ? formatExactTimestamp(lastUsed) : "Never";
 }
 
 function describeCredentialActivity(credential: { last_used_at?: string; revoked_at?: string }): string {

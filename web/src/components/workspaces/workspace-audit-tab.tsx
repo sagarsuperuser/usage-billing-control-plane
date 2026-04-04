@@ -1,9 +1,11 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Download,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -40,6 +42,10 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
   const [auditExportPage, setAuditExportPage] = useState(1);
   const [auditExportCursor, setAuditExportCursor] = useState<string | undefined>(undefined);
   const [auditExportCursorHistory, setAuditExportCursorHistory] = useState<Array<string | undefined>>([]);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [showExports, setShowExports] = useState(false);
 
   /* --- Queries ---------------------------------------------------- */
 
@@ -89,7 +95,23 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
     enabled: Boolean(session) && selectedAuditServiceAccountIDValue !== "",
   });
 
-  const auditItems = serviceAccountAuditQuery.data?.items ?? [];
+  const auditItemsRaw = serviceAccountAuditQuery.data?.items ?? [];
+  const auditItems = useMemo(() => {
+    let items = auditItemsRaw;
+    if (fromDate) {
+      const from = new Date(fromDate);
+      items = items.filter(e => new Date(e.created_at) >= from);
+    }
+    if (toDate) {
+      const to = new Date(toDate);
+      to.setDate(to.getDate() + 1);
+      items = items.filter(e => new Date(e.created_at) < to);
+    }
+    if (actionFilter) {
+      items = items.filter(e => e.action === actionFilter);
+    }
+    return items;
+  }, [auditItemsRaw, fromDate, toDate, actionFilter]);
   const auditExportItems = serviceAccountAuditExportsQuery.data?.items ?? [];
   const selectedAuditEventIDValue =
     selectedAuditEventID && auditItems.some((item) => item.id === selectedAuditEventID) ? selectedAuditEventID : "";
@@ -160,22 +182,30 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
           <p className="text-sm font-semibold text-slate-900">Credential audit log</p>
           <p className="text-xs text-slate-500">Credential issue, rotation, and revocation events.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             aria-label="Audit service account"
             value={selectedAuditServiceAccountIDValue}
             onChange={(event) => setSelectedAuditServiceAccountID(event.target.value)}
-            className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
+            className="h-8 rounded-lg border border-stone-200 bg-white px-3 text-xs text-slate-800 outline-none ring-slate-400 transition focus:ring-2"
           >
             {serviceAccounts.map((account) => (
               <option key={account.id} value={account.id}>{account.name}</option>
             ))}
           </select>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-label="From date" className="h-8 rounded-lg border border-stone-200 bg-white px-2 text-xs text-slate-800 outline-none ring-slate-400 transition focus:ring-2" />
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-label="To date" className="h-8 rounded-lg border border-stone-200 bg-white px-2 text-xs text-slate-800 outline-none ring-slate-400 transition focus:ring-2" />
+          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} aria-label="Action type filter" className="h-8 rounded-lg border border-stone-200 bg-white px-3 text-xs text-slate-800 outline-none ring-slate-400 transition focus:ring-2">
+            <option value="">All actions</option>
+            <option value="created">Issued</option>
+            <option value="rotated">Rotated</option>
+            <option value="revoked">Revoked</option>
+          </select>
           <button
             type="button"
             onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
             disabled={!selectedAuditServiceAccountIDValue}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" />
             Export CSV
@@ -184,24 +214,50 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
       </div>
 
       {selectedAuditServiceAccount ? (
-        <div className="mt-4 grid gap-6">
-          {/* Events table — full width */}
+        <div className="mt-4 grid gap-4">
+          {/* Events table */}
           <div className="overflow-hidden rounded-lg border border-stone-200">
             <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
               <p className="text-sm font-medium text-slate-700">Recent events</p>
               <CursorPaginationControls page={auditPage} hasPreviousPage={auditHasPreviousPage} hasNextPage={auditHasNextPage} onPrevious={goToPreviousAuditPage} onNext={goToNextAuditPage} label="Audit events" />
             </div>
-            <div className="divide-y divide-stone-100">
-              {auditItems.length > 0 ? (
-                auditItems.map((event) => (
-                  <ServiceAccountAuditRow key={event.id} event={event} selected={event.id === selectedAuditEventIDValue} onSelect={() => setSelectedAuditEventID(event.id === selectedAuditEventIDValue ? "" : event.id)} />
-                ))
-              ) : (
-                <p className="px-4 py-6 text-sm text-slate-500">No audit events yet.</p>
-              )}
-            </div>
+            {auditItems.length > 0 ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-stone-100 text-left text-xs font-medium text-slate-400">
+                    <th className="px-4 py-2.5 font-semibold">Timestamp</th>
+                    <th className="px-4 py-2.5 font-semibold">Action</th>
+                    <th className="px-4 py-2.5 font-semibold">Summary</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {auditItems.map((event) => {
+                    const presentation = describeAuditEvent(event);
+                    const selected = event.id === selectedAuditEventIDValue;
+                    return (
+                      <tr
+                        key={event.id}
+                        onClick={() => setSelectedAuditEventID(event.id === selectedAuditEventIDValue ? "" : event.id)}
+                        aria-label={`View service account audit details for ${presentation.title}`}
+                        className={`cursor-pointer transition ${selected ? "bg-sky-50/70" : "hover:bg-stone-50"}`}
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">{formatExactTimestamp(event.created_at)}</td>
+                        <td className="px-4 py-3">
+                          <StatusChip tone={event.action === "revoked" ? "danger" : event.action === "rotated" ? "warning" : "success"}>
+                            {formatAuditActionLabel(event.action)}
+                          </StatusChip>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{presentation.summary}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <p className="px-4 py-6 text-sm text-slate-500">No audit events yet.</p>
+            )}
 
-            {/* Inline event detail — expands below the event list */}
+            {/* Inline event detail */}
             {selectedAuditEvent && (
               <div className="border-t border-stone-200 bg-stone-50/50 px-4 py-4">
                 <ServiceAccountAuditDetail event={selectedAuditEvent} />
@@ -209,39 +265,50 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
             )}
           </div>
 
-          {/* Exports section — below events */}
+          {/* Exports — collapsed by default */}
           <div className="overflow-hidden rounded-lg border border-stone-200">
-            <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setShowExports(!showExports)}
+              className="flex w-full items-center justify-between bg-stone-50 px-4 py-3 text-left transition hover:bg-stone-100"
+            >
               <p className="text-sm font-medium text-slate-700">Exports</p>
-              <CursorPaginationControls page={auditExportPage} hasPreviousPage={auditExportHasPreviousPage} hasNextPage={auditExportHasNextPage} onPrevious={goToPreviousAuditExportPage} onNext={goToNextAuditExportPage} label="Audit exports" />
-            </div>
-            <div className="divide-y divide-stone-100">
-              {auditExportItems.length > 0 ? (
-                auditExportItems.map((item) => (
-                  <div key={item.job.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <StatusChip tone={item.download_url ? "success" : item.job.status === "failed" ? "danger" : "info"}>
-                        {formatAuditExportStatus(item.job.status)}
-                      </StatusChip>
-                      <div>
-                        <p className="text-xs text-slate-700">{formatExactTimestamp(item.job.created_at)}</p>
-                        <p className="text-[11px] text-slate-500">{item.job.row_count} row(s)</p>
+              {showExports ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+            </button>
+            {showExports && (
+              <>
+                <div className="flex items-center justify-end border-t border-stone-200 bg-stone-50 px-4 py-2">
+                  <CursorPaginationControls page={auditExportPage} hasPreviousPage={auditExportHasPreviousPage} hasNextPage={auditExportHasNextPage} onPrevious={goToPreviousAuditExportPage} onNext={goToNextAuditExportPage} label="Audit exports" />
+                </div>
+                <div className="divide-y divide-stone-100">
+                  {auditExportItems.length > 0 ? (
+                    auditExportItems.map((item) => (
+                      <div key={item.job.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <StatusChip tone={item.download_url ? "success" : item.job.status === "failed" ? "danger" : "info"}>
+                            {formatAuditExportStatus(item.job.status)}
+                          </StatusChip>
+                          <div>
+                            <p className="text-xs text-slate-700">{formatExactTimestamp(item.job.created_at)}</p>
+                            <p className="text-[11px] text-slate-500">{item.job.row_count} row(s)</p>
+                          </div>
+                        </div>
+                        {item.download_url ? (
+                          <a href={item.download_url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100">
+                            <Download className="h-3 w-3" />
+                            Download
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-500">Pending</span>
+                        )}
                       </div>
-                    </div>
-                    {item.download_url ? (
-                      <a href={item.download_url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-stone-100">
-                        <Download className="h-3 w-3" />
-                        Download
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-500">Pending</span>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="px-4 py-6 text-sm text-slate-500">No exports yet.</p>
-              )}
-            </div>
+                    ))
+                  ) : (
+                    <p className="px-4 py-6 text-sm text-slate-500">No exports yet.</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -255,144 +322,41 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
 /*  Sub-components                                                     */
 /* ------------------------------------------------------------------ */
 
-function ServiceAccountAuditRow({
-  event,
-  selected,
-  onSelect,
-}: {
-  event: APIKeyAuditEvent;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const presentation = describeAuditEvent(event);
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      aria-label={`View service account audit details for ${presentation.title}`}
-      className={`grid w-full gap-3 px-4 py-4 text-left transition md:grid-cols-[minmax(0,1.6fr)_150px_180px] md:items-center ${
-        selected ? "bg-sky-50/70" : "bg-white hover:bg-stone-50"
-      }`}
-    >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-950">{presentation.title}</p>
-        <p className="mt-1 text-sm text-slate-700">{presentation.summary}</p>
-      </div>
-      <p className="text-sm text-slate-600">{formatExactTimestamp(event.created_at)}</p>
-      <div className="flex flex-wrap items-center gap-2 md:justify-end">
-        <StatusChip tone={event.action === "revoked" ? "danger" : event.action === "rotated" ? "warning" : "success"}>
-          {formatAuditActionLabel(event.action)}
-        </StatusChip>
-        <span className="text-xs text-slate-500">{presentation.supporting}</span>
-      </div>
-    </button>
-  );
-}
-
 function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent }) {
   const metadata = event.metadata ?? {};
   const presentation = describeAuditEvent(event);
-  const createdByUserID = readAuditMetadataString(metadata, "created_by_user_id");
-  const environment = readAuditMetadataString(metadata, "environment");
   const credentialName = readAuditMetadataString(metadata, "name");
-  const ownerID = readAuditMetadataString(metadata, "owner_id");
-  const ownerType = readAuditMetadataString(metadata, "owner_type");
-  const purpose = readAuditMetadataString(metadata, "purpose");
   const role = readAuditMetadataString(metadata, "role");
+  const environment = readAuditMetadataString(metadata, "environment");
   const actorLabel = event.actor_api_key_id ? "Credential session" : "Admin session";
-  const actorValue = event.actor_api_key_id || createdByUserID || "Workspace operator";
-  const groupedKeys = new Set(["created_by_user_id", "environment", "name", "owner_id", "owner_type", "purpose", "role"]);
-  const remainingEntries = Object.entries(metadata)
-    .filter(([key]) => !groupedKeys.has(key))
-    .sort(([left], [right]) => left.localeCompare(right));
 
   return (
-    <div>
-      <p className="text-sm font-semibold text-slate-900">{presentation.title}</p>
-      <p className="mt-1 text-sm text-slate-600">{presentation.summary}</p>
-
-      <dl className="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-medium text-slate-500">What happened</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{presentation.title}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Created at</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{formatExactTimestamp(event.created_at)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Who did it</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{actorLabel}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Actor reference</dt>
-          <dd className={`mt-0.5 break-words text-sm text-slate-900 ${event.actor_api_key_id || createdByUserID ? "font-mono" : ""}`}>{actorValue}</dd>
-        </div>
-      </dl>
-
-      <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-stone-200 pt-4 sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Credential name</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{credentialName || "No display name recorded"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Access role</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{role ? formatServiceAccountRole(role) : "Not recorded"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Intended use</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{purpose || "Not recorded"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Environment</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{environment || "Not recorded"}</dd>
-        </div>
-      </dl>
-
-      <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-stone-200 pt-4 sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Event ID</dt>
-          <dd className="mt-0.5 break-words font-mono text-sm text-slate-900">{event.id}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Credential ID</dt>
-          <dd className="mt-0.5 break-words font-mono text-sm text-slate-900">{event.api_key_id}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Owner type</dt>
-          <dd className="mt-0.5 text-sm text-slate-900">{ownerType || "Not recorded"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-500">Owner ID</dt>
-          <dd className={`mt-0.5 break-words text-sm text-slate-900 ${ownerID ? "font-mono" : ""}`}>{ownerID || "Not recorded"}</dd>
-        </div>
-        {createdByUserID ? (
-          <div>
-            <dt className="text-xs font-medium text-slate-500">Created by user ID</dt>
-            <dd className="mt-0.5 break-words font-mono text-sm text-slate-900">{createdByUserID}</dd>
-          </div>
-        ) : null}
-        {event.actor_api_key_id ? (
-          <div>
-            <dt className="text-xs font-medium text-slate-500">Actor credential ID</dt>
-            <dd className="mt-0.5 break-words font-mono text-sm text-slate-900">{event.actor_api_key_id}</dd>
-          </div>
-        ) : null}
-      </dl>
-
-      {remainingEntries.length > 0 ? (
-        <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-stone-200 pt-4 sm:grid-cols-2">
-          {remainingEntries.map(([key, value]) => (
-            <div key={key}>
-              <dt className="text-xs font-medium text-slate-500">{formatAuditMetadataKey(key)}</dt>
-              <dd className="mt-0.5 break-words text-sm text-slate-800">{formatAuditMetadataValue(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-    </div>
+    <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+      <div>
+        <dt className="text-xs font-medium text-slate-500">What happened</dt>
+        <dd className="mt-0.5 text-sm text-slate-900">{presentation.title}</dd>
+      </div>
+      <div>
+        <dt className="text-xs font-medium text-slate-500">When</dt>
+        <dd className="mt-0.5 text-sm text-slate-900">{formatExactTimestamp(event.created_at)}</dd>
+      </div>
+      <div>
+        <dt className="text-xs font-medium text-slate-500">Actor</dt>
+        <dd className="mt-0.5 text-sm text-slate-900">{actorLabel}</dd>
+      </div>
+      <div>
+        <dt className="text-xs font-medium text-slate-500">Credential</dt>
+        <dd className="mt-0.5 text-sm text-slate-900">{credentialName || "Not recorded"}</dd>
+      </div>
+      <div>
+        <dt className="text-xs font-medium text-slate-500">Role</dt>
+        <dd className="mt-0.5 text-sm text-slate-900">{role ? formatServiceAccountRole(role) : "Not recorded"}</dd>
+      </div>
+      <div>
+        <dt className="text-xs font-medium text-slate-500">Environment</dt>
+        <dd className="mt-0.5 text-sm text-slate-900">{environment || "Not recorded"}</dd>
+      </div>
+    </dl>
   );
 }
 
@@ -526,28 +490,6 @@ function formatAuditActionLabel(action: string): string {
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
-}
-
-function formatAuditMetadataKey(key: string): string {
-  return key
-    .split("_")
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-}
-
-function formatAuditMetadataValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "-";
-  }
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
 }
 
 function formatAuditExportStatus(status: string): string {

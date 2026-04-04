@@ -279,7 +279,7 @@ test("workspace access shows summary-first service account and audit surfaces", 
   // Navigate to the Audit log tab directly
   await page.getByRole("tab", { name: "Audit log" }).click();
   await page.getByLabel("Audit service account").selectOption("svc_erp");
-  await expect(page.getByText("Credential rotated")).toBeVisible();
-  await page.getByRole("button", { name: /View service account audit details for Credential rotated/i }).click({ force: true });
+  await expect(page.getByText("A credential was rotated and replaced")).toBeVisible();
+  await page.locator("tr", { hasText: "rotated and replaced" }).first().click({ force: true });
   await expect(page.getByText("What happened")).toBeVisible();
 });
