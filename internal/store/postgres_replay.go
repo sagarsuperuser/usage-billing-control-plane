@@ -271,7 +271,7 @@ func (s *PostgresStore) RetryReplayJob(tenantID, id string) (domain.ReplayJob, e
 		return domain.ReplayJob{}, err
 	}
 	if current.Status != domain.ReplayFailed {
-		return domain.ReplayJob{}, fmt.Errorf("validation error: replay job can be retried only when status=failed")
+		return domain.ReplayJob{}, fmt.Errorf("%w: replay job can be retried only when status=failed", ErrInvalidState)
 	}
 
 	row := tx.QueryRowContext(

@@ -1,6 +1,7 @@
 package replay
 
 import (
+	"errors"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"usage-billing-control-plane/internal/domain"
 	"usage-billing-control-plane/internal/store"
 )
+
+var ErrValidation = errors.New("validation error")
 
 type Service struct {
 	store store.Repository
@@ -132,7 +135,7 @@ func (s *Service) ListJobs(tenantID string, req ListReplayJobsRequest) (ListRepl
 		return ListReplayJobsResult{}, err
 	}
 	if cursorCreated != nil && offset > 0 {
-		return ListReplayJobsResult{}, fmt.Errorf("validation error: offset cannot be used with cursor")
+		return ListReplayJobsResult{}, fmt.Errorf("%w: offset cannot be used with cursor", ErrValidation)
 	}
 
 	out, err := s.store.ListReplayJobs(store.ReplayJobListFilter{
@@ -214,7 +217,7 @@ func normalizeReplayStatusFilter(raw string) (string, error) {
 	case string(domain.ReplayQueued), string(domain.ReplayRunning), string(domain.ReplayDone), string(domain.ReplayFailed):
 		return raw, nil
 	default:
-		return "", fmt.Errorf("validation error: invalid status filter")
+		return "", fmt.Errorf("%w: invalid status filter", ErrValidation)
 	}
 }
 
@@ -223,10 +226,10 @@ func normalizeReplayListWindow(limit, offset int) (int, int, error) {
 		limit = 20
 	}
 	if limit < 1 || limit > 100 {
-		return 0, 0, fmt.Errorf("validation error: limit must be between 1 and 100")
+		return 0, 0, fmt.Errorf("%w: limit must be between 1 and 100", ErrValidation)
 	}
 	if offset < 0 {
-		return 0, 0, fmt.Errorf("validation error: offset must be >= 0")
+		return 0, 0, fmt.Errorf("%w: offset must be >= 0", ErrValidation)
 	}
 	return limit, offset, nil
 }
@@ -238,15 +241,15 @@ func decodeReplayCursor(raw string) (*time.Time, string, error) {
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		return nil, "", fmt.Errorf("validation error: invalid cursor")
+		return nil, "", fmt.Errorf("%w: invalid cursor", ErrValidation)
 	}
 	var c replayListCursor
 	if err := json.Unmarshal(payload, &c); err != nil {
-		return nil, "", fmt.Errorf("validation error: invalid cursor")
+		return nil, "", fmt.Errorf("%w: invalid cursor", ErrValidation)
 	}
 	c.ID = strings.TrimSpace(c.ID)
 	if c.ID == "" || c.CreatedAt.IsZero() {
-		return nil, "", fmt.Errorf("validation error: invalid cursor")
+		return nil, "", fmt.Errorf("%w: invalid cursor", ErrValidation)
 	}
 	t := c.CreatedAt.UTC()
 	return &t, c.ID, nil

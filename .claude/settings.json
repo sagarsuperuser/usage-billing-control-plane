@@ -118,7 +118,12 @@
       "Bash(sed -i '' 's/needBillingProviderConnections := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker$/needBillingProviderConnections := cfg.Roles.RunAPIServer || cfg.Roles.RunBillingConnectionCheckWorker || cfg.Roles.RunBillingCycleWorker/' /Users/superuser/projects/golang/usage-billing-control-plane/cmd/server/main.go)",
       "Bash(git add:*)",
       "Bash(git push:*)",
-      "Bash(npx playwright:*)"
+      "Bash(npx playwright:*)",
+      "Bash(sed -i '' 's/return \"\", fmt.Errorf\\(\"validation error: invalid status filter\"\\)/return \"\", fmt.Errorf\\(\"%w: invalid status filter\", ErrValidation\\)/' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
+      "Bash(sed -i '' 's/return 0, 0, fmt.Errorf\\(\"validation error: limit must be between 1 and 100\"\\)/return 0, 0, fmt.Errorf\\(\"%w: limit must be between 1 and 100\", ErrValidation\\)/' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
+      "Bash(sed -i '' 's/return 0, 0, fmt.Errorf\\(\"validation error: offset must be >= 0\"\\)/return 0, 0, fmt.Errorf\\(\"%w: offset must be >= 0\", ErrValidation\\)/' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
+      "Bash(sed -i '' 's/return nil, \"\", fmt.Errorf\\(\"validation error: invalid cursor\"\\)/return nil, \"\", fmt.Errorf\\(\"%w: invalid cursor\", ErrValidation\\)/g' /Users/superuser/projects/golang/usage-billing-control-plane/internal/replay/service.go)",
+      "Bash(go test:*)"
     ]
   }
 }
