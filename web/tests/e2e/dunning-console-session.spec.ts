@@ -120,7 +120,7 @@ test("shows normalized dunning diagnosis guidance in the run inventory", async (
   const escalatedRow = page.locator("tr", { hasText: "inv_escalated" });
   const pausedRow = page.locator("tr", { hasText: "inv_paused" });
 
-  await expect(awaitingRow.getByText("Awaiting payment setup", { exact: true })).toBeVisible();
+  await expect(awaitingRow.getByText("awaiting payment setup", { exact: true })).toBeVisible();
   await expect(awaitingRow.getByText("Collect or refresh customer payment setup before expecting retry success.")).toBeVisible();
   await expect(escalatedRow.getByText("Manual review required", { exact: true })).toBeVisible();
   await expect(escalatedRow.getByText("Open run detail and decide whether to pause, resolve, or move the invoice into deeper recovery.")).toBeVisible();

@@ -215,7 +215,7 @@ test("sends CSRF token when retrying failed payment", async ({ page }) => {
   await page.getByRole("button", { name: "Retry" }).click();
 
   await expect.poll(async () => page.evaluate(() => (window as BillingMockWindow).__billingMock.retryCSRF)).toBe("csrf-abc-123");
-  await expect(page.getByText("Retry request sent to billing engine for invoice")).toBeVisible();
+  await expect(page.getByText(/Retry request sent for invoice/)).toBeVisible();
 });
 
 test("disables retry for reader sessions", async ({ page }) => {
@@ -239,7 +239,7 @@ test("shows normalized failure diagnosis in the payment timeline drawer", async 
   await page.getByRole("button", { name: "Timeline" }).click();
 
   const drawer = page.getByRole("complementary");
-  await expect(page.getByRole("heading", { name: "Invoice Timeline" })).toBeVisible();
+  await expect(page.getByText("Invoice timeline")).toBeVisible();
   await expect(drawer.getByText("Payment collection is blocked")).toBeVisible();
   await expect(drawer.getByText("Send or refresh payment setup, confirm the customer can complete it, then retry collection only after setup is ready.")).toBeVisible();
   await expect(drawer.getByText("invoice.payment_failure:inv_123")).toHaveCount(0);

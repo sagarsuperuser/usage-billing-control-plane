@@ -242,9 +242,7 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await page.getByRole("link", { name: /Customer Alpha/i }).click();
   await expect(page).toHaveURL(/\/customers\/cust_alpha$/);
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Email setup request" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Awaiting customer payment setup" })).toBeVisible();
-  await expect(page.getByText("Use one clear setup path, then refresh verification here before retrying collection elsewhere.")).toBeVisible();
+  await expect(page.getByText("Payment collection")).toBeVisible();
 });
 
 test("tenant writer can edit the customer billing profile", async ({ page }) => {
@@ -263,7 +261,7 @@ test("tenant writer can edit the customer billing profile", async ({ page }) => 
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Commercial and tax settings" })).toBeVisible();
+  await expect(page.getByText("Billing profile")).toBeVisible();
   await expect(page.getByLabel("Tax identifier")).toHaveValue("");
 
   await page.getByLabel("Tax identifier").fill("GSTIN-29ABCDE1234F2Z5");

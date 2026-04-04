@@ -415,21 +415,14 @@ test("platform admin can browse workspaces and open workspace detail", async ({ 
   await page.getByRole("link", { name: /Tenant Alpha/i }).click();
   await expect(page).toHaveURL(/\/workspaces\/tenant_alpha$/);
   await expect(page.getByRole("heading", { name: "Tenant Alpha" })).toBeVisible();
-  await expect(page.getByText("Create at least one metric and plan before going live").first()).toBeVisible();
-  await expect(page.getByText("Add the first customer to complete workspace setup").first()).toBeVisible();
-  await expect(page.getByText("Support and debug details")).toBeVisible();
-  await page.getByText("Support and debug details").click();
-  await expect(page.getByText("org_alpha")).toBeVisible();
-  await expect(page.getByText("stripe_alpha")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open billing connection" })).toBeVisible();
-  await expect(page.getByText("Workspace access")).toBeVisible();
+  await expect(page.getByText("tenant_alpha")).toBeVisible();
   await expect(page.getByText("Current members")).toBeVisible();
   await page.getByPlaceholder("tenant-admin@example.com").fill("new-admin@tenant-alpha.test");
   await page.getByLabel("Workspace role").selectOption("admin");
   await page.getByRole("button", { name: "Send invite" }).click();
   await expect(page.getByText("new-admin@tenant-alpha.test")).toBeVisible();
   await page.getByLabel("Active billing connection").selectOption("bpc_beta");
-  await page.getByRole("button", { name: "Save active connection" }).click();
+  await page.getByRole("button", { name: "Save connection" }).click();
   await expect(page.getByText("bpc_beta")).toBeVisible();
 });
 

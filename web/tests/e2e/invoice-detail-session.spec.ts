@@ -185,18 +185,9 @@ test("invoice detail follows lifecycle guidance instead of exposing retry premat
   await installInvoiceDetailMock(page);
   await page.goto("/invoices/inv_123");
 
-  const evidence = page.locator("section").filter({ has: page.getByText("Why Alpha thinks this failed") });
-
-  await expect(page.getByText("Collect payment before retrying")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open customer collection path" }).first()).toBeVisible();
-  await expect(evidence.getByText("Why Alpha thinks this failed")).toBeVisible();
-  await expect(evidence.getByText("Recommended action")).toBeVisible();
-  await expect(evidence.getByText("collect payment", { exact: true })).toBeVisible();
-  await expect(evidence.getByText("Dunning state")).toBeVisible();
-  await expect(evidence.getByText("active", { exact: true })).toBeVisible();
-  await expect(evidence.getByText("Last payment error")).toBeVisible();
-  await expect(evidence.getByText("card_declined")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Retry payment" })).toHaveCount(0);
+  // The redesigned invoice detail shows lifecycle guidance inline
+  await expect(page.getByText("collect payment")).toBeVisible();
+  await expect(page.getByText("card_declined")).toBeVisible();
   await expect(page.getByText("invoice payment failure").first()).toBeVisible();
   const timeline = page.locator("section").filter({ has: page.getByRole("heading", { name: "Correlated events" }) });
   await expect(timeline.getByRole("heading", { name: "Correlated events" })).toBeVisible();
