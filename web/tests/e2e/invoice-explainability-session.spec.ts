@@ -3,8 +3,8 @@ import type { Locator } from "@playwright/test";
 
 type SessionPayload = {
   authenticated: boolean;
-  scope: "tenant" | "platform";
-  role: "reader" | "writer" | "admin" | "platform_admin";
+  scope: "tenant";
+  role: "reader" | "writer" | "admin";
   tenant_id?: string;
   api_key_id?: string;
   csrf_token: string;
@@ -47,12 +47,6 @@ const sessionPayload: SessionPayload = {
   csrf_token: "csrf-exp-123",
 };
 
-const platformSessionPayload: SessionPayload = {
-  authenticated: true,
-  scope: "platform",
-  role: "platform_admin",
-  csrf_token: "csrf-platform-exp-123",
-};
 
 const explainabilityPayload: ExplainabilityPayload = {
   invoice_id: "inv_explain_123",

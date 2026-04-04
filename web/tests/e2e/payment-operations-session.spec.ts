@@ -17,13 +17,6 @@ type TenantSessionPayload = {
   csrf_token: string;
 };
 
-type PlatformSessionPayload = {
-  authenticated: boolean;
-  scope: "platform";
-  platform_role: "platform_admin";
-  api_key_id: string;
-  csrf_token: string;
-};
 
 type SessionPayload = TenantSessionPayload | PlatformSessionPayload;
 
