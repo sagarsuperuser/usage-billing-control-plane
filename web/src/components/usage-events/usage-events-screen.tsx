@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -73,26 +73,10 @@ export function UsageEventsScreen() {
   });
 
   const items = query.data?.items ?? [];
-  const selectedEventIDValue =
-    selectedEventID && items.some((item) => item.id === selectedEventID) ? selectedEventID : "";
-  const selectedEvent = items.find((item) => item.id === selectedEventIDValue) ?? null;
-  const stats = useMemo(() => ({
-    visible: items.length,
-    quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-    customers: new Set(items.map((item) => item.customer_id)).size,
-    meters: new Set(items.map((item) => item.meter_id)).size,
-  }), [items]);
+  const selectedEvent = items.find((item) => item.id === selectedEventID) ?? null;
 
   const applyFilters = () => {
     setSubmitted(filters);
-    setCursor("");
-    setCursorTrail([]);
-  };
-
-  const resetFilters = () => {
-    const next = defaultFilters();
-    setFilters(next);
-    setSubmitted(next);
     setCursor("");
     setCursorTrail([]);
   };
@@ -118,19 +102,7 @@ export function UsageEventsScreen() {
   return (
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <AppBreadcrumbs items={[{ href: "/customers", label: "Workspace" }, { label: "Usage Events" }]} />
-
-        {isTenantSession ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage Events</p>
-              <h1 className="mt-2 text-lg font-semibold text-slate-950">Usage events</h1>
-              <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                Inspect raw metering events for billing disputes, support, or audit.
-              </p>
-            </div>
-          </div>
-        </section> : null}
+        <AppBreadcrumbs items={[{ label: "Usage events" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? (
@@ -143,169 +115,149 @@ export function UsageEventsScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Visible events" value={String(stats.visible)} />
-              <MetricCard label="Visible quantity" value={String(stats.quantity)} />
-              <MetricCard label="Customers on page" value={String(stats.customers)} />
-              <MetricCard label="Meters on page" value={String(stats.meters)} />
-            </section>
-
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Filters</p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">Filters</h2>
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            {/* Header with title + inline filters */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-stone-200 px-5 py-3">
+              <h1 className="text-sm font-semibold text-slate-900">Usage events{items.length > 0 ? ` (${items.length})` : ""}</h1>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <input
+                  value={filters.customerID}
+                  onChange={(event) => setFilters((current) => ({ ...current, customerID: event.target.value }))}
+                  placeholder="Customer ID..."
+                  className="h-8 w-36 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+                <input
+                  value={filters.meterID}
+                  onChange={(event) => setFilters((current) => ({ ...current, meterID: event.target.value }))}
+                  placeholder="Meter ID..."
+                  className="h-8 w-36 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                />
+                <input
+                  type="datetime-local"
+                  value={filters.from}
+                  onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                />
+                <input
+                  type="datetime-local"
+                  value={filters.to}
+                  onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                />
+                <select
+                  value={filters.order}
+                  onChange={(event) => setFilters((current) => ({ ...current, order: event.target.value as "asc" | "desc" }))}
+                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                >
+                  <option value="desc">Newest first</option>
+                  <option value="asc">Oldest first</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={applyFilters}
+                  className="inline-flex h-8 items-center rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                >
+                  Apply
+                </button>
               </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={applyFilters}
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-              >
-                Apply filters
-              </button>
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-              >
-                Reset to last 7 days
-              </button>
             </div>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <InputField label="Customer ID" value={filters.customerID} onChange={(value) => setFilters((current) => ({ ...current, customerID: value }))} placeholder="cust_123" />
-            <InputField label="Meter ID" value={filters.meterID} onChange={(value) => setFilters((current) => ({ ...current, meterID: value }))} placeholder="mtr_123" />
-            <DateField label="From" value={filters.from} onChange={(value) => setFilters((current) => ({ ...current, from: value }))} />
-            <DateField label="To" value={filters.to} onChange={(value) => setFilters((current) => ({ ...current, to: value }))} />
-            <label className="grid gap-2 text-sm text-slate-700">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Order</span>
-              <select
-                value={filters.order}
-                onChange={(event) => setFilters((current) => ({ ...current, order: event.target.value as "asc" | "desc" }))}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-              >
-                <option value="desc">Newest first</option>
-                <option value="asc">Oldest first</option>
-              </select>
-            </label>
-          </div>
-            </section>
 
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Usage events</p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">Events</h2>
-              </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={openPreviousPage}
-                disabled={cursorTrail.length === 0 || query.isLoading}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={openNextPage}
-                disabled={!query.data?.next_cursor || query.isLoading}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.85fr)]">
-            {query.isLoading ? <LoadingState /> : null}
-            {query.isError ? <ErrorState message={query.error instanceof Error ? query.error.message : "Loading usage events failed."} /> : null}
-            {!query.isLoading && !query.isError && items.length === 0 ? <EmptyState /> : null}
-            {!query.isLoading && !query.isError && items.length > 0 ? (
+            {/* Table body */}
+            {query.isLoading ? (
+              <LoadingState />
+            ) : query.isError ? (
+              <ErrorState message={query.error instanceof Error ? query.error.message : "Loading usage events failed."} />
+            ) : items.length === 0 ? (
+              <EmptyState />
+            ) : (
               <>
-                <div className="grid gap-3">
-                  {items.map((item) => (
-                    <UsageEventRow
-                      key={item.id}
-                      item={item}
-                      selected={item.id === selectedEventIDValue}
-                      onSelect={() => setSelectedEventID(item.id)}
-                    />
-                  ))}
+                <div className="grid grid-cols-[1fr] xl:grid-cols-[minmax(0,1fr)_320px]">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                        <th className="px-5 py-2.5 font-semibold">ID</th>
+                        <th className="px-4 py-2.5 font-semibold">Customer</th>
+                        <th className="px-4 py-2.5 font-semibold">Meter</th>
+                        <th className="px-4 py-2.5 font-semibold text-right">Qty</th>
+                        <th className="px-4 py-2.5 font-semibold">Occurred</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {items.map((item) => (
+                        <tr
+                          key={item.id}
+                          onClick={() => setSelectedEventID(item.id)}
+                          className={`cursor-pointer transition ${item.id === selectedEventID ? "bg-emerald-50" : "hover:bg-stone-50"}`}
+                        >
+                          <td className="px-5 py-3 font-mono text-xs text-slate-700 truncate max-w-[160px]">{item.id}</td>
+                          <td className="px-4 py-3 text-slate-900 truncate max-w-[140px]">{item.customer_id}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 truncate max-w-[140px]">{item.meter_id}</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-900">{item.quantity}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">{formatRelativeTimestamp(item.timestamp)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Detail panel (side) */}
+                  <div className="hidden border-l border-stone-200 xl:block">
+                    <UsageEventDetail item={selectedEvent} />
+                  </div>
                 </div>
-                <UsageEventDetail item={selectedEvent} />
+
+                {/* Detail panel (below on small screens) */}
+                {selectedEvent ? (
+                  <div className="border-t border-stone-200 xl:hidden">
+                    <UsageEventDetail item={selectedEvent} />
+                  </div>
+                ) : null}
               </>
+            )}
+
+            {/* Pagination */}
+            {!query.isLoading && items.length > 0 ? (
+              <div className="flex items-center justify-between border-t border-stone-200 px-5 py-3">
+                <button
+                  type="button"
+                  onClick={openPreviousPage}
+                  disabled={cursorTrail.length === 0 || query.isLoading}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={openNextPage}
+                  disabled={!query.data?.next_cursor || query.isLoading}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ) : null}
           </div>
-            </section>
-          </>
         ) : null}
       </main>
     </div>
   );
 }
 
-function UsageEventRow({
-  item,
-  selected,
-  onSelect,
-}: {
-  item: UsageEvent;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      aria-label={`View details for usage event ${item.id}`}
-      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-        selected
-          ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
-          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
-      }`}
-    >
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_170px_90px] lg:items-center">
-        <InventoryCell label="Customer">
-          <p className="truncate text-sm font-semibold text-slate-950">{item.customer_id}</p>
-        </InventoryCell>
-        <InventoryCell label="Meter and subscription">
-          <p className="truncate font-mono text-sm text-slate-700">{item.meter_id}</p>
-          <p className="mt-1 truncate text-xs text-slate-500">{item.subscription_id || "No subscription attached"}</p>
-        </InventoryCell>
-        <InventoryCell label="Quantity">
-          <p className="text-sm font-semibold text-slate-950">{item.quantity}</p>
-        </InventoryCell>
-        <InventoryCell label="Observed">
-          <p className="text-sm text-slate-950">{formatRelativeTimestamp(item.timestamp)}</p>
-          <p className="mt-1 text-xs text-slate-500">{formatExactTimestamp(item.timestamp)}</p>
-        </InventoryCell>
-        <div className="text-right">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Open</p>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 function UsageEventDetail({ item }: { item: UsageEvent | null }) {
   if (!item) {
     return (
-      <aside className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-        Select an event to inspect identifiers, timestamps, and ingestion detail.
-      </aside>
+      <div className="px-5 py-8 text-center text-sm text-slate-500">
+        Select an event to view details.
+      </div>
     );
   }
 
   return (
-    <aside className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event detail</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+    <div className="px-5 py-4">
+      <h2 className="text-xs font-semibold text-slate-500">Event detail</h2>
+      <div className="mt-3 grid gap-2">
+        <DetailField label="Event ID" value={item.id} mono />
         <DetailField label="Customer" value={item.customer_id} mono />
         <DetailField label="Meter" value={item.meter_id} mono />
         <DetailField label="Subscription" value={item.subscription_id || "-"} mono />
@@ -313,90 +265,45 @@ function UsageEventDetail({ item }: { item: UsageEvent | null }) {
         <DetailField label="Quantity" value={String(item.quantity)} />
         <DetailField label="Occurred at" value={formatExactTimestamp(item.timestamp)} />
         <DetailField label="Idempotency key" value={item.idempotency_key || "-"} mono />
-        <DetailField label="Event ID" value={item.id} mono className="sm:col-span-2" />
       </div>
-    </aside>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
     </div>
   );
 }
 
-function InventoryCell({ label, children }: { label: string; children: ReactNode }) {
+function DetailField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <div className="mt-2 min-w-0">{children}</div>
+    <div className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-2">
+      <p className="text-[11px] font-medium text-slate-400">{label}</p>
+      <p className={`mt-0.5 break-all text-sm text-slate-900 ${mono ? "font-mono text-xs" : ""}`.trim()}>{value}</p>
     </div>
-  );
-}
-
-function DetailField({ label, value, mono, className = "" }: { label: string; value: string; mono?: boolean; className?: string }) {
-  return (
-    <div className={`rounded-lg border border-slate-200 bg-white px-4 py-3 ${className}`.trim()}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 break-all text-sm text-slate-950 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
-    </div>
-  );
-}
-
-function InputField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return (
-    <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-      />
-    </label>
-  );
-}
-
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
-      <input
-        type="datetime-local"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-      />
-    </label>
   );
 }
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+    <div className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
       <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading usage events
+      Loading usage events...
     </div>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No usage events matched the current filters.</p>
-      <p className="mt-2">Try adjusting the customer, meter, or time filters.</p>
+    <div className="flex flex-col items-center justify-center gap-2 px-5 py-16 text-center">
+      <p className="text-sm font-medium text-slate-700">No usage events matched</p>
+      <p className="text-xs text-slate-500">Try adjusting the customer, meter, or time range filters.</p>
     </div>
   );
 }
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-      <p className="font-semibold text-rose-900">Usage events could not be loaded</p>
-      <p className="mt-2">{message}</p>
+    <div className="px-5 py-6">
+      <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p className="font-medium text-rose-900">Usage events could not be loaded</p>
+        <p className="mt-1">{message}</p>
+      </div>
     </div>
   );
 }

@@ -289,7 +289,7 @@ export function WorkspaceDetailScreen({ tenantID }: { tenantID: string }) {
   return (
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/workspaces", label: "Workspaces" }, { label: selectedTenant?.name || tenantID }]} />
+        <AppBreadcrumbs items={[{ href: "/workspaces", label: "Workspaces" }, { label: selectedTenant?.name || tenantID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (

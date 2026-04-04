@@ -39,6 +39,7 @@ const platformItems: NavItem[] = [
 ];
 
 const revenueItems: NavItem[] = [
+  { href: "/control-plane", label: "Overview", icon: Home },
   { href: "/pricing", label: "Pricing", icon: CircleDollarSign },
   { href: "/customers", label: "Customers", icon: UserRoundPlus },
   { href: "/subscriptions", label: "Subscriptions", icon: ArrowRightLeft },

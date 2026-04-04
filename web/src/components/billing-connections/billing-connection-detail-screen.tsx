@@ -233,7 +233,7 @@ export function BillingConnectionDetailScreen({ connectionID }: { connectionID: 
   return (
     <div className="text-slate-900">
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
-        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Platform" }, { href: "/billing-connections", label: "Billing Connections" }, { label: connection?.display_name || connectionID }]} />
+        <AppBreadcrumbs items={[{ href: "/billing-connections", label: "Billing Connections" }, { label: connection?.display_name || connectionID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "platform" ? (
