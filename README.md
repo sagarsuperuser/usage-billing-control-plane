@@ -28,11 +28,11 @@ See [docs/architecture.md](docs/architecture.md) for full system topology.
 docker compose -f docker-compose.postgres.yml up -d
 
 # Run migrations
-DATABASE_URL='postgres://postgres:postgres@localhost:15432/lago_alpha?sslmode=disable' \
+DATABASE_URL='postgres://postgres:postgres@localhost:15432/alpha?sslmode=disable' \
   go run ./cmd/migrate
 
 # Start API server
-DATABASE_URL='postgres://postgres:postgres@localhost:15432/lago_alpha?sslmode=disable' \
+DATABASE_URL='postgres://postgres:postgres@localhost:15432/alpha?sslmode=disable' \
   go run ./cmd/server
 
 # Start web UI

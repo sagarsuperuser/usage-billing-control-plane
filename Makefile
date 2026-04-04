@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 GO ?= go
 COMPOSE_FILE ?= docker-compose.postgres.yml
-DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha?sslmode=disable
-TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
+DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/alpha?sslmode=disable
+TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:15432/alpha_test?sslmode=disable
 TEST_TEMPORAL_ADDRESS ?= 127.0.0.1:17233
 TEST_TEMPORAL_NAMESPACE ?= default
 CHECK_GITHUB ?= 0
@@ -11,10 +11,10 @@ RUN_GO_TESTS ?= 1
 RUN_TERRAFORM_VALIDATE ?= 0
 GITHUB_REPOSITORY ?=
 TF_DIR ?= infra/terraform/aws
-HELM_CHART ?= deploy/helm/lago-alpha
+HELM_CHART ?= deploy/helm/alpha
 ENVIRONMENT ?= staging
-RELEASE_NAME ?= lago-alpha
-NAMESPACE ?= lago-alpha
+RELEASE_NAME ?= alpha
+NAMESPACE ?= alpha
 IMAGE_TAG ?= $(shell git rev-parse HEAD)
 API_IMAGE_REPOSITORY ?=
 WEB_IMAGE_REPOSITORY ?=
@@ -195,12 +195,12 @@ helm-lint: ## Lint Helm chart
 	@helm lint $(HELM_CHART)
 
 helm-template-staging: ## Render Helm staging manifests
-	@helm template lago-alpha $(HELM_CHART) -f $(HELM_CHART)/environments/staging-values.yaml >/tmp/lago-alpha-staging.yaml
-	@echo "rendered /tmp/lago-alpha-staging.yaml"
+	@helm template alpha $(HELM_CHART) -f $(HELM_CHART)/environments/staging-values.yaml >/tmp/alpha-staging.yaml
+	@echo "rendered /tmp/alpha-staging.yaml"
 
 helm-template-prod: ## Render Helm prod manifests
-	@helm template lago-alpha $(HELM_CHART) -f $(HELM_CHART)/environments/prod-values.yaml >/tmp/lago-alpha-prod.yaml
-	@echo "rendered /tmp/lago-alpha-prod.yaml"
+	@helm template alpha $(HELM_CHART) -f $(HELM_CHART)/environments/prod-values.yaml >/tmp/alpha-prod.yaml
+	@echo "rendered /tmp/alpha-prod.yaml"
 
 deploy-staging: ## Deploy Helm release to staging
 	@ENVIRONMENT=staging RELEASE_NAME='$(RELEASE_NAME)' NAMESPACE='$(NAMESPACE)' IMAGE_TAG='$(IMAGE_TAG)' API_IMAGE_REPOSITORY='$(API_IMAGE_REPOSITORY)' WEB_IMAGE_REPOSITORY='$(WEB_IMAGE_REPOSITORY)' ./scripts/deploy_helm.sh

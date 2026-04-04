@@ -1,11 +1,8 @@
 import type { UISession } from "@/lib/types";
 
 export function getDefaultLandingPath(session: UISession | null | undefined): string {
-  if (session?.authenticated && session.scope === "platform") {
-    return "/billing-connections";
-  }
-  if (session?.authenticated && session.scope === "tenant") {
-    return "/customers";
+  if (session?.authenticated) {
+    return "/control-plane";
   }
   return "/login";
 }

@@ -132,7 +132,7 @@ async function installWorkspaceSelectionLoginMock(context: BrowserContext) {
   });
 }
 
-test("platform login requests billing connections navigation", async ({ page, context }) => {
+test("platform login navigates to control plane overview", async ({ page, context }) => {
   await installLoginMock(context, {
     authenticated: true,
     subject_type: "user",
@@ -147,7 +147,7 @@ test("platform login requests billing connections navigation", async ({ page, co
   await page.getByTestId("session-login-email").fill("platform-admin@alpha.test");
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await Promise.all([
-    waitForNavigationIntent(page, /\/billing-connections(?:\?_rsc=.*)?$/),
+    waitForNavigationIntent(page, /\/control-plane/),
     page.getByTestId("session-login-submit").click(),
   ]);
 });
