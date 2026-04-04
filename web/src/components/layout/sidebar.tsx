@@ -21,7 +21,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { SessionMenu } from "@/components/layout/session-menu";
 
 // Pages that render without the sidebar (auth flow).
-const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/invite", "/workspace-select"];
+const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/invite"];
 
 type NavItem = {
   href: string;

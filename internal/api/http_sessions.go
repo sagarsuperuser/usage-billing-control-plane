@@ -264,6 +264,91 @@ func (s *Server) handleUIPasswordReset(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleUISessionWorkspaces(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.sessionManager == nil || s.browserUserAuthService == nil {
+		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
+		return
+	}
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	items, err := s.browserUserAuthService.ListWorkspaceOptions(principal.SubjectID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":             newBrowserWorkspaceOptionResponses(items),
+		"current_tenant_id": normalizeTenantID(principal.TenantID),
+	})
+}
+
+func (s *Server) handleUISessionSwitchWorkspace(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.sessionManager == nil || s.browserUserAuthService == nil {
+		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
+		return
+	}
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
+	providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
+	if expectedCSRF == "" || providedCSRF == "" || !subtleConstantTimeMatch(expectedCSRF, providedCSRF) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	var req uiWorkspaceSelectRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	user, err := s.repo.GetUser(principal.SubjectID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	resolved, err := s.browserUserAuthService.ResolveUserPrincipal(user, req.TenantID)
+	if err != nil {
+		if errors.Is(err, service.ErrBrowserTenantAccessDenied) {
+			writeError(w, http.StatusForbidden, "workspace access denied")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to switch workspace")
+		return
+	}
+	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to renew session")
+		return
+	}
+	csrfToken, err := randomHexToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to initialize session")
+		return
+	}
+	newPrincipal := Principal{
+		SubjectType: "user",
+		SubjectID:   resolved.User.ID,
+		UserEmail:   resolved.User.Email,
+		Scope:       ScopeTenant,
+		Role:        Role(resolved.Role),
+		TenantID:    normalizeTenantID(resolved.TenantID),
+	}
+	s.putUISessionPrincipal(r.Context(), newPrincipal, csrfToken)
+	writeJSON(w, http.StatusOK, buildUISessionResponse(newPrincipal, csrfToken, time.Now().UTC().Add(s.sessionManager.Lifetime)))
+}
+
 func (s *Server) handleUIWorkspaceSelectionPending(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w)

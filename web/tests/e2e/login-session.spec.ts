@@ -82,8 +82,17 @@ async function installLoginMock(context: BrowserContext, session: PlatformSessio
 }
 
 async function installWorkspaceSelectionLoginMock(context: BrowserContext) {
-  let pendingSelection = false;
-  let selectedSession: TenantSessionPayload | null = null;
+  // Multi-workspace user: backend auto-selects first workspace (no chooser page)
+  const autoSelectedSession: TenantSessionPayload = {
+    authenticated: true,
+    subject_type: "user",
+    subject_id: "usr_tenant_chooser",
+    user_email: "tenant-admin@alpha.test",
+    scope: "tenant",
+    role: "admin",
+    tenant_id: "tenant_a",
+    csrf_token: "csrf-tenant-auto",
+  };
 
   await context.route("**/runtime-config", async (route) => {
     const url = new URL(route.request().url());
@@ -102,63 +111,16 @@ async function installWorkspaceSelectionLoginMock(context: BrowserContext) {
   });
   await context.route("**/v1/ui/sessions/me", async (route) => {
     await route.fulfill({
-      status: selectedSession ? 200 : 401,
+      status: 401,
       contentType: "application/json",
-      body: JSON.stringify(selectedSession ?? { error: "unauthorized" }),
+      body: JSON.stringify({ error: "unauthorized" }),
     });
   });
   await context.route("**/v1/ui/sessions/login", async (route) => {
-    pendingSelection = true;
-    await route.fulfill({
-      status: 409,
-      contentType: "application/json",
-      body: JSON.stringify({
-        required: true,
-        user_email: "tenant-admin@alpha.test",
-        csrf_token: "csrf-select-123",
-        items: [
-          { tenant_id: "tenant_a", name: "Tenant A", role: "admin" },
-          { tenant_id: "tenant_b", name: "Tenant B", role: "writer" },
-        ],
-      }),
-    });
-  });
-  await context.route("**/v1/ui/workspaces/pending", async (route) => {
-    await route.fulfill({
-      status: pendingSelection ? 200 : 401,
-      contentType: "application/json",
-      body: JSON.stringify(
-        pendingSelection
-          ? {
-              required: true,
-              user_email: "tenant-admin@alpha.test",
-              csrf_token: "csrf-select-123",
-              items: [
-                { tenant_id: "tenant_a", name: "Tenant A", role: "admin" },
-                { tenant_id: "tenant_b", name: "Tenant B", role: "writer" },
-              ],
-            }
-          : { error: "workspace selection not pending" }
-      ),
-    });
-  });
-  await context.route("**/v1/ui/workspaces/select", async (route) => {
-    const body = route.request().postDataJSON() as { tenant_id?: string };
-    selectedSession = {
-      authenticated: true,
-      subject_type: "user",
-      subject_id: "usr_tenant_chooser",
-      user_email: "tenant-admin@alpha.test",
-      scope: "tenant",
-      role: body.tenant_id === "tenant_b" ? "writer" : "admin",
-      tenant_id: body.tenant_id || "tenant_a",
-      csrf_token: "csrf-tenant-selected",
-    };
-    pendingSelection = false;
     await route.fulfill({
       status: 201,
       contentType: "application/json",
-      body: JSON.stringify(selectedSession),
+      body: JSON.stringify(autoSelectedSession),
     });
   });
   await context.route("**/v1/customers", async (route) => {
@@ -212,14 +174,14 @@ test("tenant login requests the requested customer route", async ({ page, contex
   ]);
 });
 
-test("multi-workspace login requests chooser navigation before entering tenant surface", async ({ page, context }) => {
+test("multi-workspace login auto-selects first workspace and navigates to requested route", async ({ page, context }) => {
   await installWorkspaceSelectionLoginMock(context);
 
   await page.goto("/login?next=%2Fcustomers");
   await page.getByTestId("session-login-email").fill("tenant-admin@alpha.test");
   await page.getByTestId("session-login-password").fill("correct horse battery");
   await Promise.all([
-    waitForNavigationIntent(page, /\/workspace-select\?next=%2Fcustomers(?:&_rsc=.*)?$/),
+    waitForNavigationIntent(page, /\/customers(?:\?_rsc=.*)?$/),
     page.getByTestId("session-login-submit").click(),
   ]);
 });

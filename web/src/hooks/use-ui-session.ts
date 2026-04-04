@@ -77,6 +77,7 @@ export function useUISession() {
   return {
     apiBaseURL,
     session,
+    setSession,
     scope,
     role,
     platformRole,

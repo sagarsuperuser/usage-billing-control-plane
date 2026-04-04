@@ -168,7 +168,20 @@ func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID
 	}
 
 	if len(activeMemberships) > 1 {
-		return BrowserUserPrincipal{}, BrowserTenantSelectionError{User: user}
+		// Auto-select the first workspace alphabetically (Stripe/Linear pattern).
+		// Users switch workspaces from the sidebar menu, not a full-page selector.
+		best := activeMemberships[0]
+		for _, m := range activeMemberships[1:] {
+			if strings.ToLower(m.TenantID) < strings.ToLower(best.TenantID) {
+				best = m
+			}
+		}
+		return BrowserUserPrincipal{
+			User:     user,
+			Scope:    "tenant",
+			Role:     strings.ToLower(strings.TrimSpace(best.Role)),
+			TenantID: normalizeBrowserTenantID(best.TenantID),
+		}, nil
 	}
 
 	if user.PlatformRole == domain.UserPlatformRoleAdmin {

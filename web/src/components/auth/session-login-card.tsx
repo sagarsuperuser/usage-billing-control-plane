@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import type { UISession, UIAuthProvider } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
-import { isInvitationPendingLoginError, isWorkspaceSelectionRequiredError } from "@/lib/api";
+import { isInvitationPendingLoginError } from "@/lib/api";
 import { normalizeNextPath } from "@/lib/session-routing";
 
 const loginSchema = z.object({
@@ -25,7 +25,6 @@ export function SessionLoginCard({
   providerKey,
   authErrorCode,
   onSuccess,
-  onSelectionRequired,
   onInvitationPending,
   nextPath,
 }: {
@@ -35,7 +34,6 @@ export function SessionLoginCard({
   providerKey?: string | null;
   authErrorCode?: string | null;
   onSuccess?: (session: UISession) => void;
-  onSelectionRequired?: () => void;
   onInvitationPending?: (nextPath: string) => void;
   nextPath?: string | null;
 }) {
@@ -57,11 +55,6 @@ export function SessionLoginCard({
       reset();
       onSuccess?.(session);
     } catch (err) {
-      if (isWorkspaceSelectionRequiredError(err)) {
-        reset({ email: data.email });
-        onSelectionRequired?.();
-        return;
-      }
       if (isInvitationPendingLoginError(err)) {
         reset({ email: data.email });
         onInvitationPending?.(err.nextPath);

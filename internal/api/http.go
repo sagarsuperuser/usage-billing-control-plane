@@ -1575,6 +1575,8 @@ func (s *Server) registerRoutes() {
 		r.Use(s.requireAuth(RoleReader, authScopeSessionSelf))
 		r.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
 		r.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
+		r.HandleFunc("/v1/ui/sessions/workspaces", s.handleUISessionWorkspaces)
+		r.HandleFunc("/v1/ui/sessions/switch-workspace", s.handleUISessionSwitchWorkspace)
 	})
 
 	// ── Authenticated routes (any valid session, no workspace required) ─

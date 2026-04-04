@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SessionLoginCard } from "@/components/auth/session-login-card";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchUIAuthProviders } from "@/lib/api";
-import { buildWorkspaceSelectionPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
+import { getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import type { UISession } from "@/lib/types";
 
 function resolveTarget(session: UISession | null, nextPath: string | null): string {
@@ -117,9 +117,6 @@ export function SessionLoginScreen() {
               nextPath={requestedNext}
               onSuccess={(nextSession) => {
                 router.replace(resolveTarget(nextSession, requestedNext));
-              }}
-              onSelectionRequired={() => {
-                router.replace(buildWorkspaceSelectionPath(requestedNext));
               }}
               onInvitationPending={(nextPath) => {
                 router.replace(normalizeNextPath(nextPath, "/"));

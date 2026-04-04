@@ -1328,6 +1328,36 @@ export async function selectPendingWorkspace(input: {
   return payload;
 }
 
+export async function fetchSessionWorkspaces(input: {
+  runtimeBaseURL?: string;
+}): Promise<{ items: Array<{ tenant_id: string; name: string; role: string }>; current_tenant_id: string }> {
+  const payload = await apiRequest<{ items: Array<{ tenant_id: string; name: string; role: string }>; current_tenant_id: string }>("/v1/ui/sessions/workspaces", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) {
+    throw new Error("failed to fetch workspaces");
+  }
+  return payload;
+}
+
+export async function switchWorkspace(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  tenantID: string;
+}): Promise<UISession> {
+  const payload = await apiRequest<UISession>("/v1/ui/sessions/switch-workspace", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: { tenant_id: input.tenantID },
+  });
+  if (!payload) {
+    throw new Error("failed to switch workspace");
+  }
+  return payload;
+}
+
 export async function fetchWorkspaceInvitationPreview(input: {
   runtimeBaseURL?: string;
   token: string;
