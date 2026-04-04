@@ -118,7 +118,6 @@ test("shows normalized dunning diagnosis guidance in the run inventory", async (
 
   const awaitingRow = page.locator("tr", { hasText: "inv_setup" });
   const escalatedRow = page.locator("tr", { hasText: "inv_escalated" });
-  const pausedRow = page.locator("tr", { hasText: "inv_paused" });
 
   await expect(awaitingRow.getByText("awaiting payment setup", { exact: true })).toBeVisible();
   await expect(escalatedRow).toBeVisible();

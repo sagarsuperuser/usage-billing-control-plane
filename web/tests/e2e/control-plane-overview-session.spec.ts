@@ -10,43 +10,7 @@ type TenantSessionPayload = {
   csrf_token: string;
 };
 
-type TenantRecord = {
-  id: string;
-  name: string;
-  status: "active" | "suspended" | "deleted";
-  billing_provider_connection_id?: string;
-  stripe_account_id?: string;
-  stripe_provider_code?: string;
-  created_at: string;
-  updated_at: string;
-};
 
-type TenantOnboardingReadiness = {
-  status: string;
-  missing_steps: string[];
-  tenant: {
-    status: string;
-    tenant_exists: boolean;
-    tenant_active: boolean;
-    tenant_admin_ready: boolean;
-    missing_steps: string[];
-  };
-  billing_integration: {
-    status: string;
-    billing_mapping_ready: boolean;
-    pricing_ready: boolean;
-    missing_steps: string[];
-  };
-  first_customer: {
-    status: string;
-    managed: boolean;
-    customer_exists: boolean;
-    customer_active: boolean;
-    billing_profile_status: string;
-    payment_setup_status: string;
-    missing_steps: string[];
-  };
-};
 
 type CustomerRecord = {
   id: string;
@@ -123,9 +87,6 @@ function focusLine(page: Page, title: string) {
   return page.locator("a").filter({ has: page.getByText(title, { exact: true }) }).first();
 }
 
-function focusValue(page: Page, title: string) {
-  return focusLine(page, title).locator("p.text-base");
-}
 
 
 async function installTenantOverviewMock(page: Page, session: TenantSessionPayload) {

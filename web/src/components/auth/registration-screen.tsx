@@ -47,7 +47,7 @@ export function RegistrationScreen() {
         password: data.password,
         display_name: data.display_name,
       });
-      window.location.href = "/control-plane";
+      window.location.assign("/control-plane");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Registration failed";
       setServerError(message);
