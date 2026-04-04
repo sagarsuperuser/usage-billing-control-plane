@@ -18,7 +18,7 @@ type TenantSessionPayload = {
 };
 
 
-type SessionPayload = TenantSessionPayload | PlatformSessionPayload;
+type SessionPayload = TenantSessionPayload;
 
 type InitPayload = {
   session: SessionPayload;
