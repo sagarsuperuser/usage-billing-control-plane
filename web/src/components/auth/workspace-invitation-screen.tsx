@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle, MailCheck, PanelsTopLeft } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { acceptWorkspaceInvitation, fetchPendingWorkspaceSelection, fetchUIAuthProviders, fetchWorkspaceInvitationPreview, registerWorkspaceInvitation } from "@/lib/api";
+import { acceptWorkspaceInvitation, fetchUIAuthProviders, fetchWorkspaceInvitationPreview, registerWorkspaceInvitation } from "@/lib/api";
 import { buildAccessSwitchPath, buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
 import { useUISession } from "@/hooks/use-ui-session";
 import { useSessionStore } from "@/store/use-session-store";
@@ -29,15 +29,8 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
     enabled: Boolean(apiBaseURL),
     staleTime: 60_000,
   });
-  const pendingSelectionQuery = useQuery({
-    queryKey: ["ui-workspace-selection", apiBaseURL],
-    queryFn: () => fetchPendingWorkspaceSelection({ runtimeBaseURL: apiBaseURL }),
-    enabled: Boolean(apiBaseURL) && !isAuthenticated && Boolean(previewQuery.data?.authenticated),
-    retry: false,
-  });
-
   const invitePath = useMemo(() => `/invite/${encodeURIComponent(token)}`, [token]);
-  const effectiveCSRFToken = csrfToken || pendingSelectionQuery.data?.csrf_token || "";
+  const effectiveCSRFToken = csrfToken;
   const acceptMutation = useMutation({
     mutationFn: () =>
       acceptWorkspaceInvitation({
@@ -73,7 +66,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   };
 
   useEffect(() => {
-    const canAutoAccept = previewQuery.data?.can_accept && (isAuthenticated || Boolean(pendingSelectionQuery.data));
+    const canAutoAccept = previewQuery.data?.can_accept && isAuthenticated;
     if (!canAutoAccept || !effectiveCSRFToken) {
       autoAcceptStartedRef.current = false;
       return;
@@ -83,7 +76,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
     }
     autoAcceptStartedRef.current = true;
     acceptMutation.mutate();
-  }, [acceptMutation, effectiveCSRFToken, isAuthenticated, pendingSelectionQuery.data, previewQuery.data]);
+  }, [acceptMutation, effectiveCSRFToken, isAuthenticated, previewQuery.data]);
 
   if (isLoading || previewQuery.isLoading) {
     return (

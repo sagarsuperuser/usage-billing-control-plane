@@ -124,13 +124,7 @@ test("pending invitation login auto-accepts the workspace invitation", async ({ 
     });
   });
 
-  await context.route("**/v1/ui/workspaces/pending", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ required: false, items: [], csrf_token: "csrf-pending-123" }),
-    });
-  });
+
 
   await context.route("**/v1/ui/invitations/invite-token-pending", async (route) => {
     if (route.request().method() !== "GET") {

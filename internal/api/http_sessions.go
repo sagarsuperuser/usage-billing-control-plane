@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,18 +17,6 @@ type browserWorkspaceOptionResponse struct {
 	TenantID string `json:"tenant_id"`
 	Name     string `json:"name"`
 	Role     string `json:"role"`
-}
-
-type workspaceSelectionResponse struct {
-	Required  bool                             `json:"required"`
-	UserEmail string                           `json:"user_email,omitempty"`
-	Items     []browserWorkspaceOptionResponse `json:"items,omitempty"`
-	CSRFToken string                           `json:"csrf_token,omitempty"`
-}
-
-type pendingInvitationLoginResponse struct {
-	PendingInvitation bool   `json:"pending_invitation"`
-	NextPath          string `json:"next_path,omitempty"`
 }
 
 type passwordResetRequestedResponse struct {
@@ -349,103 +336,6 @@ func (s *Server) handleUISessionSwitchWorkspace(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusOK, buildUISessionResponse(newPrincipal, csrfToken, time.Now().UTC().Add(s.sessionManager.Lifetime)))
 }
 
-func (s *Server) handleUIWorkspaceSelectionPending(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-	if s.sessionManager == nil || s.browserUserAuthService == nil {
-		writeError(w, http.StatusServiceUnavailable, "workspace selection is not configured")
-		return
-	}
-	userID, userEmail := s.pendingWorkspaceSelectionState(r)
-	if userID == "" {
-		writeError(w, http.StatusUnauthorized, "workspace selection not pending")
-		return
-	}
-	resp, err := s.buildWorkspaceSelectionResponse(r, userID, userEmail)
-	if err != nil {
-		writeDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
-func (s *Server) handleUIWorkspaceSelectionSelect(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-	if s.sessionManager == nil || s.browserUserAuthService == nil {
-		writeError(w, http.StatusServiceUnavailable, "workspace selection is not configured")
-		return
-	}
-	expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
-	providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
-	if expectedCSRF == "" || providedCSRF == "" || !subtleConstantTimeMatch(expectedCSRF, providedCSRF) {
-		writeError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	userID, _ := s.pendingWorkspaceSelectionState(r)
-	if userID == "" {
-		writeError(w, http.StatusUnauthorized, "workspace selection not pending")
-		return
-	}
-	var req uiWorkspaceSelectRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	user, err := s.repo.GetUser(userID)
-	if err != nil {
-		writeDomainError(w, err)
-		return
-	}
-	principal, err := s.browserUserAuthService.ResolveUserPrincipal(user, req.TenantID)
-	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrBrowserTenantAccessDenied):
-			writeError(w, http.StatusForbidden, "tenant access denied")
-		case errors.Is(err, service.ErrBrowserTenantSelection):
-			resp, buildErr := s.buildWorkspaceSelectionResponse(r, user.ID, user.Email)
-			if buildErr != nil {
-				writeError(w, http.StatusInternalServerError, "failed to resolve workspace options")
-				return
-			}
-			writeJSON(w, http.StatusConflict, resp)
-		default:
-			writeError(w, http.StatusInternalServerError, "failed to initialize session")
-		}
-		return
-	}
-	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to renew session")
-		return
-	}
-	csrfToken, err := randomHexToken(32)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to initialize session")
-		return
-	}
-	s.clearUIPendingWorkspaceSelection(r.Context())
-	s.putUISessionPrincipal(r.Context(), Principal{
-		SubjectType: "user",
-		SubjectID:   principal.User.ID,
-		UserEmail:   principal.User.Email,
-		Scope:       ScopeTenant,
-		Role:        Role(principal.Role),
-		TenantID:    normalizeTenantID(principal.TenantID),
-	}, csrfToken)
-	writeJSON(w, http.StatusCreated, buildUISessionResponse(Principal{
-		SubjectType: "user",
-		SubjectID:   principal.User.ID,
-		UserEmail:   principal.User.Email,
-		Scope:       ScopeTenant,
-		Role:        Role(principal.Role),
-		TenantID:    normalizeTenantID(principal.TenantID),
-	}, csrfToken, time.Now().UTC().Add(s.sessionManager.Lifetime)))
-}
-
 func (s *Server) handleUIInvitations(w http.ResponseWriter, r *http.Request) {
 	token, action := parseUIInvitationPath(r.URL.Path)
 	if token == "" {
@@ -476,9 +366,6 @@ func (s *Server) handleUIInvitationPreview(w http.ResponseWriter, r *http.Reques
 	currentUserEmail := ""
 	if s.sessionManager != nil {
 		currentUserEmail = strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionUserEmailKey))
-		if currentUserEmail == "" {
-			_, currentUserEmail = s.pendingWorkspaceSelectionState(r)
-		}
 	}
 	preview, err := s.workspaceAccessService.PreviewWorkspaceInvitation(token, currentUserEmail)
 	if err != nil {
@@ -524,9 +411,6 @@ func (s *Server) handleUIInvitationAccept(w http.ResponseWriter, r *http.Request
 		return
 	}
 	userID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSubjectIDKey))
-	if userID == "" {
-		userID, _ = s.pendingWorkspaceSelectionState(r)
-	}
 	if userID == "" {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -578,7 +462,6 @@ func (s *Server) handleUIInvitationAccept(w http.ResponseWriter, r *http.Request
 		sessionPrincipal.Role = Role(authResult.Role)
 		sessionPrincipal.TenantID = normalizeTenantID(authResult.TenantID)
 	}
-	s.clearUIPendingWorkspaceSelection(r.Context())
 	s.putUISessionPrincipal(r.Context(), sessionPrincipal, csrfToken)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"invitation": newWorkspaceInvitationResponse(invite),
@@ -656,7 +539,6 @@ func (s *Server) handleUIInvitationRegister(w http.ResponseWriter, r *http.Reque
 		sessionPrincipal.Role = Role(authResult.Role)
 		sessionPrincipal.TenantID = normalizeTenantID(authResult.TenantID)
 	}
-	s.clearUIPendingWorkspaceSelection(r.Context())
 	s.putUISessionPrincipal(r.Context(), sessionPrincipal, csrfToken)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"invitation": newWorkspaceInvitationResponse(invite),
@@ -766,19 +648,11 @@ func (s *Server) handleUISSOCallback(w http.ResponseWriter, r *http.Request, pro
 	principal, err := s.browserSSOService.AuthenticateCallback(r.Context(), providerKey, code, codeVerifier, nonce, tenantID, s.uiSSOCallbackURL(r, providerKey), invitationTokenFromNextPath(nextPath))
 	s.clearSSOSessionState(r.Context())
 	if err != nil {
-		var selectionErr service.BrowserTenantSelectionError
 		var accessDeniedErr service.BrowserTenantAccessDeniedError
-		if errors.As(err, &selectionErr) {
-			if _, pendingErr := s.beginUIPendingWorkspaceSelection(r, selectionErr.User, nextPath); pendingErr == nil {
-				http.Redirect(w, r, s.uiWorkspaceSelectURL(nextPath), http.StatusFound)
-				return
-			}
-		}
 		if errors.As(err, &accessDeniedErr) && strings.HasPrefix(nextPath, "/invite/") {
-			if _, pendingErr := s.beginUIPendingWorkspaceSelection(r, accessDeniedErr.User, nextPath); pendingErr == nil {
-				http.Redirect(w, r, s.uiNextURL(nextPath), http.StatusFound)
-				return
-			}
+			// Invitation screen handles its own auth — redirect directly.
+			http.Redirect(w, r, s.uiNextURL(nextPath), http.StatusFound)
+			return
 		}
 		s.redirectUISSOFailure(w, r, strings.TrimSpace(providerKey), s.uiSSOErrorCode(err))
 		return
@@ -856,25 +730,7 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	authResult, err := s.browserUserAuthService.ResolveUserPrincipal(user, req.TenantID)
 	if err != nil {
-		var selectionErr service.BrowserTenantSelectionError
-		var accessDeniedErr service.BrowserTenantAccessDeniedError
 		switch {
-		case errors.As(err, &selectionErr):
-			resp, selectionSetupErr := s.beginUIPendingWorkspaceSelection(r, selectionErr.User, req.Next)
-			if selectionSetupErr != nil {
-				writeError(w, http.StatusInternalServerError, "failed to initialize workspace selection")
-				return
-			}
-			writeJSON(w, http.StatusConflict, resp)
-		case errors.As(err, &accessDeniedErr) && strings.HasPrefix(req.Next, "/invite/"):
-			if _, pendingErr := s.beginUIPendingWorkspaceSelection(r, accessDeniedErr.User, req.Next); pendingErr != nil {
-				writeError(w, http.StatusInternalServerError, "failed to initialize invitation session")
-				return
-			}
-			writeJSON(w, http.StatusAccepted, pendingInvitationLoginResponse{
-				PendingInvitation: true,
-				NextPath:          req.Next,
-			})
 		case errors.Is(err, service.ErrBrowserTenantAccessDenied):
 			writeError(w, http.StatusForbidden, "tenant access denied")
 		default:
@@ -997,27 +853,6 @@ func (s *Server) clearSSOSessionState(ctx context.Context) {
 	s.sessionManager.Remove(ctx, sessionSSOTenantIDKey)
 }
 
-func (s *Server) putUIPendingWorkspaceSelection(ctx context.Context, user domain.User, nextPath, csrfToken string) {
-	s.sessionManager.Put(ctx, sessionPendingUserIDKey, strings.TrimSpace(user.ID))
-	s.sessionManager.Put(ctx, sessionPendingUserEmailKey, strings.ToLower(strings.TrimSpace(user.Email)))
-	s.sessionManager.Put(ctx, sessionPendingNextKey, normalizeUINextPath(nextPath))
-	s.sessionManager.Put(ctx, sessionCSRFKey, csrfToken)
-	s.sessionManager.Remove(ctx, sessionSubjectTypeKey)
-	s.sessionManager.Remove(ctx, sessionSubjectIDKey)
-	s.sessionManager.Remove(ctx, sessionUserEmailKey)
-	s.sessionManager.Remove(ctx, sessionScopeKey)
-	s.sessionManager.Remove(ctx, sessionRoleKey)
-	s.sessionManager.Remove(ctx, sessionPlatformRoleKey)
-	s.sessionManager.Remove(ctx, sessionTenantIDKey)
-	s.sessionManager.Remove(ctx, sessionAPIKeyIDKey)
-}
-
-func (s *Server) clearUIPendingWorkspaceSelection(ctx context.Context) {
-	s.sessionManager.Remove(ctx, sessionPendingUserIDKey)
-	s.sessionManager.Remove(ctx, sessionPendingUserEmailKey)
-	s.sessionManager.Remove(ctx, sessionPendingNextKey)
-}
-
 func (s *Server) uiSSOCallbackURL(r *http.Request, providerKey string) string {
 	baseURL := externalBaseURL(r)
 	return strings.TrimRight(baseURL, "/") + "/v1/ui/auth/sso/" + url.PathEscape(strings.ToLower(strings.TrimSpace(providerKey))) + "/callback"
@@ -1025,20 +860,6 @@ func (s *Server) uiSSOCallbackURL(r *http.Request, providerKey string) string {
 
 func (s *Server) uiNextURL(nextPath string) string {
 	return strings.TrimRight(s.uiPublicBaseURL, "/") + normalizeUINextPath(nextPath)
-}
-
-func (s *Server) uiWorkspaceSelectURL(nextPath string) string {
-	target, err := url.Parse(strings.TrimRight(s.uiPublicBaseURL, "/") + "/workspace-select")
-	if err != nil {
-		return s.uiNextURL("/workspace-select")
-	}
-	nextPath = normalizeUINextPath(nextPath)
-	if nextPath != "" && nextPath != "/" {
-		query := target.Query()
-		query.Set("next", nextPath)
-		target.RawQuery = query.Encode()
-	}
-	return target.String()
 }
 
 func (s *Server) workspaceInvitationAcceptURL(token string) (string, string) {
@@ -1073,8 +894,6 @@ func (s *Server) uiSSOErrorCode(err error) string {
 		return "workspace_invitation_email_mismatch"
 	case errors.Is(err, service.ErrBrowserSSOUserNotProvisioned):
 		return "sso_user_not_provisioned"
-	case errors.Is(err, service.ErrBrowserTenantSelection):
-		return "tenant_selection_required"
 	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
 		return "tenant_access_denied"
 	case errors.Is(err, service.ErrBrowserUserDisabled):
@@ -1082,47 +901,6 @@ func (s *Server) uiSSOErrorCode(err error) string {
 	default:
 		return "sso_failed"
 	}
-}
-
-func (s *Server) pendingWorkspaceSelectionState(r *http.Request) (string, string) {
-	if s == nil || s.sessionManager == nil {
-		return "", ""
-	}
-	return strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionPendingUserIDKey)),
-		strings.ToLower(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionPendingUserEmailKey)))
-}
-
-func (s *Server) buildWorkspaceSelectionResponse(r *http.Request, userID, userEmail string) (workspaceSelectionResponse, error) {
-	userID = strings.TrimSpace(userID)
-	userEmail = strings.ToLower(strings.TrimSpace(userEmail))
-	if userID == "" {
-		return workspaceSelectionResponse{}, errUnauthorized
-	}
-	items, err := s.browserUserAuthService.ListWorkspaceOptions(userID)
-	if err != nil {
-		return workspaceSelectionResponse{}, err
-	}
-	return workspaceSelectionResponse{
-		Required:  len(items) > 1,
-		UserEmail: userEmail,
-		Items:     newBrowserWorkspaceOptionResponses(items),
-		CSRFToken: strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey)),
-	}, nil
-}
-
-func (s *Server) beginUIPendingWorkspaceSelection(r *http.Request, user domain.User, nextPath string) (workspaceSelectionResponse, error) {
-	if s == nil || s.sessionManager == nil || s.browserUserAuthService == nil {
-		return workspaceSelectionResponse{}, fmt.Errorf("ui workspace selection is not configured")
-	}
-	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
-		return workspaceSelectionResponse{}, err
-	}
-	csrfToken, err := randomHexToken(32)
-	if err != nil {
-		return workspaceSelectionResponse{}, err
-	}
-	s.putUIPendingWorkspaceSelection(r.Context(), user, nextPath, csrfToken)
-	return s.buildWorkspaceSelectionResponse(r, user.ID, user.Email)
 }
 
 func (s *Server) canSendWorkspaceInvitationEmail() bool {

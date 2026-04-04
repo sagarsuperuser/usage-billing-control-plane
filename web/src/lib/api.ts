@@ -56,7 +56,6 @@ import {
   WorkspaceInvitation,
   WorkspaceBillingSettings,
   WorkspaceMember,
-  WorkspaceSelectionState,
   ServiceAccount,
   ServiceAccountCredentialIssueResult,
 } from "@/lib/types";
@@ -166,26 +165,6 @@ async function apiRequest<T>(
   return payload as T;
 }
 
-export class WorkspaceSelectionRequiredError extends Error {
-  readonly selection: WorkspaceSelectionState;
-
-  constructor(selection: WorkspaceSelectionState) {
-    super("workspace selection required");
-    this.name = "WorkspaceSelectionRequiredError";
-    this.selection = selection;
-  }
-}
-
-export function isWorkspaceSelectionRequiredError(value: unknown): value is WorkspaceSelectionRequiredError {
-  return value instanceof WorkspaceSelectionRequiredError || (
-    value instanceof Error &&
-    value.name === "WorkspaceSelectionRequiredError"
-  ) || (
-    typeof value === "object" &&
-    value !== null &&
-    "selection" in value
-  );
-}
 
 export class InvitationPendingLoginError extends Error {
   readonly nextPath: string;
@@ -233,9 +212,6 @@ export async function loginUISession(input: {
   });
   const isJSON = response.headers.get("content-type")?.includes("application/json");
   const payload = isJSON ? ((await response.json()) as Record<string, unknown>) : null;
-  if (response.status === 409 && payload) {
-    throw new WorkspaceSelectionRequiredError(payload as unknown as WorkspaceSelectionState);
-  }
   if (response.status === 202 && payload && payload.pending_invitation === true) {
     throw new InvitationPendingLoginError(typeof payload.next_path === "string" ? payload.next_path : input.nextPath || "/");
   }
@@ -1309,37 +1285,6 @@ export async function createTenantWorkspaceServiceAccountAuditExport(input: {
   return payload;
 }
 
-export async function fetchPendingWorkspaceSelection(input: {
-  runtimeBaseURL?: string;
-}): Promise<WorkspaceSelectionState> {
-  const payload = await apiRequest<WorkspaceSelectionState>("/v1/ui/workspaces/pending", {
-    runtimeBaseURL: input.runtimeBaseURL,
-    method: "GET",
-  });
-  if (!payload) {
-    throw new Error("workspace selection not pending");
-  }
-  return payload;
-}
-
-export async function selectPendingWorkspace(input: {
-  runtimeBaseURL?: string;
-  csrfToken: string;
-  tenantID: string;
-}): Promise<UISession> {
-  const payload = await apiRequest<UISession>("/v1/ui/workspaces/select", {
-    runtimeBaseURL: input.runtimeBaseURL,
-    method: "POST",
-    csrfToken: input.csrfToken,
-    body: {
-      tenant_id: input.tenantID,
-    },
-  });
-  if (!payload) {
-    throw new Error("workspace selection failed");
-  }
-  return payload;
-}
 
 export async function fetchSessionWorkspaces(input: {
   runtimeBaseURL?: string;

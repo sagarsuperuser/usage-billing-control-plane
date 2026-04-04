@@ -101,9 +101,6 @@ const (
 	sessionSSOPKCEKey          = "ui_sso_pkce_verifier"
 	sessionSSONextKey          = "ui_sso_next"
 	sessionSSOTenantIDKey      = "ui_sso_tenant_id"
-	sessionPendingUserIDKey    = "ui_pending_workspace_user_id"
-	sessionPendingUserEmailKey = "ui_pending_workspace_user_email"
-	sessionPendingNextKey      = "ui_pending_workspace_next"
 	csrfHeaderName             = "X-CSRF-Token"
 	requestIDHeaderKey         = "X-Request-ID"
 )
@@ -1564,8 +1561,6 @@ func (s *Server) registerRoutes() {
 	r.Get("/v1/ui/auth/providers", s.handleUIAuthProviders)
 	r.Post("/v1/ui/password/forgot", s.handleUIPasswordForgot)
 	r.Post("/v1/ui/password/reset", s.handleUIPasswordReset)
-	r.HandleFunc("/v1/ui/workspaces/pending", s.handleUIWorkspaceSelectionPending)
-	r.HandleFunc("/v1/ui/workspaces/select", s.handleUIWorkspaceSelectionSelect)
 	r.HandleFunc("/v1/ui/invitations/*", s.handleUIInvitations)
 	r.HandleFunc("/v1/ui/auth/sso/*", s.handleUISSO)
 	r.Post("/v1/ui/sessions/rate-limit-probe", s.handleUIPreAuthRateLimitProbe)

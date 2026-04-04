@@ -262,7 +262,7 @@ billingCycleScheduler:
 web:
   enabled: true
   replicas: 2
-  apiBaseURL: "" # optional explicit NEXT_PUBLIC_API_BASE_URL override
+  apiBaseURL: "" # optional explicit API_BASE_URL override
   image:
     repository: "" # required in env values
     tag: "latest"

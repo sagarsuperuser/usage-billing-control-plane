@@ -18,7 +18,7 @@ Open:
 Optional local API base override during development:
 
 ```bash
-export NEXT_PUBLIC_API_BASE_URL='http://localhost:8080'
+export API_BASE_URL='http://localhost:8080'
 ```
 
 ## Auth Model

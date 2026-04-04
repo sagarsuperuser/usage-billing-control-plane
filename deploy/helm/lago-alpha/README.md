@@ -11,7 +11,7 @@ Deploys independently scalable workloads:
 - `dunning-scheduler` (Temporal cron scheduler for dunning workflows)
 - `replay-worker` (Temporal workflow activity worker)
 - `replay-dispatcher` (queued replay job scheduler)
-- `web` (Next.js UI)
+- `web` (Vite + TanStack Router UI)
 
 ## Render and lint
 

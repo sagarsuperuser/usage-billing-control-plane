@@ -265,8 +265,6 @@ func classifyDomainErrorStatus(err error) int {
 		return http.StatusForbidden
 	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
 		return http.StatusForbidden
-	case errors.Is(err, service.ErrBrowserTenantSelection):
-		return http.StatusConflict
 	case errors.Is(err, service.ErrInvalidBrowserCredentials):
 		return http.StatusUnauthorized
 	case errors.Is(err, service.ErrBrowserUserDisabled):
@@ -312,8 +310,6 @@ func classifyDomainErrorCode(err error) string {
 		return "self_membership_mutation_forbidden"
 	case errors.Is(err, service.ErrBrowserTenantAccessDenied):
 		return "tenant_access_denied"
-	case errors.Is(err, service.ErrBrowserTenantSelection):
-		return "workspace_selection_required"
 	default:
 		return defaultErrorCodeForStatus(classifyDomainErrorStatus(err))
 	}

@@ -12,7 +12,6 @@ import (
 
 var (
 	ErrInvalidBrowserCredentials  = errors.New("invalid credentials")
-	ErrBrowserTenantSelection     = errors.New("tenant selection required")
 	ErrBrowserTenantAccessDenied  = errors.New("tenant access denied")
 	ErrBrowserUserDisabled        = errors.New("user disabled")
 	ErrBrowserPasswordUnavailable = errors.New("password credential unavailable")
@@ -44,18 +43,6 @@ type BrowserWorkspaceOption struct {
 	TenantID string
 	Name     string
 	Role     string
-}
-
-type BrowserTenantSelectionError struct {
-	User domain.User
-}
-
-func (e BrowserTenantSelectionError) Error() string {
-	return ErrBrowserTenantSelection.Error()
-}
-
-func (e BrowserTenantSelectionError) Unwrap() error {
-	return ErrBrowserTenantSelection
 }
 
 type BrowserTenantAccessDeniedError struct {

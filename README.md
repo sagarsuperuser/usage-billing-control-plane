@@ -5,7 +5,7 @@ Multi-tenant usage-based billing platform with direct Stripe integration. Owns t
 ## Architecture
 
 - **Go API** (chi/v5) — 75+ routes, middleware groups, RLS per tenant
-- **Next.js UI** — operator dashboard with sidebar navigation
+- **Vite + TanStack Router UI** — operator dashboard with sidebar navigation
 - **Temporal** — billing cycle, replay, dunning, payment reconciliation
 - **Stripe** — payment execution only (PaymentIntents, no Stripe Billing fees)
 - **PostgreSQL** — system of record with row-level security
@@ -56,7 +56,7 @@ internal/
   replay/          — Usage replay Temporal workflow
   paymentsync/     — Payment reconciliation Temporal workflow
   appconfig/       — Environment-based configuration
-web/               — Next.js operator UI
+web/               — Vite + TanStack Router operator UI
 deploy/
   helm/            — Helm chart + environment values
   terraform/       — AWS infrastructure (EKS, RDS, S3)

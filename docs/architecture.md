@@ -30,7 +30,7 @@ Stripe handles payment processing (2.9% + 30c). Alpha owns everything else.
 | `alpha-dunning-worker` | Temporal worker | Payment retry + collection reminder campaigns |
 | `alpha-dunning-scheduler` | Temporal cron | Schedules dunning batch runs (@every 2m) |
 | `alpha-billing-check` | Temporal cron | Periodic Stripe connection health verification |
-| `alpha-web` | Next.js | Operator UI |
+| `alpha-web` | Vite + TanStack Router | Operator UI |
 
 ## Dependencies
 

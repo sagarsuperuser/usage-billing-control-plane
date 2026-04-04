@@ -276,12 +276,6 @@ export interface WorkspaceSelectionOption {
   role: "reader" | "writer" | "admin";
 }
 
-export interface WorkspaceSelectionState {
-  required: boolean;
-  user_email?: string;
-  items: WorkspaceSelectionOption[];
-  csrf_token?: string;
-}
 
 export interface UIAuthProvider {
   key: string;
