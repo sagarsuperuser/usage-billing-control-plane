@@ -15,6 +15,7 @@ import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { DateTimeInput } from "@/components/ui/date-picker";
 import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryReplayJob } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import { showError } from "@/lib/toast";
@@ -317,23 +318,11 @@ export function ReplayOperationsScreen() {
               <div className="grid grid-cols-2 gap-3">
                 <label className="grid gap-1.5">
                   <span className="text-xs font-medium text-slate-600">From</span>
-                  <input
-                    type="datetime-local"
-                    value={createFrom}
-                    onChange={(e) => setCreateFrom(e.target.value)}
-                    data-testid="replay-create-from"
-                    className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2"
-                  />
+                  <DateTimeInput value={createFrom} onChange={setCreateFrom} aria-label="Replay from time" className="h-9 text-sm" />
                 </label>
                 <label className="grid gap-1.5">
                   <span className="text-xs font-medium text-slate-600">To</span>
-                  <input
-                    type="datetime-local"
-                    value={createTo}
-                    onChange={(e) => setCreateTo(e.target.value)}
-                    data-testid="replay-create-to"
-                    className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2"
-                  />
+                  <DateTimeInput value={createTo} onChange={setCreateTo} aria-label="Replay to time" className="h-9 text-sm" />
                 </label>
               </div>
               <label className="grid gap-1.5">

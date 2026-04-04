@@ -146,3 +146,25 @@ export function DatePicker({
     </div>
   );
 }
+
+export function DateTimeInput({
+  value,
+  onChange,
+  "aria-label": ariaLabel,
+  className = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  "aria-label"?: string;
+  className?: string;
+}) {
+  return (
+    <input
+      type="datetime-local"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={ariaLabel}
+      className={`h-7 rounded border border-stone-200 bg-white px-2 text-xs text-slate-700 outline-none ring-slate-400 transition focus:ring-1 ${className}`}
+    />
+  );
+}

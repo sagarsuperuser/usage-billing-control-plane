@@ -30,6 +30,7 @@ import {
   updateTenantWorkspaceServiceAccountStatus,
 } from "@/lib/api";
 import { formatRelativeTimestamp } from "@/lib/format";
+import { showSuccess } from "@/lib/toast";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -98,6 +99,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       if (payload.secret) {
         setLatestCredentialSecret({ label: payload.service_account.name, secret: payload.secret });
       }
+      showSuccess("Service account created", "An initial API key has been issued.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
   });
@@ -110,6 +112,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       }),
     onSuccess: async (payload) => {
       setLatestCredentialSecret({ label: payload.credential.name, secret: payload.secret });
+      showSuccess("Key issued", "Copy it now — it won't be shown again.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
   });
@@ -123,6 +126,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       }),
     onSuccess: async (payload) => {
       setLatestCredentialSecret({ label: payload.credential.name, secret: payload.secret });
+      showSuccess("Key rotated", "The old key has been revoked. Copy the new one now.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
   });
@@ -135,6 +139,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
         credentialID: input.credentialID,
       }),
     onSuccess: async () => {
+      showSuccess("Key revoked", "This key will no longer authenticate.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
   });
@@ -146,7 +151,8 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
         serviceAccountID: input.serviceAccountID,
         status: input.status,
       }),
-    onSuccess: async () => {
+    onSuccess: async (_payload, input) => {
+      showSuccess(input.status === "active" ? "Service account enabled" : "Service account disabled");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
   });
@@ -342,15 +348,25 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                 {issueCredentialMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <KeyRound className="h-3 w-3" />}
                 Issue key
               </button>
-              <button
-                type="button"
-                onClick={() => updateServiceAccountStatusMutation.mutate({ serviceAccountID: selectedServiceAccount.id, status: selectedServiceAccount.status === "active" ? "disabled" : "active" })}
-                disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
-                className="inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 px-2.5 text-xs font-medium text-slate-600 transition hover:bg-stone-100 disabled:opacity-50"
+              <ConfirmDialog
+                title={selectedServiceAccount.status === "active" ? "Disable this service account?" : "Enable this service account?"}
+                description={selectedServiceAccount.status === "active" ? "All API keys under this account will stop authenticating immediately." : "This account and its active keys will resume authenticating."}
+                confirmLabel={selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
+                tone={selectedServiceAccount.status === "active" ? "danger" : undefined}
+                onConfirm={async () => { await updateServiceAccountStatusMutation.mutateAsync({ serviceAccountID: selectedServiceAccount.id, status: selectedServiceAccount.status === "active" ? "disabled" : "active" }); }}
               >
-                <ShieldOff className="h-3 w-3" />
-                {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
-              </button>
+                {(open) => (
+                  <button
+                    type="button"
+                    onClick={open}
+                    disabled={!csrfToken || updateServiceAccountStatusMutation.isPending}
+                    className="inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 px-2.5 text-xs font-medium text-slate-600 transition hover:bg-stone-100 disabled:opacity-50"
+                  >
+                    <ShieldOff className="h-3 w-3" />
+                    {selectedServiceAccount.status === "active" ? "Disable" : "Enable"}
+                  </button>
+                )}
+              </ConfirmDialog>
             </div>
 
             {/* Secret banner */}
@@ -361,7 +377,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                     <p className="text-xs font-semibold text-amber-800">Copy this key now &mdash; it won&apos;t be shown again</p>
                     <div className="mt-1.5 flex items-center gap-2">
                       <code className="block min-w-0 flex-1 truncate rounded border border-amber-100 bg-white px-2 py-1 font-mono text-xs text-slate-800">{latestCredentialSecret.secret}</code>
-                      <button type="button" onClick={() => { void navigator.clipboard.writeText(latestCredentialSecret.secret); }} className="inline-flex h-7 shrink-0 items-center gap-1 rounded border border-amber-200 bg-white px-2 text-xs text-amber-800 hover:bg-amber-100">
+                      <button type="button" onClick={() => { void navigator.clipboard.writeText(latestCredentialSecret.secret); showSuccess("Copied to clipboard"); }} className="inline-flex h-7 shrink-0 items-center gap-1 rounded border border-amber-200 bg-white px-2 text-xs text-amber-800 hover:bg-amber-100">
                         <Copy className="h-3 w-3" />
                         Copy
                       </button>

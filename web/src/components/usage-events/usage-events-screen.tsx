@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { DateTimeInput } from "@/components/ui/date-picker";
 import { fetchUsageEvents } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import type { UsageEvent } from "@/lib/types";
@@ -123,18 +124,8 @@ export function UsageEventsScreen() {
                   placeholder="Meter ID..."
                   className="h-8 w-36 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
-                <input
-                  type="datetime-local"
-                  value={filters.from}
-                  onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                />
-                <input
-                  type="datetime-local"
-                  value={filters.to}
-                  onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                />
+                <DateTimeInput value={filters.from} onChange={(v) => setFilters((c) => ({ ...c, from: v }))} aria-label="From time" />
+                <DateTimeInput value={filters.to} onChange={(v) => setFilters((c) => ({ ...c, to: v }))} aria-label="To time" />
                 <select
                   value={filters.order}
                   onChange={(event) => setFilters((current) => ({ ...current, order: event.target.value as "asc" | "desc" }))}

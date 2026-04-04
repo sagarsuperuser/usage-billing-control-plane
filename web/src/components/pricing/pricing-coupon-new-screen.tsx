@@ -138,7 +138,7 @@ export function PricingCouponNewScreen() {
                   )}
                   <label className="grid gap-2 text-sm text-slate-700">
                     <span className="text-xs font-medium text-slate-500">Expires at</span>
-                    <input data-testid="pricing-coupon-expiration-at" type="datetime-local" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" {...register("expiration_at")} />
+                    <input data-testid="pricing-coupon-expiration-at" type="datetime-local" className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-700 outline-none ring-slate-400 transition focus:ring-1" {...register("expiration_at")} />
                   </label>
                   <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
                     Leave expiration empty for ongoing coupons. Use once or recurring when the discount should stop after a defined number of billing periods.
