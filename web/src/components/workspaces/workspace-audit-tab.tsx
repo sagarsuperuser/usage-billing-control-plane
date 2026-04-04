@@ -232,32 +232,69 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
 /* ------------------------------------------------------------------ */
 
 function AuditEventDetail({ event }: { event: APIKeyAuditEvent }) {
+  const [showRaw, setShowRaw] = useState(false);
   const metadata = event.metadata ?? {};
   const presentation = describeAuditEvent(event);
   const role = readMeta(metadata, "role");
   const environment = readMeta(metadata, "environment");
+  const purpose = readMeta(metadata, "purpose");
   const keyID = readMeta(metadata, "api_key_id") || event.api_key_id || "";
   const newKeyID = readMeta(metadata, "new_api_key_id");
-
-  const fields: Array<{ label: string; value: string }> = [
-    { label: "Event", value: presentation.title },
-    { label: "Summary", value: presentation.summary },
-    { label: "Timestamp", value: formatExactTimestamp(event.created_at) },
-    { label: "Actor", value: event.actor_api_key_id ? "API key" : "Console" },
-  ];
-  if (role) fields.push({ label: "Role", value: formatRole(role) });
-  if (environment) fields.push({ label: "Environment", value: environment });
-  if (keyID) fields.push({ label: "Key ID", value: keyID });
-  if (newKeyID) fields.push({ label: "New key ID", value: newKeyID });
+  const ownerID = readMeta(metadata, "owner_id");
+  const actorKeyID = event.actor_api_key_id || "";
 
   return (
-    <div className="divide-y divide-stone-100">
-      {fields.map((field) => (
-        <div key={field.label} className="flex items-start justify-between gap-4 px-5 py-3">
-          <span className="shrink-0 text-xs font-medium text-slate-400">{field.label}</span>
-          <span className="text-right text-xs text-slate-900">{field.value}</span>
+    <div>
+      {/* Header summary */}
+      <div className="border-b border-stone-100 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <StatusChip tone={event.action === "revoked" ? "danger" : event.action === "rotated" ? "warning" : "success"}>
+            {formatAuditActionLabel(event.action)}
+          </StatusChip>
+          <span className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</span>
         </div>
-      ))}
+        <p className="mt-2 text-sm text-slate-900">{presentation.title}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{presentation.summary}</p>
+      </div>
+
+      {/* Structured fields */}
+      <div className="divide-y divide-stone-100">
+        <DetailRow label="Performed by" value={actorKeyID ? `API key ${actorKeyID.slice(0, 12)}...` : "Workspace admin (console)"} />
+        {keyID ? <DetailRow label="Affected key" value={keyID} mono /> : null}
+        {newKeyID ? <DetailRow label="Replacement key" value={newKeyID} mono /> : null}
+        {ownerID ? <DetailRow label="Service account" value={ownerID} mono /> : null}
+        {role ? <DetailRow label="Permission level" value={formatRole(role)} /> : null}
+        {environment ? <DetailRow label="Environment" value={environment} /> : null}
+        {purpose ? <DetailRow label="Purpose" value={purpose} /> : null}
+        <DetailRow label="Event ID" value={event.id} mono />
+      </div>
+
+      {/* Raw metadata (expandable — Stripe pattern) */}
+      {Object.keys(metadata).length > 0 && (
+        <div className="border-t border-stone-200">
+          <button
+            type="button"
+            onClick={() => setShowRaw(!showRaw)}
+            className="w-full px-5 py-2.5 text-left text-[11px] font-medium text-slate-400 transition hover:text-slate-600"
+          >
+            {showRaw ? "Hide raw metadata" : "View raw metadata"}
+          </button>
+          {showRaw && (
+            <pre className="mx-5 mb-4 max-h-60 overflow-auto rounded border border-stone-100 bg-stone-50 p-3 font-mono text-[11px] text-slate-700">
+              {JSON.stringify(metadata, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4 px-5 py-2.5">
+      <span className="shrink-0 text-xs text-slate-400">{label}</span>
+      <span className={`text-right text-xs text-slate-900 ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>
     </div>
   );
 }
