@@ -1,7 +1,6 @@
 package service_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -96,7 +95,7 @@ func TestBrowserUserAuthServiceAuthenticatesPlatformUser(t *testing.T) {
 	}
 }
 
-func TestBrowserUserAuthServiceRequiresTenantSelectionForMultiTenantUser(t *testing.T) {
+func TestBrowserUserAuthServiceAutoSelectsFirstWorkspaceForMultiTenantUser(t *testing.T) {
 	hash, err := service.HashPassword("correct horse battery")
 	if err != nil {
 		t.Fatalf("hash password: %v", err)
@@ -118,20 +117,26 @@ func TestBrowserUserAuthServiceRequiresTenantSelectionForMultiTenantUser(t *test
 			UpdatedAt:         time.Now().UTC(),
 		},
 		memberships: []domain.UserTenantMembership{
-			{UserID: "usr_tenant", TenantID: "tenant_a", Role: "writer", Status: domain.UserTenantMembershipStatusActive},
 			{UserID: "usr_tenant", TenantID: "tenant_b", Role: "admin", Status: domain.UserTenantMembershipStatusActive},
+			{UserID: "usr_tenant", TenantID: "tenant_a", Role: "writer", Status: domain.UserTenantMembershipStatusActive},
 		},
 	})
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
 
-	_, err = svc.Authenticate(service.BrowserUserLoginRequest{
+	principal, err := svc.Authenticate(service.BrowserUserLoginRequest{
 		Email:    "tenant@example.com",
 		Password: "correct horse battery",
 	})
-	if !errors.Is(err, service.ErrBrowserTenantSelection) {
-		t.Fatalf("expected tenant selection error, got %v", err)
+	if err != nil {
+		t.Fatalf("expected auto-select, got error: %v", err)
+	}
+	if principal.TenantID != "tenant_a" {
+		t.Fatalf("expected auto-select tenant_a (alphabetically first), got %s", principal.TenantID)
+	}
+	if principal.Role != "writer" {
+		t.Fatalf("expected writer role for tenant_a, got %s", principal.Role)
 	}
 }
 
