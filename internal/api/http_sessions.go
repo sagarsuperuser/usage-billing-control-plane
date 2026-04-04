@@ -1125,6 +1125,200 @@ func (s *Server) sendPasswordResetEmail(issued service.PasswordResetIssueResult)
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Self-registration + workspace creation (self-serve tenant flow)
+// ---------------------------------------------------------------------------
+
+func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.browserUserAuthService == nil || s.repo == nil {
+		writeError(w, http.StatusServiceUnavailable, "registration is not configured")
+		return
+	}
+
+	var req struct {
+		Email       string `json:"email"`
+		Password    string `json:"password"`
+		DisplayName string `json:"display_name"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	password := strings.TrimSpace(req.Password)
+	displayName := strings.TrimSpace(req.DisplayName)
+	if email == "" || !strings.Contains(email, "@") {
+		writeError(w, http.StatusBadRequest, "valid email is required")
+		return
+	}
+	if len(password) < 12 {
+		writeError(w, http.StatusBadRequest, "password must be at least 12 characters")
+		return
+	}
+	if displayName == "" {
+		displayName = strings.Split(email, "@")[0]
+	}
+
+	// Create user.
+	user, err := s.repo.CreateUser(domain.User{
+		Email:       email,
+		DisplayName: displayName,
+		Status:      domain.UserStatusActive,
+	})
+	if err != nil {
+		if errors.Is(err, store.ErrAlreadyExists) {
+			writeError(w, http.StatusConflict, "an account with this email already exists")
+			return
+		}
+		writeDomainError(w, err)
+		return
+	}
+
+	// Set password.
+	passwordHash, hashErr := service.HashPassword(password)
+	if hashErr != nil {
+		writeDomainError(w, hashErr)
+		return
+	}
+	_, err = s.repo.UpsertUserPasswordCredential(domain.UserPasswordCredential{
+		UserID:       user.ID,
+		PasswordHash: passwordHash,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// Auto-create workspace.
+	workspaceName := displayName + "'s workspace"
+	tenant, err := s.tenantService.CreateTenant(service.EnsureTenantRequest{
+		Name: workspaceName,
+	}, "")
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// Auto-create admin membership.
+	_, err = s.repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+		UserID:   user.ID,
+		TenantID: tenant.ID,
+		Role:     "admin",
+		Status:   "active",
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// Create session with tenant scope.
+	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create session")
+		return
+	}
+	csrfToken, err := randomHexToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate csrf token")
+		return
+	}
+	s.putUISessionPrincipal(r.Context(), Principal{
+		SubjectType:  "user",
+		SubjectID:    user.ID,
+		UserEmail:    user.Email,
+		Scope:        ScopeTenant,
+		TenantID:     tenant.ID,
+		Role:         RoleAdmin,
+	}, csrfToken)
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"registered":   true,
+		"user_id":      user.ID,
+		"email":        user.Email,
+		"workspace_id": tenant.ID,
+		"csrf_token":   csrfToken,
+		"next_path":    "/control-plane",
+	})
+}
+
+func (s *Server) handleUISelfServeCreateWorkspace(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.SubjectID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "workspace name is required")
+		return
+	}
+
+	// Create workspace.
+	tenant, err := s.tenantService.CreateTenant(service.EnsureTenantRequest{
+		Name: name,
+	}, "")
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// Create admin membership for the current user.
+	_, err = s.repo.UpsertUserTenantMembership(domain.UserTenantMembership{
+		UserID:   principal.SubjectID,
+		TenantID: tenant.ID,
+		Role:     "admin",
+		Status:   "active",
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// Upgrade session to tenant scope.
+	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to upgrade session")
+		return
+	}
+	csrfToken, err := randomHexToken(32)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate csrf token")
+		return
+	}
+	s.putUISessionPrincipal(r.Context(), Principal{
+		SubjectType:  principal.SubjectType,
+		SubjectID:    principal.SubjectID,
+		UserEmail:    principal.UserEmail,
+		Scope:        ScopeTenant,
+		TenantID:     tenant.ID,
+		Role:         RoleAdmin,
+	}, csrfToken)
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"workspace_id":   tenant.ID,
+		"workspace_name": tenant.Name,
+		"csrf_token":     csrfToken,
+		"next_path":      "/control-plane",
+	})
+}
+
 func (s *Server) redirectUISSOFailure(w http.ResponseWriter, r *http.Request, providerKey, errorCode string) {
 	target, err := url.Parse(strings.TrimRight(s.uiPublicBaseURL, "/") + "/login")
 	if err != nil {

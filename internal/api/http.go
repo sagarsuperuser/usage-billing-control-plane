@@ -813,6 +813,13 @@ func (s *Server) requireAuth(minRole Role, scope authScope) func(http.Handler) h
 					writeError(w, http.StatusForbidden, "forbidden")
 					return
 				}
+			case authScopeAuthenticated:
+				// Any valid session — just need a user identity, no workspace required.
+				if principal.SubjectID == "" {
+					s.logAuthFailure(r, http.StatusUnauthorized, "identity_required", nil)
+					writeError(w, http.StatusUnauthorized, "unauthorized")
+					return
+				}
 			default: // authScopeTenant
 				if principal.Scope != ScopeTenant {
 					s.logAuthFailure(r, http.StatusForbidden, "tenant_scope_required", nil)
@@ -860,9 +867,10 @@ func (s *Server) requireAuth(minRole Role, scope authScope) func(http.Handler) h
 type authScope int
 
 const (
-	authScopeTenant     authScope = iota
-	authScopePlatform   authScope = iota
-	authScopeSessionSelf authScope = iota
+	authScopeTenant        authScope = iota
+	authScopePlatform      authScope = iota
+	authScopeSessionSelf   authScope = iota
+	authScopeAuthenticated authScope = iota // any valid session, no workspace required
 )
 
 // preAuthRateLimitMiddleware applies rate limiting to public (unauthenticated)
@@ -1552,6 +1560,7 @@ func (s *Server) registerRoutes() {
 	r.Get("/health", s.handleHealth)
 	r.HandleFunc("/internal/stripe/webhooks", s.handleStripeWebhooks)
 	r.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
+	r.Post("/v1/ui/register", s.handleUIRegister)
 	r.Get("/v1/ui/auth/providers", s.handleUIAuthProviders)
 	r.Post("/v1/ui/password/forgot", s.handleUIPasswordForgot)
 	r.Post("/v1/ui/password/reset", s.handleUIPasswordReset)
@@ -1566,6 +1575,12 @@ func (s *Server) registerRoutes() {
 		r.Use(s.requireAuth(RoleReader, authScopeSessionSelf))
 		r.HandleFunc("/v1/ui/sessions/me", s.handleUISessionMe)
 		r.HandleFunc("/v1/ui/sessions/logout", s.handleUISessionLogout)
+	})
+
+	// ── Authenticated routes (any valid session, no workspace required) ─
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth(RoleReader, authScopeAuthenticated))
+		r.Post("/v1/ui/workspaces", s.handleUISelfServeCreateWorkspace)
 	})
 
 	// ── Platform admin routes ───────────────────────────────────────────
