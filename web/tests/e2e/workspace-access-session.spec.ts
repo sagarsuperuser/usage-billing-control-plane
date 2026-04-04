@@ -281,5 +281,6 @@ test("workspace access shows summary-first service account and audit surfaces", 
   await page.getByLabel("Audit service account").selectOption("svc_erp");
   await expect(page.getByText("A key was rotated and replaced")).toBeVisible();
   await page.locator("tr", { hasText: "rotated and replaced" }).first().click({ force: true });
-  await expect(page.getByText("What happened")).toBeVisible();
+  await expect(page.getByText("Event detail")).toBeVisible();
+  await expect(page.getByText("Credential rotated")).toBeVisible();
 });
