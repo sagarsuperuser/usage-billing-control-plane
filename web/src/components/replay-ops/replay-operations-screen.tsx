@@ -15,7 +15,7 @@ import { useSearchParams } from "next/navigation";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
-import { DateTimeInput } from "@/components/ui/date-picker";
+import { DateTimePicker } from "@/components/ui/date-picker";
 import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryReplayJob } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import { showError } from "@/lib/toast";
@@ -318,11 +318,11 @@ export function ReplayOperationsScreen() {
               <div className="grid grid-cols-2 gap-3">
                 <label className="grid gap-1.5">
                   <span className="text-xs font-medium text-slate-600">From</span>
-                  <DateTimeInput value={createFrom} onChange={setCreateFrom} aria-label="Replay from time" className="h-9 text-sm" />
+                  <DateTimePicker value={createFrom} onChange={setCreateFrom} placeholder="Select start" aria-label="Replay from time" />
                 </label>
                 <label className="grid gap-1.5">
                   <span className="text-xs font-medium text-slate-600">To</span>
-                  <DateTimeInput value={createTo} onChange={setCreateTo} aria-label="Replay to time" className="h-9 text-sm" />
+                  <DateTimePicker value={createTo} onChange={setCreateTo} placeholder="Select end" aria-label="Replay to time" />
                 </label>
               </div>
               <label className="grid gap-1.5">
