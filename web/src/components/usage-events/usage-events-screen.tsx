@@ -114,6 +114,7 @@ export function UsageEventsScreen() {
                 <input
                   value={filters.customerID}
                   onChange={(event) => setFilters((current) => ({ ...current, customerID: event.target.value }))}
+                  aria-label="Customer ID"
                   placeholder="Customer ID..."
                   className="h-8 w-36 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
