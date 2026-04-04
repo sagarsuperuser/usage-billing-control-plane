@@ -11,6 +11,19 @@ import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchAddOn } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
+function statusBadgeClass(status?: string): string {
+  switch ((status || "").toLowerCase()) {
+    case "active":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "draft":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "archived":
+      return "border-slate-200 bg-slate-100 text-slate-500";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
 export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
@@ -25,75 +38,73 @@ export function PricingAddOnDetailScreen({ addOnID }: { addOnID: string }) {
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/add-ons", label: "Add-ons" }, { label: addOn?.name || addOnID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Add-ons are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
         {isTenantSession ? addOnQuery.isLoading ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading add-on detail</div></section>
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading add-on detail
+            </div>
+          </section>
         ) : !addOn ? (
-          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing add-on</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Add-on not available</h1>
-            <Link href="/pricing/add-ons" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"><ArrowLeft className="h-4 w-4" />Back to add-ons</Link>
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Add-on not available</p>
+            <p className="mt-1 text-sm text-slate-500">The requested add-on could not be loaded.</p>
+            <Link href="/pricing/add-ons" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to add-ons
+            </Link>
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace add-on</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{addOn.name}</h1>
-                  <p className="mt-3 break-all font-mono text-xs text-slate-500">{addOn.code}</p>
-                  <p className="mt-3 max-w-3xl text-sm text-slate-600">{addOn.description || "No description provided."}</p>
-                </div>
-                <Link href="/pricing/add-ons" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"><ArrowLeft className="h-4 w-4" />Back to add-ons</Link>
-              </div>
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="grid gap-5">
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <Stat label="Status" value={addOn.status} />
-                  <Stat label="Interval" value={addOn.billing_interval} />
-                  <Stat label="Recurring amount" value={`${(addOn.amount_cents / 100).toFixed(2)} ${addOn.currency}`} />
-                  <Stat label="Currency" value={addOn.currency} />
-                </section>
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial rule</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Recurring add-on terms</h2>
-                  <div className="mt-5 grid gap-3 md:grid-cols-2">
-                    <InfoCell label="Name" value={addOn.name} />
-                    <InfoCell label="Code" value={addOn.code} mono />
-                    <InfoCell label="Billing interval" value={addOn.billing_interval} />
-                    <InfoCell label="Commercial use" value="Reusable recurring extra" />
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-200">
+              {/* Header */}
+              <div className="px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-base font-semibold text-slate-900 truncate">{addOn.name}</h1>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(addOn.status)}`}>
+                      {addOn.status}
+                    </span>
                   </div>
-                </section>
+                  <Link href="/pricing/add-ons" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to add-ons
+                  </Link>
+                </div>
+                {addOn.description ? <p className="mt-1.5 text-xs text-slate-500">{addOn.description}</p> : null}
               </div>
 
-              <aside className="grid gap-5 self-start">
-                <GuidanceCard title="When to use add-ons" body="Use add-ons for fixed recurring extras you can clearly explain to customers on top of the base plan." />
-                <GuidanceCard title="Next action" body="Attach this record to plans that need the extra charge. Use plan detail to confirm where it is currently used." />
-              </aside>
+              {/* Details */}
+              <div className="px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Code</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700 font-mono">{addOn.code}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Amount</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{(addOn.amount_cents / 100).toFixed(2)} {addOn.currency}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Currency</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{addOn.currency}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Interval</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{addOn.billing_interval}</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
           </SectionErrorBoundary>
         ) : null}
       </main>
     </div>
   );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p><p className="mt-2 text-base font-semibold text-slate-950">{value}</p></div>;
-}
-
-function InfoCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p><p className={`mt-2 text-sm font-semibold text-slate-950 ${mono ? "break-all font-mono" : ""}`}>{value}</p></div>;
-}
-
-function GuidanceCard({ title, body }: { title: string; body: string }) {
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-950">{title}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p></section>;
 }

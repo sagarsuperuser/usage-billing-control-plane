@@ -402,7 +402,7 @@ export function TenantWorkspaceAccessScreen() {
         {isAuthenticated && scope === "tenant" && isAdmin ? (
           <>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-950">Team &amp; access</h1>
+              <h1 className="text-sm font-semibold text-slate-950">Team &amp; access</h1>
               <p className="mt-1 text-sm text-slate-500">Members, service accounts, and credential audit for this workspace.</p>
             </div>
 
@@ -452,7 +452,7 @@ export function TenantWorkspaceAccessScreen() {
                         {pagedMembers.items.length > 0 ? (
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                              <tr className="border-b border-stone-100 text-left text-xs font-medium text-slate-400">
                                 <th className="px-4 py-2.5 font-semibold">Member</th>
                                 <th className="px-4 py-2.5 font-semibold">Role</th>
                                 <th className="px-4 py-2.5 font-semibold">Status</th>
@@ -497,7 +497,7 @@ export function TenantWorkspaceAccessScreen() {
                         {pagedInvitations.items.length > 0 ? (
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                              <tr className="border-b border-stone-100 text-left text-xs font-medium text-slate-400">
                                 <th className="px-4 py-2.5 font-semibold">Email</th>
                                 <th className="px-4 py-2.5 font-semibold">Role</th>
                                 <th className="px-4 py-2.5 font-semibold">Expires</th>
@@ -744,7 +744,7 @@ export function TenantWorkspaceAccessScreen() {
                       {pagedServiceAccounts.items.length > 0 ? (
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                            <tr className="border-b border-stone-100 text-left text-xs font-medium text-slate-400">
                               <th className="px-6 py-2.5 font-semibold">Name</th>
                               {!selectedServiceAccount && <th className="px-4 py-2.5 font-semibold">Role</th>}
                               {!selectedServiceAccount && <th className="px-4 py-2.5 font-semibold">Env</th>}
@@ -1051,7 +1051,7 @@ function ServiceAccountAuditRow({
 function SummaryMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-stone-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+      <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
@@ -1121,7 +1121,7 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
       </div>
 
       <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Credential record</p>
+        <p className="text-xs font-medium text-slate-500">Credential record</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <DetailField label="Credential name" value={credentialName || "No display name recorded"} />
           <DetailField label="Access role" value={role ? formatServiceAccountRole(role as "reader" | "writer" | "admin") : "Not recorded"} />
@@ -1131,7 +1131,7 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
       </div>
 
       <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Internal references</p>
+        <p className="text-xs font-medium text-slate-500">Internal references</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <DetailField label="Event ID" value={event.id} mono />
           <DetailField label="Credential ID" value={event.api_key_id} mono />
@@ -1144,11 +1144,11 @@ function ServiceAccountAuditDetail({ event }: { event: APIKeyAuditEvent | null }
 
       {remainingEntries.length > 0 ? (
         <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Additional metadata</p>
+          <p className="text-xs font-medium text-slate-500">Additional metadata</p>
           <dl className="mt-3 grid gap-3 sm:grid-cols-2">
             {remainingEntries.map(([key, value]) => (
               <div key={key} className="rounded-lg border border-stone-200 bg-white px-3 py-3">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{formatAuditMetadataKey(key)}</dt>
+                <dt className="text-xs font-medium text-slate-500">{formatAuditMetadataKey(key)}</dt>
                 <dd className="mt-2 break-words text-sm text-slate-800">{formatAuditMetadataValue(value)}</dd>
               </div>
             ))}
@@ -1172,7 +1172,7 @@ function DetailField({
 }) {
   return (
     <div className={`rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 ${className}`.trim()}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className={`mt-2 break-words text-sm text-slate-900 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
     </div>
   );
@@ -1204,7 +1204,7 @@ function PaginationControls({
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <span className="min-w-[84px] text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+      <span className="min-w-[84px] text-center text-xs font-medium text-slate-500">
         Page {page} / {totalPages}
       </span>
       <button
@@ -1246,7 +1246,7 @@ function CursorPaginationControls({
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <span className="min-w-[84px] text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+      <span className="min-w-[84px] text-center text-xs font-medium text-slate-500">
         Page {page}
       </span>
       <button

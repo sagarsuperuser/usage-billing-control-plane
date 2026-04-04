@@ -11,6 +11,19 @@ import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchTax } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
+function statusBadgeClass(status?: string): string {
+  switch ((status || "").toLowerCase()) {
+    case "active":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "draft":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "archived":
+      return "border-slate-200 bg-slate-100 text-slate-500";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
 export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
@@ -25,78 +38,69 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/taxes", label: "Taxes" }, { label: tax?.name || taxID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope !== "tenant" ? <ScopeNotice title="Workspace session required" body="Taxes are workspace-scoped. Sign in with a workspace account to inspect them." actionHref="/billing-connections" actionLabel="Open platform home" /> : null}
 
         {isTenantSession ? taxQuery.isLoading ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm"><div className="flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />Loading tax detail</div></section>
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading tax detail
+            </div>
+          </section>
         ) : !tax ? (
-          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing tax</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Tax not available</h1>
-            <Link href="/pricing/taxes" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"><ArrowLeft className="h-4 w-4" />Back to taxes</Link>
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Tax not available</p>
+            <p className="mt-1 text-sm text-slate-500">The requested tax could not be loaded.</p>
+            <Link href="/pricing/taxes" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to taxes
+            </Link>
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace tax rule</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{tax.name}</h1>
-                  <p className="mt-3 break-all font-mono text-xs text-slate-500">{tax.code}</p>
-                  <p className="mt-3 max-w-3xl text-sm text-slate-600">{tax.description || "No description provided."}</p>
-                </div>
-                <Link href="/pricing/taxes" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"><ArrowLeft className="h-4 w-4" />Back to taxes</Link>
-              </div>
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="grid gap-5">
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <Stat label="Status" value={tax.status} />
-                  <Stat label="Rate" value={tax.rate.toFixed(2) + "%"} />
-                  <Stat
-                    label="Availability"
-                    value={tax.status === "active" ? "Ready to assign" : tax.status === "draft" ? "Draft" : "Archived"}
-                  />
-                  <Stat label="Scope" value="Customers / entity" />
-                </section>
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax rule</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Tax rule details</h2>
-                  <div className="mt-5 grid gap-3 md:grid-cols-2">
-                    <InfoCell label="Tax code" value={tax.code} mono />
-                    <InfoCell label="Status" value={tax.status} />
-                    <InfoCell label="Availability" value={tax.status === "active" ? "Ready to assign" : tax.status === "draft" ? "Draft" : "Archived"} />
-                    <InfoCell label="Commercial use" value="Reusable customer and workspace tax rule" />
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-200">
+              {/* Header */}
+              <div className="px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-base font-semibold text-slate-900 truncate">{tax.name}</h1>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(tax.status)}`}>
+                      {tax.status}
+                    </span>
                   </div>
-                </section>
+                  <Link href="/pricing/taxes" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to taxes
+                  </Link>
+                </div>
+                {tax.description ? <p className="mt-1.5 text-xs text-slate-500">{tax.description}</p> : null}
               </div>
 
-              <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Before assigning" body="Confirm the tax rule is active and correct before assigning it to a customer billing profile or workspace billing settings." />
-                <GuidanceCard title="Next action" body="Apply active taxes through billing settings and keep code changes deliberate so invoice behavior stays explainable." />
-              </aside>
+              {/* Details */}
+              <div className="px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Code</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700 font-mono">{tax.code}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Rate</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{tax.rate.toFixed(2)}%</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Status</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{tax.status}</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
           </SectionErrorBoundary>
         ) : null}
       </main>
     </div>
   );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p><p className="mt-2 text-base font-semibold text-slate-950">{value}</p></div>;
-}
-
-function InfoCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p><p className={`mt-2 text-sm font-semibold text-slate-950 ${mono ? "break-all font-mono" : ""}`}>{value}</p></div>;
-}
-
-function GuidanceCard({ title, body }: { title: string; body: string }) {
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-950">{title}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p></section>;
 }

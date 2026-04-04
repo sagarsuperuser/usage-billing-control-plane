@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CreditCard, LoaderCircle, Send } from "lucide-react";
+import { CreditCard, LoaderCircle, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -120,7 +120,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: subscription?.display_name || subscriptionID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -135,224 +135,185 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
 
         {isTenantSession ? (
           detailQuery.isLoading ? (
-            <LoadingPanel label="Loading subscription detail" />
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Loading subscription detail
+              </div>
+            </section>
           ) : detailQuery.isError || !subscription ? (
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
-              <h1 className="mt-2 text-2xl font-semibold text-slate-950">Subscription not available</h1>
-              <p className="mt-3 text-sm text-slate-600">The requested subscription could not be loaded from the workspace APIs.</p>
-              <Link href="/subscriptions" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                <ArrowLeft className="h-4 w-4" />
-                Back to subscriptions
-              </Link>
+              <p className="text-sm font-semibold text-slate-900">Subscription not available</p>
+              <p className="mt-1 text-sm text-slate-500">The requested subscription could not be loaded from the workspace APIs.</p>
             </section>
           ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Subscription</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{subscription.display_name}</h1>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                    <span className="font-mono text-xs text-slate-500">{subscription.code}</span>
-                    <span data-testid="subscription-status-badge" className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone(subscription.status)}`}>
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+              {/* ---- Header ---- */}
+              <div className="px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-base font-semibold text-slate-900 truncate">{subscription.display_name}</h1>
+                    <span className="font-mono text-xs text-slate-400">{subscription.code}</span>
+                    <span data-testid="subscription-status-badge" className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${tone(subscription.status)}`}>
                       {formatReadinessStatus(subscription.status)}
                     </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canRequestSetup ? (
+                      <button
+                        type="button"
+                        data-testid="subscription-request-setup"
+                        onClick={() => (showResend ? resendMutation.mutate() : requestMutation.mutate())}
+                        disabled={!canWrite || !csrfToken || requestMutation.isPending || resendMutation.isPending}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {requestMutation.isPending || resendMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : showResend ? <Send className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
+                        {setupActionLabel}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      data-testid="subscription-archive"
+                      onClick={() => updateMutation.mutate({ status: "archived" })}
+                      disabled={!canWrite || !csrfToken || updateMutation.isPending || !canArchive}
+                      className="inline-flex h-8 items-center rounded-md border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Cancel subscription
+                    </button>
                   </div>
                 </div>
-                <Link href="/subscriptions" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to subscriptions
-                </Link>
-              </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryStat label="Subscription" value={subscription.status} helper={subscription.plan_name} />
-              <SummaryStat label="Payment setup" value={formatSubscriptionPaymentSetupStatus(subscription.payment_setup_status)} helper={subscription.default_payment_method_verified ? "Verified" : "Waiting on payer"} raw />
-              <SummaryStat label="Customer" value={subscription.customer_display_name} helper={subscription.customer_external_id} raw />
-              <SummaryStat label="Billing" value={`${(subscription.base_amount_cents / 100).toFixed(2)} ${subscription.currency}`} helper={subscription.billing_interval} raw />
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-              <div className="min-w-0 grid gap-5">
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lifecycle</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">What still needs action</h2>
-                    </div>
-                    <span className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] sm:shrink-0 ${tone(subscription.status)}`}>
-                      {formatReadinessStatus(subscription.status)}
-                    </span>
-                  </div>
-                  <div className="mt-5 grid gap-3">
-                    {nextActions.length > 0 ? nextActions.map((item) => <ChecklistLine key={item} done={false} text={item} />) : <ChecklistLine done text="Subscription is billing-ready." />}
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial controls</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Change plan or cancel billing</h2>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    Change the billed plan here or cancel the subscription when billing should stop.
-                  </p>
-                  <div className="mt-5 grid gap-4">
-                    <div className="grid gap-2">
-                      <label htmlFor="subscription-plan-select" className="text-sm font-medium text-slate-800">Target plan</label>
-                      <select
-                        id="subscription-plan-select"
-                        data-testid="subscription-plan-select"
-                        value={selectedPlanIDValue}
-                        onChange={(event) => setSelectedPlanID(event.target.value)}
-                        disabled={!canWrite || !csrfToken || updateMutation.isPending || plansQuery.isLoading || subscription.status === "archived"}
-                        className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50"
-                      >
-                        {activePlans.map((plan) => (
-                          <option key={plan.id} value={plan.id}>
-                            {plan.name} ({plan.code})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-slate-500">
-                        {selectedPlan ? `Selected plan code: ${selectedPlan.code}` : "No active target plan is available."}
-                      </p>
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          data-testid="subscription-change-plan"
-                          onClick={() => updateMutation.mutate({ plan_id: selectedPlanIDValue })}
-                          disabled={!canWrite || !csrfToken || updateMutation.isPending || !canChangePlan}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {updateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                          Apply plan change
-                        </button>
-                        <button
-                          type="button"
-                          data-testid="subscription-archive"
-                          onClick={() => updateMutation.mutate({ status: "archived" })}
-                          disabled={!canWrite || !csrfToken || updateMutation.isPending || !canArchive}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {updateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                          Cancel subscription
-                        </button>
-                      </div>
-                      {updateMutation.isError ? (
-                        <p className="text-sm text-rose-700">{updateMutation.error instanceof Error ? updateMutation.error.message : "Subscription update failed."}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment setup</p>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    Request the setup path here, then verify that the payer completed it before treating the subscription as ready.
-                  </p>
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Operator action</p>
-                        <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                          Use one setup request action here. If the payer already received a setup email, resend that same path.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        {canRequestSetup ? (
-                          <button
-                            type="button"
-                            data-testid="subscription-request-setup"
-                            onClick={() => (showResend ? resendMutation.mutate() : requestMutation.mutate())}
-                            disabled={!canWrite || !csrfToken || requestMutation.isPending || resendMutation.isPending}
-                            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {requestMutation.isPending || resendMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : showResend ? <Send className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
-                            {setupActionLabel}
-                          </button>
-                        ) : null}
-                        {latestSetupCheckoutURL ? (
-                          <a href={latestSetupCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                            Open latest setup link
-                          </a>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </section>
               </div>
 
-              <aside className="min-w-0 grid gap-5 self-start">
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial context</p>
-                  <div className="mt-4 grid gap-3">
-                    <MetaItem label="Customer" value={subscription.customer_display_name} />
-                    <MetaItem label="Customer ID" value={subscription.customer_external_id} mono />
-                    <MetaItem label="Plan" value={subscription.plan_name} testID="subscription-plan-name" />
-                    <MetaItem label="Plan code" value={subscription.plan_code} mono testID="subscription-plan-code" />
-                    <MetaItem label="Base price" value={`${(subscription.base_amount_cents / 100).toFixed(2)} ${subscription.currency}`} />
+              {/* ---- Details ---- */}
+              <div className="px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Plan</dt>
+                    <dd data-testid="subscription-plan-name" className="mt-0.5 text-sm text-slate-700">{subscription.plan_name}</dd>
                   </div>
-                </section>
+                  <div>
+                    <dt className="text-xs text-slate-400">Plan code</dt>
+                    <dd data-testid="subscription-plan-code" className="mt-0.5 text-sm font-mono text-slate-700">{subscription.plan_code}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Customer</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{subscription.customer_display_name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Customer ID</dt>
+                    <dd className="mt-0.5 text-sm font-mono text-slate-700">{subscription.customer_external_id}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Base price</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{(subscription.base_amount_cents / 100).toFixed(2)} {subscription.currency}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Billing interval</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{subscription.billing_interval}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Payment setup</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatSubscriptionPaymentSetupStatus(subscription.payment_setup_status)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Payment method</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{subscription.default_payment_method_verified ? "Verified" : "Waiting on payer"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Activated</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(subscription.activated_at)}</dd>
+                  </div>
+                </dl>
+              </div>
 
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment setup state</p>
-                  <div className="mt-4 grid gap-3">
-                    <MetaItem label="Payment setup status" value={formatSubscriptionPaymentSetupStatus(subscription.payment_setup_status)} />
-                    <MetaItem label="Last verified" value={formatExactTimestamp(subscription.payment_setup.last_verified_at)} />
-                    <MetaItem label="Last verification result" value={subscription.payment_setup.last_verification_result || "-"} />
-                    <MetaItem label="Last verification error" value={subscription.payment_setup.last_verification_error || "-"} />
-                    <MetaItem label="Requested at" value={formatExactTimestamp(subscription.payment_setup_requested_at)} />
-                    <MetaItem label="Activated at" value={formatExactTimestamp(subscription.activated_at)} />
+              {/* ---- Payment setup state ---- */}
+              <div className="px-5 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-3">Payment setup state</p>
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Last verified</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(subscription.payment_setup.last_verified_at)}</dd>
                   </div>
-                </section>
-              </aside>
+                  <div>
+                    <dt className="text-xs text-slate-400">Last result</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{subscription.payment_setup.last_verification_result || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Last error</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{subscription.payment_setup.last_verification_error || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Requested at</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(subscription.payment_setup_requested_at)}</dd>
+                  </div>
+                </dl>
+                {latestSetupCheckoutURL ? (
+                  <div className="mt-3">
+                    <a href={latestSetupCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                      Open latest setup link
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* ---- Lifecycle ---- */}
+              {nextActions.length > 0 ? (
+                <div className="px-5 py-4">
+                  <p className="text-xs font-medium text-slate-400 mb-3">Open actions</p>
+                  <div className="grid gap-2">
+                    {nextActions.map((item) => (
+                      <div key={item} className="flex items-start gap-2 text-sm text-slate-700">
+                        <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-semibold text-amber-700">!</span>
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* ---- Change plan ---- */}
+              <div className="px-5 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-3">Change plan</p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="grid gap-1 text-sm min-w-[200px] flex-1">
+                    <span className="text-xs text-slate-400">Target plan</span>
+                    <select
+                      id="subscription-plan-select"
+                      data-testid="subscription-plan-select"
+                      value={selectedPlanIDValue}
+                      onChange={(event) => setSelectedPlanID(event.target.value)}
+                      disabled={!canWrite || !csrfToken || updateMutation.isPending || plansQuery.isLoading || subscription.status === "archived"}
+                      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50"
+                    >
+                      {activePlans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} ({plan.code})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    data-testid="subscription-change-plan"
+                    onClick={() => updateMutation.mutate({ plan_id: selectedPlanIDValue })}
+                    disabled={!canWrite || !csrfToken || updateMutation.isPending || !canChangePlan}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-4 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {updateMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+                    Apply plan change
+                  </button>
+                </div>
+                {selectedPlan ? <p className="mt-2 text-xs text-slate-500">Selected plan code: {selectedPlan.code}</p> : null}
+                {updateMutation.isError ? (
+                  <p className="mt-2 text-sm text-rose-700">{updateMutation.error instanceof Error ? updateMutation.error.message : "Subscription update failed."}</p>
+                ) : null}
+              </div>
             </div>
           </SectionErrorBoundary>
           )
         ) : null}
       </main>
-    </div>
-  );
-}
-
-function LoadingPanel({ label }: { label: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-      <div className="flex items-center gap-2">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
-        {label}
-      </div>
-    </section>
-  );
-}
-
-function SummaryStat({ label, value, helper, raw }: { label: string; value: string; helper: string; raw?: boolean }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 break-words text-base font-semibold text-slate-950">{raw ? value : formatReadinessStatus(value)}</p>
-      <p className="mt-2 break-all text-xs leading-relaxed text-slate-600">{helper}</p>
-    </div>
-  );
-}
-
-function ChecklistLine({ done, text }: { done: boolean; text: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-      <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-        {done ? "OK" : "!"}
-      </span>
-      <p className="text-sm text-slate-800">{text}</p>
-    </div>
-  );
-}
-
-function MetaItem({ label, value, mono, testID }: { label: string; value: string; mono?: boolean; testID?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</dt>
-      <dd data-testid={testID} className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
     </div>
   );
 }

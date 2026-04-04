@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, LoaderCircle, RefreshCw } from "lucide-react";
+import { LoaderCircle, RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -76,7 +76,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
             { href: "/control-plane", label: "Workspace" },
@@ -97,270 +97,200 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
         {isTenantSession ? (
           paymentQuery.isLoading ? (
-            <LoadingPanel label="Loading payment detail" />
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Loading payment detail
+              </div>
+            </section>
           ) : paymentQuery.isError || !payment ? (
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment</p>
-              <h1 className="mt-2 text-2xl font-semibold text-slate-950">Payment not available</h1>
-              <p className="mt-3 text-sm text-slate-600">The requested payment detail could not be loaded from the workspace APIs.</p>
-              <Link
-                href="/payments"
-                className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to payments
-              </Link>
+              <p className="text-sm font-semibold text-slate-900">Payment not available</p>
+              <p className="mt-1 text-sm text-slate-500">The requested payment detail could not be loaded from the workspace APIs.</p>
             </section>
           ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{payment.invoice_number || payment.invoice_id}</h1>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                    <span className="font-mono text-xs text-slate-500">{payment.invoice_id}</span>
-                    <Badge>{formatBillingState(payment.payment_status)}</Badge>
-                    <Badge>{formatBillingState(payment.invoice_status)}</Badge>
-                    {payment.payment_overdue ? <Badge>Overdue</Badge> : null}
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+              {/* ---- Header ---- */}
+              <div className="px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-base font-semibold text-slate-900 truncate">{payment.invoice_number || payment.invoice_id}</h1>
+                    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                      {formatBillingState(payment.payment_status)}
+                    </span>
+                    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                      {formatBillingState(payment.invoice_status)}
+                    </span>
+                    {payment.payment_overdue ? (
+                      <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-rose-700">Overdue</span>
+                    ) : null}
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Link
-                    href="/payments"
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to payments
-                  </Link>
-                  {actionConfig?.emphasizeRetry ? (
-                    <button
-                      type="button"
-                      onClick={() => retryMutation.mutate()}
-                      disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Retry payment
-                    </button>
-                  ) : null}
-                  {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
-                    <Link
-                      href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
-                      className="inline-flex h-10 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-                    >
-                      Open customer setup
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Amount due" value={formatMoney(payment.total_due_amount_cents, payment.currency || "USD")} />
-              <MetricCard label="Amount paid" value={formatMoney(payment.total_paid_amount_cents, payment.currency || "USD")} />
-              <MetricCard label="Failure signals" value={String(payment.lifecycle.failure_event_count)} />
-              <MetricCard label="Overdue signals" value={String(payment.lifecycle.overdue_signal_count)} />
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-              <div className="min-w-0 grid gap-5">
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment status</p>
-                  <div className="mt-5 grid gap-3 lg:grid-cols-2">
-                    <StatusCard label="Action" value={formatBillingState(payment.lifecycle.recommended_action)} />
-                    <StatusCard label="Requires action" value={payment.lifecycle.requires_action ? "Yes" : "No"} />
-                    <StatusCard label="Last event" value={formatBillingState(payment.last_event_type)} />
-                    <StatusCard label="Last event at" value={formatExactTimestamp(payment.last_event_at)} />
-                  </div>
-                  <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    <p className="font-semibold text-slate-950">Next step</p>
-                    <p className="mt-2">{payment.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
-                  </div>
-                  {payment.last_payment_error ? (
-                    <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-                      <p className="font-semibold text-amber-900">Last payment error</p>
-                      <p className="mt-2">{payment.last_payment_error}</p>
-                    </div>
-                  ) : null}
-                </section>
-
-                {diagnosis ? <BillingFailureDiagnosisCard diagnosis={diagnosis} /> : null}
-                {diagnosisEvidence.length > 0 ? <BillingFailureEvidence items={diagnosisEvidence} /> : null}
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Timeline window</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-950">Event range</h2>
-                    </div>
-                    <select
-                      value={String(eventLimit)}
-                      onChange={(event) => setEventLimit(Number(event.target.value))}
-                      className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-                    >
-                      <option value="10">10</option>
-                      <option value="25">25</option>
-                      <option value="50">50</option>
-                    </select>
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">Control how many events appear in the timeline.</p>
-                </section>
-
-                <BillingActivityTimeline
-                  webhookEvents={eventsQuery.data?.items}
-                  dunningDetail={dunningDetailQuery.data}
-                  dunningRunHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
-                  loading={timelineLoading}
-                  error={timelineError}
-                />
-              </div>
-
-              <aside className="min-w-0 grid gap-5 self-start">
-                <DunningSummaryPanel
-                  summary={payment.dunning}
-                  canWrite={canWrite && Boolean(csrfToken)}
-                  sendingReminder={reminderMutation.isPending}
-                  onSendReminder={dunningRunID ? () => reminderMutation.mutate(dunningRunID) : undefined}
-                  runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
-                />
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
-                  <div className="mt-4 grid gap-3">
-                    <MetaItem label="Recommended action" value={formatBillingState(payment.lifecycle.recommended_action)} />
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                      <p className="font-semibold text-slate-950">{actionConfig?.title || "No action required"}</p>
-                      <p className="mt-2">{actionConfig?.body || "No action is needed right now."}</p>
-                    </div>
+                  <div className="flex flex-wrap items-center gap-2">
                     {actionConfig?.emphasizeRetry ? (
                       <button
                         type="button"
                         onClick={() => retryMutation.mutate()}
                         disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        Retry collection
+                        {retryMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        Retry payment
                       </button>
-                    ) : null}
-                    {payment.customer_external_id && actionConfig?.showRecovery ? (
-                      <Link
-                        href={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                      >
-                        Open recovery tools
-                      </Link>
-                    ) : null}
-                    {actionConfig?.showExplainability ? (
-                      <Link
-                        href={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                      >
-                        Open explainability
-                      </Link>
                     ) : null}
                     {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
                       <Link
                         href={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        className="inline-flex h-8 items-center rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
                       >
                         Open customer setup
                       </Link>
                     ) : null}
-                    {!actionConfig?.emphasizeRetry &&
-                    payment.lifecycle.recommended_action !== "collect_payment" &&
-                    payment.customer_external_id ? (
-                      <Link
-                        href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                      >
-                        Open customer payment context
-                      </Link>
-                    ) : null}
                   </div>
-                </section>
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">{payment.invoice_id}</p>
+              </div>
 
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked customer</p>
-                  <div className="mt-4 grid gap-3">
-                    <MetaItem label="Customer" value={payment.customer_display_name || "-"} />
-                    <MetaItem label="Customer external ID" value={payment.customer_external_id || "-"} mono />
-                    {payment.customer_external_id ? (
-                      <Link
-                        href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-                      >
-                        Open customer
-                      </Link>
-                    ) : null}
+              {/* ---- Details ---- */}
+              <div className="px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Amount due</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(payment.total_due_amount_cents, payment.currency || "USD")}</dd>
                   </div>
-                </section>
+                  <div>
+                    <dt className="text-xs text-slate-400">Amount paid</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(payment.total_paid_amount_cents, payment.currency || "USD")}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Customer</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{payment.customer_display_name || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Customer ID</dt>
+                    <dd className="mt-0.5 text-sm font-mono text-slate-700">{payment.customer_external_id || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Last event</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(payment.last_event_type)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Last event at</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(payment.last_event_at)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Failure signals</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{payment.lifecycle.failure_event_count}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Overdue signals</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{payment.lifecycle.overdue_signal_count}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Updated</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(payment.updated_at)}</dd>
+                  </div>
+                </dl>
+              </div>
 
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked invoice</p>
-                  <div className="mt-4 grid gap-3">
-                    <MetaItem label="Invoice" value={payment.invoice_number || payment.invoice_id} />
-                    <MetaItem label="Last updated" value={formatExactTimestamp(payment.updated_at)} />
+              {/* ---- Lifecycle ---- */}
+              <div className="px-5 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-3">Lifecycle</p>
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Action</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(payment.lifecycle.recommended_action)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Requires action</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{payment.lifecycle.requires_action ? "Yes" : "No"}</dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-sm text-slate-600">{payment.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
+                {payment.last_payment_error ? (
+                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <p className="font-medium">Last payment error</p>
+                    <p className="mt-0.5 text-xs">{payment.last_payment_error}</p>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* ---- Links ---- */}
+              <div className="px-5 py-4">
+                <div className="flex flex-wrap gap-2">
+                  {payment.customer_external_id ? (
                     <Link
-                      href={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
-                      className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      href={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
+                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
-                      Open invoice
+                      Open customer
                     </Link>
-                  </div>
-                </section>
-              </aside>
+                  ) : null}
+                  <Link
+                    href={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
+                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Open invoice
+                  </Link>
+                  {actionConfig?.showExplainability ? (
+                    <Link
+                      href={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
+                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Open explainability
+                    </Link>
+                  ) : null}
+                  {actionConfig?.showRecovery && payment.customer_external_id ? (
+                    <Link
+                      href={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
+                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Open recovery tools
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
             </div>
+
+            {/* ---- Dunning ---- */}
+            <DunningSummaryPanel
+              summary={payment.dunning}
+              canWrite={canWrite && Boolean(csrfToken)}
+              sendingReminder={reminderMutation.isPending}
+              onSendReminder={dunningRunID ? () => reminderMutation.mutate(dunningRunID) : undefined}
+              runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
+            />
+
+            {/* ---- Diagnosis ---- */}
+            {diagnosis ? <BillingFailureDiagnosisCard diagnosis={diagnosis} /> : null}
+            {diagnosisEvidence.length > 0 ? <BillingFailureEvidence items={diagnosisEvidence} /> : null}
+
+            {/* ---- Timeline controls ---- */}
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-5 py-3 shadow-sm">
+              <p className="text-xs font-medium text-slate-400">Event range</p>
+              <select
+                value={String(eventLimit)}
+                onChange={(event) => setEventLimit(Number(event.target.value))}
+                className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+
+            {/* ---- Timeline ---- */}
+            <BillingActivityTimeline
+              webhookEvents={eventsQuery.data?.items}
+              dunningDetail={dunningDetailQuery.data}
+              dunningRunHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
+              loading={timelineLoading}
+              error={timelineError}
+            />
           </SectionErrorBoundary>
           )
         ) : null}
       </main>
-    </div>
-  );
-}
-
-function LoadingPanel({ label, compact }: { label: string; compact?: boolean }) {
-  return (
-    <section className={`rounded-2xl border border-slate-200 bg-white text-sm text-slate-600 shadow-sm ${compact ? "p-4" : "p-6"}`}>
-      <div className="flex items-center gap-2">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
-        {label}
-      </div>
-    </section>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function StatusCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{value || "-"}</p>
-    </div>
-  );
-}
-
-function Badge({ children }: { children: string }) {
-  return (
-    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-      {children}
-    </span>
-  );
-}
-
-function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</dt>
-      <dd className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
     </div>
   );
 }

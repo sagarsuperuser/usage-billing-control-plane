@@ -133,8 +133,8 @@ export function PricingPlanNewScreen() {
                   </div>
                 </div>
 
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Linked metrics</p>
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-medium text-slate-500">Linked metrics</p>
                   <div className="mt-3 grid gap-3">
                     {metricsQuery.isLoading ? (
                       <div className="flex items-center gap-2 text-sm text-slate-600"><LoaderCircle className="h-4 w-4 animate-spin" />Loading metrics</div>
@@ -146,15 +146,15 @@ export function PricingPlanNewScreen() {
                           <input data-testid={`pricing-plan-metric-${metric.id}`} type="checkbox" checked={selectedMetricIDs.includes(metric.id)} onChange={() => toggleMetric(metric.id)} className="h-4 w-4 rounded border-slate-300" />
                           <span className="font-semibold text-slate-950">{metric.name}</span>
                           <span className="font-mono text-xs text-slate-500">{metric.key}</span>
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{metric.aggregation}</span>
+                          <span className="text-xs font-medium text-slate-500">{metric.aggregation}</span>
                         </label>
                       ))
                     )}
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Attached add-ons</p>
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-medium text-slate-500">Attached add-ons</p>
                   <div className="mt-3 grid gap-3">
                     {(addOnsQuery.data ?? []).length === 0 ? (
                       <p className="text-sm text-slate-600">No add-ons created yet. This plan can still be created without them.</p>
@@ -164,15 +164,15 @@ export function PricingPlanNewScreen() {
                           <input data-testid={`pricing-plan-addon-${addOn.id}`} type="checkbox" checked={selectedAddOnIDs.includes(addOn.id)} onChange={() => toggleAddOn(addOn.id)} className="h-4 w-4 rounded border-slate-300" />
                           <span className="font-semibold text-slate-950">{addOn.name}</span>
                           <span className="font-mono text-xs text-slate-500">{addOn.code}</span>
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{(addOn.amount_cents / 100).toFixed(2)} {addOn.currency}</span>
+                          <span className="text-xs font-medium text-slate-500">{(addOn.amount_cents / 100).toFixed(2)} {addOn.currency}</span>
                         </label>
                       ))
                     )}
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Attached coupons</p>
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-medium text-slate-500">Attached coupons</p>
                   <div className="mt-3 grid gap-3">
                     {(couponsQuery.data ?? []).length === 0 ? (
                       <p className="text-sm text-slate-600">No coupons created yet. This plan can still be created without them.</p>
@@ -182,14 +182,14 @@ export function PricingPlanNewScreen() {
                           <input data-testid={`pricing-plan-coupon-${coupon.id}`} type="checkbox" checked={selectedCouponIDs.includes(coupon.id)} onChange={() => toggleCoupon(coupon.id)} className="h-4 w-4 rounded border-slate-300" />
                           <span className="font-semibold text-slate-950">{coupon.name}</span>
                           <span className="font-mono text-xs text-slate-500">{coupon.code}</span>
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`}</span>
+                          <span className="text-xs font-medium text-slate-500">{coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`}</span>
                         </label>
                       ))
                     )}
                   </div>
                 </section>
 
-                {errors.root?.message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
                 <Link href="/pricing/plans" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
@@ -209,7 +209,7 @@ export function PricingPlanNewScreen() {
 function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
@@ -219,7 +219,7 @@ function Field({ label, error, testID, ...inputProps }: { label: string; error?:
 function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-slate-200"}`}>
         {options.map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
       </select>
@@ -231,7 +231,7 @@ function SelectField({ label, error, options, ...selectProps }: { label: string;
 function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>

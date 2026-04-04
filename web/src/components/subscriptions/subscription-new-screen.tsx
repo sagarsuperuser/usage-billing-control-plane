@@ -107,7 +107,7 @@ export function SubscriptionNewScreen() {
         ) : null}
 
         {isTenantSession && mutation.isSuccess ? (
-          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+          <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-700" />
               <div className="min-w-0">
@@ -181,7 +181,7 @@ export function SubscriptionNewScreen() {
                   </Field>
                 </div>
 
-                {errors.root?.message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
                 <Link href="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
@@ -201,7 +201,7 @@ export function SubscriptionNewScreen() {
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
   return (
     <label className="grid gap-2">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       {children}
       {error ? <span className="text-xs text-rose-600">{error}</span> : hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
     </label>

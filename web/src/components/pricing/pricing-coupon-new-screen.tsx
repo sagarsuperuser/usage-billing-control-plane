@@ -138,7 +138,7 @@ export function PricingCouponNewScreen() {
                     <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">Recurring duration is only needed when frequency is recurring.</div>
                   )}
                   <label className="grid gap-2 text-sm text-slate-700">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Expires at</span>
+                    <span className="text-xs font-medium text-slate-500">Expires at</span>
                     <input data-testid="pricing-coupon-expiration-at" type="datetime-local" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" {...register("expiration_at")} />
                   </label>
                   <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
@@ -146,7 +146,7 @@ export function PricingCouponNewScreen() {
                   </div>
                 </div>
 
-                {errors.root?.message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
                 <Link href="/pricing/coupons" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
@@ -166,7 +166,7 @@ export function PricingCouponNewScreen() {
 function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
@@ -176,7 +176,7 @@ function Field({ label, error, testID, ...inputProps }: { label: string; error?:
 function SelectField({ label, error, options, testID, ...selectProps }: { label: string; error?: string; options: string[]; testID?: string } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <select data-testid={testID} {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-slate-200"}`}>
         {options.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
       </select>
@@ -188,7 +188,7 @@ function SelectField({ label, error, options, testID, ...selectProps }: { label:
 function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>

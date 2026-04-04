@@ -81,7 +81,7 @@ export function PricingMetricNewScreen() {
                   <Field label="Currency" placeholder="USD" testID="pricing-metric-currency" error={errors.currency?.message} {...register("currency")} />
                 </div>
 
-                {errors.root?.message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
                 <Link href="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
@@ -101,7 +101,7 @@ export function PricingMetricNewScreen() {
 function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <input
         data-testid={testID}
         {...inputProps}
@@ -116,7 +116,7 @@ function Field({ label, error, testID, ...inputProps }: { label: string; error?:
 function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <select
         {...selectProps}
         aria-invalid={Boolean(error)}

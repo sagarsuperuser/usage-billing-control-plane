@@ -24,7 +24,7 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/metrics", label: "Metrics" }, { label: metric?.name || metricID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -33,99 +33,69 @@ export function PricingMetricDetailScreen({ metricID }: { metricID: string }) {
         ) : null}
 
         {isTenantSession ? query.isLoading ? (
-          <LoadingPanel label="Loading metric detail" />
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading metric detail
+            </div>
+          </section>
         ) : !metric ? (
-          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing metric</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Metric not available</h1>
-            <Link href="/pricing/metrics" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-              <ArrowLeft className="h-4 w-4" />
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Metric not available</p>
+            <p className="mt-1 text-sm text-slate-500">The requested pricing metric could not be loaded.</p>
+            <Link href="/pricing/metrics" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+              <ArrowLeft className="h-3.5 w-3.5" />
               Back to metrics
             </Link>
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing metric</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{metric.name}</h1>
-                  <p className="mt-3 break-all font-mono text-xs text-slate-500">{metric.key}</p>
-                </div>
-                <Link href="/pricing/metrics" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to metrics
-                </Link>
-              </div>
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="grid gap-5">
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <Stat label="Unit" value={metric.unit} />
-                  <Stat label="Aggregation" value={metric.aggregation} />
-                  <Stat label="Created" value={new Date(metric.created_at).toLocaleString()} />
-                  <Stat label="Updated" value={new Date(metric.updated_at).toLocaleString()} />
-                </section>
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Commercial record</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Usage definition</h2>
-                  <div className="mt-5 grid gap-3 md:grid-cols-2">
-                    <InfoCell label="Metric name" value={metric.name} />
-                    <InfoCell label="Metric code" value={metric.key} mono />
-                    <InfoCell label="Usage unit" value={metric.unit} />
-                    <InfoCell label="Commercial aggregation" value={metric.aggregation} />
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-200">
+              {/* Header */}
+              <div className="px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-base font-semibold text-slate-900 truncate">{metric.name}</h1>
+                    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                      {metric.key}
+                    </span>
                   </div>
-                </section>
+                  <Link href="/pricing/metrics" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to metrics
+                  </Link>
+                </div>
               </div>
 
-              <aside className="grid gap-5 self-start">
-                <GuidanceCard title="Stability matters" body="Keep the metric key and aggregation unchanged once plans depend on them — changing these affects billing reports." />
-                <GuidanceCard title="Next action" body="Attach the metric to plans that should price this usage. This page is for review, not regular edits." />
-              </aside>
+              {/* Details */}
+              <div className="px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Unit</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{metric.unit}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Aggregation</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{metric.aggregation}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Rating rule</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{metric.key}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Created</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{new Date(metric.created_at).toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Updated</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{new Date(metric.updated_at).toLocaleString()}</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
           </SectionErrorBoundary>
         ) : null}
       </main>
     </div>
-  );
-}
-
-function LoadingPanel({ label }: { label: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-      <div className="flex items-center gap-2">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
-        {label}
-      </div>
-    </section>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function InfoCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 text-sm font-semibold text-slate-950 ${mono ? "break-all font-mono" : ""}`}>{value}</p>
-    </div>
-  );
-}
-
-function GuidanceCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }

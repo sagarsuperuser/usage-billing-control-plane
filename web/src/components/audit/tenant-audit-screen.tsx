@@ -64,7 +64,7 @@ export function TenantAuditScreen() {
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/control-plane", label: "Overview" }, { label: "Workspace audit" }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -77,213 +77,176 @@ export function TenantAuditScreen() {
           />
         ) : null}
 
-        {canViewPlatformSurface ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Platform audit</p>
-          <h1 className="mt-2 text-lg font-semibold text-slate-950">Workspace audit trail</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-600">
-            Review workspace, billing, customer, and access changes across all workspaces.
-          </p>
-        </section> : null}
-
-        {canViewPlatformSurface ? <section className="grid gap-4 md:grid-cols-4">
-          <MetricCard label="Events loaded" value={String(auditQuery.data?.items.length ?? 0)} />
-          <MetricCard label="Matching workspaces" value={tenantID ? "1" : String(tenantsQuery.data?.length ?? 0)} />
-          <MetricCard label="Actions" value={String(actionOptions.length)} />
-          <MetricCard label="Result window" value={String(auditQuery.data?.limit ?? DEFAULT_LIMIT)} />
-        </section> : null}
-
-        {canViewPlatformSurface ? <section className="grid gap-3 xl:grid-cols-3">
-        </section> : null}
-
-        {canViewPlatformSurface ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
-            <label className="grid gap-2 text-sm text-slate-700">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace</span>
-              <select
-                value={tenantID}
-                onChange={(event) => setTenantID(event.target.value)}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
-              >
-                <option value="">All workspaces</option>
-                {(tenantsQuery.data ?? []).map((tenant) => (
-                  <option key={tenant.id} value={tenant.id}>
-                    {tenant.id}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm text-slate-700">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Action</span>
-              <input
-                value={action}
-                onChange={(event) => setAction(event.target.value)}
-                list="tenant-audit-actions"
-                placeholder="workspace.created"
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-              />
-              <datalist id="tenant-audit-actions">
-                {actionOptions.map((item) => (
-                  <option key={item} value={item} />
-                ))}
-              </datalist>
-            </label>
-            <label className="grid gap-2 text-sm text-slate-700">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Actor API key</span>
-              <input
-                value={actorAPIKeyID}
-                onChange={(event) => setActorAPIKeyID(event.target.value)}
-                placeholder="apk_platform_admin"
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
-              />
-            </label>
-          </div>
-        </section> : null}
-
-        {canViewPlatformSurface ? <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent workspace events</p>
-            <h2 className="text-xl font-semibold text-slate-950">Audit history</h2>
-            <p className="text-sm text-slate-600">Select an event to inspect the full change record.</p>
-          </div>
-
-          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.85fr)]">
-            {auditQuery.isLoading ? <LoadingState /> : null}
-            {!auditQuery.isLoading && (auditQuery.data?.items.length ?? 0) === 0 ? <EmptyState /> : null}
-            {!auditQuery.isLoading && auditItems.length > 0 ? (
-              <>
-                <div className="grid gap-3">
-                  {auditItems.map((event) => (
-                    <AuditRow
-                      key={event.id}
-                      event={event}
-                      workspaceName={workspaceNames.get(event.tenant_id)}
-                      selected={event.id === selectedEventIDValue}
-                      onSelect={() => setSelectedEventID(event.id)}
-                    />
-                  ))}
+        {canViewPlatformSurface ? (
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+            {/* ---- Header ---- */}
+            <div className="px-5 py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <h1 className="text-base font-semibold text-slate-900">Workspace audit</h1>
+                  <span className="text-xs text-slate-500">{auditItems.length} events</span>
                 </div>
-                <AuditDetail event={selectedEvent} workspaceName={selectedEvent ? workspaceNames.get(selectedEvent.tenant_id) : undefined} />
-              </>
-            ) : null}
+              </div>
+            </div>
+
+            {/* ---- Filters ---- */}
+            <div className="px-5 py-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs text-slate-400">Workspace</span>
+                  <select
+                    value={tenantID}
+                    onChange={(e) => setTenantID(e.target.value)}
+                    className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  >
+                    <option value="">All workspaces</option>
+                    {(tenantsQuery.data ?? []).map((tenant) => (
+                      <option key={tenant.id} value={tenant.id}>{tenant.id}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs text-slate-400">Action</span>
+                  <input
+                    value={action}
+                    onChange={(e) => setAction(e.target.value)}
+                    list="tenant-audit-actions"
+                    placeholder="workspace.created"
+                    className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  />
+                  <datalist id="tenant-audit-actions">
+                    {actionOptions.map((item) => <option key={item} value={item} />)}
+                  </datalist>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs text-slate-400">Actor API key</span>
+                  <input
+                    value={actorAPIKeyID}
+                    onChange={(e) => setActorAPIKeyID(e.target.value)}
+                    placeholder="apk_platform_admin"
+                    className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* ---- Table ---- */}
+            <div className="overflow-auto">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead>
+                  <tr className="border-b border-stone-200 text-left text-xs text-slate-400">
+                    <th className="px-5 py-2 font-medium">Timestamp</th>
+                    <th className="px-3 py-2 font-medium">Workspace</th>
+                    <th className="px-3 py-2 font-medium">Action</th>
+                    <th className="px-3 py-2 font-medium">Actor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditQuery.isLoading ? (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-6 text-center">
+                        <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Loading workspace audit events
+                        </div>
+                      </td>
+                    </tr>
+                  ) : auditItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-6 text-center text-sm text-slate-500">
+                        No workspace audit events match the current filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    auditItems.map((event) => {
+                      const selected = event.id === selectedEventIDValue;
+                      return (
+                        <tr
+                          key={event.id}
+                          onClick={() => setSelectedEventID(event.id)}
+                          className={`cursor-pointer border-b border-stone-100 transition ${selected ? "bg-slate-50" : "bg-white hover:bg-slate-50"}`}
+                        >
+                          <td className="px-5 py-3 text-slate-500">{new Date(event.created_at).toLocaleString()}</td>
+                          <td className="px-3 py-3">
+                            <p className="font-medium text-slate-900">{workspaceNames.get(event.tenant_id) || event.tenant_id}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-700">{event.event_title}</p>
+                            <span className="mt-0.5 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                              {event.event_category}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 font-mono text-xs text-slate-500">{event.actor_api_key_id || "-"}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </section> : null}
+        ) : null}
+
+        {/* ---- Event detail ---- */}
+        {canViewPlatformSurface && selectedEvent ? (
+          <AuditDetail event={selectedEvent} workspaceName={workspaceNames.get(selectedEvent.tenant_id)} />
+        ) : null}
       </main>
     </div>
   );
 }
 
-function AuditRow({
-  event,
-  workspaceName,
-  selected,
-  onSelect,
-}: {
-  event: TenantAuditEvent;
-  workspaceName?: string;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const metadataCount = Object.keys(event.metadata ?? {}).length;
+function AuditDetail({ event, workspaceName }: { event: TenantAuditEvent; workspaceName?: string }) {
+  const entries = Object.entries(event.metadata ?? {}).sort(([left], [right]) => left.localeCompare(right));
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      aria-label={`View details for ${event.event_title} on ${event.tenant_id}`}
-      className={`w-full rounded-xl border p-4 text-left transition ${
-        selected
-          ? "border-emerald-300 bg-emerald-50/60 shadow-sm"
-          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
-      }`}
-    >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-              {event.event_category}
-            </span>
-            <span className="text-[11px] text-slate-500">{metadataCount} field{metadataCount === 1 ? "" : "s"}</span>
+    <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+      <div className="px-5 py-4">
+        <p className="text-xs font-medium text-slate-400 mb-1">Event detail</p>
+        <p className="text-sm font-semibold text-slate-900">{event.event_title}</p>
+        <p className="mt-0.5 text-sm text-slate-600">{event.event_summary}</p>
+      </div>
+      <div className="px-5 py-4">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-slate-400">Event code</dt>
+            <dd className="mt-0.5 text-sm font-mono text-slate-700">{event.event_code}</dd>
           </div>
-          <p className="mt-2 text-base font-semibold text-slate-950">{event.event_title}</p>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600">{event.event_summary}</p>
-          <p className="mt-2 text-sm text-slate-700">
-            <span className="font-medium text-slate-950">{workspaceName || event.tenant_id}</span>
-            {workspaceName ? <> · <span className="font-mono text-slate-600">{event.tenant_id}</span></> : null}
-            {event.actor_api_key_id ? (
-              <>
-                {" "}
-                · <span className="font-mono text-slate-600">{event.actor_api_key_id}</span>
-              </>
-            ) : null}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm text-slate-500">{new Date(event.created_at).toLocaleString()}</p>
-          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">View details</p>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function AuditDetail({ event, workspaceName }: { event: TenantAuditEvent | null; workspaceName?: string }) {
-  const entries = Object.entries(event?.metadata ?? {}).sort(([left], [right]) => left.localeCompare(right));
-
-  if (!event) {
-    return (
-      <aside className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-        Select an audit event to inspect the full metadata.
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Event detail</p>
-      <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{event.event_category}</p>
-        <h3 className="mt-2 text-lg font-semibold text-slate-950">{event.event_title}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">{event.event_summary}</p>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <DetailField label="Event code" value={event.event_code} mono />
-        <DetailField label="Workspace" value={workspaceName || "-"} />
-        <DetailField label="Workspace ID" value={event.tenant_id} mono />
-        <DetailField label="Actor API key" value={event.actor_api_key_id || "-"} mono />
-        <DetailField label="Created at" value={new Date(event.created_at).toLocaleString()} />
-        <DetailField label="Event ID" value={event.id} mono className="sm:col-span-2" />
+          <div>
+            <dt className="text-xs text-slate-400">Workspace</dt>
+            <dd className="mt-0.5 text-sm text-slate-700">{workspaceName || "-"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-400">Workspace ID</dt>
+            <dd className="mt-0.5 text-sm font-mono text-slate-700">{event.tenant_id}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-400">Actor API key</dt>
+            <dd className="mt-0.5 text-sm font-mono text-slate-700">{event.actor_api_key_id || "-"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-400">Created at</dt>
+            <dd className="mt-0.5 text-sm text-slate-700">{new Date(event.created_at).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-400">Event ID</dt>
+            <dd className="mt-0.5 text-sm font-mono text-slate-700">{event.id}</dd>
+          </div>
+        </dl>
       </div>
       {entries.length > 0 ? (
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-          {entries.map(([key, value]) => (
-            <div key={key} className="rounded-lg border border-slate-200 bg-white px-3 py-3">
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{formatMetadataLabel(key)}</dt>
-              <dd className="mt-2 break-words text-sm text-slate-800">{formatMetadataValue(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p className="mt-4 text-sm text-slate-500">No metadata attached.</p>
-      )}
-    </aside>
-  );
-}
-
-function DetailField({
-  label,
-  value,
-  mono,
-  className = "",
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-lg border border-slate-200 bg-white px-3 py-3 ${className}`.trim()}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className={`mt-2 break-words text-sm text-slate-800 ${mono ? "font-mono" : ""}`.trim()}>{value}</p>
+        <div className="px-5 py-4">
+          <p className="text-xs font-medium text-slate-400 mb-3">Metadata</p>
+          <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+            {entries.map(([key, value]) => (
+              <div key={key}>
+                <dt className="text-xs text-slate-400">{formatMetadataLabel(key)}</dt>
+                <dd className="mt-0.5 break-words text-sm text-slate-700">{formatMetadataValue(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -330,31 +293,4 @@ function formatMetadataValue(value: unknown): string {
   } catch {
     return String(value);
   }
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading workspace audit events
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-      <p className="font-semibold text-slate-950">No workspace audit events match the current filters.</p>
-      <p className="mt-2">Try widening the workspace, action, or actor filters.</p>
-    </div>
-  );
 }

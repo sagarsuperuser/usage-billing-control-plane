@@ -12,6 +12,19 @@ import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
 import { useUISession } from "@/hooks/use-ui-session";
 
+function statusBadgeClass(status?: string): string {
+  switch ((status || "").toLowerCase()) {
+    case "active":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "draft":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "archived":
+      return "border-slate-200 bg-slate-100 text-slate-500";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
 export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
@@ -57,7 +70,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/plans", label: "Plans" }, { label: plan?.name || planID }]} />
 
         {!isAuthenticated ? <LoginRedirectNotice /> : null}
@@ -66,189 +79,124 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
         ) : null}
 
         {isTenantSession ? planQuery.isLoading ? (
-          <LoadingPanel label="Loading plan detail" />
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading plan detail
+            </div>
+          </section>
         ) : !plan ? (
-          <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing plan</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">Plan not available</h1>
-            <Link href="/pricing/plans" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-              <ArrowLeft className="h-4 w-4" />
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Plan not available</p>
+            <p className="mt-1 text-sm text-slate-500">The requested plan could not be loaded.</p>
+            <Link href="/pricing/plans" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+              <ArrowLeft className="h-3.5 w-3.5" />
               Back to plans
             </Link>
           </section>
         ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace plan</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{plan.name}</h1>
-                  <p className="mt-3 break-all font-mono text-xs text-slate-500">{plan.code}</p>
-                  <p className="mt-3 max-w-3xl text-sm text-slate-600">{plan.description || "No description provided."}</p>
-                </div>
-                <Link href="/pricing/plans" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to plans
-                </Link>
-              </div>
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="grid gap-5">
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-                  <Stat label="Status" value={plan.status} />
-                  <Stat label="Interval" value={plan.billing_interval} />
-                  <Stat label="Base price" value={`${(plan.base_amount_cents / 100).toFixed(2)} ${plan.currency}`} />
-                  <Stat label="Metrics" value={String(plan.meter_ids.length)} />
-                  <Stat label="Add-ons" value={String((plan.add_on_ids ?? []).length)} />
-                  <Stat label="Coupons" value={String((plan.coupon_ids ?? []).length)} />
-                </section>
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <h2 className="text-xl font-semibold text-slate-950">Plan details</h2>
-                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <InfoCell label="Plan code" value={plan.code} />
-                    <InfoCell label="Status" value={plan.status} />
-                    <InfoCell label="Billing interval" value={plan.billing_interval} />
-                    <InfoCell label="Commercial use" value="Reusable workspace package" />
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-200">
+              {/* Header */}
+              <div className="px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-base font-semibold text-slate-900 truncate">{plan.name}</h1>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(plan.status)}`}>
+                      {plan.status}
+                    </span>
                   </div>
-                </section>
-              </div>
-
-              <aside className="grid gap-5 self-start">
-                <GuidanceCard title="What's on this page" body="Review the full plan: usage pricing, recurring add-ons, and any discounts applied to customers on this plan." />
-                <GuidanceCard title="Next action" body="Review linked metrics, add-ons, and coupons here before the plan is used in active subscriptions." />
-              </aside>
-            </div>
-
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked metrics</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial inputs</h2>
+                  <Link href="/pricing/plans" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to plans
+                  </Link>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{linkedMetrics.length} linked metric(s)</div>
+                {plan.description ? <p className="mt-1.5 text-xs text-slate-500">{plan.description}</p> : null}
               </div>
-              <div className="mt-5 grid gap-3">
+
+              {/* Details */}
+              <div className="px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Code</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700 font-mono">{plan.code}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Currency</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{plan.currency}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Interval</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{plan.billing_interval}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Base price</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{(plan.base_amount_cents / 100).toFixed(2)} {plan.currency}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Status</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{plan.status}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* Linked metrics */}
+              <div className="px-5 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-2">Linked metrics ({linkedMetrics.length})</p>
                 {linkedMetrics.length === 0 ? (
-                  <EmptyPanel message="No linked metrics were found for this plan." />
+                  <p className="text-sm text-slate-500">None</p>
                 ) : (
-                  linkedMetrics.map((metric) =>
-                    metric ? (
-                      <div key={metric.id} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1fr)_140px_140px] lg:items-center">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-950">{metric.name}</p>
-                          <p className="mt-1 break-all font-mono text-xs text-slate-500">{metric.key}</p>
-                        </div>
-                        <InfoCell label="Aggregation" value={metric.aggregation} />
-                        <InfoCell label="Unit" value={metric.unit} />
-                      </div>
-                    ) : null,
-                  )
+                  <ul className="space-y-1">
+                    {linkedMetrics.map((metric) =>
+                      metric ? (
+                        <li key={metric.id} className="text-sm text-slate-700">
+                          {metric.name} <span className="font-mono text-xs text-slate-400">{metric.key}</span> &middot; {metric.aggregation} &middot; {metric.unit}
+                        </li>
+                      ) : null,
+                    )}
+                  </ul>
                 )}
               </div>
-            </section>
 
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Attached coupons</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Commercial relief</h2>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{linkedCoupons.length} attached coupon(s)</div>
-              </div>
-              <div className="mt-5 grid gap-3">
-                {linkedCoupons.length === 0 ? (
-                  <EmptyPanel message="No coupons are attached to this plan." />
-                ) : (
-                  linkedCoupons.map((coupon) =>
-                    coupon ? (
-                      <div key={coupon.id} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1fr)_180px_140px] lg:items-center">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-950">{coupon.name}</p>
-                          <p className="mt-1 break-all font-mono text-xs text-slate-500">{coupon.code}</p>
-                        </div>
-                        <InfoCell label="Discount" value={coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`} />
-                        <InfoCell label="Status" value={coupon.status} />
-                      </div>
-                    ) : null,
-                  )
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Attached add-ons</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Recurring extras</h2>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{linkedAddOns.length} attached add-on(s)</div>
-              </div>
-              <div className="mt-5 grid gap-3">
+              {/* Linked add-ons */}
+              <div className="px-5 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-2">Linked add-ons ({linkedAddOns.length})</p>
                 {linkedAddOns.length === 0 ? (
-                  <EmptyPanel message="No add-ons are attached to this plan." />
+                  <p className="text-sm text-slate-500">None</p>
                 ) : (
-                  linkedAddOns.map((addOn) =>
-                    addOn ? (
-                      <div key={addOn.id} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1fr)_160px_140px] lg:items-center">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-950">{addOn.name}</p>
-                          <p className="mt-1 break-all font-mono text-xs text-slate-500">{addOn.code}</p>
-                        </div>
-                        <InfoCell label="Amount" value={`${(addOn.amount_cents / 100).toFixed(2)} ${addOn.currency}`} />
-                        <InfoCell label="Interval" value={addOn.billing_interval} />
-                      </div>
-                    ) : null,
-                  )
+                  <ul className="space-y-1">
+                    {linkedAddOns.map((addOn) =>
+                      addOn ? (
+                        <li key={addOn.id} className="text-sm text-slate-700">
+                          {addOn.name} <span className="font-mono text-xs text-slate-400">{addOn.code}</span> &middot; {(addOn.amount_cents / 100).toFixed(2)} {addOn.currency} &middot; {addOn.billing_interval}
+                        </li>
+                      ) : null,
+                    )}
+                  </ul>
                 )}
               </div>
-            </section>
+
+              {/* Linked coupons */}
+              <div className="px-5 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-2">Linked coupons ({linkedCoupons.length})</p>
+                {linkedCoupons.length === 0 ? (
+                  <p className="text-sm text-slate-500">None</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {linkedCoupons.map((coupon) =>
+                      coupon ? (
+                        <li key={coupon.id} className="text-sm text-slate-700">
+                          {coupon.name} <span className="font-mono text-xs text-slate-400">{coupon.code}</span> &middot; {coupon.discount_type === "percent_off" ? `${coupon.percent_off}% off` : `${(coupon.amount_off_cents / 100).toFixed(2)} ${coupon.currency} off`}
+                        </li>
+                      ) : null,
+                    )}
+                  </ul>
+                )}
+              </div>
+            </div>
           </SectionErrorBoundary>
         ) : null}
       </main>
     </div>
-  );
-}
-
-function LoadingPanel({ label }: { label: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-      <div className="flex items-center gap-2">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
-        {label}
-      </div>
-    </section>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function InfoCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function EmptyPanel({ message }: { message: string }) {
-  return <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">{message}</p>;
-}
-
-function GuidanceCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
-    </section>
   );
 }

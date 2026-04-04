@@ -1,22 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Plus } from "lucide-react";
+import { Plus, Receipt } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTaxes } from "@/lib/api";
-import { type Tax } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
+
+const PAGE_SIZE = 20;
+
+function statusTone(status: string): string {
+  switch (status.toLowerCase()) {
+    case "active":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "draft":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "archived":
+      return "border-slate-200 bg-slate-50 text-slate-500";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-700";
+  }
+}
 
 export function PricingTaxListScreen() {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const taxesQuery = useQuery({
     queryKey: ["pricing-taxes", apiBaseURL],
@@ -31,7 +47,7 @@ export function PricingTaxListScreen() {
     return items.filter((item) => item.code.toLowerCase().includes(term) || item.name.toLowerCase().includes(term));
   }, [taxesQuery.data, search]);
 
-  const activeCount = (taxesQuery.data ?? []).filter((item) => item.status === "active").length;
+  const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
   return (
     <div className="text-slate-900">
@@ -44,117 +60,75 @@ export function PricingTaxListScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace pricing console</p>
-                  <h1 className="mt-2 text-lg font-semibold text-slate-950">Taxes</h1>
-                  <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                    Maintain reusable tax codes and rates, then assign them to customer billing profiles and workspace billing settings.
-                  </p>
-                </div>
-                <Link href="/pricing/taxes/new" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-                  <Plus className="h-4 w-4" />
-                  New tax
-                </Link>
-              </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-3">
-              <MetricCard label="Total taxes" value={String(taxesQuery.data?.length ?? 0)} />
-              <MetricCard label="Active taxes" value={String(activeCount)} />
-              <MetricCard label="Search results" value={String(filtered.length)} />
-            </section>
-
-            <section className="grid gap-3 xl:grid-cols-3">
-            </section>
-
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tax rules</p>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950">Browse and inspect</h2>
-                </div>
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+              <h1 className="text-sm font-semibold text-slate-900">Taxes{filtered.length > 0 ? ` (${filtered.length})` : ""}</h1>
+              <div className="flex items-center gap-2">
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by name or code"
-                  className="h-10 min-w-[260px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                  placeholder="Search..."
+                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
+                <Link href="/pricing/taxes/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <Plus className="h-3.5 w-3.5" />
+                  New
+                </Link>
               </div>
-              <div className="mt-5 grid gap-3">
-                {taxesQuery.isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState /> : filtered.map((tax) => <TaxRow key={tax.id} tax={tax} />)}
-              </div>
-            </section>
-          </>
+            </div>
+            {taxesQuery.isLoading ? (
+              <LoadingState />
+            ) : filtered.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                      <th className="px-5 py-2.5 font-semibold">Name</th>
+                      <th className="px-4 py-2.5 font-semibold">Code</th>
+                      <th className="px-4 py-2.5 font-semibold">Rate</th>
+                      <th className="px-4 py-2.5 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {paginated.map((tax) => (
+                      <tr key={tax.id} className="transition hover:bg-stone-50">
+                        <td className="px-5 py-3">
+                          <Link href={`/pricing/taxes/${encodeURIComponent(tax.id)}`} className="block font-medium text-slate-900">
+                            {tax.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-500">{tax.code}</td>
+                        <td className="px-4 py-3 text-slate-600">{tax.rate.toFixed(2)}%</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusTone(tax.status)}`}>
+                            {tax.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
+              </>
+            )}
+          </div>
         ) : null}
       </main>
     </div>
   );
 }
 
-function TaxRow({ tax }: { tax: Tax }) {
-  return (
-    <Link href={"/pricing/taxes/" + encodeURIComponent(tax.id)} className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100 lg:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.6fr))_auto] lg:items-center">
-      <div className="min-w-0">
-        <h3 className="truncate text-base font-semibold text-slate-950">{tax.name}</h3>
-        <p className="mt-1 break-all font-mono text-xs text-slate-500">{tax.code}</p>
-        <p className="mt-2 text-sm text-slate-600">{tax.description || "No description provided."}</p>
-      </div>
-      <StatusCell label="Status" value={tax.status} />
-      <StatusCell label="Rate" value={tax.rate.toFixed(2) + "%"} />
-      <StatusCell label="Applies to" value="Customers / entity" />
-      <StatusCell
-        label="Availability"
-        value={
-          tax.status === "active" ? "Ready to assign" : tax.status === "draft" ? "Draft" : "Archived"
-        }
-      />
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">Open<ChevronRight className="h-4 w-4" /></span>
-    </Link>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p><p className="mt-2 text-base font-semibold text-slate-950">{value}</p></div>;
-}
-
-function StatusCell({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg border border-slate-200 bg-white px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p><p className="mt-2 text-sm font-semibold text-slate-950">{value}</p></div>;
-}
-
-function OperatorCard({ title, body }: { title: string; body: string }) {
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-950">{title}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{body}</p></section>;
-}
-
 function LoadingState() {
   return (
-    <div className="grid gap-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.6fr))_auto] lg:items-center">
-          <div className="min-w-0">
-            <Skeleton className="h-5 w-36" />
-            <Skeleton className="mt-2 h-3 w-24" />
-            <Skeleton className="mt-2 h-4 w-48" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-10" />
-            <Skeleton className="mt-2 h-4 w-16" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-8" />
-            <Skeleton className="mt-2 h-4 w-12" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="mt-2 h-4 w-24" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="mt-2 h-4 w-24" />
-          </div>
-          <Skeleton className="h-4 w-10" />
+    <div className="divide-y divide-stone-100">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-5 py-3">
+          <div className="flex-1"><Skeleton className="h-4 w-32" /></div>
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-4 w-14 rounded-full" />
         </div>
       ))}
     </div>
@@ -162,5 +136,15 @@ function LoadingState() {
 }
 
 function EmptyState() {
-  return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600"><p className="font-semibold text-slate-950">No taxes yet.</p><p className="mt-2">Create the first tax, then assign it to customer profiles or workspace billing settings.</p><div className="mt-4"><Link href="/pricing/taxes/new" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">New tax</Link></div></div>;
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
+      <Receipt className="h-8 w-8 text-slate-300" />
+      <p className="text-sm font-medium text-slate-700">No taxes yet</p>
+      <p className="text-xs text-slate-500">Create the first tax, then assign it to customer profiles or workspace billing settings.</p>
+      <Link href="/pricing/taxes/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+        <Plus className="h-3.5 w-3.5" />
+        New tax
+      </Link>
+    </div>
+  );
 }

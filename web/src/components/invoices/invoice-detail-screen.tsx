@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, LoaderCircle, Mail, RefreshCw } from "lucide-react";
+import { LoaderCircle, Mail, RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -97,7 +97,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
 
   return (
     <div className="text-slate-900">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
             { href: "/control-plane", label: "Workspace" },
@@ -118,357 +118,290 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
 
         {isTenantSession ? (
           invoiceQuery.isLoading ? (
-            <LoadingPanel label="Loading invoice detail" />
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Loading invoice detail
+              </div>
+            </section>
           ) : invoiceQuery.isError || !invoice ? (
             <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice</p>
-              <h1 className="mt-2 text-2xl font-semibold text-slate-950">Invoice not available</h1>
-              <p className="mt-3 text-sm text-slate-600">The requested invoice could not be loaded from the workspace APIs.</p>
-              <Link
-                href="/invoices"
-                className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to invoices
-              </Link>
+              <p className="text-sm font-semibold text-slate-900">Invoice not available</p>
+              <p className="mt-1 text-sm text-slate-500">The requested invoice could not be loaded from the workspace APIs.</p>
             </section>
           ) : (
           <SectionErrorBoundary>
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice</p>
-                  <h1 className="mt-2 break-words text-lg font-semibold text-slate-950">{invoice.invoice_number || invoice.invoice_id}</h1>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                    <span className="font-mono text-xs text-slate-500">{invoice.invoice_id}</span>
-                    <Badge>{formatBillingState(invoice.invoice_status)}</Badge>
-                    <Badge>{formatBillingState(invoice.payment_status)}</Badge>
-                    {invoice.payment_overdue ? <Badge>Overdue</Badge> : null}
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+              {/* ---- Header ---- */}
+              <div className="px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-base font-semibold text-slate-900 truncate">{invoice.invoice_number || invoice.invoice_id}</h1>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-slate-200 bg-slate-50 text-slate-700`}>
+                      {formatBillingState(invoice.invoice_status)}
+                    </span>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-slate-200 bg-slate-50 text-slate-700`}>
+                      {formatBillingState(invoice.payment_status)}
+                    </span>
+                    {invoice.payment_overdue ? (
+                      <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-rose-700">
+                        Overdue
+                      </span>
+                    ) : null}
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Link
-                    href="/invoices"
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to invoices
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => resendEmailMutation.mutate()}
-                    disabled={!canWrite || !csrfToken || resendEmailMutation.isPending}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {resendEmailMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                    Resend invoice email
-                  </button>
-                  {actionConfig?.emphasizeRetry ? (
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => retryMutation.mutate()}
-                      disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => resendEmailMutation.mutate()}
+                      disabled={!canWrite || !csrfToken || resendEmailMutation.isPending}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Retry payment
+                      {resendEmailMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                      Resend email
                     </button>
-                  ) : null}
-                  {invoice.customer_external_id && invoice.lifecycle?.recommended_action === "collect_payment" ? (
-                    <Link
-                      href={`/customers/${encodeURIComponent(invoice.customer_external_id)}#payment-collection`}
-                      className="inline-flex h-10 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-                    >
-                      Open customer collection path
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Invoice total" value={formatMoney(invoice.total_amount_cents, invoice.currency || "USD")} />
-              <MetricCard label="Amount due" value={formatMoney(invoice.total_due_amount_cents, invoice.currency || "USD")} />
-              <MetricCard label="Amount paid" value={formatMoney(invoice.total_paid_amount_cents, invoice.currency || "USD")} />
-              <MetricCard label="Currency" value={invoice.currency || "-"} />
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-              <div className="min-w-0 grid gap-5">
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice status</p>
-                  <div className="mt-5 grid gap-3 lg:grid-cols-2">
-                    <StatusCard label="Invoice status" value={formatBillingState(invoice.invoice_status)} />
-                    <StatusCard label="Payment status" value={formatBillingState(invoice.payment_status)} />
-                    <StatusCard label="Issued" value={formatExactTimestamp(invoice.issuing_date || invoice.created_at)} />
-                    <StatusCard label="Payment due" value={formatExactTimestamp(invoice.payment_due_date)} />
-                  </div>
-                  {invoice.last_payment_error ? (
-                    <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-                      <p className="font-semibold text-amber-900">Last payment error</p>
-                      <p className="mt-2">{invoice.last_payment_error}</p>
-                    </div>
-                  ) : null}
-                </section>
-
-                {invoice.lifecycle ? (
-                  <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current action</p>
-                    <div className="mt-5 grid gap-3 lg:grid-cols-2">
-                      <StatusCard label="Action" value={formatBillingState(invoice.lifecycle.recommended_action)} />
-                      <StatusCard label="Requires action" value={invoice.lifecycle.requires_action ? "Yes" : "No"} />
-                      <StatusCard label="Last event" value={formatBillingState(invoice.last_event_type || invoice.lifecycle.last_event_type)} />
-                      <StatusCard label="Last event at" value={formatExactTimestamp(invoice.last_event_at || invoice.lifecycle.last_event_at)} />
-                    </div>
-                    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                      <p className="font-semibold text-slate-950">Next step</p>
-                      <p className="mt-2">{invoice.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
-                    </div>
-                  </section>
-                ) : null}
-
-                {diagnosis ? <BillingFailureDiagnosisCard diagnosis={diagnosis} /> : null}
-                {diagnosisEvidence.length > 0 ? <BillingFailureEvidence items={diagnosisEvidence} /> : null}
-
-                <BillingActivityTimeline
-                  webhookEvents={invoiceEventsQuery.data?.items}
-                  dunningDetail={dunningDetailQuery.data}
-                  dunningRunHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
-                  loading={timelineLoading}
-                  error={timelineError}
-                />
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked billing documents</p>
-                  <div className="mt-5 grid gap-6">
-                    <div>
-                      <div className="flex items-center justify-between gap-3">
-                        <h2 className="text-sm font-semibold text-slate-950">Payment receipts</h2>
-                        <span className="text-xs text-slate-500">{paymentReceiptsQuery.data?.length ?? 0} linked</span>
-                      </div>
-                      <div className="mt-3 grid gap-3">
-                        {paymentReceiptsQuery.isLoading ? (
-                          <InlineLoadingState label="Loading linked payment receipts" />
-                        ) : paymentReceiptsQuery.isError ? (
-                          <InlineErrorState label="Payment receipts could not be loaded." />
-                        ) : paymentReceiptsQuery.data && paymentReceiptsQuery.data.length > 0 ? (
-                          paymentReceiptsQuery.data.map((item) => (
-                            <BillingDocumentRow
-                              key={item.id}
-                              title={item.number || item.id}
-                              subtitle={item.payment_status ? `Payment ${formatBillingState(item.payment_status)}` : "Linked payment receipt"}
-                              meta={[
-                                item.amount_cents !== undefined ? formatMoney(item.amount_cents, item.currency || invoice.currency || "USD") : undefined,
-                                formatExactTimestamp(item.created_at),
-                              ]}
-                              fileURL={item.file_url}
-                              resendLabel="Resend receipt email"
-                              canWrite={canWrite && Boolean(csrfToken)}
-                              onResend={() => resendPaymentReceiptEmail({ runtimeBaseURL: apiBaseURL, csrfToken, paymentReceiptID: item.id })}
-                            />
-                          ))
-                        ) : (
-                          <EmptyLinkedDocumentState label="No payment receipts are linked to this invoice yet." />
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between gap-3">
-                        <h2 className="text-sm font-semibold text-slate-950">Credit notes</h2>
-                        <span className="text-xs text-slate-500">{creditNotesQuery.data?.length ?? 0} linked</span>
-                      </div>
-                      <div className="mt-3 grid gap-3">
-                        {creditNotesQuery.isLoading ? (
-                          <InlineLoadingState label="Loading linked credit notes" />
-                        ) : creditNotesQuery.isError ? (
-                          <InlineErrorState label="Credit notes could not be loaded." />
-                        ) : creditNotesQuery.data && creditNotesQuery.data.length > 0 ? (
-                          creditNotesQuery.data.map((item) => (
-                            <BillingDocumentRow
-                              key={item.id}
-                              title={item.number || item.id}
-                              subtitle={[
-                                item.credit_status ? `Credit ${formatBillingState(item.credit_status)}` : "",
-                                item.refund_status ? `Refund ${formatBillingState(item.refund_status)}` : "",
-                              ].filter(Boolean).join(" • ") || "Linked credit note"}
-                              meta={[
-                                item.total_amount_cents !== undefined ? formatMoney(item.total_amount_cents, item.currency || invoice.currency || "USD") : undefined,
-                                formatExactTimestamp(item.issuing_date || item.created_at),
-                              ]}
-                              fileURL={item.file_url}
-                              resendLabel="Resend credit note email"
-                              canWrite={canWrite && Boolean(csrfToken)}
-                              onResend={() => resendCreditNoteEmail({ runtimeBaseURL: apiBaseURL, csrfToken, creditNoteID: item.id })}
-                            />
-                          ))
-                        ) : (
-                          <EmptyLinkedDocumentState label="No credit notes are linked to this invoice." />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Document actions</p>
-                  {resendEmailMutation.isSuccess ? (
-                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
-                      <p className="font-semibold text-emerald-900">Invoice email dispatched</p>
-                      <p className="mt-2">Alpha accepted the resend action and queued invoice delivery.</p>
-                    </div>
-                  ) : null}
-                  {resendEmailMutation.isError ? (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-                      <p className="font-semibold text-amber-900">Invoice email could not be dispatched</p>
-                      <p className="mt-2">{resendEmailMutation.error instanceof Error ? resendEmailMutation.error.message : "Invoice resend failed."}</p>
-                    </div>
-                  ) : null}
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <Link
-                      href={`/invoice-explainability?invoice_id=${encodeURIComponent(invoice.invoice_id)}`}
-                      className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-                    >
-                      Open explainability
-                    </Link>
-                    <Link
-                      href={`/payments/${encodeURIComponent(invoice.invoice_id)}`}
-                      className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
-                    >
-                      Open payment operations
-                    </Link>
-                  </div>
-                </section>
-              </div>
-
-              <aside className="min-w-0 grid gap-5 self-start">
-                <DunningSummaryPanel
-                  summary={invoice.dunning}
-                  canWrite={canWrite && Boolean(csrfToken)}
-                  sendingReminder={reminderMutation.isPending}
-                  onSendReminder={dunningRunID ? () => reminderMutation.mutate(dunningRunID) : undefined}
-                  runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
-                />
-                {invoice.lifecycle ? (
-                  <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Retry and recovery</p>
-                    <div className="mt-4 grid gap-3">
-                      <MetaItem label="Recommended action" value={formatBillingState(invoice.lifecycle.recommended_action)} />
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                        <p className="font-semibold text-slate-950">{actionConfig?.title || "No action required"}</p>
-                        <p className="mt-2">{actionConfig?.body || "No payment action guidance is currently available."}</p>
-                      </div>
-                      {actionConfig?.emphasizeRetry ? (
-                        <button
-                          type="button"
-                          onClick={() => retryMutation.mutate()}
-                          disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                          className="inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {retryMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                          Retry collection
-                        </button>
-                      ) : null}
-                      {invoice.customer_external_id && invoice.lifecycle.recommended_action === "collect_payment" ? (
-                        <Link
-                          href={`/customers/${encodeURIComponent(invoice.customer_external_id)}#payment-collection`}
-                          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                        >
-                          Open customer collection path
-                        </Link>
-                      ) : null}
-                      {actionConfig?.showRecovery && invoice.customer_external_id ? (
-                        <Link
-                          href={`/replay-operations?customer_id=${encodeURIComponent(invoice.customer_external_id)}&status=failed`}
-                          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                        >
-                          Open recovery tools
-                        </Link>
-                      ) : null}
-                      {actionConfig?.showExplainability ? (
-                        <Link
-                          href={`/invoice-explainability?invoice_id=${encodeURIComponent(invoice.invoice_id)}`}
-                          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                        >
-                          Open explainability
-                        </Link>
-                      ) : null}
-                      <Link
-                        href={`/payments/${encodeURIComponent(invoice.invoice_id)}`}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    {actionConfig?.emphasizeRetry ? (
+                      <button
+                        type="button"
+                        onClick={() => retryMutation.mutate()}
+                        disabled={!canWrite || !csrfToken || retryMutation.isPending}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Open payment operations
-                      </Link>
-                    </div>
-                  </section>
-                ) : null}
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Linked customer</p>
-                  <div className="mt-4 grid gap-3">
-                    <MetaItem label="Customer" value={invoice.customer_display_name || "-"} />
-                    <MetaItem label="Customer external ID" value={invoice.customer_external_id || "-"} mono />
-                    {invoice.customer_external_id ? (
+                        {retryMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        Retry payment
+                      </button>
+                    ) : null}
+                    {invoice.customer_external_id && invoice.lifecycle?.recommended_action === "collect_payment" ? (
                       <Link
-                        href={`/customers/${encodeURIComponent(invoice.customer_external_id)}`}
-                        className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+                        href={`/customers/${encodeURIComponent(invoice.customer_external_id)}#payment-collection`}
+                        className="inline-flex h-8 items-center rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
                       >
-                        Open customer
+                        Collect payment
                       </Link>
                     ) : null}
                   </div>
-                </section>
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">{invoice.invoice_id}</p>
+              </div>
 
-                <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Invoice metadata</p>
-                  <div className="mt-4 grid gap-3">
-                    <MetaItem label="Billing entity" value={invoice.billing_entity_code || "-"} />
-                    <MetaItem label="Invoice type" value={invoice.invoice_type || "-"} />
-                    <MetaItem label="Updated" value={formatExactTimestamp(invoice.updated_at)} />
-                    <MetaItem label="File URL" value={invoice.file_url || "-"} />
+              {/* ---- Details ---- */}
+              <div className="px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-slate-400">Invoice total</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(invoice.total_amount_cents, invoice.currency || "USD")}</dd>
                   </div>
-                </section>
-              </aside>
+                  <div>
+                    <dt className="text-xs text-slate-400">Amount due</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(invoice.total_due_amount_cents, invoice.currency || "USD")}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Amount paid</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(invoice.total_paid_amount_cents, invoice.currency || "USD")}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Customer</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{invoice.customer_display_name || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Customer ID</dt>
+                    <dd className="mt-0.5 text-sm font-mono text-slate-700">{invoice.customer_external_id || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Currency</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{invoice.currency || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Issued</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(invoice.issuing_date || invoice.created_at)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Payment due</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(invoice.payment_due_date)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-slate-400">Invoice type</dt>
+                    <dd className="mt-0.5 text-sm text-slate-700">{invoice.invoice_type || "-"}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* ---- Last payment error ---- */}
+              {invoice.last_payment_error ? (
+                <div className="px-5 py-0">
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 my-4 text-sm text-amber-800">
+                    <p className="font-medium">Last payment error</p>
+                    <p className="mt-0.5 text-xs">{invoice.last_payment_error}</p>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* ---- Lifecycle / diagnosis ---- */}
+              {invoice.lifecycle ? (
+                <div className="px-5 py-4">
+                  <p className="text-xs font-medium text-slate-400 mb-3">Lifecycle</p>
+                  <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                    <div>
+                      <dt className="text-xs text-slate-400">Action</dt>
+                      <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(invoice.lifecycle.recommended_action)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-400">Requires action</dt>
+                      <dd className="mt-0.5 text-sm text-slate-700">{invoice.lifecycle.requires_action ? "Yes" : "No"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-400">Last event</dt>
+                      <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(invoice.last_event_type || invoice.lifecycle.last_event_type)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-400">Last event at</dt>
+                      <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(invoice.last_event_at || invoice.lifecycle.last_event_at)}</dd>
+                    </div>
+                  </dl>
+                  <p className="mt-3 text-sm text-slate-600">{invoice.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
+                </div>
+              ) : null}
+            </div>
+
+            {/* ---- Dunning ---- */}
+            <DunningSummaryPanel
+              summary={invoice.dunning}
+              canWrite={canWrite && Boolean(csrfToken)}
+              sendingReminder={reminderMutation.isPending}
+              onSendReminder={dunningRunID ? () => reminderMutation.mutate(dunningRunID) : undefined}
+              runHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
+            />
+
+            {/* ---- Diagnosis ---- */}
+            {diagnosis ? <BillingFailureDiagnosisCard diagnosis={diagnosis} /> : null}
+            {diagnosisEvidence.length > 0 ? <BillingFailureEvidence items={diagnosisEvidence} /> : null}
+
+            {/* ---- Timeline ---- */}
+            <BillingActivityTimeline
+              webhookEvents={invoiceEventsQuery.data?.items}
+              dunningDetail={dunningDetailQuery.data}
+              dunningRunHref={dunningRunID ? `/dunning/${encodeURIComponent(dunningRunID)}` : undefined}
+              loading={timelineLoading}
+              error={timelineError}
+            />
+
+            {/* ---- Linked billing documents ---- */}
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+              <div className="px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-slate-400">Payment receipts</p>
+                  <span className="text-xs text-slate-500">{paymentReceiptsQuery.data?.length ?? 0} linked</span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {paymentReceiptsQuery.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
+                  ) : paymentReceiptsQuery.isError ? (
+                    <p className="text-sm text-amber-700">Payment receipts could not be loaded.</p>
+                  ) : paymentReceiptsQuery.data && paymentReceiptsQuery.data.length > 0 ? (
+                    paymentReceiptsQuery.data.map((item) => (
+                      <BillingDocumentRow
+                        key={item.id}
+                        title={item.number || item.id}
+                        subtitle={item.payment_status ? `Payment ${formatBillingState(item.payment_status)}` : "Linked payment receipt"}
+                        meta={[
+                          item.amount_cents !== undefined ? formatMoney(item.amount_cents, item.currency || invoice.currency || "USD") : undefined,
+                          formatExactTimestamp(item.created_at),
+                        ]}
+                        fileURL={item.file_url}
+                        resendLabel="Resend receipt"
+                        canWrite={canWrite && Boolean(csrfToken)}
+                        onResend={() => resendPaymentReceiptEmail({ runtimeBaseURL: apiBaseURL, csrfToken, paymentReceiptID: item.id })}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">No payment receipts linked yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-slate-400">Credit notes</p>
+                  <span className="text-xs text-slate-500">{creditNotesQuery.data?.length ?? 0} linked</span>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {creditNotesQuery.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
+                  ) : creditNotesQuery.isError ? (
+                    <p className="text-sm text-amber-700">Credit notes could not be loaded.</p>
+                  ) : creditNotesQuery.data && creditNotesQuery.data.length > 0 ? (
+                    creditNotesQuery.data.map((item) => (
+                      <BillingDocumentRow
+                        key={item.id}
+                        title={item.number || item.id}
+                        subtitle={[
+                          item.credit_status ? `Credit ${formatBillingState(item.credit_status)}` : "",
+                          item.refund_status ? `Refund ${formatBillingState(item.refund_status)}` : "",
+                        ].filter(Boolean).join(" / ") || "Linked credit note"}
+                        meta={[
+                          item.total_amount_cents !== undefined ? formatMoney(item.total_amount_cents, item.currency || invoice.currency || "USD") : undefined,
+                          formatExactTimestamp(item.issuing_date || item.created_at),
+                        ]}
+                        fileURL={item.file_url}
+                        resendLabel="Resend credit note"
+                        canWrite={canWrite && Boolean(csrfToken)}
+                        onResend={() => resendCreditNoteEmail({ runtimeBaseURL: apiBaseURL, csrfToken, creditNoteID: item.id })}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">No credit notes linked.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* ---- Document actions ---- */}
+              <div className="px-5 py-4">
+                <p className="text-xs font-medium text-slate-400 mb-3">Document actions</p>
+                {resendEmailMutation.isSuccess ? (
+                  <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    Invoice email dispatched.
+                  </div>
+                ) : null}
+                {resendEmailMutation.isError ? (
+                  <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {resendEmailMutation.error instanceof Error ? resendEmailMutation.error.message : "Invoice resend failed."}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/invoice-explainability?invoice_id=${encodeURIComponent(invoice.invoice_id)}`}
+                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Open explainability
+                  </Link>
+                  <Link
+                    href={`/payments/${encodeURIComponent(invoice.invoice_id)}`}
+                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Open payment operations
+                  </Link>
+                  {invoice.customer_external_id ? (
+                    <Link
+                      href={`/customers/${encodeURIComponent(invoice.customer_external_id)}`}
+                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Open customer
+                    </Link>
+                  ) : null}
+                  {actionConfig?.showRecovery && invoice.customer_external_id ? (
+                    <Link
+                      href={`/replay-operations?customer_id=${encodeURIComponent(invoice.customer_external_id)}&status=failed`}
+                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Open recovery tools
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </SectionErrorBoundary>
           )
         ) : null}
       </main>
-    </div>
-  );
-}
-
-function LoadingPanel({ label }: { label: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-      <div className="flex items-center gap-2">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
-        {label}
-      </div>
-    </section>
-  );
-}
-
-function InlineLoadingState({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      {label}
-    </div>
-  );
-}
-
-function InlineErrorState({ label }: { label: string }) {
-  return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-      {label}
-    </div>
-  );
-}
-
-function EmptyLinkedDocumentState({ label }: { label: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-      {label}
     </div>
   );
 }
@@ -495,82 +428,32 @@ function BillingDocumentRow({
   });
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-950">{title}</p>
-          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-            {meta.filter(Boolean).map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-          </div>
-          {resendMutation.isSuccess ? (
-            <p className="mt-2 text-xs text-emerald-700">Email dispatch accepted.</p>
-          ) : null}
-          {resendMutation.isError ? (
-            <p className="mt-2 text-xs text-amber-700">
-              {resendMutation.error instanceof Error ? resendMutation.error.message : "Dispatch failed."}
-            </p>
-          ) : null}
+    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-slate-900">{title}</p>
+        <p className="text-xs text-slate-500">{subtitle}</p>
+        <div className="flex flex-wrap gap-2 text-xs text-slate-400 mt-0.5">
+          {meta.filter(Boolean).map((item) => <span key={item}>{item}</span>)}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {fileURL ? (
-            <a
-              href={fileURL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition hover:bg-slate-100"
-            >
-              Open file
-            </a>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => resendMutation.mutate()}
-            disabled={!canWrite || resendMutation.isPending}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {resendMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-            {resendLabel}
-          </button>
-        </div>
+        {resendMutation.isSuccess ? <p className="mt-1 text-xs text-emerald-700">Email dispatch accepted.</p> : null}
+        {resendMutation.isError ? <p className="mt-1 text-xs text-amber-700">{resendMutation.error instanceof Error ? resendMutation.error.message : "Dispatch failed."}</p> : null}
       </div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function StatusCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{value || "-"}</p>
-    </div>
-  );
-}
-
-function Badge({ children }: { children: string }) {
-  return (
-    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-      {children}
-    </span>
-  );
-}
-
-function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</dt>
-      <dd className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value || "-"}</dd>
+      <div className="flex shrink-0 gap-2">
+        {fileURL ? (
+          <a href={fileURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50">
+            Open file
+          </a>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => resendMutation.mutate()}
+          disabled={!canWrite || resendMutation.isPending}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {resendMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+          {resendLabel}
+        </button>
+      </div>
     </div>
   );
 }

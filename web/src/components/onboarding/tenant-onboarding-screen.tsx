@@ -121,7 +121,7 @@ export function TenantOnboardingScreen() {
         ) : null}
 
         {canViewPlatformSurface && onboardMutation.isSuccess && result ? (
-          <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <section className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {result.tenant_created
               ? `Workspace ${result.tenant.id} created successfully.`
               : `Workspace ${result.tenant.id} updated and readiness refreshed.`}
@@ -144,8 +144,8 @@ export function TenantOnboardingScreen() {
                   <InputField label="Workspace name" placeholder="Acme Corp" error={errors.tenant_name?.message} {...register("tenant_name")} />
                 </div>
 
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Billing connection</p>
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-medium text-slate-500">Billing connection</p>
                   <p className="mt-2 text-sm text-slate-600">You can leave this empty and attach billing after the workspace is created.</p>
                   {billingConnectionsQuery.isLoading ? (
                     <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
@@ -153,7 +153,7 @@ export function TenantOnboardingScreen() {
                       Loading billing connections
                     </div>
                   ) : connectedBillingConnections.length === 0 ? (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
                       No connected billing providers yet. You can still create the workspace.
                       <div className="mt-3">
                         <Link href="/billing-connections/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
@@ -165,7 +165,7 @@ export function TenantOnboardingScreen() {
                   ) : (
                     <div className="mt-4 grid gap-4">
                       <label className="grid gap-2 text-sm text-slate-700">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Billing connection</span>
+                        <span className="text-xs font-medium text-slate-500">Billing connection</span>
                         <select
                           className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                           {...register("billing_provider_connection_id")}
@@ -179,8 +179,8 @@ export function TenantOnboardingScreen() {
                         </select>
                       </label>
                       {selectedBillingConnection ? (
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Selected connection</p>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                          <p className="text-xs font-medium text-slate-500">Selected connection</p>
                           <h4 className="mt-2 text-base font-semibold text-slate-950">{selectedBillingConnection.display_name}</h4>
                           <div className="mt-3 grid gap-3 md:grid-cols-2">
                             <MetaItem label="Connection ID" value={selectedBillingConnection.id} mono />
@@ -193,12 +193,12 @@ export function TenantOnboardingScreen() {
                   )}
                 </section>
 
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Access bootstrap</p>
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-medium text-slate-500">Access bootstrap</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
                     <InputField label="Bootstrap service account name" placeholder="bootstrap-admin-tenant_acme" error={errors.admin_key_name?.message} {...register("admin_key_name")} />
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Advanced controls</p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <p className="text-xs font-medium text-slate-500">Advanced controls</p>
                       <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
                         <input type="checkbox" className="h-4 w-4 rounded border-slate-300" {...register("bootstrap_admin_key")} />
                         Generate first admin service account credential
@@ -212,11 +212,11 @@ export function TenantOnboardingScreen() {
                 </section>
 
                 {errors.root?.message ? (
-                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p>
+                  <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p>
                 ) : null}
 
                 {createdSecret ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
                     <div className="flex items-center gap-2 font-semibold text-amber-800">
                       <KeyRound className="h-4 w-4" />
                       First admin service account credential
@@ -227,16 +227,16 @@ export function TenantOnboardingScreen() {
                 ) : null}
 
                 {result?.tenant ? (
-                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Workspace created</p>
+                  <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                    <p className="text-xs font-medium text-slate-500">Workspace created</p>
                     <h2 className="mt-2 break-words text-base font-semibold text-slate-950">{result.tenant.name}</h2>
                     <p className="mt-1 break-all font-mono text-xs text-slate-500">{result.tenant.id}</p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <SummaryStat label="Workspace" value={result.readiness.tenant.status} helper={result.readiness.tenant.tenant_active ? "Active" : "Needs activation"} />
-                      <SummaryStat label="Overall" value={result.readiness.status} helper={`${normalizeMissingSteps(result.readiness.missing_steps).length} checklist items remain`} />
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                      <span>Workspace: <span className="font-medium text-slate-900">{formatReadinessStatus(result.readiness.tenant.status)}</span> {result.readiness.tenant.tenant_active ? "(Active)" : "(Needs activation)"}</span>
+                      <span>Overall: <span className="font-medium text-slate-900">{formatReadinessStatus(result.readiness.status)}</span> ({normalizeMissingSteps(result.readiness.missing_steps).length} checklist items remain)</span>
                     </div>
                     {result.tenant.billing_provider_connection_id ? (
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
                         Billing connection
                         <p className="mt-2 break-all font-mono text-xs text-slate-500">{result.tenant.billing_provider_connection_id}</p>
                       </div>
@@ -278,20 +278,10 @@ export function TenantOnboardingScreen() {
   );
 }
 
-function SummaryStat({ label, value, helper }: { label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{formatReadinessStatus(value)}</p>
-      <p className="mt-2 text-xs leading-relaxed text-slate-600">{helper}</p>
-    </div>
-  );
-}
-
 function InputField({ label, error, ...inputProps }: { label: string; error?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
       <input
         {...inputProps}
         aria-invalid={Boolean(error)}
@@ -304,8 +294,8 @@ function InputField({ label, error, ...inputProps }: { label: string; error?: st
 
 function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className={`mt-2 break-all text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
