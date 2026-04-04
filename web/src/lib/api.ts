@@ -1358,6 +1358,23 @@ export async function switchWorkspace(input: {
   return payload;
 }
 
+export async function createWorkspace(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  name: string;
+}): Promise<{ workspace_id: string; workspace_name: string; csrf_token: string; next_path: string }> {
+  const payload = await apiRequest<{ workspace_id: string; workspace_name: string; csrf_token: string; next_path: string }>("/v1/ui/workspaces", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: { name: input.name },
+  });
+  if (!payload) {
+    throw new Error("failed to create workspace");
+  }
+  return payload;
+}
+
 export async function fetchWorkspaceInvitationPreview(input: {
   runtimeBaseURL?: string;
   token: string;
