@@ -24,7 +24,7 @@ function tone(status?: string): string {
     case "error":
       return "border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-700";
+      return "border-stone-200 bg-slate-50 text-slate-700";
   }
 }
 
@@ -125,7 +125,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
 
         {isTenantSession ? (
           detailQuery.isLoading ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading subscription detail
@@ -240,7 +240,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                 </dl>
                 {latestSetupCheckoutURL ? (
                   <div className="mt-3">
-                    <a href={latestSetupCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                    <a href={latestSetupCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                       Open latest setup link
                     </a>
                   </div>
@@ -274,7 +274,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                       value={selectedPlanIDValue}
                       onChange={(event) => setSelectedPlanID(event.target.value)}
                       disabled={!canWrite || !csrfToken || updateMutation.isPending || plansQuery.isLoading || subscription.status === "archived"}
-                      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50"
+                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50"
                     >
                       {activePlans.map((plan) => (
                         <option key={plan.id} value={plan.id}>

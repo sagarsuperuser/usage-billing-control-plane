@@ -76,7 +76,7 @@ func (a *Activities) RunBillingConnectionCheckBatch(ctx context.Context, input B
 func RegisterTemporalBillingConnectionCheckWorker(w worker.Worker, billingProviderService *service.BillingProviderConnectionService) error {
 	activities, err := NewActivities(billingProviderService)
 	if err != nil {
-		return err
+		return fmt.Errorf("create billing connection check activities: %w", err)
 	}
 	w.RegisterWorkflowWithOptions(BillingConnectionCheckWorkflow, workflow.RegisterOptions{Name: BillingConnectionCheckWorkflowName})
 	w.RegisterActivityWithOptions(activities.RunBillingConnectionCheckBatch, activity.RegisterOptions{Name: BillingConnectionCheckRunActivityName})
@@ -124,5 +124,5 @@ func EnsureBillingConnectionCheckCronWorkflow(
 	if errors.As(err, &alreadyStarted) {
 		return nil
 	}
-	return err
+	return fmt.Errorf("start billing connection check cron workflow: %w", err)
 }

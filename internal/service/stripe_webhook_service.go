@@ -150,7 +150,10 @@ func (s *StripeWebhookService) applyInvoicePaymentEffects(event domain.StripeWeb
 		LastEventAt:          event.OccurredAt,
 		LastWebhookKey:       event.StripeEventID,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("upsert invoice payment status view: %w", err)
+	}
+	return nil
 }
 
 // applyCustomerEffects handles checkout session and payment method events.
@@ -162,7 +165,10 @@ func (s *StripeWebhookService) applyCustomerEffects(event domain.StripeWebhookEv
 	switch event.EventType {
 	case "checkout.session.completed":
 		_, err := s.customerSvc.RefreshCustomerPaymentSetup(event.TenantID, event.CustomerExternalID)
-		return err
+		if err != nil {
+			return fmt.Errorf("refresh customer payment setup (checkout completed): %w", err)
+		}
+		return nil
 
 	case "setup_intent.setup_failed":
 		msg := event.FailureMessage
@@ -170,11 +176,17 @@ func (s *StripeWebhookService) applyCustomerEffects(event domain.StripeWebhookEv
 			msg = "payment method setup failed"
 		}
 		_, err := s.customerSvc.RecordCustomerPaymentProviderError(event.TenantID, event.CustomerExternalID, msg)
-		return err
+		if err != nil {
+			return fmt.Errorf("record customer payment provider error: %w", err)
+		}
+		return nil
 
 	case "payment_method.attached":
 		_, err := s.customerSvc.RefreshCustomerPaymentSetup(event.TenantID, event.CustomerExternalID)
-		return err
+		if err != nil {
+			return fmt.Errorf("refresh customer payment setup (payment method attached): %w", err)
+		}
+		return nil
 
 	default:
 		return nil
@@ -189,9 +201,15 @@ func (s *StripeWebhookService) applyDunningEffects(event domain.StripeWebhookEve
 	switch event.EventType {
 	case "payment_intent.payment_failed":
 		_, err := s.dunningSvc.EnsureRunForInvoice(event.TenantID, event.InvoiceID)
-		return err
+		if err != nil {
+			return fmt.Errorf("ensure dunning run for invoice: %w", err)
+		}
+		return nil
 	case "payment_intent.succeeded":
-		return s.dunningSvc.ResolveRunByInvoiceID(event.TenantID, event.InvoiceID, "payment_succeeded")
+		if err := s.dunningSvc.ResolveRunByInvoiceID(event.TenantID, event.InvoiceID, "payment_succeeded"); err != nil {
+			return fmt.Errorf("resolve dunning run by invoice: %w", err)
+		}
+		return nil
 	default:
 		return nil
 	}

@@ -360,7 +360,7 @@ func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string,
 	}
 
 	// TODO(context): thread parent ctx through BeginCustomerPaymentSetup call chain
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), billingOperationTimeout)
 	defer cancel()
 
 	ctx = ContextWithBillingScope(ctx, customer.TenantID, organizationID)
@@ -512,7 +512,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 	}
 
 	// TODO(context): thread parent ctx through syncAndVerifyCustomerBilling call chain
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), billingOperationTimeout)
 	defer cancel()
 
 	workspaceSettings, err := s.store.GetWorkspaceBillingSettings(customer.TenantID)

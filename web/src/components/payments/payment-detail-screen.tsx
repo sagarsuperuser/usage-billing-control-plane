@@ -90,7 +90,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
         {isTenantSession ? (
           paymentQuery.isLoading ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading payment detail
@@ -109,10 +109,10 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <h1 className="text-base font-semibold text-slate-900 truncate">{payment.invoice_number || payment.invoice_id}</h1>
-                    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                    <span className="shrink-0 rounded-full border border-stone-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
                       {formatBillingState(payment.payment_status)}
                     </span>
-                    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                    <span className="shrink-0 rounded-full border border-stone-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
                       {formatBillingState(payment.invoice_status)}
                     </span>
                     {payment.payment_overdue ? (
@@ -214,21 +214,21 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   {payment.customer_external_id ? (
                     <Link
                       to={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open customer
                     </Link>
                   ) : null}
                   <Link
                     to={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Open invoice
                   </Link>
                   {actionConfig?.showExplainability ? (
                     <Link
                       to={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open explainability
                     </Link>
@@ -236,7 +236,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   {actionConfig?.showRecovery && payment.customer_external_id ? (
                     <Link
                       to={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
-                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open recovery tools
                     </Link>
@@ -264,7 +264,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
               <select
                 value={String(eventLimit)}
                 onChange={(event) => setEventLimit(Number(event.target.value))}
-                className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                className="h-8 rounded-md border border-stone-200 bg-white px-3 text-xs text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
               >
                 <option value="10">10</option>
                 <option value="25">25</option>

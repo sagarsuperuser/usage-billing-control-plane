@@ -24,6 +24,8 @@ const (
 	DefaultTemporalReplayTaskQueue = "alpha-replay-jobs"
 	ReplayWorkflowName             = "alpha.replay.workflow"
 	ReplayRunActivityName          = "alpha.replay.run_activity"
+
+	workflowStartTimeout = 5 * time.Second
 )
 
 type ReplayJobWorkflowInput struct {
@@ -202,7 +204,7 @@ func (d *TemporalDispatcher) startWorkflow(ctx context.Context, tenantID, jobID 
 	}
 
 	workflowID := ReplayWorkflowID(jobID)
-	startCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	startCtx, cancel := context.WithTimeout(ctx, workflowStartTimeout)
 	defer cancel()
 
 	_, err := d.temporal.ExecuteWorkflow(startCtx, client.StartWorkflowOptions{

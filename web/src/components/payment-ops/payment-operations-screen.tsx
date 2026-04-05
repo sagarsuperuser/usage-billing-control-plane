@@ -48,7 +48,7 @@ function paymentBadgeClass(status?: string): string {
     case "pending":
       return "border-amber-200 bg-amber-50 text-amber-700";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-600";
+      return "border-stone-200 bg-slate-50 text-slate-600";
   }
 }
 
@@ -227,7 +227,7 @@ export function PaymentOperationsScreen() {
                       type="button"
                       onClick={() => statusesQuery.refetch()}
                       disabled={statusesQuery.isFetching}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {statusesQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                       Refresh
@@ -246,7 +246,7 @@ export function PaymentOperationsScreen() {
                       value={organizationID}
                       onChange={(e) => { setOrganizationID(e.target.value); resetStatusOffset(); }}
                       placeholder="optional org filter"
-                      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                     />
                   </label>
                   <label className="grid gap-1 text-sm">
@@ -256,7 +256,7 @@ export function PaymentOperationsScreen() {
                       value={invoiceStatus}
                       onChange={(e) => { setInvoiceStatus(e.target.value); resetStatusOffset(); }}
                       placeholder="finalized / draft / voided"
-                      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                     />
                   </label>
                   <label className="grid gap-1 text-sm">
@@ -264,7 +264,7 @@ export function PaymentOperationsScreen() {
                     <select
                       value={overdue}
                       onChange={(e) => { setOverdue(e.target.value as "all" | "true" | "false"); resetStatusOffset(); }}
-                      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                     >
                       <option value="all">All</option>
                       <option value="true">Overdue only</option>
@@ -276,7 +276,7 @@ export function PaymentOperationsScreen() {
                     <select
                       value={statusSortBy}
                       onChange={(e) => { setStatusSortBy(e.target.value as (typeof statusSortOptions)[number]["value"]); resetStatusOffset(); }}
-                      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                     >
                       {statusSortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
@@ -286,7 +286,7 @@ export function PaymentOperationsScreen() {
                     <select
                       value={statusOrder}
                       onChange={(e) => { setStatusOrder(e.target.value as (typeof orderOptions)[number]["value"]); resetStatusOffset(); }}
-                      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                     >
                       {orderOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
@@ -357,7 +357,7 @@ export function PaymentOperationsScreen() {
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); openTimeline(item.invoice_id, item.organization_id); }}
-                                className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                                className="inline-flex items-center rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                               >
                                 Timeline
                               </button>
@@ -365,7 +365,7 @@ export function PaymentOperationsScreen() {
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); retryMutation.mutate(item.invoice_id); }}
                                 disabled={!isAuthenticated || !csrfToken || !canWrite || retrying}
-                                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                                 title={!canWrite ? "Writer or admin role required" : undefined}
                               >
                                 {retrying ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
@@ -388,7 +388,7 @@ export function PaymentOperationsScreen() {
                     type="button"
                     onClick={() => setStatusOffset(Math.max(0, statusOffset - statusLimit))}
                     disabled={!canGoPrevStatuses || statusesQuery.isFetching}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" /> Prev
                   </button>
@@ -396,7 +396,7 @@ export function PaymentOperationsScreen() {
                     type="button"
                     onClick={() => setStatusOffset(statusOffset + statusLimit)}
                     disabled={!canGoNextStatuses || statusesQuery.isFetching}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Next <ChevronRight className="h-3.5 w-3.5" />
                   </button>
@@ -447,7 +447,7 @@ export function PaymentOperationsScreen() {
               <button
                 type="button"
                 onClick={() => setTimelineOpen(false)}
-                className="rounded-md border border-slate-200 bg-white p-1.5 text-slate-700 transition hover:bg-slate-50"
+                className="rounded-md border border-stone-200 bg-white p-1.5 text-slate-700 transition hover:bg-slate-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -461,7 +461,7 @@ export function PaymentOperationsScreen() {
                   value={eventWebhookType}
                   onChange={(e) => { setEventWebhookType(e.target.value); setEventOffset(0); }}
                   placeholder="invoice.payment_failure"
-                  className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
               </label>
               <label className="grid gap-1 text-sm">
@@ -469,7 +469,7 @@ export function PaymentOperationsScreen() {
                 <select
                   value={eventSortBy}
                   onChange={(e) => { setEventSortBy(e.target.value as (typeof eventSortOptions)[number]["value"]); setEventOffset(0); }}
-                  className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   {eventSortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -479,7 +479,7 @@ export function PaymentOperationsScreen() {
                 <select
                   value={eventOrder}
                   onChange={(e) => { setEventOrder(e.target.value as (typeof orderOptions)[number]["value"]); setEventOffset(0); }}
-                  className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   {orderOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -489,7 +489,7 @@ export function PaymentOperationsScreen() {
                 <select
                   value={String(eventLimit)}
                   onChange={(e) => { setEventLimit(Number(e.target.value)); setEventOffset(0); }}
-                  className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="25">25</option>
                   <option value="50">50</option>
@@ -503,7 +503,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => eventsQuery.refetch()}
                 disabled={eventsQuery.isFetching || !isAuthenticated}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eventsQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Refresh
@@ -518,7 +518,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => lifecycleQuery.refetch()}
                   disabled={lifecycleQuery.isFetching || !isAuthenticated}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {lifecycleQuery.isFetching ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                   Refresh
@@ -608,7 +608,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => setEventOffset(Math.max(0, eventOffset - eventLimit))}
                   disabled={!canGoPrevEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" /> Prev
                 </button>
@@ -616,7 +616,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => setEventOffset(eventOffset + eventLimit)}
                   disabled={!canGoNextEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -720,7 +720,7 @@ function QuickFilterChip(props: { active: boolean; label: string; onClick: () =>
       type="button"
       onClick={props.onClick}
       className={`rounded-md border px-2.5 py-1 text-xs transition ${
-        props.active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+        props.active ? "border-slate-900 bg-slate-900 text-white" : "border-stone-200 bg-white text-slate-700 hover:bg-slate-50"
       }`}
     >
       {props.label}

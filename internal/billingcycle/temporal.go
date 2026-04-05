@@ -222,5 +222,5 @@ func EnsureBillingCycleCronWorkflow(
 	if errors.As(err, &alreadyStarted) {
 		return nil
 	}
-	return err
+	return fmt.Errorf("start billing cycle cron workflow: %w", err)
 }

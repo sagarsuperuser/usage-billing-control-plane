@@ -39,7 +39,7 @@ function tone(status?: string): string {
     case "error":
       return "border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-700";
+      return "border-stone-200 bg-slate-50 text-slate-700";
   }
 }
 
@@ -209,7 +209,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
         {isTenantSession ? (
           customersQuery.isLoading || readinessQuery.isLoading ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading customer detail
@@ -236,7 +236,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       to={`/invoices?customer_external_id=${encodeURIComponent(customer.external_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       View invoices
                     </Link>
@@ -343,7 +343,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       provider_code: profileBaseline.provider_code || "",
                     })}
                     disabled={!billingProfileDirty || billingProfileMutation.isPending}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Reset
                   </button>
@@ -392,7 +392,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                         {setupRequestActionLabel}
                       </button>
                       {latestRequestedCheckoutURL ? (
-                        <a href={latestRequestedCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                        <a href={latestRequestedCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                           <ExternalLink className="h-3.5 w-3.5" />
                           Open sent link
                         </a>
@@ -408,13 +408,13 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                         type="button"
                         onClick={() => beginSetupMutation.mutate()}
                         disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {beginSetupMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
                         Generate link
                       </button>
                       {latestCheckoutURL ? (
-                        <a href={latestCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                        <a href={latestCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                           <ExternalLink className="h-3.5 w-3.5" />
                           Open link
                         </a>
@@ -428,7 +428,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     type="button"
                     onClick={() => refreshMutation.mutate()}
                     disabled={!canWrite || !csrfToken || refreshMutation.isPending}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {refreshMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                     Refresh payment setup
@@ -444,7 +444,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </button>
                   <Link
                     to={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Open subscriptions
                   </Link>
@@ -533,7 +533,7 @@ function InputField({ label, placeholder, ...props }: { label: string; placehold
       <input
         {...props}
         placeholder={placeholder}
-        className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+        className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
       />
     </label>
   );

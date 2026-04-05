@@ -65,7 +65,7 @@ export function PricingMetricNewScreen() {
                 <h1 className="text-base font-semibold text-slate-900">Create metric</h1>
                 <p className="mt-0.5 text-xs text-slate-500">Define the usage record plans will price against.</p>
               </div>
-              <Link to="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -80,7 +80,7 @@ export function PricingMetricNewScreen() {
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link to="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <Link to="/pricing/metrics" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
                 <button data-testid="pricing-metric-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create metric
@@ -102,7 +102,7 @@ function Field({ label, error, testID, ...inputProps }: { label: string; error?:
         data-testid={testID}
         {...inputProps}
         aria-invalid={Boolean(error)}
-        className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`}
+        className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`}
       />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
@@ -116,7 +116,7 @@ function SelectField({ label, error, options, ...selectProps }: { label: string;
       <select
         {...selectProps}
         aria-invalid={Boolean(error)}
-        className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-slate-200"}`}
+        className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-stone-200"}`}
       >
         {options.map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
       </select>

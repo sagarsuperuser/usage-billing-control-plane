@@ -26,7 +26,7 @@ const schema = z.object({
 
 type FormFields = z.infer<typeof schema>;
 
-const inputClass = "h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2";
+const inputClass = "h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2";
 const inputErrorClass = "h-10 rounded-lg border border-rose-300 bg-white px-3 text-sm text-slate-900 outline-none ring-rose-200 transition placeholder:text-slate-400 focus:ring-2";
 
 export function SubscriptionNewScreen() {
@@ -118,7 +118,7 @@ export function SubscriptionNewScreen() {
                     Open subscription
                     <ArrowRight className="h-4 w-4" />
                   </a>
-                  <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                  <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
                     Back to subscriptions
                   </Link>
                 </div>
@@ -134,7 +134,7 @@ export function SubscriptionNewScreen() {
                 <h1 className="text-base font-semibold text-slate-900">Create subscription</h1>
                 <p className="mt-0.5 text-xs text-slate-500">Choose the customer and plan, then decide whether to start hosted payment setup.</p>
               </div>
-              <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -179,7 +179,7 @@ export function SubscriptionNewScreen() {
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
                 <button type="submit" data-testid="subscription-submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create subscription

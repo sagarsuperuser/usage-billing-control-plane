@@ -143,7 +143,7 @@ export function CustomerOnboardingScreen() {
                 <h1 className="text-base font-semibold text-slate-900">Create customer</h1>
                 <p className="mt-0.5 text-xs text-slate-500">Create the customer record, apply the billing profile, and optionally start payment setup.</p>
               </div>
-              <Link to="/customers" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/customers" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -153,7 +153,7 @@ export function CustomerOnboardingScreen() {
                   <InputField label="Billing email" placeholder="billing@acme.test" error={errors.email?.message} {...register("email")} />
                 </div>
 
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                <section className="rounded-lg border border-stone-200 bg-slate-50 p-5">
                   <p className="text-xs font-medium text-slate-500">Billing profile</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <InputField label="Legal name" placeholder="Acme Primary Customer LLC" error={errors.legal_name?.message} {...register("legal_name")} />
@@ -165,14 +165,14 @@ export function CustomerOnboardingScreen() {
                   </div>
                 </section>
 
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                <section className="rounded-lg border border-stone-200 bg-slate-50 p-5">
                   <p className="text-xs font-medium text-slate-500">Payment setup</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
                     <div className="grid gap-4">
                       <InputField label="Billing connection code" placeholder="stripe_default" error={errors.provider_code?.message} {...register("provider_code")} />
                       <InputField label="Payment method type" placeholder="card" error={errors.payment_method_type?.message} {...register("payment_method_type")} />
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="rounded-lg border border-stone-200 bg-white p-4">
                       <p className="text-xs font-medium text-slate-500">Submission mode</p>
                       <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
                         <input type="checkbox" className="h-4 w-4 rounded border-slate-300" {...register("start_payment_setup")} />
@@ -197,7 +197,7 @@ export function CustomerOnboardingScreen() {
                 ) : null}
 
                 {result?.customer ? (
-                  <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                  <section className="rounded-lg border border-stone-200 bg-slate-50 p-5">
                     <p className="text-xs font-medium text-slate-500">Customer created</p>
                     <h2 className="mt-2 break-words text-base font-semibold text-slate-950">{result.customer.display_name}</h2>
                     <p className="mt-1 break-all font-mono text-xs text-slate-500">{result.customer.external_id}</p>
@@ -210,7 +210,7 @@ export function CustomerOnboardingScreen() {
                         View customer detail
                         <ArrowRight className="h-4 w-4" />
                       </Link>
-                      <Link to="/customers" className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open customer directory</Link>
+                      <Link to="/customers" className="inline-flex h-10 items-center justify-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Open customer directory</Link>
                     </div>
                   </section>
                 ) : null}
@@ -219,7 +219,7 @@ export function CustomerOnboardingScreen() {
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
+                  className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
                 >
                   Reset form
                 </button>
@@ -247,7 +247,7 @@ function InputField({ label, error, ...inputProps }: { label: string; error?: st
       <input
         {...inputProps}
         aria-invalid={Boolean(error)}
-        className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`}
+        className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`}
       />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>

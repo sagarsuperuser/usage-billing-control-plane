@@ -109,7 +109,7 @@ func (s *WorkspaceBillingSettingsService) syncWorkspaceBillingSettings(settings 
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), billingOperationTimeout)
 	defer cancel()
 
 	if err := s.billingEntitySyncAdapter.SyncBillingEntitySettings(ctx, settings); err != nil {

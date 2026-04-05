@@ -120,7 +120,7 @@ func (a *DunningActivities) RunRetryPaymentBatch(ctx context.Context, input Coll
 func RegisterTemporalDunningWorker(w worker.Worker, repo store.Repository, customerAdapter service.CustomerBillingAdapter, invoiceAdapter service.InvoiceBillingAdapter, notifications *service.NotificationService) error {
 	activities, err := NewDunningActivities(repo, customerAdapter, invoiceAdapter, notifications)
 	if err != nil {
-		return err
+		return fmt.Errorf("create dunning activities: %w", err)
 	}
 	w.RegisterWorkflowWithOptions(CollectPaymentReminderWorkflow, workflow.RegisterOptions{Name: DunningCollectPaymentWorkflowName})
 	w.RegisterWorkflowWithOptions(RetryPaymentWorkflow, workflow.RegisterOptions{Name: DunningRetryPaymentWorkflowName})
@@ -171,7 +171,7 @@ func EnsureCollectPaymentReminderCronWorkflow(
 	if errors.As(err, &alreadyStarted) {
 		return nil
 	}
-	return err
+	return fmt.Errorf("start collect payment reminder cron workflow: %w", err)
 }
 
 func EnsureRetryPaymentCronWorkflow(
@@ -216,5 +216,5 @@ func EnsureRetryPaymentCronWorkflow(
 	if errors.As(err, &alreadyStarted) {
 		return nil
 	}
-	return err
+	return fmt.Errorf("start retry payment cron workflow: %w", err)
 }

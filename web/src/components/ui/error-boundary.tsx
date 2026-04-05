@@ -43,7 +43,7 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, PageSt
             </button>
             <a
               href="/"
-              className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
             >
               Go to home
             </a>

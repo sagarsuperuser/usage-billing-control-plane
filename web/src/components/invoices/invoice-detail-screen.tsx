@@ -143,7 +143,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
 
         {isTenantSession ? (
           invoiceQuery.isLoading ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading invoice detail
@@ -162,10 +162,10 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <h1 className="text-base font-semibold text-slate-900 truncate">{invoice.invoice_number || invoice.invoice_id}</h1>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-slate-200 bg-slate-50 text-slate-700`}>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-stone-200 bg-slate-50 text-slate-700`}>
                       {formatBillingState(invoice.invoice_status)}
                     </span>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-slate-200 bg-slate-50 text-slate-700`}>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-stone-200 bg-slate-50 text-slate-700`}>
                       {formatBillingState(invoice.payment_status)}
                     </span>
                     {invoice.payment_overdue ? (
@@ -178,7 +178,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     <button
                       type="button"
                       onClick={() => setShowPDF(true)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       View PDF
@@ -187,7 +187,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                       type="button"
                       onClick={() => resendEmailMutation.mutate()}
                       disabled={!canWrite || !csrfToken || resendEmailMutation.isPending}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {resendEmailMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                       Resend email
@@ -402,20 +402,20 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 <div className="flex flex-wrap gap-2">
                   <Link
                     to={`/invoice-explainability?invoice_id=${encodeURIComponent(invoice.invoice_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Open explainability
                   </Link>
                   <Link
                     to={`/payments/${encodeURIComponent(invoice.invoice_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Open payment operations
                   </Link>
                   {invoice.customer_external_id ? (
                     <Link
                       to={`/customers/${encodeURIComponent(invoice.customer_external_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open customer
                     </Link>
@@ -423,7 +423,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   {actionConfig?.showRecovery && invoice.customer_external_id ? (
                     <Link
                       to={`/replay-operations?customer_id=${encodeURIComponent(invoice.customer_external_id)}&status=failed`}
-                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Open recovery tools
                     </Link>
@@ -462,7 +462,7 @@ function BillingDocumentRow({
   });
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-md border border-stone-200 bg-slate-50 px-4 py-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-slate-900">{title}</p>
         <p className="text-xs text-slate-500">{subtitle}</p>
@@ -474,7 +474,7 @@ function BillingDocumentRow({
       </div>
       <div className="flex shrink-0 gap-2">
         {fileURL ? (
-          <a href={fileURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50">
+          <a href={fileURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50">
             Open file
           </a>
         ) : null}
@@ -482,7 +482,7 @@ function BillingDocumentRow({
           type="button"
           onClick={() => resendMutation.mutate()}
           disabled={!canWrite || resendMutation.isPending}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {resendMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
           {resendLabel}

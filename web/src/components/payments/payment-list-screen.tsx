@@ -169,7 +169,7 @@ export function PaymentListScreen() {
                   className={`inline-flex h-8 items-center rounded-lg border px-3 text-sm font-medium transition ${
                     exportURL
                       ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                      : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                      : "cursor-not-allowed border-stone-200 bg-slate-100 text-slate-400"
                   }`}
                 >
                   Export CSV

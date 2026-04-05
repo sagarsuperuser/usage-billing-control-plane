@@ -75,7 +75,7 @@ export function PricingTaxNewScreen() {
                 <h1 className="text-base font-semibold text-slate-900">Create tax</h1>
                 <p className="mt-0.5 text-xs text-slate-500">Reusable tax code and rate for customer billing profiles.</p>
               </div>
-              <Link to="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -92,7 +92,7 @@ export function PricingTaxNewScreen() {
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link to="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <Link to="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
                 <button data-testid="pricing-tax-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create tax
@@ -110,7 +110,7 @@ function Field({ label, error, testID, ...inputProps }: { label: string; error?:
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-xs font-medium text-slate-500">{label}</span>
-      <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
+      <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );
@@ -120,7 +120,7 @@ function SelectField({ label, error, options, ...selectProps }: { label: string;
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-xs font-medium text-slate-500">{label}</span>
-      <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-slate-200"}`}>
+      <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-stone-200"}`}>
         {options.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
       </select>
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
@@ -132,7 +132,7 @@ function TextareaField({ label, error, testID, ...textareaProps }: { label: stri
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-xs font-medium text-slate-500">{label}</span>
-      <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
+      <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );

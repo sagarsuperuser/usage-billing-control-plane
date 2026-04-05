@@ -8,6 +8,11 @@ import { format, parse, isValid, setHours, setMinutes } from "date-fns";
 /*  Shared styles for react-day-picker (Stripe/Vercel pattern)        */
 /* ------------------------------------------------------------------ */
 
+const calendarLabels = {
+  labelPrevious: () => "Go to previous month",
+  labelNext: () => "Go to next month",
+};
+
 const calendarClassNames = {
   root: "text-slate-900",
   months: "relative",
@@ -96,6 +101,7 @@ export function DatePicker({
             }}
             defaultMonth={selectedDate}
             classNames={calendarClassNames}
+            labels={calendarLabels}
           />
         </div>
       )}
@@ -182,6 +188,7 @@ export function DateTimePicker({
             }}
             defaultMonth={selectedDate}
             classNames={calendarClassNames}
+            labels={calendarLabels}
           />
 
           {/* Time selector */}

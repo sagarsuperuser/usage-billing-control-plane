@@ -16,9 +16,9 @@ function statusBadgeClass(status?: string): string {
     case "draft":
       return "border-amber-200 bg-amber-50 text-amber-700";
     case "archived":
-      return "border-slate-200 bg-slate-100 text-slate-500";
+      return "border-stone-200 bg-slate-100 text-slate-500";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-600";
+      return "border-stone-200 bg-slate-50 text-slate-600";
   }
 }
 
@@ -43,24 +43,24 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
 
 
         {isTenantSession ? taxQuery.isLoading ? (
-          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <LoaderCircle className="h-4 w-4 animate-spin" />
               Loading tax detail
             </div>
           </section>
         ) : !tax ? (
-          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">Tax not available</p>
             <p className="mt-1 text-sm text-slate-500">The requested tax could not be loaded.</p>
-            <Link to="/pricing/taxes" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+            <Link to="/pricing/taxes" className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
               <ArrowLeft className="h-3.5 w-3.5" />
               Back to taxes
             </Link>
           </section>
         ) : (
           <SectionErrorBoundary>
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-200">
+            <div className="rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-slate-200">
               {/* Header */}
               <div className="px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -70,7 +70,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
                       {tax.status}
                     </span>
                   </div>
-                  <Link to="/pricing/taxes" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                  <Link to="/pricing/taxes" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                     <ArrowLeft className="h-3.5 w-3.5" />
                     Back to taxes
                   </Link>

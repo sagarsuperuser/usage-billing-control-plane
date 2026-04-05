@@ -23,9 +23,9 @@ function statusTone(status: string): string {
     case "draft":
       return "border-amber-200 bg-amber-50 text-amber-700";
     case "archived":
-      return "border-slate-200 bg-slate-50 text-slate-500";
+      return "border-stone-200 bg-slate-50 text-slate-500";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-700";
+      return "border-stone-200 bg-slate-50 text-slate-700";
   }
 }
 

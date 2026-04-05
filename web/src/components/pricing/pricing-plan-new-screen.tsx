@@ -113,7 +113,7 @@ export function PricingPlanNewScreen() {
                 <h1 className="text-base font-semibold text-slate-900">Create plan</h1>
                 <p className="mt-0.5 text-xs text-slate-500">One base price, one cadence, and explicit linked metrics.</p>
               </div>
-              <Link to="/pricing/plans" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/pricing/plans" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -129,7 +129,7 @@ export function PricingPlanNewScreen() {
                   </div>
                 </div>
 
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                <section className="rounded-lg border border-stone-200 bg-slate-50 p-5">
                   <p className="text-xs font-medium text-slate-500">Linked metrics</p>
                   <div className="mt-3 grid gap-3">
                     {metricsQuery.isLoading ? (
@@ -138,7 +138,7 @@ export function PricingPlanNewScreen() {
                       <p className="text-sm text-slate-600">Create at least one metric before creating a plan.</p>
                     ) : (
                       metricsQuery.data?.map((metric) => (
-                        <label key={metric.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        <label key={metric.id} className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm text-slate-700">
                           <input data-testid={`pricing-plan-metric-${metric.id}`} type="checkbox" checked={selectedMetricIDs.includes(metric.id)} onChange={() => toggleMetric(metric.id)} className="h-4 w-4 rounded border-slate-300" />
                           <span className="font-semibold text-slate-950">{metric.name}</span>
                           <span className="font-mono text-xs text-slate-500">{metric.key}</span>
@@ -149,14 +149,14 @@ export function PricingPlanNewScreen() {
                   </div>
                 </section>
 
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                <section className="rounded-lg border border-stone-200 bg-slate-50 p-5">
                   <p className="text-xs font-medium text-slate-500">Attached add-ons</p>
                   <div className="mt-3 grid gap-3">
                     {(addOnsQuery.data ?? []).length === 0 ? (
                       <p className="text-sm text-slate-600">No add-ons created yet. This plan can still be created without them.</p>
                     ) : (
                       addOnsQuery.data?.map((addOn) => (
-                        <label key={addOn.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        <label key={addOn.id} className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm text-slate-700">
                           <input data-testid={`pricing-plan-addon-${addOn.id}`} type="checkbox" checked={selectedAddOnIDs.includes(addOn.id)} onChange={() => toggleAddOn(addOn.id)} className="h-4 w-4 rounded border-slate-300" />
                           <span className="font-semibold text-slate-950">{addOn.name}</span>
                           <span className="font-mono text-xs text-slate-500">{addOn.code}</span>
@@ -167,14 +167,14 @@ export function PricingPlanNewScreen() {
                   </div>
                 </section>
 
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                <section className="rounded-lg border border-stone-200 bg-slate-50 p-5">
                   <p className="text-xs font-medium text-slate-500">Attached coupons</p>
                   <div className="mt-3 grid gap-3">
                     {(couponsQuery.data ?? []).length === 0 ? (
                       <p className="text-sm text-slate-600">No coupons created yet. This plan can still be created without them.</p>
                     ) : (
                       couponsQuery.data?.map((coupon) => (
-                        <label key={coupon.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        <label key={coupon.id} className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm text-slate-700">
                           <input data-testid={`pricing-plan-coupon-${coupon.id}`} type="checkbox" checked={selectedCouponIDs.includes(coupon.id)} onChange={() => toggleCoupon(coupon.id)} className="h-4 w-4 rounded border-slate-300" />
                           <span className="font-semibold text-slate-950">{coupon.name}</span>
                           <span className="font-mono text-xs text-slate-500">{coupon.code}</span>
@@ -188,7 +188,7 @@ export function PricingPlanNewScreen() {
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link to="/pricing/plans" className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+                <Link to="/pricing/plans" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
                 <button data-testid="pricing-plan-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create plan
@@ -206,7 +206,7 @@ function Field({ label, error, testID, ...inputProps }: { label: string; error?:
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-xs font-medium text-slate-500">{label}</span>
-      <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
+      <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );
@@ -216,7 +216,7 @@ function SelectField({ label, error, options, ...selectProps }: { label: string;
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-xs font-medium text-slate-500">{label}</span>
-      <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-slate-200"}`}>
+      <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-stone-200"}`}>
         {options.map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
       </select>
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
@@ -228,7 +228,7 @@ function TextareaField({ label, error, testID, ...textareaProps }: { label: stri
   return (
     <label className="grid gap-2 text-sm text-slate-700">
       <span className="text-xs font-medium text-slate-500">{label}</span>
-      <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-slate-200"}`} />
+      <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );

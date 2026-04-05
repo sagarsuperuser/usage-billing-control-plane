@@ -54,16 +54,17 @@ func formatValidationError(fe validator.FieldError) string {
 }
 
 func toSnakeCase(s string) string {
-	var result []byte
+	var b strings.Builder
+	b.Grow(len(s) + 5)
 	for i, c := range s {
 		if c >= 'A' && c <= 'Z' {
 			if i > 0 {
-				result = append(result, '_')
+				b.WriteByte('_')
 			}
-			result = append(result, byte(c+32))
+			b.WriteByte(byte(c + 32))
 		} else {
-			result = append(result, byte(c))
+			b.WriteRune(c)
 		}
 	}
-	return string(result)
+	return b.String()
 }

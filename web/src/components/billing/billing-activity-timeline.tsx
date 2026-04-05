@@ -95,7 +95,7 @@ export function BillingActivityTimeline({
   const entries = buildTimelineEntries({ webhookEvents, dunningDetail });
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing timeline</p>
@@ -110,13 +110,13 @@ export function BillingActivityTimeline({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+          <span className="rounded-full border border-stone-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
             {entries.length} events
           </span>
           {dunningRunHref ? (
             <Link
               to={dunningRunHref}
-              className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
             >
               Open dunning run
             </Link>
@@ -125,7 +125,7 @@ export function BillingActivityTimeline({
       </div>
 
       {loading ? (
-        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+        <div className="mt-5 rounded-xl border border-stone-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
           Loading timeline events.
         </div>
       ) : null}
@@ -138,12 +138,12 @@ export function BillingActivityTimeline({
         <div className="mt-5 grid gap-3">
           {entries.length > 0 ? (
             entries.map((entry) => (
-              <article key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <article key={entry.id} className="rounded-xl border border-stone-200 bg-slate-50 px-4 py-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-slate-950">{entry.title}</p>
-                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                      <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
                         {entry.badge}
                       </span>
                     </div>
@@ -172,7 +172,7 @@ export function BillingActivityTimeline({
 
 function OperatorHint({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="rounded-xl border border-stone-200 bg-slate-50 px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
       <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
     </div>

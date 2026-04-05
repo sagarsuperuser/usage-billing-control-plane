@@ -28,7 +28,7 @@ function tone(status?: string): string {
     case "error":
       return "border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-700";
+      return "border-stone-200 bg-slate-50 text-slate-700";
   }
 }
 

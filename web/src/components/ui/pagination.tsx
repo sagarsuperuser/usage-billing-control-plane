@@ -23,6 +23,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
       <div className="flex items-center gap-1">
         <button
           type="button"
+          aria-label="Go to previous page"
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
           className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 text-slate-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -34,6 +35,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
         </span>
         <button
           type="button"
+          aria-label="Go to next page"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
           className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 text-slate-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
