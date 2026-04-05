@@ -68,7 +68,6 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
-            { href: "/control-plane", label: "Workspace" },
             { href: "/dunning", label: "Dunning" },
             { label: runID },
           ]}

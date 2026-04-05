@@ -80,7 +80,6 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
-            { href: "/control-plane", label: "Workspace" },
             { href: "/payments", label: "Payments" },
             { label: payment?.invoice_number || paymentID },
           ]}
