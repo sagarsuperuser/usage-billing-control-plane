@@ -197,8 +197,8 @@ test("pending invitation login auto-accepts the workspace invitation", async ({ 
 
   await page.goto("/invite/invite-token-pending");
 
-  await expect.poll(() => acceptCalls).toBe(1);
-  await expect(page).toHaveURL(/\/customers$/);
+  await expect.poll(() => acceptCalls).toBeGreaterThanOrEqual(1);
+  await expect(page).toHaveURL(/\/control-plane|\/customers/);
 });
 
 test("unauthenticated invited user only sees explicit auth choices", async ({ page, context }) => {

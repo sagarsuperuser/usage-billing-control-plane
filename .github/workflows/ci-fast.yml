@@ -134,10 +134,10 @@ jobs:
 
       - name: Helm template staging
         run: |
-          helm template alpha deploy/helm/alpha \
+          helm template lago-alpha deploy/helm/alpha \
             -f deploy/helm/alpha/environments/staging-values.yaml >/tmp/helm-staging.yaml
 
       - name: Helm template prod
         run: |
-          helm template alpha deploy/helm/alpha \
+          helm template lago-alpha deploy/helm/alpha \
             -f deploy/helm/alpha/environments/prod-values.yaml >/tmp/helm-prod.yaml

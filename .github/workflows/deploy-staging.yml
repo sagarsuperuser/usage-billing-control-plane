@@ -161,7 +161,7 @@ jobs:
 
       - name: Helm upgrade
         run: |
-          helm upgrade alpha deploy/helm/alpha \
+          helm upgrade lago-alpha deploy/helm/alpha \
             --install \
             --atomic \
             --wait \

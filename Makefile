@@ -13,8 +13,8 @@ GITHUB_REPOSITORY ?=
 TF_DIR ?= infra/terraform/aws
 HELM_CHART ?= deploy/helm/alpha
 ENVIRONMENT ?= staging
-RELEASE_NAME ?= alpha
-NAMESPACE ?= alpha
+RELEASE_NAME ?= lago-alpha
+NAMESPACE ?= lago-alpha
 IMAGE_TAG ?= $(shell git rev-parse HEAD)
 API_IMAGE_REPOSITORY ?=
 WEB_IMAGE_REPOSITORY ?=
@@ -195,11 +195,11 @@ helm-lint: ## Lint Helm chart
 	@helm lint $(HELM_CHART)
 
 helm-template-staging: ## Render Helm staging manifests
-	@helm template alpha $(HELM_CHART) -f $(HELM_CHART)/environments/staging-values.yaml >/tmp/alpha-staging.yaml
+	@helm template lago-alpha $(HELM_CHART) -f $(HELM_CHART)/environments/staging-values.yaml >/tmp/alpha-staging.yaml
 	@echo "rendered /tmp/alpha-staging.yaml"
 
 helm-template-prod: ## Render Helm prod manifests
-	@helm template alpha $(HELM_CHART) -f $(HELM_CHART)/environments/prod-values.yaml >/tmp/alpha-prod.yaml
+	@helm template lago-alpha $(HELM_CHART) -f $(HELM_CHART)/environments/prod-values.yaml >/tmp/alpha-prod.yaml
 	@echo "rendered /tmp/alpha-prod.yaml"
 
 deploy-staging: ## Deploy Helm release to staging
