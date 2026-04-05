@@ -262,9 +262,8 @@ export interface UISession {
   subject_id?: string;
   user_email?: string;
   display_name?: string;
-  scope?: "tenant" | "platform";
+  scope?: "tenant";
   role?: "reader" | "writer" | "admin";
-  platform_role?: "platform_admin";
   tenant_id?: string;
   tenant_name?: string;
   api_key_id?: string;
@@ -341,7 +340,6 @@ export interface WorkspaceMember {
   display_name: string;
   role: "reader" | "writer" | "admin";
   status: "active" | "disabled";
-  platform_role?: "platform_admin";
   created_at: string;
   updated_at: string;
 }

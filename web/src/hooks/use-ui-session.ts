@@ -59,11 +59,9 @@ export function useUISession() {
   }, [sessionQuery.data, sessionQuery.isSuccess, setSession]);
 
   const scope = session?.scope ?? null;
-  const role = scope === "tenant" ? (session?.role ?? null) : null;
-  const platformRole = scope === "platform" ? (session?.platform_role ?? null) : null;
+  const role = session?.role ?? null;
   const canWrite = role === "writer" || role === "admin";
   const isAdmin = role === "admin";
-  const isPlatformAdmin = platformRole === "platform_admin";
 
   return {
     apiBaseURL,
@@ -71,10 +69,8 @@ export function useUISession() {
     setSession,
     scope,
     role,
-    platformRole,
     canWrite,
     isAdmin,
-    isPlatformAdmin,
     csrfToken: session?.csrf_token ?? "",
     isAuthenticated: Boolean(session?.authenticated),
     isLoading: (!configReady) || sessionQuery.isPending,

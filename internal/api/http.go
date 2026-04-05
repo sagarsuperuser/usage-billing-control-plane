@@ -93,7 +93,6 @@ const (
 	sessionDisplayNameKey      = "principal_display_name"
 	sessionScopeKey            = "principal_scope"
 	sessionRoleKey             = "principal_role"
-	sessionPlatformRoleKey     = "principal_platform_role"
 	sessionTenantIDKey         = "principal_tenant_id"
 	sessionTenantNameKey       = "principal_tenant_name"
 	sessionAPIKeyIDKey         = "principal_api_key_id"
@@ -914,25 +913,11 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 	displayName := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionDisplayNameKey))
 	scopeRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionScopeKey))
 	roleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionRoleKey))
-	platformRoleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionPlatformRoleKey))
 	tenantID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionTenantIDKey))
 	tenantName := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionTenantNameKey))
 	apiKeyID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionAPIKeyIDKey))
+	// Browser sessions are always tenant-scoped. Platform ops use API keys.
 	switch Scope(scopeRaw) {
-	case ScopePlatform:
-		platformRole, err := ParsePlatformRole(platformRoleRaw)
-		if err != nil {
-			return Principal{}, true, errUnauthorized
-		}
-		return Principal{
-			SubjectType:  subjectType,
-			SubjectID:    subjectID,
-			UserEmail:    userEmail,
-			DisplayName:  displayName,
-			Scope:        ScopePlatform,
-			PlatformRole: platformRole,
-			APIKeyID:     apiKeyID,
-		}, true, nil
 	case ScopeTenant, "":
 		if roleRaw == "" || tenantID == "" {
 			return Principal{}, true, errUnauthorized
