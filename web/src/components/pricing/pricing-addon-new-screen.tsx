@@ -65,7 +65,7 @@ export function PricingAddOnNewScreen() {
   const busy = isSubmitting || mutation.isPending;
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/add-ons", label: "Add-ons" }, { label: "New" }]} />
 
@@ -73,13 +73,13 @@ export function PricingAddOnNewScreen() {
 
 
         {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
+          <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
-                <h1 className="text-base font-semibold text-slate-900">Create add-on</h1>
-                <p className="mt-0.5 text-xs text-slate-500">Fixed recurring extras that can be attached to multiple plans.</p>
+                <h1 className="text-base font-semibold text-text-primary">Create add-on</h1>
+                <p className="mt-0.5 text-xs text-text-muted">Fixed recurring extras that can be attached to multiple plans.</p>
               </div>
-              <Link to="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -97,8 +97,8 @@ export function PricingAddOnNewScreen() {
 
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
-              <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link to="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                <Link to="/pricing/add-ons" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
                 <button data-testid="pricing-addon-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create add-on
@@ -114,9 +114,9 @@ export function PricingAddOnNewScreen() {
 
 function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`} />
+    <label className="grid gap-2 text-sm text-text-secondary">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
+      <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-border"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );
@@ -124,9 +124,9 @@ function Field({ label, error, testID, ...inputProps }: { label: string; error?:
 
 function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-stone-200"}`}>
+    <label className="grid gap-2 text-sm text-text-secondary">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
+      <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-border"}`}>
         {options.map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
       </select>
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
@@ -136,9 +136,9 @@ function SelectField({ label, error, options, ...selectProps }: { label: string;
 
 function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
-    <label className="grid gap-2 text-sm text-slate-700">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-white px-3 py-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-stone-200"}`} />
+    <label className="grid gap-2 text-sm text-text-secondary">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
+      <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-surface px-3 py-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-border"}`} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );

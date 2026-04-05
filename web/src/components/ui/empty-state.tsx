@@ -13,8 +13,8 @@ export function EmptyState({ icon, title, description, actionLabel, actionHref }
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-5 py-14 text-center">
       {icon || <EmptyIllustration />}
-      <p className="text-sm font-medium text-slate-700">{title}</p>
-      {description ? <p className="max-w-xs text-xs text-slate-500">{description}</p> : null}
+      <p className="text-sm font-medium text-text-secondary">{title}</p>
+      {description ? <p className="max-w-xs text-xs text-text-muted">{description}</p> : null}
       {actionLabel && actionHref ? (
         <Link to={actionHref} className="mt-1 inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
           {actionLabel}

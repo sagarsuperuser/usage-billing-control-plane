@@ -5,7 +5,7 @@ const toneClasses = {
   warning: "border-amber-200 bg-amber-50 text-amber-700",
   danger: "border-rose-200 bg-rose-50 text-rose-700",
   info: "border-sky-200 bg-sky-50 text-sky-700",
-  neutral: "border-stone-200 bg-stone-100 text-slate-600",
+  neutral: "border-border bg-surface-tertiary text-text-muted",
 } as const;
 
 export type StatusChipTone = keyof typeof toneClasses;

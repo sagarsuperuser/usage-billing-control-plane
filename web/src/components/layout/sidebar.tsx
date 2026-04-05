@@ -57,7 +57,7 @@ export function AppSidebar() {
   if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return null;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-stone-200 bg-white">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-border bg-surface">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-4">
         <Link to="/control-plane" className="flex items-center gap-2.5">
@@ -68,16 +68,16 @@ export function AppSidebar() {
               <rect x="12" y="2" width="3" height="14" rx="1" fill="white"/>
             </svg>
           </div>
-          <span className="text-sm font-semibold text-slate-900">Alpha</span>
+          <span className="text-sm font-semibold text-text-primary">Alpha</span>
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto border-t border-stone-100 px-3 py-3">
+      <nav className="flex-1 overflow-y-auto border-t border-border-light px-3 py-3">
         {isLoading ? (
           <div className="space-y-2 px-1">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-8 rounded-md bg-stone-50 animate-pulse" />
+              <div key={i} className="h-8 rounded-md bg-surface-secondary animate-pulse" />
             ))}
           </div>
         ) : (
@@ -90,7 +90,7 @@ export function AppSidebar() {
 
       {/* Session — pinned to bottom (Stripe/Linear pattern) */}
       {isAuthenticated ? (
-        <div className="border-t border-stone-200 px-3 py-3">
+        <div className="border-t border-border px-3 py-3">
           <SessionMenu />
         </div>
       ) : null}
@@ -101,7 +101,7 @@ export function AppSidebar() {
 function NavGroup({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
   return (
     <div>
-      <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-text-faint">{label}</p>
       <div className="space-y-0.5">
         {items.map((item) => {
           const Icon = item.icon;
@@ -113,11 +113,11 @@ function NavGroup({ label, items, pathname }: { label: string; items: NavItem[];
              
               className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors ${
                 active
-                  ? "bg-slate-100 text-slate-900"
-                  : "text-slate-600 hover:bg-stone-50 hover:text-slate-900"
+                  ? "bg-surface-tertiary text-text-primary"
+                  : "text-text-muted hover:bg-surface-secondary hover:text-text-primary"
               }`}
             >
-              <Icon className={`h-4 w-4 shrink-0 ${active ? "text-slate-700" : "text-slate-400"}`} />
+              <Icon className={`h-4 w-4 shrink-0 ${active ? "text-text-secondary" : "text-text-faint"}`} />
               {item.label}
             </Link>
           );
@@ -137,7 +137,7 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f8fa]">
+    <div className="min-h-screen bg-background">
       <AppSidebar />
       <div className="pl-[220px]">{children}</div>
     </div>

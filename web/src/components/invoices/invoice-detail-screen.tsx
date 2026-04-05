@@ -100,7 +100,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
         : undefined;
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
@@ -115,19 +115,19 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
         {/* PDF Viewer Modal */}
         {showPDF && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={(e) => { if (e.target === e.currentTarget) setShowPDF(false); }}>
-            <div className="relative flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
-                <p className="text-sm font-semibold text-slate-900">Invoice PDF</p>
+            <div className="relative flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-surface shadow-2xl">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3">
+                <p className="text-sm font-semibold text-text-primary">Invoice PDF</p>
                 <div className="flex items-center gap-2">
                   <a
                     href={`${apiBaseURL || ""}/v1/invoices/${encodeURIComponent(invoiceID)}/pdf`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 px-2 text-xs font-medium text-slate-600 transition hover:bg-stone-100"
+                    className="inline-flex h-7 items-center gap-1.5 rounded border border-border px-2 text-xs font-medium text-text-muted transition hover:bg-surface-tertiary"
                   >
                     Download
                   </a>
-                  <button type="button" onClick={() => setShowPDF(false)} className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-400 transition hover:bg-stone-100 hover:text-slate-700">
+                  <button type="button" onClick={() => setShowPDF(false)} className="inline-flex h-6 w-6 items-center justify-center rounded text-text-faint transition hover:bg-surface-tertiary hover:text-text-secondary">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -143,29 +143,29 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
 
         {isTenantSession ? (
           invoiceQuery.isLoading ? (
-            <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+            <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+              <div className="flex items-center gap-2 text-sm text-text-muted">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading invoice detail
               </div>
             </section>
           ) : invoiceQuery.isError || !invoice ? (
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <p className="text-sm font-semibold text-slate-900">Invoice not available</p>
-              <p className="mt-1 text-sm text-slate-500">The requested invoice could not be loaded from the workspace APIs.</p>
+            <section className="rounded-lg border border-border bg-surface shadow-sm p-5">
+              <p className="text-sm font-semibold text-text-primary">Invoice not available</p>
+              <p className="mt-1 text-sm text-text-muted">The requested invoice could not be loaded from the workspace APIs.</p>
             </section>
           ) : (
           <SectionErrorBoundary>
-            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm divide-y divide-border">
               {/* ---- Header ---- */}
               <div className="px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <h1 className="text-base font-semibold text-slate-900 truncate">{invoice.invoice_number || invoice.invoice_id}</h1>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-stone-200 bg-slate-50 text-slate-700`}>
+                    <h1 className="text-base font-semibold text-text-primary truncate">{invoice.invoice_number || invoice.invoice_id}</h1>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-border bg-surface-secondary text-text-secondary`}>
                       {formatBillingState(invoice.invoice_status)}
                     </span>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-stone-200 bg-slate-50 text-slate-700`}>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide border-border bg-surface-secondary text-text-secondary`}>
                       {formatBillingState(invoice.payment_status)}
                     </span>
                     {invoice.payment_overdue ? (
@@ -178,7 +178,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     <button
                       type="button"
                       onClick={() => setShowPDF(true)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       View PDF
@@ -187,7 +187,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                       type="button"
                       onClick={() => resendEmailMutation.mutate()}
                       disabled={!canWrite || !csrfToken || resendEmailMutation.isPending}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {resendEmailMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                       Resend email
@@ -213,47 +213,47 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     ) : null}
                   </div>
                 </div>
-                <p className="mt-1.5 text-xs text-slate-500">{invoice.invoice_id}</p>
+                <p className="mt-1.5 text-xs text-text-muted">{invoice.invoice_id}</p>
               </div>
 
               {/* ---- Details ---- */}
               <div className="px-5 py-4">
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
                   <div>
-                    <dt className="text-xs text-slate-400">Invoice total</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(invoice.total_amount_cents, invoice.currency || "USD")}</dd>
+                    <dt className="text-xs text-text-faint">Invoice total</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatMoney(invoice.total_amount_cents, invoice.currency || "USD")}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Amount due</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(invoice.total_due_amount_cents, invoice.currency || "USD")}</dd>
+                    <dt className="text-xs text-text-faint">Amount due</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatMoney(invoice.total_due_amount_cents, invoice.currency || "USD")}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Amount paid</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(invoice.total_paid_amount_cents, invoice.currency || "USD")}</dd>
+                    <dt className="text-xs text-text-faint">Amount paid</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatMoney(invoice.total_paid_amount_cents, invoice.currency || "USD")}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Customer</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{invoice.customer_display_name || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Customer</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{invoice.customer_display_name || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Customer ID</dt>
-                    <dd className="mt-0.5 text-sm font-mono text-slate-700">{invoice.customer_external_id || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Customer ID</dt>
+                    <dd className="mt-0.5 text-sm font-mono text-text-secondary">{invoice.customer_external_id || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Currency</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{invoice.currency || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Currency</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{invoice.currency || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Issued</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(invoice.issuing_date || invoice.created_at)}</dd>
+                    <dt className="text-xs text-text-faint">Issued</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(invoice.issuing_date || invoice.created_at)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Payment due</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(invoice.payment_due_date)}</dd>
+                    <dt className="text-xs text-text-faint">Payment due</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(invoice.payment_due_date)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Invoice type</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{invoice.invoice_type || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Invoice type</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{invoice.invoice_type || "-"}</dd>
                   </div>
                 </dl>
               </div>
@@ -271,26 +271,26 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
               {/* ---- Lifecycle / diagnosis ---- */}
               {invoice.lifecycle ? (
                 <div className="px-5 py-4">
-                  <p className="text-xs font-medium text-slate-400 mb-3">Lifecycle</p>
+                  <p className="text-xs font-medium text-text-faint mb-3">Lifecycle</p>
                   <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
                     <div>
-                      <dt className="text-xs text-slate-400">Action</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(invoice.lifecycle.recommended_action)}</dd>
+                      <dt className="text-xs text-text-faint">Action</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{formatBillingState(invoice.lifecycle.recommended_action)}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-slate-400">Requires action</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{invoice.lifecycle.requires_action ? "Yes" : "No"}</dd>
+                      <dt className="text-xs text-text-faint">Requires action</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{invoice.lifecycle.requires_action ? "Yes" : "No"}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-slate-400">Last event</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(invoice.last_event_type || invoice.lifecycle.last_event_type)}</dd>
+                      <dt className="text-xs text-text-faint">Last event</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{formatBillingState(invoice.last_event_type || invoice.lifecycle.last_event_type)}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-slate-400">Last event at</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(invoice.last_event_at || invoice.lifecycle.last_event_at)}</dd>
+                      <dt className="text-xs text-text-faint">Last event at</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(invoice.last_event_at || invoice.lifecycle.last_event_at)}</dd>
                     </div>
                   </dl>
-                  <p className="mt-3 text-sm text-slate-600">{invoice.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
+                  <p className="mt-3 text-sm text-text-muted">{invoice.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
                 </div>
               ) : null}
             </div>
@@ -318,15 +318,15 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
             />
 
             {/* ---- Linked billing documents ---- */}
-            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm divide-y divide-border">
               <div className="px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium text-slate-400">Payment receipts</p>
-                  <span className="text-xs text-slate-500">{paymentReceiptsQuery.data?.length ?? 0} linked</span>
+                  <p className="text-xs font-medium text-text-faint">Payment receipts</p>
+                  <span className="text-xs text-text-muted">{paymentReceiptsQuery.data?.length ?? 0} linked</span>
                 </div>
                 <div className="mt-3 grid gap-2">
                   {paymentReceiptsQuery.isLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
+                    <div className="flex items-center gap-2 text-sm text-text-muted"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
                   ) : paymentReceiptsQuery.isError ? (
                     <p className="text-sm text-amber-700">Payment receipts could not be loaded.</p>
                   ) : paymentReceiptsQuery.data && paymentReceiptsQuery.data.length > 0 ? (
@@ -346,19 +346,19 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                       />
                     ))
                   ) : (
-                    <p className="text-sm text-slate-500">No payment receipts linked yet.</p>
+                    <p className="text-sm text-text-muted">No payment receipts linked yet.</p>
                   )}
                 </div>
               </div>
 
               <div className="px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium text-slate-400">Credit notes</p>
-                  <span className="text-xs text-slate-500">{creditNotesQuery.data?.length ?? 0} linked</span>
+                  <p className="text-xs font-medium text-text-faint">Credit notes</p>
+                  <span className="text-xs text-text-muted">{creditNotesQuery.data?.length ?? 0} linked</span>
                 </div>
                 <div className="mt-3 grid gap-2">
                   {creditNotesQuery.isLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
+                    <div className="flex items-center gap-2 text-sm text-text-muted"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
                   ) : creditNotesQuery.isError ? (
                     <p className="text-sm text-amber-700">Credit notes could not be loaded.</p>
                   ) : creditNotesQuery.data && creditNotesQuery.data.length > 0 ? (
@@ -381,14 +381,14 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                       />
                     ))
                   ) : (
-                    <p className="text-sm text-slate-500">No credit notes linked.</p>
+                    <p className="text-sm text-text-muted">No credit notes linked.</p>
                   )}
                 </div>
               </div>
 
               {/* ---- Document actions ---- */}
               <div className="px-5 py-4">
-                <p className="text-xs font-medium text-slate-400 mb-3">Document actions</p>
+                <p className="text-xs font-medium text-text-faint mb-3">Document actions</p>
                 {resendEmailMutation.isSuccess ? (
                   <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                     Invoice email dispatched.
@@ -402,20 +402,20 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 <div className="flex flex-wrap gap-2">
                   <Link
                     to={`/invoice-explainability?invoice_id=${encodeURIComponent(invoice.invoice_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                   >
                     Open explainability
                   </Link>
                   <Link
                     to={`/payments/${encodeURIComponent(invoice.invoice_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                   >
                     Open payment operations
                   </Link>
                   {invoice.customer_external_id ? (
                     <Link
                       to={`/customers/${encodeURIComponent(invoice.customer_external_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       Open customer
                     </Link>
@@ -423,7 +423,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   {actionConfig?.showRecovery && invoice.customer_external_id ? (
                     <Link
                       to={`/replay-operations?customer_id=${encodeURIComponent(invoice.customer_external_id)}&status=failed`}
-                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       Open recovery tools
                     </Link>
@@ -462,11 +462,11 @@ function BillingDocumentRow({
   });
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-stone-200 bg-slate-50 px-4 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-secondary px-4 py-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-slate-900">{title}</p>
-        <p className="text-xs text-slate-500">{subtitle}</p>
-        <div className="flex flex-wrap gap-2 text-xs text-slate-400 mt-0.5">
+        <p className="text-sm font-medium text-text-primary">{title}</p>
+        <p className="text-xs text-text-muted">{subtitle}</p>
+        <div className="flex flex-wrap gap-2 text-xs text-text-faint mt-0.5">
           {meta.filter(Boolean).map((item) => <span key={item}>{item}</span>)}
         </div>
         {resendMutation.isSuccess ? <p className="mt-1 text-xs text-emerald-700">Email dispatch accepted.</p> : null}
@@ -474,7 +474,7 @@ function BillingDocumentRow({
       </div>
       <div className="flex shrink-0 gap-2">
         {fileURL ? (
-          <a href={fileURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50">
+          <a href={fileURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs text-text-secondary transition hover:bg-surface-secondary">
             Open file
           </a>
         ) : null}
@@ -482,7 +482,7 @@ function BillingDocumentRow({
           type="button"
           onClick={() => resendMutation.mutate()}
           disabled={!canWrite || resendMutation.isPending}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
         >
           {resendMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
           {resendLabel}

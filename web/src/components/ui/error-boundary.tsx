@@ -22,11 +22,11 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, PageSt
     if (!this.state.hasError) return this.props.children;
     const { error } = this.state;
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#f5f7fb] px-4 text-slate-900">
-        <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-white p-8 shadow-sm">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-text-primary">
+        <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-surface p-8 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-500">Unexpected error</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Something went wrong</h1>
-          <p className="mt-3 text-sm text-slate-600">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-text-primary">Something went wrong</h1>
+          <p className="mt-3 text-sm text-text-muted">
             An unexpected error occurred in the control plane. Try recovering below or reload the page.
           </p>
           {error?.message ? (
@@ -43,7 +43,7 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, PageSt
             </button>
             <a
               href="/"
-              className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary"
             >
               Go to home
             </a>
@@ -80,7 +80,7 @@ export class SectionErrorBoundary extends Component<{ children: ReactNode }, Sec
         <p className="mt-1 text-sm text-rose-700">The rest of the page is still usable. Try recovering or reload.</p>
         <button
           onClick={() => this.setState({ hasError: false })}
-          className="mt-4 inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+          className="mt-4 inline-flex h-8 items-center rounded-lg border border-rose-200 bg-surface px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
         >
           Try again
         </button>

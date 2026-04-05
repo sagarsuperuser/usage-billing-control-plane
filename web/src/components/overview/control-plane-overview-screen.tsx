@@ -59,18 +59,18 @@ export function ControlPlaneOverviewScreen() {
   const hasAttention = attentionItems.some((item) => item.value > 0);
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <LoginRedirectNotice />
 
-        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
           {/* Header */}
-          <div className="border-b border-stone-200 px-5 py-3">
-            <h1 className="text-sm font-semibold text-slate-900">Overview</h1>
+          <div className="border-b border-border px-5 py-3">
+            <h1 className="text-sm font-semibold text-text-primary">Overview</h1>
           </div>
 
           {/* Compact summary bar */}
-          <div className="flex items-center gap-6 border-b border-stone-200 px-5 py-3">
+          <div className="flex items-center gap-6 border-b border-border px-5 py-3">
             {isLoading || attentionLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -81,8 +81,8 @@ export function ControlPlaneOverviewScreen() {
             ) : (
               summaryItems.map((item) => (
                 <div key={item.label} className="flex items-center gap-2 text-sm">
-                  <span className="text-slate-500">{item.label}</span>
-                  <span className={`font-semibold ${item.tone === "success" ? "text-emerald-700" : item.tone === "danger" ? "text-rose-700" : "text-slate-900"}`}>
+                  <span className="text-text-muted">{item.label}</span>
+                  <span className={`font-semibold ${item.tone === "success" ? "text-emerald-700" : item.tone === "danger" ? "text-rose-700" : "text-text-primary"}`}>
                     {item.value}
                   </span>
                 </div>
@@ -92,20 +92,20 @@ export function ControlPlaneOverviewScreen() {
 
           {/* Needs attention section */}
           {!attentionLoading && hasAttention ? (
-            <div className="border-b border-stone-200 px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Needs attention</h2>
-              <div className="mt-3 divide-y divide-stone-100">
+            <div className="border-b border-border px-5 py-4">
+              <h2 className="text-sm font-semibold text-text-primary">Needs attention</h2>
+              <div className="mt-3 divide-y divide-border-light">
                 {attentionItems.filter((item) => item.value > 0).map((item) => (
                   <Link
                     key={item.title}
                     to={item.href}
-                    className="flex items-center justify-between py-2 text-sm transition hover:bg-stone-50"
+                    className="flex items-center justify-between py-2 text-sm transition hover:bg-surface-secondary"
                   >
-                    <span className="text-slate-700">
-                      <span className="font-medium text-slate-900">{item.value}</span>{" "}
+                    <span className="text-text-secondary">
+                      <span className="font-medium text-text-primary">{item.value}</span>{" "}
                       {item.title.toLowerCase()}
                     </span>
-                    <span className="text-xs text-slate-400">View →</span>
+                    <span className="text-xs text-text-faint">View →</span>
                   </Link>
                 ))}
               </div>
@@ -115,7 +115,7 @@ export function ControlPlaneOverviewScreen() {
           {/* Getting started -- only when 0 customers */}
           {!attentionLoading && tenantMetrics.total === 0 ? (
             <div className="px-5 py-4">
-              <h2 className="text-sm font-semibold text-slate-900">Getting started</h2>
+              <h2 className="text-sm font-semibold text-text-primary">Getting started</h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <GettingStartedStep step="1" title="Create a metric" description="Define what you'll charge for." href="/pricing/metrics/new" />
                 <GettingStartedStep step="2" title="Create a plan" description="Package the metric with a price." href="/pricing/plans/new" />
@@ -132,13 +132,13 @@ export function ControlPlaneOverviewScreen() {
 
 function GettingStartedStep({ step, title, description, href }: { step: string; title: string; description: string; href: string }) {
   return (
-    <Link to={href} className="group flex flex-col gap-2 rounded-lg border border-stone-200 bg-stone-50 p-3 transition hover:border-slate-300 hover:bg-white">
+    <Link to={href} className="group flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary p-3 transition hover:border-slate-300 hover:bg-surface">
       <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">{step}</span>
       <div>
-        <p className="text-sm font-medium text-slate-900">{title}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+        <p className="text-sm font-medium text-text-primary">{title}</p>
+        <p className="mt-0.5 text-xs text-text-muted">{description}</p>
       </div>
-      <span className="mt-auto text-xs text-slate-400 transition group-hover:text-slate-700">Start →</span>
+      <span className="mt-auto text-xs text-text-faint transition group-hover:text-text-secondary">Start →</span>
     </Link>
   );
 }

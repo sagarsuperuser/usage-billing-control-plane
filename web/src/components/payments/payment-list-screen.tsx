@@ -101,26 +101,26 @@ export function PaymentListScreen() {
   const paginatedItems = useMemo(() => items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [items, page]);
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Payments" }]} />
 
         <LoginRedirectNotice />
 
-        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
-              <h1 className="text-sm font-semibold text-slate-900">Payments{items.length > 0 ? ` (${items.length})` : ""}</h1>
+        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <h1 className="text-sm font-semibold text-text-primary">Payments{items.length > 0 ? ` (${items.length})` : ""}</h1>
               <div className="flex items-center gap-2">
                 <input
                   value={customerExternalID}
                   onChange={(event) => { setCustomerExternalID(event.target.value); setPage(1); }}
                   placeholder="Customer ID..."
-                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  className="h-8 w-48 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                 />
                 <select
                   value={invoiceStatus}
                   onChange={(event) => { setInvoiceStatus(event.target.value); setPage(1); }}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-8 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All invoice statuses</option>
                   {invoiceStatusOptions.map((option) => (
@@ -130,7 +130,7 @@ export function PaymentListScreen() {
                 <select
                   value={paymentStatus}
                   onChange={(event) => { setPaymentStatus(event.target.value); setPage(1); }}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-8 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All payment statuses</option>
                   {paymentStatusOptions.map((option) => (
@@ -140,7 +140,7 @@ export function PaymentListScreen() {
                 <select
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as PaymentFilters["sort_by"])}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-8 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   {sortOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -149,7 +149,7 @@ export function PaymentListScreen() {
                 <select
                   value={order}
                   onChange={(event) => setOrder(event.target.value as PaymentFilters["order"])}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-8 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   {orderOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -161,7 +161,7 @@ export function PaymentListScreen() {
                   className={`inline-flex h-8 items-center rounded-lg border px-3 text-sm font-medium transition ${
                     exportURL
                       ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                      : "cursor-not-allowed border-stone-200 bg-slate-100 text-slate-400"
+                      : "cursor-not-allowed border-border bg-surface-tertiary text-text-faint"
                   }`}
                 >
                   Export CSV
@@ -176,7 +176,7 @@ export function PaymentListScreen() {
               <>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                  <tr className="border-b border-border-light text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">
                     <th className="px-5 py-2.5 font-semibold">Invoice #</th>
                     <th className="px-4 py-2.5 font-semibold">Customer</th>
                     <th className="px-4 py-2.5 font-semibold">Amount Due</th>
@@ -184,22 +184,22 @@ export function PaymentListScreen() {
                     <th className="px-4 py-2.5 font-semibold">Last Event</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-border-light">
                   {paginatedItems.map((item) => {
                     const diagnosis = billingFailureDiagnosis(item);
                     return (
-                      <tr key={item.invoice_id} className="transition hover:bg-stone-50">
+                      <tr key={item.invoice_id} className="transition hover:bg-surface-secondary">
                         <td className="px-5 py-3">
                           <Link to={`/payments/${encodeURIComponent(item.invoice_id)}`} className="block">
-                            <p className="font-medium text-slate-900">{item.invoice_number || item.invoice_id}</p>
+                            <p className="font-medium text-text-primary">{item.invoice_number || item.invoice_id}</p>
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{item.customer_display_name || item.customer_external_id || "—"}</td>
-                        <td className="px-4 py-3 text-slate-900 font-medium">{formatMoney(item.total_due_amount_cents, item.currency || "USD")}</td>
+                        <td className="px-4 py-3 text-text-muted">{item.customer_display_name || item.customer_external_id || "—"}</td>
+                        <td className="px-4 py-3 text-text-primary font-medium">{formatMoney(item.total_due_amount_cents, item.currency || "USD")}</td>
                         <td className="px-4 py-3">
                           <StatusChip tone={diagnosisTone(diagnosis.tone)}>{formatState(item.payment_status)}</StatusChip>
                         </td>
-                        <td className="px-4 py-3 text-slate-500 text-xs">{formatExactTimestamp(item.last_event_at)}</td>
+                        <td className="px-4 py-3 text-text-muted text-xs">{formatExactTimestamp(item.last_event_at)}</td>
                       </tr>
                     );
                   })}
@@ -216,7 +216,7 @@ export function PaymentListScreen() {
 
 function LoadingState() {
   return (
-    <div className="divide-y divide-stone-100">
+    <div className="divide-y divide-border-light">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex items-center gap-4 px-5 py-3">
           <div className="flex-1"><Skeleton className="h-4 w-28" /></div>

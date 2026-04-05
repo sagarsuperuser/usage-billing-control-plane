@@ -38,9 +38,9 @@ export function SessionLoginScreen() {
 
   if (isAuthenticated && !accessSwitch) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb]">
+      <div className="min-h-screen bg-background">
         <main className="flex min-h-screen items-center justify-center px-4">
-          <div className="rounded-xl border border-stone-200 bg-white px-6 py-4 text-sm text-slate-500 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface px-6 py-4 text-sm text-text-muted shadow-sm">
             Redirecting…
           </div>
         </main>

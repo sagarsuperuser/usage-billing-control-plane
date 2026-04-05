@@ -85,53 +85,53 @@ export function SessionMenu() {
         type="button"
         data-testid="session-menu-toggle"
         onClick={() => { setOpen(!open); if (open) setShowWorkspaces(false); }}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-stone-100/80"
+        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-surface-tertiary/80"
       >
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-[11px] font-bold text-white">
           {(tenantID || email).charAt(0).toUpperCase()}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-slate-800">{tenantID || "Workspace"}</span>
-          <span className="block truncate text-[11px] text-slate-400">{email}</span>
+          <span className="block truncate text-[13px] font-semibold text-text-secondary">{tenantID || "Workspace"}</span>
+          <span className="block truncate text-[11px] text-text-faint">{email}</span>
         </span>
       </button>
 
       {/* Popover */}
       {open && (
-        <div className="absolute bottom-full left-0 z-30 mb-1.5 w-[260px] overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
+        <div className="absolute bottom-full left-0 z-30 mb-1.5 w-[260px] overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
           {/* Workspace header */}
-          <div className="bg-stone-50/80 px-3.5 py-3">
+          <div className="bg-surface-secondary/80 px-3.5 py-3">
             <div className="flex items-center gap-2.5">
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-[11px] font-bold text-white">
                 {(tenantID || email).charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900">{tenantID || "Workspace"}</p>
-                <p className="truncate text-[11px] text-slate-400">{email}</p>
+                <p className="truncate text-sm font-semibold text-text-primary">{tenantID || "Workspace"}</p>
+                <p className="truncate text-[11px] text-text-faint">{email}</p>
               </div>
             </div>
             <div className="mt-2 flex items-center gap-1.5">
-              <span className="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{role}</span>
-              <span className="text-[10px] text-slate-400">access level</span>
+              <span className="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-semibold text-text-muted">{role}</span>
+              <span className="text-[10px] text-text-faint">access level</span>
             </div>
           </div>
 
           {/* Workspace switcher */}
-          <div className="border-t border-stone-100">
+          <div className="border-t border-border-light">
             <button
               type="button"
               onClick={() => setShowWorkspaces(!showWorkspaces)}
-              className="flex h-9 w-full items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-50"
+              className="flex h-9 w-full items-center gap-2.5 px-3.5 text-xs text-text-muted transition hover:bg-surface-secondary"
             >
-              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+              <Building2 className="h-3.5 w-3.5 text-text-faint" />
               <span className="flex-1 text-left">Switch workspace</span>
-              <ChevronRight className={`h-3 w-3 text-slate-400 transition ${showWorkspaces ? "rotate-90" : ""}`} />
+              <ChevronRight className={`h-3 w-3 text-text-faint transition ${showWorkspaces ? "rotate-90" : ""}`} />
             </button>
 
             {showWorkspaces && (
-              <div className="border-t border-stone-100 bg-stone-50/50 py-1">
+              <div className="border-t border-border-light bg-surface-secondary/50 py-1">
                 {workspacesQuery.isLoading ? (
-                  <div className="flex items-center gap-2 px-3.5 py-2 text-[11px] text-slate-400">
+                  <div className="flex items-center gap-2 px-3.5 py-2 text-[11px] text-text-faint">
                     <LoaderCircle className="h-3 w-3 animate-spin" />
                     Loading workspaces...
                   </div>
@@ -146,10 +146,10 @@ export function SessionMenu() {
                           disabled={isCurrent || switchMutation.isPending}
                           onClick={() => switchMutation.mutate(ws.tenant_id)}
                           className={`flex h-8 w-full items-center gap-2.5 px-3.5 text-left text-xs transition ${
-                            isCurrent ? "font-medium text-slate-800" : "text-slate-700 hover:bg-stone-100"
+                            isCurrent ? "font-medium text-text-secondary" : "text-text-secondary hover:bg-surface-tertiary"
                           }`}
                         >
-                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-stone-100 text-[9px] font-bold text-slate-700 ring-1 ring-stone-200">
+                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-surface-tertiary text-[9px] font-bold text-text-secondary ring-1 ring-border">
                             {ws.name.charAt(0).toUpperCase()}
                           </span>
                           <span className="min-w-0 flex-1 truncate">{ws.name}</span>
@@ -160,10 +160,10 @@ export function SessionMenu() {
                     <Link
                       to="/workspace-setup"
                       onClick={closeMenu}
-                      className="flex h-8 w-full items-center gap-2.5 px-3.5 text-xs text-slate-700 transition hover:bg-stone-100"
+                      className="flex h-8 w-full items-center gap-2.5 px-3.5 text-xs text-text-secondary transition hover:bg-surface-tertiary"
                     >
-                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-dashed border-stone-200">
-                        <Plus className="h-2.5 w-2.5 text-slate-500" />
+                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-dashed border-border">
+                        <Plus className="h-2.5 w-2.5 text-text-muted" />
                       </span>
                       New workspace
                     </Link>
@@ -174,32 +174,32 @@ export function SessionMenu() {
           </div>
 
           {/* Links */}
-          <div className="border-t border-stone-100">
+          <div className="border-t border-border-light">
             <Link
               to="/workspace-access"
               onClick={closeMenu}
-              className="flex h-9 items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-50"
+              className="flex h-9 items-center gap-2.5 px-3.5 text-xs text-text-muted transition hover:bg-surface-secondary"
             >
-              <Settings className="h-3.5 w-3.5 text-slate-400" />
+              <Settings className="h-3.5 w-3.5 text-text-faint" />
               Workspace settings
             </Link>
           </div>
 
           {/* Theme toggle */}
-          <div className="border-t border-stone-100">
+          <div className="border-t border-border-light">
             <ThemeToggle />
           </div>
 
           {/* Sign out */}
-          <div className="border-t border-stone-100">
+          <div className="border-t border-border-light">
             <button
               type="button"
               data-testid="session-logout"
               disabled={loggingOut || !csrfToken}
               onClick={() => { closeMenu(); void logout(csrfToken); }}
-              className="flex h-9 w-full items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-50 disabled:opacity-50"
+              className="flex h-9 w-full items-center gap-2.5 px-3.5 text-xs text-text-muted transition hover:bg-surface-secondary disabled:opacity-50"
             >
-              {loggingOut ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-slate-400" /> : <LogOut className="h-3.5 w-3.5 text-slate-400" />}
+              {loggingOut ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-text-faint" /> : <LogOut className="h-3.5 w-3.5 text-text-faint" />}
               Sign out
             </button>
           </div>
@@ -217,9 +217,9 @@ function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="flex h-9 w-full items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-50"
+      className="flex h-9 w-full items-center gap-2.5 px-3.5 text-xs text-text-muted transition hover:bg-surface-secondary"
     >
-      {isDark ? <Sun className="h-3.5 w-3.5 text-slate-400" /> : <Moon className="h-3.5 w-3.5 text-slate-400" />}
+      {isDark ? <Sun className="h-3.5 w-3.5 text-text-faint" /> : <Moon className="h-3.5 w-3.5 text-text-faint" />}
       {isDark ? "Light mode" : "Dark mode"}
     </button>
   );

@@ -113,20 +113,20 @@ export function DunningConsoleScreen() {
   };
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Dunning" }]} />
 
         <LoginRedirectNotice />
 
-        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
-              <h1 className="text-sm font-semibold text-slate-900">Dunning runs{runs.length > 0 ? ` (${runs.length})` : ""}</h1>
+        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <h1 className="text-sm font-semibold text-text-primary">Dunning runs{runs.length > 0 ? ` (${runs.length})` : ""}</h1>
               <div className="flex items-center gap-2">
                 <select
                   value={state}
                   onChange={(event) => { setState(event.target.value); setPage(1); }}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-8 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All states</option>
                   <option value="retry_due">Retry due</option>
@@ -145,7 +145,7 @@ export function DunningConsoleScreen() {
             </div>
 
             {sessionLoading || runsQuery.isLoading ? (
-              <div className="divide-y divide-stone-100">
+              <div className="divide-y divide-border-light">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-4 px-5 py-3">
                     <div className="flex-1"><Skeleton className="h-4 w-32" /><Skeleton className="mt-1 h-3 w-20" /></div>
@@ -156,14 +156,14 @@ export function DunningConsoleScreen() {
               </div>
             ) : paginatedRuns.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-                <p className="text-sm font-medium text-slate-700">No dunning runs</p>
-                <p className="text-xs text-slate-500">No runs matched the current filter.</p>
+                <p className="text-sm font-medium text-text-secondary">No dunning runs</p>
+                <p className="text-xs text-text-muted">No runs matched the current filter.</p>
               </div>
             ) : (
               <>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                    <tr className="border-b border-border-light text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">
                       <th className="px-5 py-2.5 font-semibold">Invoice</th>
                       <th className="px-4 py-2.5 font-semibold">Customer</th>
                       <th className="px-4 py-2.5 font-semibold">State</th>
@@ -173,21 +173,21 @@ export function DunningConsoleScreen() {
                       <th className="px-4 py-2.5 font-semibold"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-100">
+                  <tbody className="divide-y divide-border-light">
                     {paginatedRuns.map((run) => (
-                      <tr key={run.id} className="transition hover:bg-stone-50">
-                        <td className="px-5 py-3 font-mono text-xs text-slate-600">{run.invoice_id}</td>
-                        <td className="px-4 py-3 text-slate-600">{run.customer_external_id || "-"}</td>
+                      <tr key={run.id} className="transition hover:bg-surface-secondary">
+                        <td className="px-5 py-3 font-mono text-xs text-text-muted">{run.invoice_id}</td>
+                        <td className="px-4 py-3 text-text-muted">{run.customer_external_id || "-"}</td>
                         <td className="px-4 py-3">
                           <StatusChip tone={statusTone(run.state)}>{formatState(run.state)}</StatusChip>
                         </td>
-                        <td className="px-4 py-3 capitalize text-slate-600">{formatState(run.next_action_type)}</td>
-                        <td className="px-4 py-3 text-slate-600">{formatExactTimestamp(run.next_action_at)}</td>
-                        <td className="px-4 py-3 text-slate-600">{run.attempt_count}</td>
+                        <td className="px-4 py-3 capitalize text-text-muted">{formatState(run.next_action_type)}</td>
+                        <td className="px-4 py-3 text-text-muted">{formatExactTimestamp(run.next_action_at)}</td>
+                        <td className="px-4 py-3 text-text-muted">{run.attempt_count}</td>
                         <td className="px-4 py-3">
                           <Link
                             to={`/dunning/${encodeURIComponent(run.id)}`}
-                            className="text-sm font-medium text-slate-600 hover:text-slate-900"
+                            className="text-sm font-medium text-text-muted hover:text-text-primary"
                           >
                             View →
                           </Link>
@@ -201,7 +201,7 @@ export function DunningConsoleScreen() {
             )}
 
             {runsQuery.error ? (
-              <div className="border-t border-stone-200 px-5 py-3 text-sm text-rose-700">
+              <div className="border-t border-border px-5 py-3 text-sm text-rose-700">
                 {(runsQuery.error as Error).message}
               </div>
             ) : null}
@@ -211,10 +211,10 @@ export function DunningConsoleScreen() {
       {/* Policy edit modal */}
       {policyOpen ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
-          <div className="w-full max-w-lg rounded-lg border border-stone-200 bg-white shadow-lg">
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
-              <h2 className="text-sm font-semibold text-slate-900">Edit dunning policy</h2>
-              <button type="button" onClick={() => setPolicyOpen(false)} className="text-slate-400 hover:text-slate-700">
+          <div className="w-full max-w-lg rounded-lg border border-border bg-surface shadow-lg">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <h2 className="text-sm font-semibold text-text-primary">Edit dunning policy</h2>
+              <button type="button" onClick={() => setPolicyOpen(false)} className="text-text-faint hover:text-text-secondary">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -226,16 +226,16 @@ export function DunningConsoleScreen() {
               ) : null}
 
               <label className="grid gap-1.5">
-                <span className="text-xs font-medium text-slate-600">Policy name</span>
+                <span className="text-xs font-medium text-text-muted">Policy name</span>
                 <input
                   value={policyDraft.policyName}
                   onChange={(e) => updatePolicyDraft({ policyName: e.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
-                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-border bg-surface px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-surface-secondary"
                 />
               </label>
 
-              <label className="flex items-center gap-2.5 text-sm text-slate-700">
+              <label className="flex items-center gap-2.5 text-sm text-text-secondary">
                 <input
                   type="checkbox"
                   checked={policyDraft.enabled}
@@ -247,57 +247,57 @@ export function DunningConsoleScreen() {
               </label>
 
               <label className="grid gap-1.5">
-                <span className="text-xs font-medium text-slate-600">Retry schedule</span>
+                <span className="text-xs font-medium text-text-muted">Retry schedule</span>
                 <input
                   value={policyDraft.retrySchedule}
                   onChange={(e) => updatePolicyDraft({ retrySchedule: e.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
                   placeholder="1d, 3d, 5d"
-                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-border bg-surface px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-surface-secondary"
                 />
               </label>
 
               <label className="grid gap-1.5">
-                <span className="text-xs font-medium text-slate-600">Collect-payment reminders</span>
+                <span className="text-xs font-medium text-text-muted">Collect-payment reminders</span>
                 <input
                   value={policyDraft.collectSchedule}
                   onChange={(e) => updatePolicyDraft({ collectSchedule: e.target.value })}
                   disabled={!canWrite || policyMutation.isPending}
                   placeholder="0d, 2d, 5d"
-                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-border bg-surface px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-surface-secondary"
                 />
               </label>
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="grid gap-1.5">
-                  <span className="text-xs font-medium text-slate-600">Max retry attempts</span>
+                  <span className="text-xs font-medium text-text-muted">Max retry attempts</span>
                   <input
                     value={policyDraft.maxRetryAttempts}
                     onChange={(e) => updatePolicyDraft({ maxRetryAttempts: e.target.value })}
                     disabled={!canWrite || policyMutation.isPending}
                     inputMode="numeric"
-                    className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
+                    className="h-9 rounded-lg border border-border bg-surface px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-surface-secondary"
                   />
                 </label>
                 <label className="grid gap-1.5">
-                  <span className="text-xs font-medium text-slate-600">Grace period days</span>
+                  <span className="text-xs font-medium text-text-muted">Grace period days</span>
                   <input
                     value={policyDraft.gracePeriodDays}
                     onChange={(e) => updatePolicyDraft({ gracePeriodDays: e.target.value })}
                     disabled={!canWrite || policyMutation.isPending}
                     inputMode="numeric"
-                    className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
+                    className="h-9 rounded-lg border border-border bg-surface px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-surface-secondary"
                   />
                 </label>
               </div>
 
               <label className="grid gap-1.5">
-                <span className="text-xs font-medium text-slate-600">Final action</span>
+                <span className="text-xs font-medium text-text-muted">Final action</span>
                 <select
                   value={policyDraft.finalAction}
                   onChange={(e) => updatePolicyDraft({ finalAction: e.target.value as "manual_review" | "pause" | "write_off_later" })}
                   disabled={!canWrite || policyMutation.isPending}
-                  className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-stone-50"
+                  className="h-9 rounded-lg border border-border bg-surface px-3 text-sm outline-none ring-slate-400 transition focus:ring-2 disabled:bg-surface-secondary"
                 >
                   {finalActionOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -311,11 +311,11 @@ export function DunningConsoleScreen() {
                 </div>
               ) : null}
             </div>
-            <div className="flex justify-end gap-2 border-t border-stone-200 px-5 py-3">
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
               <button
                 type="button"
                 onClick={() => setPolicyOpen(false)}
-                className="h-8 rounded-lg border border-stone-200 px-3 text-sm font-medium text-slate-700 transition hover:bg-stone-50"
+                className="h-8 rounded-lg border border-border px-3 text-sm font-medium text-text-secondary transition hover:bg-surface-secondary"
               >
                 Cancel
               </button>

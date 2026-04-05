@@ -26,8 +26,8 @@ const schema = z.object({
 
 type FormFields = z.infer<typeof schema>;
 
-const inputClass = "h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2";
-const inputErrorClass = "h-10 rounded-lg border border-rose-300 bg-white px-3 text-sm text-slate-900 outline-none ring-rose-200 transition placeholder:text-slate-400 focus:ring-2";
+const inputClass = "h-10 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2";
+const inputErrorClass = "h-10 rounded-lg border border-rose-300 bg-surface px-3 text-sm text-text-primary outline-none ring-rose-200 transition placeholder:text-text-faint focus:ring-2";
 
 export function SubscriptionNewScreen() {
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
@@ -95,7 +95,7 @@ export function SubscriptionNewScreen() {
   const busy = isSubmitting || mutation.isPending;
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: "New" }]} />
 
@@ -109,7 +109,7 @@ export function SubscriptionNewScreen() {
                 <p className="text-sm font-semibold text-emerald-800">Subscription created</p>
                 <p className="mt-2 text-sm text-emerald-700">{mutation.data.subscription.display_name} is now {formatReadinessStatus(mutation.data.subscription.status)}.</p>
                 {mutation.data.checkout_url ? (
-                  <a href={mutation.data.checkout_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex h-10 items-center rounded-lg border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100">
+                  <a href={mutation.data.checkout_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex h-10 items-center rounded-lg border border-emerald-200 bg-surface px-4 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100">
                     Open payment setup link
                   </a>
                 ) : null}
@@ -118,7 +118,7 @@ export function SubscriptionNewScreen() {
                     Open subscription
                     <ArrowRight className="h-4 w-4" />
                   </a>
-                  <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">
+                  <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">
                     Back to subscriptions
                   </Link>
                 </div>
@@ -128,13 +128,13 @@ export function SubscriptionNewScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
+          <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
-                <h1 className="text-base font-semibold text-slate-900">Create subscription</h1>
-                <p className="mt-0.5 text-xs text-slate-500">Choose the customer and plan, then decide whether to start hosted payment setup.</p>
+                <h1 className="text-base font-semibold text-text-primary">Create subscription</h1>
+                <p className="mt-0.5 text-xs text-text-muted">Choose the customer and plan, then decide whether to start hosted payment setup.</p>
               </div>
-              <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -163,11 +163,11 @@ export function SubscriptionNewScreen() {
                   </Field>
                 </div>
 
-                <label className="flex items-start gap-3 text-sm text-slate-700">
+                <label className="flex items-start gap-3 text-sm text-text-secondary">
                   <input data-testid="subscription-request-payment-setup" type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300" {...register("request_payment_setup")} />
                   <span>
-                    <span className="font-semibold text-slate-950">Request payment setup now</span>
-                    <span className="mt-1 block text-slate-600">Alpha generates a secure hosted link. Send it to the customer — they complete card or bank setup on their end.</span>
+                    <span className="font-semibold text-text-primary">Request payment setup now</span>
+                    <span className="mt-1 block text-text-muted">Alpha generates a secure hosted link. Send it to the customer — they complete card or bank setup on their end.</span>
                   </span>
                 </label>
                 <div className="max-w-sm">
@@ -178,8 +178,8 @@ export function SubscriptionNewScreen() {
 
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
-              <div className="flex justify-end gap-2 border-t border-stone-200 px-6 py-4">
-                <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm text-slate-700 transition hover:bg-slate-100">Cancel</Link>
+              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
                 <button type="submit" data-testid="subscription-submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                   Create subscription
@@ -196,9 +196,9 @@ export function SubscriptionNewScreen() {
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
   return (
     <label className="grid gap-2">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-text-muted">{label}</span>
       {children}
-      {error ? <span className="text-xs text-rose-600">{error}</span> : hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
+      {error ? <span className="text-xs text-rose-600">{error}</span> : hint ? <span className="text-xs text-text-muted">{hint}</span> : null}
     </label>
   );
 }

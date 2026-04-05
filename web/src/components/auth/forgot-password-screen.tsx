@@ -29,12 +29,12 @@ export function ForgotPasswordScreen() {
   const enabled = Boolean(authProvidersQuery.data?.password_reset_enabled);
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex min-h-screen max-w-2xl items-center px-4 py-10">
-        <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Password recovery</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-950">Reset your Alpha password</h1>
-          <p className="mt-3 text-sm text-slate-600">
+        <section className="w-full rounded-3xl border border-border bg-surface p-6 shadow-sm">
+          <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Password recovery</p>
+          <h1 className="mt-2 text-2xl font-semibold text-text-primary">Reset your Alpha password</h1>
+          <p className="mt-3 text-sm text-text-muted">
             Enter the email for your Alpha browser account. If that account supports password login, we will send reset instructions.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -51,13 +51,13 @@ export function ForgotPasswordScreen() {
 
           <form className="mt-5 grid gap-3" onSubmit={onSubmit}>
             <div className="grid gap-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Email</label>
+              <label className="text-xs font-medium uppercase tracking-wider text-text-muted">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
-                className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
               />
             </div>
             <button
@@ -77,7 +77,7 @@ export function ForgotPasswordScreen() {
           {resetMutation.isError ? <p className="mt-4 text-xs text-rose-700">{resetMutation.error.message}</p> : null}
 
           <div className="mt-5">
-            <Link to="/login" className="text-sm text-slate-600 transition hover:text-slate-900">
+            <Link to="/login" className="text-sm text-text-muted transition hover:text-text-primary">
               Back to login
             </Link>
           </div>
@@ -89,9 +89,9 @@ export function ForgotPasswordScreen() {
 
 function OperatorHint({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
+    <div className="rounded-2xl border border-border bg-surface-secondary px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-text-secondary">{body}</p>
     </div>
   );
 }

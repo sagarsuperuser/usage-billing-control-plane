@@ -134,10 +134,10 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
       {/* Invite modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setShowInviteModal(false); createInvitationMutation.reset(); } }}>
-          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/10">
-            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
-              <p className="font-semibold text-slate-900">Invite member</p>
-              <button type="button" onClick={() => { setShowInviteModal(false); createInvitationMutation.reset(); }} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-stone-100 hover:text-slate-700">
+          <div className="w-full max-w-md rounded-xl bg-surface shadow-2xl ring-1 ring-black/10">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <p className="font-semibold text-text-primary">Invite member</p>
+              <button type="button" onClick={() => { setShowInviteModal(false); createInvitationMutation.reset(); }} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-text-faint transition hover:bg-surface-tertiary hover:text-text-secondary">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -145,8 +145,8 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
               {latestInviteURL ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4">
                   <p className="text-sm font-semibold text-emerald-800">Invitation sent</p>
-                  <p className="mt-2 break-all rounded border border-emerald-100 bg-white px-3 py-2 font-mono text-xs text-slate-800">{latestInviteURL}</p>
-                  <button type="button" onClick={() => { void navigator.clipboard.writeText(latestInviteURL); }} className="mt-3 inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 bg-white px-2.5 text-xs text-slate-700 transition hover:bg-stone-100">
+                  <p className="mt-2 break-all rounded border border-emerald-100 bg-surface px-3 py-2 font-mono text-xs text-text-secondary">{latestInviteURL}</p>
+                  <button type="button" onClick={() => { void navigator.clipboard.writeText(latestInviteURL); }} className="mt-3 inline-flex h-7 items-center gap-1.5 rounded border border-border bg-surface px-2.5 text-xs text-text-secondary transition hover:bg-surface-tertiary">
                     <Copy className="h-3 w-3" />
                     Copy link
                   </button>
@@ -154,12 +154,12 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
               ) : (
                 <div className="grid gap-3">
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-700">Email</label>
-                    <input {...registerInvite("email")} type="email" placeholder="teammate@example.com" className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2" />
+                    <label className="mb-1.5 block text-xs font-medium text-text-secondary">Email</label>
+                    <input {...registerInvite("email")} type="email" placeholder="teammate@example.com" className="h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2" />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-700">Role</label>
-                    <select {...registerInvite("role")} aria-label="Workspace role" className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2">
+                    <label className="mb-1.5 block text-xs font-medium text-text-secondary">Role</label>
+                    <select {...registerInvite("role")} aria-label="Workspace role" className="h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2">
                       <option value="admin">Admin</option>
                       <option value="writer">Writer</option>
                       <option value="reader">Reader</option>
@@ -184,15 +184,15 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
       {/* Member slide-out panel */}
       {selectedMember && (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={(e) => { if (e.target === e.currentTarget) setSelectedMemberID(""); }}>
-          <div className="h-full w-full max-w-sm border-l border-stone-200 bg-white shadow-xl overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3.5">
+          <div className="h-full w-full max-w-sm border-l border-border bg-surface shadow-xl overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
               <div className="min-w-0">
-                <p className="font-semibold text-slate-900">{selectedMember.display_name}</p>
-                <p className="mt-0.5 truncate text-xs text-slate-500">{selectedMember.email}</p>
+                <p className="font-semibold text-text-primary">{selectedMember.display_name}</p>
+                <p className="mt-0.5 truncate text-xs text-text-muted">{selectedMember.email}</p>
               </div>
               <div className="flex items-center gap-2">
                 <StatusChip tone={selectedMember.status === "active" ? "success" : "neutral"}>{selectedMember.status}</StatusChip>
-                <button type="button" onClick={() => setSelectedMemberID("")} className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-400 transition hover:bg-stone-100 hover:text-slate-700">
+                <button type="button" onClick={() => setSelectedMemberID("")} className="inline-flex h-6 w-6 items-center justify-center rounded text-text-faint transition hover:bg-surface-tertiary hover:text-text-secondary">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -211,13 +211,13 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
                 return (
                   <div className="grid gap-4">
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-500">Role</label>
+                      <label className="mb-1.5 block text-xs font-medium text-text-muted">Role</label>
                       <select
                         aria-label={`Role for ${selectedMember.email}`}
                         value={draftRole}
                         onChange={(event) => setMemberDraftRoles((c) => ({ ...c, [selectedMember.user_id]: event.target.value as "reader" | "writer" | "admin" }))}
                         disabled={roleSelectDisabled}
-                        className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2 disabled:opacity-50"
+                        className="h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2 disabled:opacity-50"
                       >
                         <option value="admin">Admin</option>
                         <option value="writer">Writer</option>
@@ -228,13 +228,13 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
                     {roleDirty ? (
                       <div className="flex gap-2">
                         <button type="button" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: draftRole })} disabled={!canApplyRole} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg bg-slate-900 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50">Save</button>
-                        <button type="button" onClick={() => setMemberDraftRoles((c) => { const n = { ...c }; delete n[selectedMember.user_id]; return n; })} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg border border-stone-200 text-sm text-slate-700 hover:bg-stone-100">Cancel</button>
+                        <button type="button" onClick={() => setMemberDraftRoles((c) => { const n = { ...c }; delete n[selectedMember.user_id]; return n; })} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg border border-border text-sm text-text-secondary hover:bg-surface-tertiary">Cancel</button>
                       </div>
                     ) : selectedMember.status === "active" ? (
                       showSuspendConfirm ? (
                         <div className="flex gap-2">
                           <button type="button" onClick={() => removeMemberMutation.mutate(selectedMember.user_id)} disabled={!canSuspend} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg bg-rose-600 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50">Confirm</button>
-                          <button type="button" onClick={() => setConfirmingMemberAction(null)} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg border border-stone-200 text-sm text-slate-700 hover:bg-stone-100">Cancel</button>
+                          <button type="button" onClick={() => setConfirmingMemberAction(null)} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg border border-border text-sm text-text-secondary hover:bg-surface-tertiary">Cancel</button>
                         </div>
                       ) : (
                         <button type="button" onClick={() => setConfirmingMemberAction({ userID: selectedMember.user_id, action: "suspend" })} disabled={!canSuspend} className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">
@@ -246,8 +246,8 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
                       <button type="button" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: selectedMember.role as "reader" | "writer" | "admin" })} disabled={!canReactivate} className="inline-flex h-8 w-full items-center justify-center rounded-lg bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">Reactivate</button>
                     )}
 
-                    {selfMember ? <p className="text-xs text-slate-400">You cannot change your own membership.</p> : null}
-                    {lastAdminProtected ? <p className="text-xs text-slate-400">Promote another admin first.</p> : null}
+                    {selfMember ? <p className="text-xs text-text-faint">You cannot change your own membership.</p> : null}
+                    {lastAdminProtected ? <p className="text-xs text-text-faint">Promote another admin first.</p> : null}
                   </div>
                 );
               })()}
@@ -257,12 +257,12 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
       )}
 
       {/* Content */}
-      <div className="divide-y divide-stone-200">
+      <div className="divide-y divide-border">
         {/* Members section */}
         <div>
           <div className="flex items-center justify-between px-5 py-3">
             <div className="flex items-center gap-3">
-              <p className="text-sm font-semibold text-slate-900">Members ({members.length})</p>
+              <p className="text-sm font-semibold text-text-primary">Members ({members.length})</p>
               <MiniPagination page={pagedMembers.page} totalPages={pagedMembers.totalPages} onPageChange={setMemberPage} label="Members" />
             </div>
             <button
@@ -278,24 +278,24 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
           {pagedMembers.items.length > 0 ? (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-stone-100 text-left text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                <tr className="border-y border-border-light text-left text-[11px] font-medium uppercase tracking-wider text-text-faint">
                   <th className="px-5 py-2 font-semibold">Member</th>
                   <th className="px-4 py-2 font-semibold">Role</th>
                   <th className="px-4 py-2 font-semibold">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-border-light">
                 {pagedMembers.items.map((member) => (
                   <tr
                     key={member.user_id}
                     onClick={() => setSelectedMemberID(member.user_id)}
-                    className={`cursor-pointer transition ${selectedMemberID === member.user_id ? "bg-sky-50" : "hover:bg-stone-50"}`}
+                    className={`cursor-pointer transition ${selectedMemberID === member.user_id ? "bg-sky-50" : "hover:bg-surface-secondary"}`}
                   >
                     <td className="px-5 py-2.5">
-                      <p className="font-medium text-slate-900">{member.display_name}</p>
-                      <p className="text-xs text-slate-400">{member.email}</p>
+                      <p className="font-medium text-text-primary">{member.display_name}</p>
+                      <p className="text-xs text-text-faint">{member.email}</p>
                     </td>
-                    <td className="px-4 py-2.5 text-xs capitalize text-slate-600">{member.role}</td>
+                    <td className="px-4 py-2.5 text-xs capitalize text-text-muted">{member.role}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-wrap gap-1">
                         <StatusChip tone={member.status === "active" ? "success" : "neutral"}>{member.status}</StatusChip>
@@ -308,7 +308,7 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
               </tbody>
             </table>
           ) : (
-            <p className="px-5 py-6 text-xs text-slate-400">No members yet.</p>
+            <p className="px-5 py-6 text-xs text-text-faint">No members yet.</p>
           )}
         </div>
 
@@ -316,26 +316,26 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
         <div>
           <div className="flex items-center justify-between px-5 py-3">
             <div className="flex items-center gap-3">
-              <p className="text-sm font-medium text-slate-700">Pending invites ({pendingInvitations.length})</p>
+              <p className="text-sm font-medium text-text-secondary">Pending invites ({pendingInvitations.length})</p>
               <MiniPagination page={pagedInvitations.page} totalPages={pagedInvitations.totalPages} onPageChange={setInvitePage} label="Pending invites" />
             </div>
           </div>
           {pagedInvitations.items.length > 0 ? (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-stone-100 text-left text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                <tr className="border-y border-border-light text-left text-[11px] font-medium uppercase tracking-wider text-text-faint">
                   <th className="px-5 py-2 font-semibold">Email</th>
                   <th className="px-4 py-2 font-semibold">Role</th>
                   <th className="px-4 py-2 font-semibold">Expires</th>
                   <th className="px-4 py-2 font-semibold" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-border-light">
                 {pagedInvitations.items.map((invite) => (
                   <tr key={invite.id}>
-                    <td className="px-5 py-2.5 font-medium text-slate-900">{invite.email}</td>
-                    <td className="px-4 py-2.5 text-xs capitalize text-slate-600">{invite.role}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400">{formatRelativeTimestamp(invite.expires_at)}</td>
+                    <td className="px-5 py-2.5 font-medium text-text-primary">{invite.email}</td>
+                    <td className="px-4 py-2.5 text-xs capitalize text-text-muted">{invite.role}</td>
+                    <td className="px-4 py-2.5 text-xs text-text-faint">{formatRelativeTimestamp(invite.expires_at)}</td>
                     <td className="px-4 py-2.5 text-right">
                       <button type="button" onClick={() => revokeInvitationMutation.mutate(invite.id)} disabled={!csrfToken || revokeInvitationMutation.isPending} className="text-xs font-medium text-rose-600 hover:text-rose-800 disabled:opacity-50">
                         Revoke
@@ -346,7 +346,7 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
               </tbody>
             </table>
           ) : (
-            <p className="px-5 py-4 text-xs text-slate-400">No pending invites.</p>
+            <p className="px-5 py-4 text-xs text-text-faint">No pending invites.</p>
           )}
         </div>
       </div>

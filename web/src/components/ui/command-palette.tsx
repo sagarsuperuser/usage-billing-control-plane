@@ -150,24 +150,24 @@ export function CommandPalette() {
 
           {/* Dialog */}
           <motion.div
-            className="relative w-full max-w-lg overflow-hidden rounded-xl border border-stone-200 bg-white shadow-2xl"
+            className="relative w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface shadow-2xl"
             initial={{ opacity: 0, scale: 0.96, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -8 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
           >
             {/* Search input */}
-            <div className="flex items-center gap-3 border-b border-stone-100 px-4 py-3">
-              <Search className="h-4 w-4 shrink-0 text-slate-400" />
+            <div className="flex items-center gap-3 border-b border-border-light px-4 py-3">
+              <Search className="h-4 w-4 shrink-0 text-text-faint" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
                 placeholder="Search pages..."
-                className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-faint"
               />
-              <kbd className="hidden shrink-0 rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 sm:inline">
+              <kbd className="hidden shrink-0 rounded border border-border bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-text-faint sm:inline">
                 ESC
               </kbd>
             </div>
@@ -175,11 +175,11 @@ export function CommandPalette() {
             {/* Results */}
             <div ref={listRef} className="max-h-[320px] overflow-y-auto p-2">
               {filtered.length === 0 ? (
-                <p className="px-3 py-6 text-center text-xs text-slate-400">No results found.</p>
+                <p className="px-3 py-6 text-center text-xs text-text-faint">No results found.</p>
               ) : (
                 sections.map(([section, items]) => (
                   <div key={section}>
-                    <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{section}</p>
+                    <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-faint">{section}</p>
                     {items.map((cmd) => {
                       const idx = flatIndex++;
                       const Icon = cmd.icon;
@@ -190,10 +190,10 @@ export function CommandPalette() {
                           onClick={() => go(cmd.href)}
                           onMouseEnter={() => setSelectedIndex(idx)}
                           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${
-                            idx === selectedIndex ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-stone-50"
+                            idx === selectedIndex ? "bg-slate-900 text-white" : "text-text-secondary hover:bg-surface-secondary"
                           }`}
                         >
-                          <Icon className={`h-4 w-4 shrink-0 ${idx === selectedIndex ? "text-slate-300" : "text-slate-400"}`} />
+                          <Icon className={`h-4 w-4 shrink-0 ${idx === selectedIndex ? "text-slate-300" : "text-text-faint"}`} />
                           {cmd.label}
                         </button>
                       );
@@ -204,11 +204,11 @@ export function CommandPalette() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between border-t border-stone-100 px-4 py-2">
-              <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                <kbd className="rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono">↑↓</kbd>
+            <div className="flex items-center justify-between border-t border-border-light px-4 py-2">
+              <div className="flex items-center gap-2 text-[10px] text-text-faint">
+                <kbd className="rounded border border-border bg-surface-secondary px-1 py-0.5 font-mono">↑↓</kbd>
                 navigate
-                <kbd className="rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono">↵</kbd>
+                <kbd className="rounded border border-border bg-surface-secondary px-1 py-0.5 font-mono">↵</kbd>
                 open
               </div>
             </div>

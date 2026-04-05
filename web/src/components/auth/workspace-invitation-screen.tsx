@@ -83,9 +83,9 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
 
   if (isLoading || previewQuery.isLoading) {
     return (
-      <div className="text-slate-900">
+      <div className="text-text-primary">
         <main className="mx-auto flex min-h-screen max-w-[720px] items-center justify-center px-4 py-10">
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-5 py-4 text-sm text-text-muted shadow-sm">
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Loading workspace invitation
           </div>
@@ -96,18 +96,18 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
 
   if (previewQuery.isError || !previewQuery.data) {
     return (
-      <div className="text-slate-900">
+      <div className="text-text-primary">
         <main className="mx-auto flex min-h-screen max-w-[720px] items-center justify-center px-4 py-10">
-          <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace invitation</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">This invitation is no longer available</h1>
-            <p className="mt-3 text-sm text-slate-600">
+          <section className="w-full rounded-3xl border border-border bg-surface p-6 shadow-sm">
+            <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Workspace invitation</p>
+            <h1 className="mt-2 text-2xl font-semibold text-text-primary">This invitation is no longer available</h1>
+            <p className="mt-3 text-sm text-text-muted">
               The invitation may have expired, been revoked, or already been accepted. Ask the workspace owner to issue a fresh invite if you still need access.
             </p>
             <div className="mt-5">
               <Link
                 to="/login"
-                className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
+                className="inline-flex h-11 items-center rounded-xl border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:border-border hover:bg-surface"
               >
                 Open login
               </Link>
@@ -125,13 +125,13 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
   const showRegistrationForm = preview.requires_login && !isAuthenticated && !preview.account_exists;
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex min-h-screen max-w-2xl items-center px-4 py-10">
-        <section className="w-full rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workspace invitation</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-950">Join {preview.workspace_name}</h1>
-          <p className="mt-3 text-sm text-slate-600">
-            This invite grants <span className="font-semibold text-slate-950">{preview.invitation.role}</span> access to the workspace.
+        <section className="w-full rounded-3xl border border-border bg-surface p-6 shadow-sm">
+          <p className="text-xs uppercase tracking-[0.2em] text-text-muted">Workspace invitation</p>
+          <h1 className="mt-2 text-2xl font-semibold text-text-primary">Join {preview.workspace_name}</h1>
+          <p className="mt-3 text-sm text-text-muted">
+            This invite grants <span className="font-semibold text-text-primary">{preview.invitation.role}</span> access to the workspace.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <OperatorHint title="Invite rule" body="Use the invited email exactly. Alpha ties the invitation to that identity before granting workspace access." />
@@ -139,13 +139,13 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
             <OperatorHint title="Acceptance rule" body="If the account and email already match, Alpha should accept the invitation and route you into the workspace." />
           </div>
 
-          <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-            <p className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+          <div className="mt-5 rounded-2xl border border-border bg-surface-secondary p-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <PanelsTopLeft className="h-4 w-4 text-emerald-700" />
               {preview.workspace_name}
             </p>
-            <p className="mt-2 break-all text-xs text-slate-500">Workspace ID: {preview.invitation.workspace_id}</p>
-            <p className="mt-2 break-all text-xs text-slate-500">Invited email: {preview.invitation.email}</p>
+            <p className="mt-2 break-all text-xs text-text-muted">Workspace ID: {preview.invitation.workspace_id}</p>
+            <p className="mt-2 break-all text-xs text-text-muted">Invited email: {preview.invitation.email}</p>
           </div>
 
           {preview.requires_login && !isAuthenticated ? (
@@ -171,7 +171,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
                     <a
                       key={provider.key}
                       href={buildSSOStartURL(apiBaseURL, provider.key, invitePath)}
-                      className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm font-medium text-slate-800 transition hover:border-stone-300 hover:bg-white"
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-border bg-surface-secondary px-4 text-sm font-medium text-text-secondary transition hover:border-border hover:bg-surface"
                     >
                       Continue with {provider.display_name}
                     </a>
@@ -182,38 +182,38 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
               {preview.account_exists ? (
                 <Link
                   to={loginHref}
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:border-border hover:bg-surface"
                 >
                   Sign in with email and password
                 </Link>
               ) : null}
 
               {showRegistrationForm ? (
-                <form className="grid gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4" onSubmit={onRegister}>
+                <form className="grid gap-3 rounded-2xl border border-border bg-surface-secondary p-4" onSubmit={onRegister}>
                   <div>
-                    <p className="text-sm font-semibold text-slate-950">Create your Alpha account</p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-text-primary">Create your Alpha account</p>
+                    <p className="mt-1 text-xs text-text-muted">
                       Use this path if this invited email does not already have an Alpha browser account.
                     </p>
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Display name</label>
+                    <label className="text-xs font-medium uppercase tracking-wider text-text-muted">Display name</label>
                     <input
                       type="text"
                       value={displayName}
                       onChange={(event) => setDisplayName(event.target.value)}
                       placeholder="Your name"
-                      className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                      className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Password</label>
+                    <label className="text-xs font-medium uppercase tracking-wider text-text-muted">Password</label>
                     <input
                       type="password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="At least 12 characters"
-                      className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                      className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                     />
                   </div>
                   <button
@@ -242,7 +242,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
               </button>
               <Link
                 to={accessSwitchHref}
-                className="inline-flex h-11 items-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-slate-700 transition hover:border-stone-300 hover:bg-white"
+                className="inline-flex h-11 items-center rounded-xl border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:border-border hover:bg-surface"
               >
                 Switch account
               </Link>
@@ -263,9 +263,9 @@ function buildSSOStartURL(apiBaseURL: string, providerKey: string, nextPath: str
 
 function OperatorHint({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
+    <div className="rounded-2xl border border-border bg-surface-secondary px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-text-secondary">{body}</p>
     </div>
   );
 }

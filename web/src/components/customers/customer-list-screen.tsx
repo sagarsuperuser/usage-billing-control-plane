@@ -59,28 +59,28 @@ export function CustomerListScreen() {
   }, [filteredCustomers, readinessQueries]);
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ label: "Customers" }]} />
 
         <LoginRedirectNotice />
 
-        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <div className="flex items-center gap-3">
-                <h1 className="text-sm font-semibold text-slate-900">Customers{filteredCustomers.length > 0 ? ` (${filteredCustomers.length})` : ""}</h1>
+                <h1 className="text-sm font-semibold text-text-primary">Customers{filteredCustomers.length > 0 ? ` (${filteredCustomers.length})` : ""}</h1>
               </div>
               <div className="flex items-center gap-2">
                 <input
                   value={search}
                   onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                   aria-label="Search" placeholder="Search..."
-                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  className="h-8 w-48 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                 />
                 <select
                   value={statusFilter}
                   onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-8 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All statuses</option>
                   <option value="active">Active</option>
@@ -101,29 +101,29 @@ export function CustomerListScreen() {
               <>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                  <tr className="border-b border-border-light text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">
                     <th className="px-5 py-2.5 font-semibold">Customer</th>
                     <th className="px-4 py-2.5 font-semibold">Status</th>
                     <th className="px-4 py-2.5 font-semibold">Profile</th>
                     <th className="px-4 py-2.5 font-semibold">Collection</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-border-light">
                   {paginatedCustomers.map((customer) => {
                     const readiness = readinessByCustomer.get(customer.external_id);
                     const diagnosis = readiness ? diagnoseCustomerCollection(readiness) : null;
                     return (
-                      <tr key={customer.external_id} className="transition hover:bg-stone-50">
+                      <tr key={customer.external_id} className="transition hover:bg-surface-secondary">
                         <td className="px-5 py-3">
                           <Link to={`/customers/${encodeURIComponent(customer.external_id)}`} className="block">
-                            <p className="font-medium text-slate-900">{customer.display_name}</p>
-                            <p className="mt-0.5 font-mono text-xs text-slate-400">{customer.external_id}</p>
+                            <p className="font-medium text-text-primary">{customer.display_name}</p>
+                            <p className="mt-0.5 font-mono text-xs text-text-faint">{customer.external_id}</p>
                           </Link>
                         </td>
                         <td className="px-4 py-3">
                           <StatusChip tone={statusTone(customer.status)}>{customer.status}</StatusChip>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">
+                        <td className="px-4 py-3 text-text-muted">
                           {readiness ? formatReadinessStatus(readiness.billing_profile_status) : "—"}
                         </td>
                         <td className="px-4 py-3">
@@ -131,7 +131,7 @@ export function CustomerListScreen() {
                             <StatusChip tone={diagnosisTone(diagnosis.tone)}>
                               {diagnosis.tone === "healthy" ? "Ready" : diagnosis.tone === "warning" ? "Pending" : "Blocked"}
                             </StatusChip>
-                          ) : <span className="text-slate-400">—</span>}
+                          ) : <span className="text-text-faint">—</span>}
                         </td>
                       </tr>
                     );
@@ -149,7 +149,7 @@ export function CustomerListScreen() {
 
 function LoadingState() {
   return (
-    <div className="divide-y divide-stone-100">
+    <div className="divide-y divide-border-light">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex items-center gap-4 px-5 py-3">
           <div className="flex-1"><Skeleton className="h-4 w-32" /><Skeleton className="mt-1 h-3 w-20" /></div>

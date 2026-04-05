@@ -95,12 +95,12 @@ export function BillingActivityTimeline({
   const entries = buildTimelineEntries({ webhookEvents, dunningDetail });
 
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Billing timeline</p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">Correlated events</h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Billing timeline</p>
+          <h2 className="mt-2 text-xl font-semibold text-text-primary">Correlated events</h2>
+          <p className="mt-2 text-sm text-text-muted">
             Follow webhook projection, dunning state changes, and reminder delivery in one operator sequence.
           </p>
           <div className="mt-4 grid gap-3 lg:grid-cols-3">
@@ -110,13 +110,13 @@ export function BillingActivityTimeline({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-stone-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+          <span className="rounded-full border border-border bg-surface-secondary px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
             {entries.length} events
           </span>
           {dunningRunHref ? (
             <Link
               to={dunningRunHref}
-              className="inline-flex h-10 items-center rounded-lg border border-stone-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm font-medium text-text-secondary transition hover:bg-surface-tertiary"
             >
               Open dunning run
             </Link>
@@ -125,7 +125,7 @@ export function BillingActivityTimeline({
       </div>
 
       {loading ? (
-        <div className="mt-5 rounded-xl border border-stone-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+        <div className="mt-5 rounded-xl border border-border bg-surface-secondary px-4 py-4 text-sm text-text-muted">
           Loading timeline events.
         </div>
       ) : null}
@@ -138,20 +138,20 @@ export function BillingActivityTimeline({
         <div className="mt-5 grid gap-3">
           {entries.length > 0 ? (
             entries.map((entry) => (
-              <article key={entry.id} className="rounded-xl border border-stone-200 bg-slate-50 px-4 py-4">
+              <article key={entry.id} className="rounded-xl border border-border bg-surface-secondary px-4 py-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-950">{entry.title}</p>
-                      <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                      <p className="text-sm font-semibold text-text-primary">{entry.title}</p>
+                      <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
                         {entry.badge}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{entry.source}</p>
-                    {entry.summary ? <p className="mt-2 text-sm text-slate-700">{entry.summary}</p> : null}
-                    {entry.detail ? <p className="mt-2 break-all font-mono text-xs text-slate-500">{entry.detail}</p> : null}
+                    <p className="mt-1 text-xs uppercase tracking-[0.14em] text-text-muted">{entry.source}</p>
+                    {entry.summary ? <p className="mt-2 text-sm text-text-secondary">{entry.summary}</p> : null}
+                    {entry.detail ? <p className="mt-2 break-all font-mono text-xs text-text-muted">{entry.detail}</p> : null}
                   </div>
-                  <div className="text-left text-xs text-slate-500 lg:text-right">
+                  <div className="text-left text-xs text-text-muted lg:text-right">
                     <p>{formatExactTimestamp(entry.timestamp)}</p>
                     {entry.secondaryTimeLabel ? <p className="mt-1">{entry.secondaryTimeLabel}</p> : null}
                   </div>
@@ -159,8 +159,8 @@ export function BillingActivityTimeline({
               </article>
             ))
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-              <p className="font-semibold text-slate-950">No correlated billing events yet.</p>
+            <div className="rounded-xl border border-dashed border-slate-300 bg-surface-secondary px-5 py-8 text-sm text-text-muted">
+              <p className="font-semibold text-text-primary">No correlated billing events yet.</p>
               <p className="mt-2">Webhook projections, dunning state changes, and reminders will appear here once activity is recorded.</p>
             </div>
           )}
@@ -172,9 +172,9 @@ export function BillingActivityTimeline({
 
 function OperatorHint({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{body}</p>
+    <div className="rounded-xl border border-border bg-surface-secondary px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-text-secondary">{body}</p>
     </div>
   );
 }

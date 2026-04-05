@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Alpha | Control Plane</title>
-    <meta name="description" content="Tenant-aware usage billing control plane with payment operations and invoice explainability." />
+    <meta name="description" content="Billing infrastructure for usage-based pricing." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet" />
@@ -12,12 +13,18 @@
       window.__RUNTIME_CONFIG__ = {
         apiBaseURL: "__API_BASE_URL_PLACEHOLDER__"
       };
+      // Apply dark mode BEFORE React hydrates to prevent flash of light mode.
+      (function() {
+        var t = localStorage.getItem('alpha-theme');
+        var dark = t === 'dark' || (t === 'system' || !t) && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.classList.add('dark');
+      })();
     </script>
-    <script type="module" crossorigin src="/assets/index-tVihsl1A.js"></script>
+    <script type="module" crossorigin src="/assets/index-2JFhumbM.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/use-ui-session-BM7Wkx18.js">
     <link rel="modulepreload" crossorigin href="/assets/useStore-Chw4LR-3.js">
     <link rel="modulepreload" crossorigin href="/assets/createLucideIcon-Bmhv6_oT.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-Advv-Uep.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CSGyVlcQ.css">
   </head>
   <body class="antialiased" style="font-family: 'Space Grotesk', sans-serif;">
     <div id="root"></div>

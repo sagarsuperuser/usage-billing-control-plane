@@ -7,7 +7,7 @@ import { type ReactNode } from "react";
  */
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen bg-background">
       <main className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_480px]">
 
         {/* Left — brand panel */}
@@ -44,7 +44,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           <div className="w-full max-w-[400px]">
             <div className="mb-8 xl:hidden flex items-center gap-2.5">
               <BrandLogo size={28} />
-              <span className="text-sm font-semibold text-slate-900">Alpha</span>
+              <span className="text-sm font-semibold text-text-primary">Alpha</span>
             </div>
             {children}
           </div>

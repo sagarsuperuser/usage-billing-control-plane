@@ -188,7 +188,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const billingProfileReady = profileFormState.isValid;
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/customers", label: "Customers" }, { label: customer?.display_name || externalID }]} />
 
@@ -196,32 +196,32 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
         {isTenantSession ? (
           customersQuery.isLoading || readinessQuery.isLoading ? (
-            <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+            <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+              <div className="flex items-center gap-2 text-sm text-text-muted">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading customer detail
               </div>
             </section>
           ) : customersQuery.isError || readinessQuery.isError || billingProfileQuery.isError || !customer || !readiness ? (
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <p className="text-sm font-semibold text-slate-900">Customer not available</p>
-              <p className="mt-1 text-sm text-slate-500">The requested customer could not be loaded from the workspace APIs.</p>
+            <section className="rounded-lg border border-border bg-surface shadow-sm p-5">
+              <p className="text-sm font-semibold text-text-primary">Customer not available</p>
+              <p className="mt-1 text-sm text-text-muted">The requested customer could not be loaded from the workspace APIs.</p>
             </section>
           ) : (
           <SectionErrorBoundary>
-            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm divide-y divide-border">
               {/* ---- Header ---- */}
               <div className="px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <h1 className="text-base font-semibold text-slate-900 truncate">{customer.display_name}</h1>
-                    <span className="font-mono text-xs text-slate-400">{customer.external_id}</span>
+                    <h1 className="text-base font-semibold text-text-primary truncate">{customer.display_name}</h1>
+                    <span className="font-mono text-xs text-text-faint">{customer.external_id}</span>
                     <StatusChip tone={statusTone(readiness.status)}>{formatReadinessStatus(readiness.status)}</StatusChip>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       to={`/invoices?customer_external_id=${encodeURIComponent(customer.external_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       View invoices
                     </Link>
@@ -237,28 +237,28 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               <div className="px-5 py-4">
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
                   <div>
-                    <dt className="text-xs text-slate-400">Billing profile</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatReadinessStatus(readiness.billing_profile_status)}</dd>
+                    <dt className="text-xs text-text-faint">Billing profile</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatReadinessStatus(readiness.billing_profile_status)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Payment setup</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatReadinessStatus(readiness.payment_setup_status)}</dd>
+                    <dt className="text-xs text-text-faint">Payment setup</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatReadinessStatus(readiness.payment_setup_status)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Payment method</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{readiness.default_payment_method_verified ? "Verified" : "Awaiting setup"}</dd>
+                    <dt className="text-xs text-text-faint">Payment method</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{readiness.default_payment_method_verified ? "Verified" : "Awaiting setup"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Email</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{customer.email || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Email</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{customer.email || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Created</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(customer.created_at)}</dd>
+                    <dt className="text-xs text-text-faint">Created</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(customer.created_at)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Last synced</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(readiness.billing_profile.last_synced_at)}</dd>
+                    <dt className="text-xs text-text-faint">Last synced</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(readiness.billing_profile.last_synced_at)}</dd>
                   </div>
                 </dl>
               </div>
@@ -266,10 +266,10 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               {/* ---- Readiness ---- */}
               {nextActions.length > 0 ? (
                 <div className="px-5 py-4">
-                  <p className="text-xs font-medium text-slate-400 mb-3">Open actions</p>
+                  <p className="text-xs font-medium text-text-faint mb-3">Open actions</p>
                   <div className="grid gap-2">
                     {nextActions.map((item) => (
-                      <div key={item} className="flex items-start gap-2 text-sm text-slate-700">
+                      <div key={item} className="flex items-start gap-2 text-sm text-text-secondary">
                         <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-semibold text-amber-700">!</span>
                         {item}
                       </div>
@@ -280,7 +280,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
               {/* ---- Billing profile form ---- */}
               <div className="px-5 py-4">
-                <p className="text-xs font-medium text-slate-400 mb-3">Billing profile</p>
+                <p className="text-xs font-medium text-text-faint mb-3">Billing profile</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <InputField label="Legal name" placeholder="Acme Billing LLC" {...register("legal_name")} />
                   <InputField label="Billing email" placeholder="billing@acme.test" {...register("email")} />
@@ -328,7 +328,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       provider_code: profileBaseline.provider_code || "",
                     })}
                     disabled={!billingProfileDirty || billingProfileMutation.isPending}
-                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Reset
                   </button>
@@ -347,13 +347,13 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
                 ) : null}
                 {!billingProfileReady ? (
-                  <p className="mt-3 text-xs text-slate-500">Payment setup is blocked until the required billing fields are complete.</p>
+                  <p className="mt-3 text-xs text-text-muted">Payment setup is blocked until the required billing fields are complete.</p>
                 ) : null}
               </div>
 
               {/* ---- Payment collection ---- */}
               <div id="payment-collection" className="scroll-mt-24 px-5 py-4">
-                <p className="text-xs font-medium text-slate-400 mb-1">Payment collection</p>
+                <p className="text-xs font-medium text-text-faint mb-1">Payment collection</p>
                 {collectionDiagnosis ? (
                   <div className={`mt-2 rounded-md border px-4 py-3 text-sm ${customerCollectionDiagnosisToneClass(collectionDiagnosis.tone || "warning")}`}>
                     <p className="font-medium">{collectionDiagnosis.title}</p>
@@ -364,8 +364,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">Email setup request</p>
-                    <p className="text-xs text-slate-500 mb-3">Use the email request first. Resend instead of creating duplicates.</p>
+                    <p className="text-xs font-medium text-text-muted mb-2">Email setup request</p>
+                    <p className="text-xs text-text-muted mb-3">Use the email request first. Resend instead of creating duplicates.</p>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -377,7 +377,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                         {setupRequestActionLabel}
                       </button>
                       {latestRequestedCheckoutURL ? (
-                        <a href={latestRequestedCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                        <a href={latestRequestedCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
                           <ExternalLink className="h-3.5 w-3.5" />
                           Open sent link
                         </a>
@@ -386,20 +386,20 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
 
                   <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">Hosted setup link</p>
-                    <p className="text-xs text-slate-500 mb-3">Use only when you need to share the link directly.</p>
+                    <p className="text-xs font-medium text-text-muted mb-2">Hosted setup link</p>
+                    <p className="text-xs text-text-muted mb-3">Use only when you need to share the link directly.</p>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => beginSetupMutation.mutate()}
                         disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {beginSetupMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
                         Generate link
                       </button>
                       {latestCheckoutURL ? (
-                        <a href={latestCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                        <a href={latestCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
                           <ExternalLink className="h-3.5 w-3.5" />
                           Open link
                         </a>
@@ -413,7 +413,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     type="button"
                     onClick={() => refreshMutation.mutate()}
                     disabled={!canWrite || !csrfToken || refreshMutation.isPending}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {refreshMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                     Refresh payment setup
@@ -429,7 +429,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </button>
                   <Link
                     to={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                   >
                     Open subscriptions
                   </Link>
@@ -472,33 +472,33 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   </div>
                 ) : null}
                 {!canBeginPaymentSetup && readiness.payment_setup_status !== "ready" ? (
-                  <p className="mt-3 text-xs text-slate-500">Payment setup can be requested only after the customer is active and the billing profile is ready.</p>
+                  <p className="mt-3 text-xs text-text-muted">Payment setup can be requested only after the customer is active and the billing profile is ready.</p>
                 ) : null}
               </div>
 
               {/* ---- Billing state ---- */}
               <div className="px-5 py-4">
-                <p className="text-xs font-medium text-slate-400 mb-3">Billing state</p>
+                <p className="text-xs font-medium text-text-faint mb-3">Billing state</p>
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
                   <div>
-                    <dt className="text-xs text-slate-400">Billing customer ID</dt>
-                    <dd className="mt-0.5 text-sm font-mono text-slate-700">{customer.lago_customer_id || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Billing customer ID</dt>
+                    <dd className="mt-0.5 text-sm font-mono text-text-secondary">{customer.lago_customer_id || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Last sync error</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{readiness.billing_profile.last_sync_error || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Last sync error</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{readiness.billing_profile.last_sync_error || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Last verified</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(readiness.payment_setup.last_verified_at)}</dd>
+                    <dt className="text-xs text-text-faint">Last verified</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(readiness.payment_setup.last_verified_at)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Customer status</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatReadinessStatus(customer.status)}</dd>
+                    <dt className="text-xs text-text-faint">Customer status</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatReadinessStatus(customer.status)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Updated</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(customer.updated_at)}</dd>
+                    <dt className="text-xs text-text-faint">Updated</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(customer.updated_at)}</dd>
                   </div>
                 </dl>
               </div>
@@ -513,12 +513,12 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
 
 function InputField({ label, placeholder, ...props }: { label: string; placeholder: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className="grid gap-1 text-sm text-slate-700">
-      <span className="text-xs text-slate-400">{label}</span>
+    <label className="grid gap-1 text-sm text-text-secondary">
+      <span className="text-xs text-text-faint">{label}</span>
       <input
         {...props}
         placeholder={placeholder}
-        className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+        className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
       />
     </label>
   );

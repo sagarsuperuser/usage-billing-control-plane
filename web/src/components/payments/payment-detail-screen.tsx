@@ -76,7 +76,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
         : undefined;
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
@@ -90,29 +90,29 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
 
         {isTenantSession ? (
           paymentQuery.isLoading ? (
-            <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+            <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+              <div className="flex items-center gap-2 text-sm text-text-muted">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Loading payment detail
               </div>
             </section>
           ) : paymentQuery.isError || !payment ? (
-            <section className="rounded-lg border border-stone-200 bg-white shadow-sm p-5">
-              <p className="text-sm font-semibold text-slate-900">Payment not available</p>
-              <p className="mt-1 text-sm text-slate-500">The requested payment detail could not be loaded from the workspace APIs.</p>
+            <section className="rounded-lg border border-border bg-surface shadow-sm p-5">
+              <p className="text-sm font-semibold text-text-primary">Payment not available</p>
+              <p className="mt-1 text-sm text-text-muted">The requested payment detail could not be loaded from the workspace APIs.</p>
             </section>
           ) : (
           <SectionErrorBoundary>
-            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm divide-y divide-border">
               {/* ---- Header ---- */}
               <div className="px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <h1 className="text-base font-semibold text-slate-900 truncate">{payment.invoice_number || payment.invoice_id}</h1>
-                    <span className="shrink-0 rounded-full border border-stone-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                    <h1 className="text-base font-semibold text-text-primary truncate">{payment.invoice_number || payment.invoice_id}</h1>
+                    <span className="shrink-0 rounded-full border border-border bg-surface-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
                       {formatBillingState(payment.payment_status)}
                     </span>
-                    <span className="shrink-0 rounded-full border border-stone-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                    <span className="shrink-0 rounded-full border border-border bg-surface-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
                       {formatBillingState(payment.invoice_status)}
                     </span>
                     {payment.payment_overdue ? (
@@ -141,65 +141,65 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     ) : null}
                   </div>
                 </div>
-                <p className="mt-1.5 text-xs text-slate-500">{payment.invoice_id}</p>
+                <p className="mt-1.5 text-xs text-text-muted">{payment.invoice_id}</p>
               </div>
 
               {/* ---- Details ---- */}
               <div className="px-5 py-4">
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
                   <div>
-                    <dt className="text-xs text-slate-400">Amount due</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(payment.total_due_amount_cents, payment.currency || "USD")}</dd>
+                    <dt className="text-xs text-text-faint">Amount due</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatMoney(payment.total_due_amount_cents, payment.currency || "USD")}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Amount paid</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatMoney(payment.total_paid_amount_cents, payment.currency || "USD")}</dd>
+                    <dt className="text-xs text-text-faint">Amount paid</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatMoney(payment.total_paid_amount_cents, payment.currency || "USD")}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Customer</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{payment.customer_display_name || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Customer</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{payment.customer_display_name || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Customer ID</dt>
-                    <dd className="mt-0.5 text-sm font-mono text-slate-700">{payment.customer_external_id || "-"}</dd>
+                    <dt className="text-xs text-text-faint">Customer ID</dt>
+                    <dd className="mt-0.5 text-sm font-mono text-text-secondary">{payment.customer_external_id || "-"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Last event</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(payment.last_event_type)}</dd>
+                    <dt className="text-xs text-text-faint">Last event</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatBillingState(payment.last_event_type)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Last event at</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(payment.last_event_at)}</dd>
+                    <dt className="text-xs text-text-faint">Last event at</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(payment.last_event_at)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Failure signals</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{payment.lifecycle.failure_event_count}</dd>
+                    <dt className="text-xs text-text-faint">Failure signals</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{payment.lifecycle.failure_event_count}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Overdue signals</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{payment.lifecycle.overdue_signal_count}</dd>
+                    <dt className="text-xs text-text-faint">Overdue signals</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{payment.lifecycle.overdue_signal_count}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Updated</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(payment.updated_at)}</dd>
+                    <dt className="text-xs text-text-faint">Updated</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(payment.updated_at)}</dd>
                   </div>
                 </dl>
               </div>
 
               {/* ---- Lifecycle ---- */}
               <div className="px-5 py-4">
-                <p className="text-xs font-medium text-slate-400 mb-3">Lifecycle</p>
+                <p className="text-xs font-medium text-text-faint mb-3">Lifecycle</p>
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
                   <div>
-                    <dt className="text-xs text-slate-400">Action</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{formatBillingState(payment.lifecycle.recommended_action)}</dd>
+                    <dt className="text-xs text-text-faint">Action</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{formatBillingState(payment.lifecycle.recommended_action)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-slate-400">Requires action</dt>
-                    <dd className="mt-0.5 text-sm text-slate-700">{payment.lifecycle.requires_action ? "Yes" : "No"}</dd>
+                    <dt className="text-xs text-text-faint">Requires action</dt>
+                    <dd className="mt-0.5 text-sm text-text-secondary">{payment.lifecycle.requires_action ? "Yes" : "No"}</dd>
                   </div>
                 </dl>
-                <p className="mt-3 text-sm text-slate-600">{payment.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
+                <p className="mt-3 text-sm text-text-muted">{payment.lifecycle.recommended_action_note || "No specific action is currently recommended."}</p>
                 {payment.last_payment_error ? (
                   <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     <p className="font-medium">Last payment error</p>
@@ -214,21 +214,21 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   {payment.customer_external_id ? (
                     <Link
                       to={`/customers/${encodeURIComponent(payment.customer_external_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       Open customer
                     </Link>
                   ) : null}
                   <Link
                     to={`/invoices/${encodeURIComponent(payment.invoice_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                   >
                     Open invoice
                   </Link>
                   {actionConfig?.showExplainability ? (
                     <Link
                       to={`/invoice-explainability?invoice_id=${encodeURIComponent(payment.invoice_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       Open explainability
                     </Link>
@@ -236,7 +236,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   {actionConfig?.showRecovery && payment.customer_external_id ? (
                     <Link
                       to={`/replay-operations?customer_id=${encodeURIComponent(payment.customer_external_id)}&status=failed`}
-                      className="inline-flex h-8 items-center rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       Open recovery tools
                     </Link>
@@ -259,12 +259,12 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
             {diagnosisEvidence.length > 0 ? <BillingFailureEvidence items={diagnosisEvidence} /> : null}
 
             {/* ---- Timeline controls ---- */}
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-5 py-3 shadow-sm">
-              <p className="text-xs font-medium text-slate-400">Event range</p>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-5 py-3 shadow-sm">
+              <p className="text-xs font-medium text-text-faint">Event range</p>
               <select
                 value={String(eventLimit)}
                 onChange={(event) => setEventLimit(Number(event.target.value))}
-                className="h-8 rounded-md border border-stone-200 bg-white px-3 text-xs text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                className="h-8 rounded-md border border-border bg-surface px-3 text-xs text-text-primary outline-none ring-slate-400 transition focus:ring-2"
               >
                 <option value="10">10</option>
                 <option value="25">25</option>

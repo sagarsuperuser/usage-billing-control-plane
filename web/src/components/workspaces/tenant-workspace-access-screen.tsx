@@ -27,7 +27,7 @@ export function TenantWorkspaceAccessScreen() {
   };
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
         <AppBreadcrumbs items={[{ label: "Access" }]} />
 
@@ -42,8 +42,8 @@ export function TenantWorkspaceAccessScreen() {
         ) : null}
 
         {isAuthenticated && scope === "tenant" && isAdmin ? (
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-            <div className="flex border-b border-stone-200" role="tablist">
+          <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+            <div className="flex border-b border-border" role="tablist">
               {(
                 [
                   { id: "members", label: "Members", Icon: UserRound },
@@ -59,8 +59,8 @@ export function TenantWorkspaceAccessScreen() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-medium transition ${
                     activeTab === tab.id
-                      ? "border-slate-900 text-slate-900"
-                      : "border-transparent text-slate-500 hover:border-stone-300 hover:text-slate-700"
+                      ? "border-slate-900 text-text-primary"
+                      : "border-transparent text-text-muted hover:border-border hover:text-text-secondary"
                   }`}
                 >
                   <tab.Icon className="h-3.5 w-3.5" />

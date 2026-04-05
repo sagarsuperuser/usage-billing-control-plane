@@ -54,9 +54,9 @@ export function RegistrationScreen() {
 
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb]">
+      <div className="min-h-screen bg-background">
         <main className="flex min-h-screen items-center justify-center px-4">
-          <div className="rounded-xl border border-stone-200 bg-white px-6 py-4 text-sm text-slate-500 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface px-6 py-4 text-sm text-text-muted shadow-sm">
             Redirecting...
           </div>
         </main>
@@ -67,18 +67,18 @@ export function RegistrationScreen() {
   return (
     <AuthLayout>
       <div className="w-full">
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Create account</h2>
-              <p className="mt-1.5 text-sm text-slate-500">Set up your workspace and start billing.</p>
+              <h2 className="text-2xl font-semibold tracking-tight text-text-primary">Create account</h2>
+              <p className="mt-1.5 text-sm text-text-muted">Set up your workspace and start billing.</p>
 
               <form className="mt-6 grid gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
                 <div className="grid gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Display name</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Display name</label>
                   <input
                     type="text"
                     data-testid="register-display-name"
                     placeholder="Jane Smith"
                     autoComplete="name"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3.5 text-sm text-slate-900 outline-none ring-slate-300 transition placeholder:text-slate-400 focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
+                    className="h-11 rounded-xl border border-border bg-surface px-3.5 text-sm text-text-primary outline-none ring-slate-300 transition placeholder:text-text-faint focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
                     aria-invalid={errors.display_name ? "true" : undefined}
                     {...register("display_name")}
                   />
@@ -86,13 +86,13 @@ export function RegistrationScreen() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Email</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Email</label>
                   <input
                     type="email"
                     data-testid="register-email"
                     placeholder="you@example.com"
                     autoComplete="email"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3.5 text-sm text-slate-900 outline-none ring-slate-300 transition placeholder:text-slate-400 focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
+                    className="h-11 rounded-xl border border-border bg-surface px-3.5 text-sm text-text-primary outline-none ring-slate-300 transition placeholder:text-text-faint focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
                     aria-invalid={errors.email ? "true" : undefined}
                     {...register("email")}
                   />
@@ -100,13 +100,13 @@ export function RegistrationScreen() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Password</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Password</label>
                   <input
                     type="password"
                     data-testid="register-password"
                     placeholder="At least 8 characters"
                     autoComplete="new-password"
-                    className="h-11 rounded-xl border border-stone-200 bg-white px-3.5 text-sm text-slate-900 outline-none ring-slate-300 transition placeholder:text-slate-400 focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
+                    className="h-11 rounded-xl border border-border bg-surface px-3.5 text-sm text-text-primary outline-none ring-slate-300 transition placeholder:text-text-faint focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
                     aria-invalid={errors.password ? "true" : undefined}
                     {...register("password")}
                   />
@@ -126,9 +126,9 @@ export function RegistrationScreen() {
                 {serverError ? <p className="text-xs text-rose-600">{serverError}</p> : null}
               </form>
 
-              <p className="mt-6 text-center text-sm text-slate-500">
+              <p className="mt-6 text-center text-sm text-text-muted">
                 Already have an account?{" "}
-                <Link to="/login" className="font-medium text-slate-700 transition hover:text-slate-900">
+                <Link to="/login" className="font-medium text-text-secondary transition hover:text-text-primary">
                   Sign in
                 </Link>
               </p>

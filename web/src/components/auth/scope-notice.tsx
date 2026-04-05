@@ -21,7 +21,7 @@ export function ScopeNotice({
         <Link
           to={actionHref}
          
-          className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-amber-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 transition hover:bg-amber-100"
+          className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-amber-200 bg-surface px-4 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 transition hover:bg-amber-100"
         >
           {actionLabel}
           <ArrowRight className="h-3.5 w-3.5" />

@@ -14,20 +14,20 @@ const calendarLabels = {
 };
 
 const calendarClassNames = {
-  root: "text-slate-900",
+  root: "text-text-primary",
   months: "relative",
   month_caption: "flex items-center justify-center py-1",
-  caption_label: "text-xs font-semibold text-slate-800",
+  caption_label: "text-xs font-semibold text-text-secondary",
   nav: "absolute inset-x-1 top-0 flex items-center justify-between",
-  button_previous: "inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-stone-100 hover:text-slate-600",
-  button_next: "inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-stone-100 hover:text-slate-600",
+  button_previous: "inline-flex h-7 w-7 items-center justify-center rounded-md text-text-faint transition hover:bg-surface-tertiary hover:text-text-muted",
+  button_next: "inline-flex h-7 w-7 items-center justify-center rounded-md text-text-faint transition hover:bg-surface-tertiary hover:text-text-muted",
   weekdays: "flex",
-  weekday: "w-8 py-1 text-center text-[10px] font-medium text-slate-400",
+  weekday: "w-8 py-1 text-center text-[10px] font-medium text-text-faint",
   week: "flex",
   day: "flex h-8 w-8 items-center justify-center text-xs",
-  day_button: "h-7 w-7 rounded-md transition hover:bg-stone-100",
+  day_button: "h-7 w-7 rounded-md transition hover:bg-surface-tertiary",
   selected: "bg-slate-900 text-white rounded-md hover:bg-slate-800",
-  today: "font-bold text-slate-900",
+  today: "font-bold text-text-primary",
   outside: "text-slate-300",
   disabled: "text-slate-200",
 };
@@ -72,16 +72,16 @@ export function DatePicker({
         type="button"
         aria-label={ariaLabel}
         onClick={() => setOpen(!open)}
-        className="inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 bg-white px-2 text-xs text-slate-700 outline-none ring-slate-400 transition hover:bg-stone-50 focus:ring-1"
+        className="inline-flex h-7 items-center gap-1.5 rounded border border-border bg-surface px-2 text-xs text-text-secondary outline-none ring-slate-400 transition hover:bg-surface-secondary focus:ring-1"
       >
-        <Calendar className="h-3 w-3 text-slate-400" />
-        {displayValue || <span className="text-slate-400">{placeholder}</span>}
+        <Calendar className="h-3 w-3 text-text-faint" />
+        {displayValue || <span className="text-text-faint">{placeholder}</span>}
         {displayValue && (
           <span
             role="button"
             tabIndex={-1}
             onClick={(e) => { e.stopPropagation(); onChange(""); }}
-            className="ml-0.5 text-slate-300 hover:text-slate-500"
+            className="ml-0.5 text-slate-300 hover:text-text-muted"
           >
             <X className="h-3 w-3" />
           </span>
@@ -89,7 +89,7 @@ export function DatePicker({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-40 mt-1 rounded-xl border border-stone-200 bg-white p-3 shadow-xl">
+        <div className="absolute left-0 top-full z-40 mt-1 rounded-xl border border-border bg-surface p-3 shadow-xl">
           <DayPicker
             mode="single"
             selected={selectedDate}
@@ -159,16 +159,16 @@ export function DateTimePicker({
         type="button"
         aria-label={ariaLabel}
         onClick={() => setOpen(!open)}
-        className="inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 bg-white px-2 text-xs text-slate-700 outline-none ring-slate-400 transition hover:bg-stone-50 focus:ring-1"
+        className="inline-flex h-7 items-center gap-1.5 rounded border border-border bg-surface px-2 text-xs text-text-secondary outline-none ring-slate-400 transition hover:bg-surface-secondary focus:ring-1"
       >
-        <Calendar className="h-3 w-3 text-slate-400" />
-        {displayValue || <span className="text-slate-400">{placeholder}</span>}
+        <Calendar className="h-3 w-3 text-text-faint" />
+        {displayValue || <span className="text-text-faint">{placeholder}</span>}
         {displayValue && (
           <span
             role="button"
             tabIndex={-1}
             onClick={(e) => { e.stopPropagation(); onChange(""); }}
-            className="ml-0.5 text-slate-300 hover:text-slate-500"
+            className="ml-0.5 text-slate-300 hover:text-text-muted"
           >
             <X className="h-3 w-3" />
           </span>
@@ -176,7 +176,7 @@ export function DateTimePicker({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-40 mt-1 rounded-xl border border-stone-200 bg-white p-3 shadow-xl">
+        <div className="absolute left-0 top-full z-40 mt-1 rounded-xl border border-border bg-surface p-3 shadow-xl">
           <DayPicker
             mode="single"
             selected={selectedDate}
@@ -192,8 +192,8 @@ export function DateTimePicker({
           />
 
           {/* Time selector */}
-          <div className="mt-2 flex items-center gap-2 border-t border-stone-100 pt-2">
-            <span className="text-[11px] font-medium text-slate-400">Time</span>
+          <div className="mt-2 flex items-center gap-2 border-t border-border-light pt-2">
+            <span className="text-[11px] font-medium text-text-faint">Time</span>
             <div className="flex items-center gap-1">
               <input
                 type="number"
@@ -205,9 +205,9 @@ export function DateTimePicker({
                   const base = selectedDate || new Date();
                   emitValue(setMinutes(setHours(base, h), minutes));
                 }}
-                className="h-7 w-10 rounded border border-stone-200 text-center text-xs text-slate-800 outline-none focus:ring-1 focus:ring-slate-400"
+                className="h-7 w-10 rounded border border-border text-center text-xs text-text-secondary outline-none focus:ring-1 focus:ring-slate-400"
               />
-              <span className="text-xs text-slate-400">:</span>
+              <span className="text-xs text-text-faint">:</span>
               <input
                 type="number"
                 min={0}
@@ -218,14 +218,14 @@ export function DateTimePicker({
                   const base = selectedDate || new Date();
                   emitValue(setMinutes(setHours(base, hours), m));
                 }}
-                className="h-7 w-10 rounded border border-stone-200 text-center text-xs text-slate-800 outline-none focus:ring-1 focus:ring-slate-400"
+                className="h-7 w-10 rounded border border-border text-center text-xs text-text-secondary outline-none focus:ring-1 focus:ring-slate-400"
               />
             </div>
             {selectedDate && (
               <button
                 type="button"
                 onClick={() => { onChange(""); setOpen(false); }}
-                className="ml-auto text-[11px] text-slate-400 hover:text-slate-600"
+                className="ml-auto text-[11px] text-text-faint hover:text-text-muted"
               >
                 Clear
               </button>
@@ -258,7 +258,7 @@ export function DateTimeInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={ariaLabel}
-      className={`h-7 rounded border border-stone-200 bg-white px-2 text-xs text-slate-700 outline-none ring-slate-400 transition focus:ring-1 ${className}`}
+      className={`h-7 rounded border border-border bg-surface px-2 text-xs text-text-secondary outline-none ring-slate-400 transition focus:ring-1 ${className}`}
     />
   );
 }

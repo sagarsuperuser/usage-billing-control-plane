@@ -68,8 +68,8 @@ export function SessionLoginCard({
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Sign in</h2>
-      <p className="mt-1.5 text-sm text-slate-500">Enter your operator account credentials.</p>
+      <h2 className="text-2xl font-semibold tracking-tight text-text-primary">Sign in</h2>
+      <p className="mt-1.5 text-sm text-text-muted">Enter your operator account credentials.</p>
 
       {ssoProviders && ssoProviders.length > 0 ? (
         <div className="mt-6 grid gap-2">
@@ -77,7 +77,7 @@ export function SessionLoginCard({
             <a
               key={provider.key}
               href={buildSSOStartURL(apiBaseURL, provider.key, nextPath)}
-              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-slate-800 shadow-sm transition hover:border-stone-300 hover:bg-stone-50"
+              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-medium text-text-secondary shadow-sm transition hover:border-border hover:bg-surface-secondary"
             >
               Continue with {provider.display_name}
             </a>
@@ -87,7 +87,7 @@ export function SessionLoginCard({
           )}
           <div className="my-2 flex items-center gap-3">
             <div className="h-px flex-1 bg-stone-200" />
-            <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">or</span>
+            <span className="text-[11px] font-medium uppercase tracking-widest text-text-faint">or</span>
             <div className="h-px flex-1 bg-stone-200" />
           </div>
         </div>
@@ -95,13 +95,13 @@ export function SessionLoginCard({
 
       <form className="mt-6 grid gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="grid gap-1.5">
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Email</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Email</label>
           <input
             type="email"
             data-testid="session-login-email"
             placeholder="you@example.com"
             autoComplete="email"
-            className="h-11 rounded-xl border border-stone-200 bg-white px-3.5 text-sm text-slate-900 outline-none ring-slate-300 transition placeholder:text-slate-400 focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
+            className="h-11 rounded-xl border border-border bg-surface px-3.5 text-sm text-text-primary outline-none ring-slate-300 transition placeholder:text-text-faint focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
             aria-invalid={errors.email ? "true" : undefined}
             {...register("email")}
           />
@@ -110,9 +110,9 @@ export function SessionLoginCard({
 
         <div className="grid gap-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Password</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Password</label>
             {passwordResetEnabled ? (
-              <Link to="/forgot-password" className="text-xs text-slate-400 transition hover:text-slate-700">
+              <Link to="/forgot-password" className="text-xs text-text-faint transition hover:text-text-secondary">
                 Forgot password?
               </Link>
             ) : null}
@@ -122,7 +122,7 @@ export function SessionLoginCard({
             data-testid="session-login-password"
             placeholder="••••••••"
             autoComplete="current-password"
-            className="h-11 rounded-xl border border-stone-200 bg-white px-3.5 text-sm text-slate-900 outline-none ring-slate-300 transition placeholder:text-slate-400 focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
+            className="h-11 rounded-xl border border-border bg-surface px-3.5 text-sm text-text-primary outline-none ring-slate-300 transition placeholder:text-text-faint focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
             aria-invalid={errors.password ? "true" : undefined}
             {...register("password")}
           />
@@ -145,9 +145,9 @@ export function SessionLoginCard({
         ) : null}
       </form>
 
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-6 text-center text-sm text-text-muted">
         Don&apos;t have an account?{" "}
-        <Link to="/register" className="font-medium text-slate-700 transition hover:text-slate-900">
+        <Link to="/register" className="font-medium text-text-secondary transition hover:text-text-primary">
           Create one
         </Link>
       </p>

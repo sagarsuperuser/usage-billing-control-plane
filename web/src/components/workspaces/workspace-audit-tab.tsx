@@ -134,10 +134,10 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
       {/* Detail drawer */}
       {selectedAuditEvent && (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={(e) => { if (e.target === e.currentTarget) setSelectedAuditEventID(""); }}>
-          <div className="h-full w-full max-w-sm border-l border-stone-200 bg-white shadow-xl overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3.5">
-              <p className="text-sm font-semibold text-slate-900">Event detail</p>
-              <button type="button" onClick={() => setSelectedAuditEventID("")} className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-400 transition hover:bg-stone-100 hover:text-slate-700">
+          <div className="h-full w-full max-w-sm border-l border-border bg-surface shadow-xl overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+              <p className="text-sm font-semibold text-text-primary">Event detail</p>
+              <button type="button" onClick={() => setSelectedAuditEventID("")} className="inline-flex h-6 w-6 items-center justify-center rounded text-text-faint transition hover:bg-surface-tertiary hover:text-text-secondary">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -146,14 +146,14 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
         </div>
       )}
 
-      <div className="divide-y divide-stone-200">
+      <div className="divide-y divide-border">
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 px-5 py-3">
           <select
             aria-label="Audit service account"
             value={selectedAuditServiceAccountIDValue}
             onChange={(event) => setSelectedAuditServiceAccountID(event.target.value)}
-            className="h-7 rounded border border-stone-200 bg-white px-2 text-xs text-slate-800 outline-none ring-slate-400 transition focus:ring-1"
+            className="h-7 rounded border border-border bg-surface px-2 text-xs text-text-secondary outline-none ring-slate-400 transition focus:ring-1"
           >
             {serviceAccounts.map((account) => (
               <option key={account.id} value={account.id}>{account.name}</option>
@@ -161,7 +161,7 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
           </select>
           <DatePicker value={fromDate} onChange={setFromDate} placeholder="From" aria-label="From date" />
           <DatePicker value={toDate} onChange={setToDate} placeholder="To" aria-label="To date" />
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} aria-label="Action type filter" className="h-7 rounded border border-stone-200 bg-white px-2 text-xs text-slate-800 outline-none ring-slate-400 transition focus:ring-1">
+          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} aria-label="Action type filter" className="h-7 rounded border border-border bg-surface px-2 text-xs text-text-secondary outline-none ring-slate-400 transition focus:ring-1">
             <option value="">All actions</option>
             <option value="created">Issued</option>
             <option value="rotated">Rotated</option>
@@ -173,7 +173,7 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
               type="button"
               onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
               disabled={!selectedAuditServiceAccountIDValue}
-              className="inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 bg-white px-2 text-xs font-medium text-slate-600 transition hover:bg-stone-100 disabled:opacity-50"
+              className="inline-flex h-7 items-center gap-1.5 rounded border border-border bg-surface px-2 text-xs font-medium text-text-muted transition hover:bg-surface-tertiary disabled:opacity-50"
             >
               <Download className="h-3 w-3" />
               Export
@@ -186,13 +186,13 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
           auditItems.length > 0 ? (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-stone-100 text-left text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                <tr className="border-b border-border-light text-left text-[11px] font-medium uppercase tracking-wider text-text-faint">
                   <th className="px-5 py-2 font-semibold">When</th>
                   <th className="px-4 py-2 font-semibold">Action</th>
                   <th className="px-4 py-2 font-semibold">Summary</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-border-light">
                 {auditItems.map((event) => {
                   const presentation = describeAuditEvent(event);
                   const selected = event.id === selectedAuditEventID;
@@ -201,25 +201,25 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
                       key={event.id}
                       onClick={() => setSelectedAuditEventID(event.id === selectedAuditEventID ? "" : event.id)}
                       aria-label={`View service account audit details for ${presentation.title}`}
-                      className={`cursor-pointer transition ${selected ? "bg-sky-50/70" : "hover:bg-stone-50"}`}
+                      className={`cursor-pointer transition ${selected ? "bg-sky-50/70" : "hover:bg-surface-secondary"}`}
                     >
-                      <td className="whitespace-nowrap px-5 py-2.5 text-xs text-slate-500" title={formatExactTimestamp(event.created_at)}>{formatRelativeTimestamp(event.created_at)}</td>
+                      <td className="whitespace-nowrap px-5 py-2.5 text-xs text-text-muted" title={formatExactTimestamp(event.created_at)}>{formatRelativeTimestamp(event.created_at)}</td>
                       <td className="px-4 py-2.5">
                         <StatusChip tone={event.action === "revoked" ? "danger" : event.action === "rotated" ? "warning" : "success"}>
                           {formatAuditActionLabel(event.action)}
                         </StatusChip>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-slate-700">{presentation.summary}</td>
+                      <td className="px-4 py-2.5 text-xs text-text-secondary">{presentation.summary}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           ) : (
-            <p className="px-5 py-8 text-center text-xs text-slate-400">No audit events found.</p>
+            <p className="px-5 py-8 text-center text-xs text-text-faint">No audit events found.</p>
           )
         ) : (
-          <p className="px-5 py-8 text-center text-xs text-slate-400">Create a service account first to view audit events.</p>
+          <p className="px-5 py-8 text-center text-xs text-text-faint">Create a service account first to view audit events.</p>
         )}
       </div>
     </>
@@ -245,19 +245,19 @@ function AuditEventDetail({ event }: { event: APIKeyAuditEvent }) {
   return (
     <div>
       {/* Header summary */}
-      <div className="border-b border-stone-100 px-5 py-4">
+      <div className="border-b border-border-light px-5 py-4">
         <div className="flex items-center gap-2">
           <StatusChip tone={event.action === "revoked" ? "danger" : event.action === "rotated" ? "warning" : "success"}>
             {formatAuditActionLabel(event.action)}
           </StatusChip>
-          <span className="text-xs text-slate-500">{formatExactTimestamp(event.created_at)}</span>
+          <span className="text-xs text-text-muted">{formatExactTimestamp(event.created_at)}</span>
         </div>
-        <p className="mt-2 text-sm text-slate-900">{presentation.title}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{presentation.summary}</p>
+        <p className="mt-2 text-sm text-text-primary">{presentation.title}</p>
+        <p className="mt-0.5 text-xs text-text-muted">{presentation.summary}</p>
       </div>
 
       {/* Structured fields */}
-      <div className="divide-y divide-stone-100">
+      <div className="divide-y divide-border-light">
         <DetailRow label="Performed by" value={actorKeyID ? `API key ${actorKeyID.slice(0, 12)}...` : "Workspace admin (console)"} />
         {keyID ? <DetailRow label="Affected key" value={keyID} mono /> : null}
         {newKeyID ? <DetailRow label="Replacement key" value={newKeyID} mono /> : null}
@@ -270,16 +270,16 @@ function AuditEventDetail({ event }: { event: APIKeyAuditEvent }) {
 
       {/* Raw metadata (expandable — Stripe pattern) */}
       {Object.keys(metadata).length > 0 && (
-        <div className="border-t border-stone-200">
+        <div className="border-t border-border">
           <button
             type="button"
             onClick={() => setShowRaw(!showRaw)}
-            className="w-full px-5 py-2.5 text-left text-[11px] font-medium text-slate-400 transition hover:text-slate-600"
+            className="w-full px-5 py-2.5 text-left text-[11px] font-medium text-text-faint transition hover:text-text-muted"
           >
             {showRaw ? "Hide raw metadata" : "View raw metadata"}
           </button>
           {showRaw && (
-            <pre className="mx-5 mb-4 max-h-60 overflow-auto rounded border border-stone-100 bg-stone-50 p-3 font-mono text-[11px] text-slate-700">
+            <pre className="mx-5 mb-4 max-h-60 overflow-auto rounded border border-border-light bg-surface-secondary p-3 font-mono text-[11px] text-text-secondary">
               {JSON.stringify(metadata, null, 2)}
             </pre>
           )}
@@ -292,8 +292,8 @@ function AuditEventDetail({ event }: { event: APIKeyAuditEvent }) {
 function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4 px-5 py-2.5">
-      <span className="shrink-0 text-xs text-slate-400">{label}</span>
-      <span className={`text-right text-xs text-slate-900 ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>
+      <span className="shrink-0 text-xs text-text-faint">{label}</span>
+      <span className={`text-right text-xs text-text-primary ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>
     </div>
   );
 }

@@ -182,19 +182,19 @@ export function PaymentOperationsScreen() {
   const resetStatusOffset = () => setStatusOffset(0);
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
 
         <LoginRedirectNotice />
 
         <>
-            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm divide-y divide-stone-200">
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm divide-y divide-border">
               {/* ---- Header ---- */}
               <div className="px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <h1 className="text-base font-semibold text-slate-900">Payment operations</h1>
-                    <span className="text-xs text-slate-500">{summary?.total_invoices ?? items.length} invoices</span>
+                    <h1 className="text-base font-semibold text-text-primary">Payment operations</h1>
+                    <span className="text-xs text-text-muted">{summary?.total_invoices ?? items.length} invoices</span>
                     {(summary?.payment_status_counts?.failed ?? 0) > 0 ? (
                       <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-rose-700">
                         {summary?.payment_status_counts?.failed} failed
@@ -206,7 +206,7 @@ export function PaymentOperationsScreen() {
                       type="button"
                       onClick={() => statusesQuery.refetch()}
                       disabled={statusesQuery.isFetching}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {statusesQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                       Refresh
@@ -219,31 +219,31 @@ export function PaymentOperationsScreen() {
               <div className="px-5 py-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                   <label className="grid gap-1 text-sm">
-                    <span className="text-xs text-slate-400">Organization ID</span>
+                    <span className="text-xs text-text-faint">Organization ID</span>
                     <input
                       type="text"
                       value={organizationID}
                       onChange={(e) => { setOrganizationID(e.target.value); resetStatusOffset(); }}
                       placeholder="optional org filter"
-                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                      className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                     />
                   </label>
                   <label className="grid gap-1 text-sm">
-                    <span className="text-xs text-slate-400">Invoice status</span>
+                    <span className="text-xs text-text-faint">Invoice status</span>
                     <input
                       type="text"
                       value={invoiceStatus}
                       onChange={(e) => { setInvoiceStatus(e.target.value); resetStatusOffset(); }}
                       placeholder="finalized / draft / voided"
-                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                      className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                     />
                   </label>
                   <label className="grid gap-1 text-sm">
-                    <span className="text-xs text-slate-400">Overdue</span>
+                    <span className="text-xs text-text-faint">Overdue</span>
                     <select
                       value={overdue}
                       onChange={(e) => { setOverdue(e.target.value as "all" | "true" | "false"); resetStatusOffset(); }}
-                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                     >
                       <option value="all">All</option>
                       <option value="true">Overdue only</option>
@@ -251,21 +251,21 @@ export function PaymentOperationsScreen() {
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm">
-                    <span className="text-xs text-slate-400">Sort by</span>
+                    <span className="text-xs text-text-faint">Sort by</span>
                     <select
                       value={statusSortBy}
                       onChange={(e) => { setStatusSortBy(e.target.value as (typeof statusSortOptions)[number]["value"]); resetStatusOffset(); }}
-                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                     >
                       {statusSortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm">
-                    <span className="text-xs text-slate-400">Order</span>
+                    <span className="text-xs text-text-faint">Order</span>
                     <select
                       value={statusOrder}
                       onChange={(e) => { setStatusOrder(e.target.value as (typeof orderOptions)[number]["value"]); resetStatusOffset(); }}
-                      className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                      className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                     >
                       {orderOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
@@ -282,7 +282,7 @@ export function PaymentOperationsScreen() {
               <div className="overflow-auto">
                 <table className="w-full min-w-[900px] text-sm">
                   <thead>
-                    <tr className="border-b border-stone-200 text-left text-xs text-slate-400">
+                    <tr className="border-b border-border text-left text-xs text-text-faint">
                       <th className="px-5 py-2 font-medium">Invoice</th>
                       <th className="px-3 py-2 font-medium">Customer</th>
                       <th className="px-3 py-2 font-medium">Status</th>
@@ -300,13 +300,13 @@ export function PaymentOperationsScreen() {
                         <tr
                           key={item.invoice_id}
                           onClick={() => openTimeline(item.invoice_id, item.organization_id)}
-                          className={`cursor-pointer border-b border-stone-100 transition ${selected ? "bg-slate-50" : "bg-white hover:bg-slate-50"}`}
+                          className={`cursor-pointer border-b border-border-light transition ${selected ? "bg-surface-secondary" : "bg-surface hover:bg-surface-secondary"}`}
                         >
                           <td className="px-5 py-3 align-top">
-                            <p className="font-medium text-slate-900">{item.invoice_number || item.invoice_id}</p>
-                            <p className="text-xs text-slate-400">{item.organization_id || "-"}</p>
+                            <p className="font-medium text-text-primary">{item.invoice_number || item.invoice_id}</p>
+                            <p className="text-xs text-text-faint">{item.organization_id || "-"}</p>
                           </td>
-                          <td className="px-3 py-3 align-top text-slate-700">{item.customer_external_id || "-"}</td>
+                          <td className="px-3 py-3 align-top text-text-secondary">{item.customer_external_id || "-"}</td>
                           <td className="px-3 py-3 align-top">
                             <StatusChip tone={statusTone(item.payment_status)}>{item.payment_status || "unknown"}</StatusChip>
                             {item.last_payment_error ? (
@@ -318,12 +318,12 @@ export function PaymentOperationsScreen() {
                             <StatusChip tone={diagnosisTone(diagnosis.tone)}>{diagnosis.title}</StatusChip>
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <p className="text-slate-700">{formatMoney(item.total_due_amount_cents, item.currency || "USD")}</p>
-                            <p className="text-xs text-slate-400">Paid {formatMoney(item.total_paid_amount_cents, item.currency || "USD")}</p>
+                            <p className="text-text-secondary">{formatMoney(item.total_due_amount_cents, item.currency || "USD")}</p>
+                            <p className="text-xs text-text-faint">Paid {formatMoney(item.total_paid_amount_cents, item.currency || "USD")}</p>
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <p className="text-slate-700">{item.last_event_type || "-"}</p>
-                            <p className="text-xs text-slate-400" title={formatExactTimestamp(item.last_event_at)}>
+                            <p className="text-text-secondary">{item.last_event_type || "-"}</p>
+                            <p className="text-xs text-text-faint" title={formatExactTimestamp(item.last_event_at)}>
                               {formatRelativeTimestamp(item.last_event_at)}
                             </p>
                           </td>
@@ -332,7 +332,7 @@ export function PaymentOperationsScreen() {
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); openTimeline(item.invoice_id, item.organization_id); }}
-                                className="inline-flex items-center rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                                className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                               >
                                 Timeline
                               </button>
@@ -340,7 +340,7 @@ export function PaymentOperationsScreen() {
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); retryMutation.mutate(item.invoice_id); }}
                                 disabled={!isAuthenticated || !csrfToken || !canWrite || retrying}
-                                className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                                 title={!canWrite ? "Writer or admin role required" : undefined}
                               >
                                 {retrying ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
@@ -356,14 +356,14 @@ export function PaymentOperationsScreen() {
               </div>
 
               {/* ---- Pagination ---- */}
-              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-xs text-text-muted">
                 <p>Page {Math.floor(statusOffset / statusLimit) + 1}, showing {items.length} row(s)</p>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setStatusOffset(Math.max(0, statusOffset - statusLimit))}
                     disabled={!canGoPrevStatuses || statusesQuery.isFetching}
-                    className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1 transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" /> Prev
                   </button>
@@ -371,7 +371,7 @@ export function PaymentOperationsScreen() {
                     type="button"
                     onClick={() => setStatusOffset(statusOffset + statusLimit)}
                     disabled={!canGoNextStatuses || statusesQuery.isFetching}
-                    className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1 transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Next <ChevronRight className="h-3.5 w-3.5" />
                   </button>
@@ -413,16 +413,16 @@ export function PaymentOperationsScreen() {
             className="h-full flex-1 bg-black/10 backdrop-blur-[2px]"
             onClick={() => setTimelineOpen(false)}
           />
-          <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-stone-200 bg-white p-5 shadow-2xl">
+          <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-border bg-surface p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Invoice timeline</h2>
-                <p className="mt-0.5 text-xs text-slate-500">{selectedItem?.invoice_number || selectedInvoiceID}</p>
+                <h2 className="text-sm font-semibold text-text-primary">Invoice timeline</h2>
+                <p className="mt-0.5 text-xs text-text-muted">{selectedItem?.invoice_number || selectedInvoiceID}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setTimelineOpen(false)}
-                className="rounded-md border border-stone-200 bg-white p-1.5 text-slate-700 transition hover:bg-slate-50"
+                className="rounded-md border border-border bg-surface p-1.5 text-text-secondary transition hover:bg-surface-secondary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -430,41 +430,41 @@ export function PaymentOperationsScreen() {
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <label className="grid gap-1 text-sm">
-                <span className="text-xs text-slate-400">Webhook type</span>
+                <span className="text-xs text-text-faint">Webhook type</span>
                 <input
                   type="text"
                   value={eventWebhookType}
                   onChange={(e) => { setEventWebhookType(e.target.value); setEventOffset(0); }}
                   placeholder="invoice.payment_failure"
-                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                 />
               </label>
               <label className="grid gap-1 text-sm">
-                <span className="text-xs text-slate-400">Sort</span>
+                <span className="text-xs text-text-faint">Sort</span>
                 <select
                   value={eventSortBy}
                   onChange={(e) => { setEventSortBy(e.target.value as (typeof eventSortOptions)[number]["value"]); setEventOffset(0); }}
-                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   {eventSortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
               <label className="grid gap-1 text-sm">
-                <span className="text-xs text-slate-400">Order</span>
+                <span className="text-xs text-text-faint">Order</span>
                 <select
                   value={eventOrder}
                   onChange={(e) => { setEventOrder(e.target.value as (typeof orderOptions)[number]["value"]); setEventOffset(0); }}
-                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   {orderOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
               <label className="grid gap-1 text-sm">
-                <span className="text-xs text-slate-400">Rows</span>
+                <span className="text-xs text-text-faint">Rows</span>
                 <select
                   value={String(eventLimit)}
                   onChange={(e) => { setEventLimit(Number(e.target.value)); setEventOffset(0); }}
-                  className="h-9 rounded-md border border-stone-200 bg-white px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="25">25</option>
                   <option value="50">50</option>
@@ -478,7 +478,7 @@ export function PaymentOperationsScreen() {
                 type="button"
                 onClick={() => eventsQuery.refetch()}
                 disabled={eventsQuery.isFetching || !isAuthenticated}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eventsQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Refresh
@@ -486,14 +486,14 @@ export function PaymentOperationsScreen() {
             </div>
 
             {/* ---- Diagnosis ---- */}
-            <div className="mt-4 rounded-lg border border-stone-200 bg-slate-50 p-4">
+            <div className="mt-4 rounded-lg border border-border bg-surface-secondary p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-slate-400">Current diagnosis</p>
+                <p className="text-xs font-medium text-text-faint">Current diagnosis</p>
                 <button
                   type="button"
                   onClick={() => lifecycleQuery.refetch()}
                   disabled={lifecycleQuery.isFetching || !isAuthenticated}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {lifecycleQuery.isFetching ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                   Refresh
@@ -519,26 +519,26 @@ export function PaymentOperationsScreen() {
                   />
                   <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
                     <div>
-                      <dt className="text-xs text-slate-400">Failures</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{lifecycleQuery.data.failure_event_count}</dd>
+                      <dt className="text-xs text-text-faint">Failures</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{lifecycleQuery.data.failure_event_count}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-slate-400">Pending</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{lifecycleQuery.data.pending_event_count}</dd>
+                      <dt className="text-xs text-text-faint">Pending</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{lifecycleQuery.data.pending_event_count}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-slate-400">Overdue</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{lifecycleQuery.data.overdue_signal_count}</dd>
+                      <dt className="text-xs text-text-faint">Overdue</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{lifecycleQuery.data.overdue_signal_count}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-slate-400">Analyzed</dt>
-                      <dd className="mt-0.5 text-sm text-slate-700">{lifecycleQuery.data.events_analyzed}</dd>
+                      <dt className="text-xs text-text-faint">Analyzed</dt>
+                      <dd className="mt-0.5 text-sm text-text-secondary">{lifecycleQuery.data.events_analyzed}</dd>
                     </div>
                   </dl>
-                  <div className="text-sm text-slate-600">
-                    <p><span className="font-medium text-slate-900">{formatBillingState(lifecycleQuery.data.recommended_action)}</span></p>
+                  <div className="text-sm text-text-muted">
+                    <p><span className="font-medium text-text-primary">{formatBillingState(lifecycleQuery.data.recommended_action)}</span></p>
                     <p className="mt-0.5 text-xs">{lifecycleQuery.data.recommended_action_note}</p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-text-faint">
                       Last failure: {lifecycleQuery.data.last_failure_at ? formatExactTimestamp(lifecycleQuery.data.last_failure_at) : "-"} | Last success:{" "}
                       {lifecycleQuery.data.last_success_at ? formatExactTimestamp(lifecycleQuery.data.last_success_at) : "-"}
                     </p>
@@ -576,14 +576,14 @@ export function PaymentOperationsScreen() {
               ) : null}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3 text-xs text-slate-500">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-xs text-text-muted">
               <p>Page {Math.floor(eventOffset / eventLimit) + 1}, showing {(eventsQuery.data?.items || []).length} event(s)</p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setEventOffset(Math.max(0, eventOffset - eventLimit))}
                   disabled={!canGoPrevEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1 transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" /> Prev
                 </button>
@@ -591,7 +591,7 @@ export function PaymentOperationsScreen() {
                   type="button"
                   onClick={() => setEventOffset(eventOffset + eventLimit)}
                   disabled={!canGoNextEvents || eventsQuery.isFetching}
-                  className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2.5 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1 transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -621,15 +621,15 @@ function TimelineEventRow({
       aria-label={`View timeline event ${event.webhook_type}`}
       className={`w-full rounded-lg border p-3 text-left transition ${
         selected
-          ? "border-slate-300 bg-slate-50 shadow-sm"
-          : "border-stone-200 bg-white hover:border-stone-300 hover:bg-slate-50"
+          ? "border-slate-300 bg-surface-secondary shadow-sm"
+          : "border-border bg-surface hover:border-border hover:bg-surface-secondary"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900">{event.webhook_type}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Occurred {formatExactTimestamp(event.occurred_at)}</p>
-          <p className="text-[11px] text-slate-400">Received {formatRelativeTimestamp(event.received_at)}</p>
+          <p className="text-sm font-medium text-text-primary">{event.webhook_type}</p>
+          <p className="mt-0.5 text-xs text-text-faint">Occurred {formatExactTimestamp(event.occurred_at)}</p>
+          <p className="text-[11px] text-text-faint">Received {formatRelativeTimestamp(event.received_at)}</p>
         </div>
         <StatusChip tone={statusTone(event.payment_status)}>{event.payment_status || "n/a"}</StatusChip>
       </div>
@@ -644,43 +644,43 @@ function TimelineEventDetail({
 }) {
   if (!event) {
     return (
-      <aside className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+      <aside className="rounded-lg border border-dashed border-slate-300 bg-surface-secondary px-4 py-6 text-sm text-text-muted">
         Select a timeline event to inspect its raw webhook fields.
       </aside>
     );
   }
 
   return (
-    <aside className="rounded-lg border border-stone-200 bg-slate-50 p-4">
-      <p className="text-xs font-medium text-slate-400 mb-3">Event detail</p>
+    <aside className="rounded-lg border border-border bg-surface-secondary p-4">
+      <p className="text-xs font-medium text-text-faint mb-3">Event detail</p>
       <dl className="grid gap-2 sm:grid-cols-2">
         <div>
-          <dt className="text-xs text-slate-400">Webhook type</dt>
-          <dd className="mt-0.5 text-sm text-slate-700">{event.webhook_type}</dd>
+          <dt className="text-xs text-text-faint">Webhook type</dt>
+          <dd className="mt-0.5 text-sm text-text-secondary">{event.webhook_type}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-400">Payment status</dt>
-          <dd className="mt-0.5 text-sm text-slate-700">{event.payment_status || "-"}</dd>
+          <dt className="text-xs text-text-faint">Payment status</dt>
+          <dd className="mt-0.5 text-sm text-text-secondary">{event.payment_status || "-"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-400">Object</dt>
-          <dd className="mt-0.5 text-sm text-slate-700">{event.object_type}</dd>
+          <dt className="text-xs text-text-faint">Object</dt>
+          <dd className="mt-0.5 text-sm text-text-secondary">{event.object_type}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-400">Occurred at</dt>
-          <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(event.occurred_at)}</dd>
+          <dt className="text-xs text-text-faint">Occurred at</dt>
+          <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(event.occurred_at)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-400">Received at</dt>
-          <dd className="mt-0.5 text-sm text-slate-700">{formatExactTimestamp(event.received_at)}</dd>
+          <dt className="text-xs text-text-faint">Received at</dt>
+          <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(event.received_at)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-400">Relative time</dt>
-          <dd className="mt-0.5 text-sm text-slate-700">{formatRelativeTimestamp(event.received_at)}</dd>
+          <dt className="text-xs text-text-faint">Relative time</dt>
+          <dd className="mt-0.5 text-sm text-text-secondary">{formatRelativeTimestamp(event.received_at)}</dd>
         </div>
         <div className="sm:col-span-2">
-          <dt className="text-xs text-slate-400">Webhook key</dt>
-          <dd className="mt-0.5 break-all text-sm font-mono text-slate-700">{event.webhook_key}</dd>
+          <dt className="text-xs text-text-faint">Webhook key</dt>
+          <dd className="mt-0.5 break-all text-sm font-mono text-text-secondary">{event.webhook_key}</dd>
         </div>
       </dl>
     </aside>
@@ -693,7 +693,7 @@ function QuickFilterChip(props: { active: boolean; label: string; onClick: () =>
       type="button"
       onClick={props.onClick}
       className={`rounded-md border px-2.5 py-1 text-xs transition ${
-        props.active ? "border-slate-900 bg-slate-900 text-white" : "border-stone-200 bg-white text-slate-700 hover:bg-slate-50"
+        props.active ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-surface text-text-secondary hover:bg-surface-secondary"
       }`}
     >
       {props.label}
@@ -703,7 +703,7 @@ function QuickFilterChip(props: { active: boolean; label: string; onClick: () =>
 
 function EmptyState(props: { label: string; tone?: "neutral" | "danger"; icon?: ReactNode }) {
   return (
-    <div className={`rounded-lg border p-4 text-sm ${props.tone === "danger" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-stone-200 bg-slate-50 text-slate-500"}`}>
+    <div className={`rounded-lg border p-4 text-sm ${props.tone === "danger" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-border bg-surface-secondary text-text-muted"}`}>
       <div className="flex items-center gap-2">
         {props.icon || <CreditCard className="h-4 w-4" />}
         <span>{props.label}</span>

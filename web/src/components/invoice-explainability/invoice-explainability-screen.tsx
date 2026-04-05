@@ -39,7 +39,7 @@ export function InvoiceExplainabilityScreen() {
   const selectedLineItem = lineItems.find((item) => item.fee_id === selectedLineItemID) ?? null;
 
   return (
-    <div className="text-slate-900">
+    <div className="text-text-primary">
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs
           items={[
@@ -51,17 +51,17 @@ export function InvoiceExplainabilityScreen() {
 
         <LoginRedirectNotice />
 
-        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
             {/* Header with search */}
-            <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
-              <h1 className="text-sm font-semibold text-slate-900">Invoice explainability</h1>
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <h1 className="text-sm font-semibold text-text-primary">Invoice explainability</h1>
               <div className="flex items-center gap-2">
                 <input
                   value={invoiceID}
                   onChange={(e) => setInvoiceID(e.target.value)}
                   placeholder="Invoice ID..."
                   data-testid="explainability-invoice-id"
-                  className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
+                  className="h-8 w-48 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                 />
                 <button
                   type="button"
@@ -77,7 +77,7 @@ export function InvoiceExplainabilityScreen() {
                   value={feeType}
                   onChange={(e) => setFeeType(e.target.value)}
                   data-testid="explainability-fee-types"
-                  className="h-8 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition focus:ring-2"
+                  className="h-8 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
                 >
                   <option value="">All fee types</option>
                   {feeTypeOptions.filter(Boolean).map((ft) => (
@@ -88,20 +88,20 @@ export function InvoiceExplainabilityScreen() {
             </div>
 
             {explainabilityQuery.error ? (
-              <div data-testid="explainability-error" className="border-b border-stone-200 px-5 py-3 text-sm text-rose-700">
+              <div data-testid="explainability-error" className="border-b border-border px-5 py-3 text-sm text-rose-700">
                 {(explainabilityQuery.error as Error).message}
               </div>
             ) : null}
 
             {/* Invoice metadata bar */}
             {explainabilityQuery.data ? (
-              <div className="flex items-center gap-4 border-b border-stone-200 px-5 py-2 text-sm text-slate-600" data-testid="explainability-meta-invoice">
-                <span className="font-medium text-slate-900">{explainabilityQuery.data.invoice_number || submittedInvoiceID}</span>
+              <div className="flex items-center gap-4 border-b border-border px-5 py-2 text-sm text-text-muted" data-testid="explainability-meta-invoice">
+                <span className="font-medium text-text-primary">{explainabilityQuery.data.invoice_number || submittedInvoiceID}</span>
                 <span>{explainabilityQuery.data.currency || "USD"}</span>
                 <span data-testid="explainability-meta-total">{formatMoney(explainabilityQuery.data.total_amount_cents, explainabilityQuery.data.currency || "USD")}</span>
                 <span>{explainabilityQuery.data.line_items_count} line item{explainabilityQuery.data.line_items_count === 1 ? "" : "s"}</span>
                 {explainabilityQuery.data.invoice_status ? (
-                  <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-600">
+                  <span className="inline-flex rounded-full border border-border bg-surface-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-muted">
                     {explainabilityQuery.data.invoice_status}
                   </span>
                 ) : null}
@@ -111,13 +111,13 @@ export function InvoiceExplainabilityScreen() {
             {/* Line items table */}
             {lineItems.length === 0 && !explainabilityQuery.isFetching ? (
               <div data-testid="explainability-empty" className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-                <p className="text-sm font-medium text-slate-700">No line items</p>
-                <p className="text-xs text-slate-500">Load an invoice to inspect explainability.</p>
+                <p className="text-sm font-medium text-text-secondary">No line items</p>
+                <p className="text-xs text-text-muted">Load an invoice to inspect explainability.</p>
               </div>
             ) : lineItems.length > 0 ? (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                  <tr className="border-b border-border-light text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">
                     <th className="px-5 py-2.5 font-semibold">Fee</th>
                     <th className="px-4 py-2.5 font-semibold">Item</th>
                     <th className="px-4 py-2.5 font-semibold text-right">Amount</th>
@@ -126,30 +126,30 @@ export function InvoiceExplainabilityScreen() {
                     <th className="px-4 py-2.5 font-semibold"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-border-light">
                   {lineItems.map((line) => (
                     <tr
                       key={line.fee_id}
                       data-testid={`explainability-line-item-${line.fee_id}`}
-                      className="cursor-pointer transition hover:bg-stone-50"
+                      className="cursor-pointer transition hover:bg-surface-secondary"
                       onClick={() => setSelectedLineItemID(line.fee_id)}
                     >
                       <td className="px-5 py-3">
-                        <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-600">
+                        <span className="inline-flex rounded-full border border-border bg-surface-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-muted">
                           {line.fee_type || "-"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-slate-900">{line.item_name}</p>
-                        <p className="mt-0.5 font-mono text-xs text-slate-400">{line.item_code || "-"}</p>
+                        <p className="font-medium text-text-primary">{line.item_name}</p>
+                        <p className="mt-0.5 font-mono text-xs text-text-faint">{line.item_code || "-"}</p>
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-700">
+                      <td className="px-4 py-3 text-right text-text-secondary">
                         {formatMoney(line.amount_cents, explainabilityQuery.data?.currency || "USD")}
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-500">
+                      <td className="px-4 py-3 text-right text-text-muted">
                         {formatMoney(line.taxes_amount_cents, explainabilityQuery.data?.currency || "USD")}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-slate-900">
+                      <td className="px-4 py-3 text-right font-medium text-text-primary">
                         {formatMoney(line.total_amount_cents, explainabilityQuery.data?.currency || "USD")}
                       </td>
                       <td className="px-4 py-3">
@@ -157,7 +157,7 @@ export function InvoiceExplainabilityScreen() {
                           type="button"
                           data-testid={`explainability-view-line-item-${line.fee_id}`}
                           onClick={(e) => { e.stopPropagation(); setSelectedLineItemID(line.fee_id); }}
-                          className="text-xs font-medium text-slate-600 hover:text-slate-900"
+                          className="text-xs font-medium text-text-muted hover:text-text-primary"
                         >
                           View →
                         </button>
@@ -172,10 +172,10 @@ export function InvoiceExplainabilityScreen() {
 
       {/* Line item detail slide-out */}
       {selectedLineItem ? (
-        <aside className="fixed inset-y-0 right-0 z-30 flex w-full max-w-[420px] flex-col border-l border-stone-200 bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
-            <h2 className="text-sm font-semibold text-slate-900">{selectedLineItem.item_name}</h2>
-            <button type="button" onClick={() => setSelectedLineItemID("")} className="text-slate-400 hover:text-slate-700">
+        <aside className="fixed inset-y-0 right-0 z-30 flex w-full max-w-[420px] flex-col border-l border-border bg-surface shadow-lg">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3">
+            <h2 className="text-sm font-semibold text-text-primary">{selectedLineItem.item_name}</h2>
+            <button type="button" onClick={() => setSelectedLineItemID("")} className="text-text-faint hover:text-text-secondary">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -199,8 +199,8 @@ export function InvoiceExplainabilityScreen() {
             </dl>
 
             <div className="mt-5">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">Properties</h3>
-              <pre className="mt-2 max-h-[300px] overflow-auto rounded-lg border border-stone-200 bg-stone-50 p-3 text-[11px] leading-4 text-slate-700">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-text-faint">Properties</h3>
+              <pre className="mt-2 max-h-[300px] overflow-auto rounded-lg border border-border bg-surface-secondary p-3 text-[11px] leading-4 text-text-secondary">
                 {JSON.stringify(selectedLineItem.properties ?? {}, null, 2)}
               </pre>
             </div>
@@ -214,8 +214,8 @@ export function InvoiceExplainabilityScreen() {
 function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={`text-right text-slate-700 ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</dd>
+      <dt className="text-text-muted">{label}</dt>
+      <dd className={`text-right text-text-secondary ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</dd>
     </div>
   );
 }
