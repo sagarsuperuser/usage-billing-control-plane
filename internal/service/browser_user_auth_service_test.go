@@ -53,7 +53,7 @@ func (s browserAuthStoreStub) ListUserTenantMemberships(userID string) ([]domain
 	return s.memberships, nil
 }
 
-func TestBrowserUserAuthServiceAuthenticatesPlatformUser(t *testing.T) {
+func TestBrowserUserAuthServiceDeniesplatformUserWithNoWorkspace(t *testing.T) {
 	hash, err := service.HashPassword("correct horse battery")
 	if err != nil {
 		t.Fatalf("hash password: %v", err)
@@ -80,18 +80,15 @@ func TestBrowserUserAuthServiceAuthenticatesPlatformUser(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 
-	principal, err := svc.Authenticate(service.BrowserUserLoginRequest{
+	// Platform admin with no workspace memberships gets access denied
+	// (they need to register or be invited to a workspace first).
+	// Platform ops use API keys, not browser sessions.
+	_, err = svc.Authenticate(service.BrowserUserLoginRequest{
 		Email:    "admin@example.com",
 		Password: "correct horse battery",
 	})
-	if err != nil {
-		t.Fatalf("authenticate: %v", err)
-	}
-	if principal.Scope != "platform" {
-		t.Fatalf("expected platform scope, got %q", principal.Scope)
-	}
-	if principal.PlatformRole != "platform_admin" {
-		t.Fatalf("expected platform_admin role, got %q", principal.PlatformRole)
+	if err == nil {
+		t.Fatal("expected access denied for platform admin with no workspace")
 	}
 }
 

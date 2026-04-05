@@ -110,13 +110,8 @@ func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID
 		return BrowserUserPrincipal{}, ErrBrowserUserDisabled
 	}
 
-	if user.PlatformRole == domain.UserPlatformRoleAdmin && requestedTenantID == "" {
-		return BrowserUserPrincipal{
-			User:         user,
-			Scope:        "platform",
-			PlatformRole: string(domain.UserPlatformRoleAdmin),
-		}, nil
-	}
+	// Platform admin no longer gets a separate scope in browser sessions.
+	// They land in a workspace like everyone else. Platform ops use API keys.
 
 	memberships, err := s.store.ListUserTenantMemberships(user.ID)
 	if err != nil {
@@ -168,14 +163,6 @@ func (s *BrowserUserAuthService) ResolveUserPrincipal(user domain.User, tenantID
 			Scope:    "tenant",
 			Role:     strings.ToLower(strings.TrimSpace(best.Role)),
 			TenantID: normalizeBrowserTenantID(best.TenantID),
-		}, nil
-	}
-
-	if user.PlatformRole == domain.UserPlatformRoleAdmin {
-		return BrowserUserPrincipal{
-			User:         user,
-			Scope:        "platform",
-			PlatformRole: string(domain.UserPlatformRoleAdmin),
 		}, nil
 	}
 
