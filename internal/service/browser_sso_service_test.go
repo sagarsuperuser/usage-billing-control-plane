@@ -141,15 +141,16 @@ func (p fakeBrowserSSOProvider) Exchange(ctx context.Context, redirectURI, code,
 
 func TestBrowserSSOServiceLinksExistingUserByVerifiedEmail(t *testing.T) {
 	user := domain.User{
-		ID:           "usr_platform",
-		Email:        "admin@example.com",
-		DisplayName:  "Admin",
-		Status:       domain.UserStatusActive,
-		PlatformRole: domain.UserPlatformRoleAdmin,
-		CreatedAt:    time.Now().UTC(),
-		UpdatedAt:    time.Now().UTC(),
+		ID:          "usr_admin",
+		Email:       "admin@example.com",
+		DisplayName: "Admin",
+		Status:      domain.UserStatusActive,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}
-	storeStub := newBrowserSSOStoreStub(user, nil)
+	storeStub := newBrowserSSOStoreStub(user, []domain.UserTenantMembership{
+		{UserID: "usr_admin", TenantID: "tenant_sso", Role: "admin", Status: domain.UserTenantMembershipStatusActive},
+	})
 	authSvc, err := service.NewBrowserUserAuthService(storeStub)
 	if err != nil {
 		t.Fatalf("new browser user auth service: %v", err)
@@ -182,8 +183,8 @@ func TestBrowserSSOServiceLinksExistingUserByVerifiedEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate callback: %v", err)
 	}
-	if principal.Scope != "platform" {
-		t.Fatalf("expected platform scope, got %q", principal.Scope)
+	if principal.Scope != "tenant" {
+		t.Fatalf("expected tenant scope, got %q", principal.Scope)
 	}
 	if _, err := storeStub.GetUserFederatedIdentity("google", "google-subject-1"); err != nil {
 		t.Fatalf("expected linked federated identity, got %v", err)
@@ -237,11 +238,11 @@ func TestBrowserSSOServiceProvisionsUserWhenPendingInvitationMatches(t *testing.
 		Email:        "admin@example.com",
 		DisplayName:  "Admin",
 		Status:       domain.UserStatusActive,
-		PlatformRole: domain.UserPlatformRoleAdmin,
+		
 		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now().UTC(),
 	}
-	storeStub := newBrowserSSOStoreStub(existing, nil)
+	storeStub := newBrowserSSOStoreStub(existing, []domain.UserTenantMembership{{UserID: existing.ID, TenantID: "tenant_sso", Role: "admin", Status: domain.UserTenantMembershipStatusActive}})
 	storeStub.invitations[hashInvitationTokenForTest("invite-token")] = domain.WorkspaceInvitation{
 		ID:          "win_1",
 		WorkspaceID: "tenant_a",
@@ -298,11 +299,11 @@ func TestBrowserSSOServiceRejectsInvitationEmailMismatch(t *testing.T) {
 		Email:        "admin@example.com",
 		DisplayName:  "Admin",
 		Status:       domain.UserStatusActive,
-		PlatformRole: domain.UserPlatformRoleAdmin,
+		
 		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now().UTC(),
 	}
-	storeStub := newBrowserSSOStoreStub(existing, nil)
+	storeStub := newBrowserSSOStoreStub(existing, []domain.UserTenantMembership{{UserID: existing.ID, TenantID: "tenant_sso", Role: "admin", Status: domain.UserTenantMembershipStatusActive}})
 	storeStub.invitations[hashInvitationTokenForTest("invite-token")] = domain.WorkspaceInvitation{
 		ID:          "win_1",
 		WorkspaceID: "tenant_a",

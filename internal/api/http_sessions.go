@@ -673,8 +673,10 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	principal.Role = Role(authResult.Role)
 	principal.TenantID = normalizeTenantID(authResult.TenantID)
 	// Look up workspace name for display
-	if tenant, err := s.repo.GetTenant(authResult.TenantID); err == nil {
-		principal.TenantName = tenant.Name
+	if s.repo != nil {
+		if tenant, err := s.repo.GetTenant(authResult.TenantID); err == nil {
+			principal.TenantName = tenant.Name
+		}
 	}
 
 	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
