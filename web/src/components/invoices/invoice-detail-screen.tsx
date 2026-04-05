@@ -144,9 +144,10 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
         {isTenantSession ? (
           invoiceQuery.isLoading ? (
             <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-sm text-text-muted">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading invoice detail
+              <div className="animate-pulse space-y-3">
+                <div className="h-6 w-48 rounded bg-surface-secondary" />
+                <div className="h-4 w-72 rounded bg-surface-secondary" />
+                <div className="h-32 w-full rounded bg-surface-secondary" />
               </div>
             </section>
           ) : invoiceQuery.isError || !invoice ? (
@@ -326,7 +327,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 </div>
                 <div className="mt-3 grid gap-2">
                   {paymentReceiptsQuery.isLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-text-muted"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
+                    <div className="animate-pulse space-y-2"><div className="h-4 w-40 rounded bg-surface-secondary" /><div className="h-4 w-28 rounded bg-surface-secondary" /></div>
                   ) : paymentReceiptsQuery.isError ? (
                     <p className="text-sm text-amber-700">Payment receipts could not be loaded.</p>
                   ) : paymentReceiptsQuery.data && paymentReceiptsQuery.data.length > 0 ? (
@@ -358,7 +359,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                 </div>
                 <div className="mt-3 grid gap-2">
                   {creditNotesQuery.isLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-text-muted"><LoaderCircle className="h-4 w-4 animate-spin" />Loading</div>
+                    <div className="animate-pulse space-y-2"><div className="h-4 w-40 rounded bg-surface-secondary" /><div className="h-4 w-28 rounded bg-surface-secondary" /></div>
                   ) : creditNotesQuery.isError ? (
                     <p className="text-sm text-amber-700">Credit notes could not be loaded.</p>
                   ) : creditNotesQuery.data && creditNotesQuery.data.length > 0 ? (

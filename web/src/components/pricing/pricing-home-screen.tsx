@@ -1,6 +1,6 @@
 
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, LoaderCircle, Plus } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -93,9 +93,10 @@ export function PricingHomeScreen() {
             </div>
 
             {loading ? (
-              <div className="flex items-center gap-2 px-5 py-8 text-sm text-text-muted">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading pricing catalog...
+              <div className="animate-pulse space-y-3 px-5 py-8">
+                <div className="h-4 w-full rounded bg-surface-secondary" />
+                <div className="h-4 w-full rounded bg-surface-secondary" />
+                <div className="h-4 w-3/4 rounded bg-surface-secondary" />
               </div>
             ) : (
               <table className="w-full text-sm">

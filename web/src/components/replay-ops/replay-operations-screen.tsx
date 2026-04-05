@@ -178,7 +178,11 @@ export function ReplayOperationsScreen() {
             </div>
 
             {sessionLoading || jobsQuery.isLoading ? (
-              <div className="px-5 py-10 text-center text-sm text-text-muted">Loading replay jobs...</div>
+              <div className="animate-pulse space-y-3 px-5 py-10">
+                <div className="h-4 w-full rounded bg-surface-secondary" />
+                <div className="h-4 w-full rounded bg-surface-secondary" />
+                <div className="h-4 w-3/4 rounded bg-surface-secondary" />
+              </div>
             ) : filteredJobs.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
                 <p className="text-sm font-medium text-text-secondary">No replay jobs</p>
@@ -387,7 +391,7 @@ export function ReplayOperationsScreen() {
           <div className="flex-1 overflow-auto px-5 py-4">
             {diagnosticsQuery.isLoading ? (
               <div className="flex items-center gap-2 text-sm text-text-muted">
-                <LoaderCircle className="h-4 w-4 animate-spin" /> Loading...
+                <LoaderCircle className="h-4 w-4 animate-spin" />
               </div>
             ) : null}
             {diagnosticsQuery.error ? (

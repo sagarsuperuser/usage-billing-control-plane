@@ -83,8 +83,12 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
         ) : null}
 
         {detailQuery.isLoading ? (
-          <div className="rounded-lg border border-border bg-surface px-4 py-10 text-center text-sm text-text-muted shadow-sm">
-            Loading dunning run detail...
+          <div className="rounded-lg border border-border bg-surface px-4 py-10 shadow-sm">
+            <div className="animate-pulse space-y-3">
+              <div className="h-6 w-48 rounded bg-surface-secondary" />
+              <div className="h-4 w-72 rounded bg-surface-secondary" />
+              <div className="h-32 w-full rounded bg-surface-secondary" />
+            </div>
           </div>
         ) : null}
 

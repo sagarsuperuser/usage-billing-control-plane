@@ -125,8 +125,10 @@ export function BillingActivityTimeline({
       </div>
 
       {loading ? (
-        <div className="mt-5 rounded-xl border border-border bg-surface-secondary px-4 py-4 text-sm text-text-muted">
-          Loading timeline events.
+        <div className="mt-5 animate-pulse space-y-3 rounded-xl border border-border bg-surface-secondary px-4 py-4">
+          <div className="h-4 w-full rounded bg-surface-secondary" />
+          <div className="h-4 w-3/4 rounded bg-surface-secondary" />
+          <div className="h-4 w-1/2 rounded bg-surface-secondary" />
         </div>
       ) : null}
 

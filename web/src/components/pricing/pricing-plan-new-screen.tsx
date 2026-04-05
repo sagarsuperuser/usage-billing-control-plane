@@ -133,7 +133,7 @@ export function PricingPlanNewScreen() {
                   <p className="text-xs font-medium text-text-muted">Linked metrics</p>
                   <div className="mt-3 grid gap-3">
                     {metricsQuery.isLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-text-muted"><LoaderCircle className="h-4 w-4 animate-spin" />Loading metrics</div>
+                      <div className="animate-pulse space-y-2"><div className="h-4 w-40 rounded bg-surface-secondary" /><div className="h-4 w-28 rounded bg-surface-secondary" /></div>
                     ) : (metricsQuery.data ?? []).length === 0 ? (
                       <p className="text-sm text-text-muted">Create at least one metric before creating a plan.</p>
                     ) : (

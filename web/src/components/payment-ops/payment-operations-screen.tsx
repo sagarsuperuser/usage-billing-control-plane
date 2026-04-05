@@ -500,7 +500,7 @@ export function PaymentOperationsScreen() {
                 </button>
               </div>
 
-              {lifecycleQuery.isLoading ? <EmptyState label="Loading lifecycle summary..." icon={<LoaderCircle className="h-4 w-4 animate-spin" />} /> : null}
+              {lifecycleQuery.isLoading ? <EmptyState label="" icon={<LoaderCircle className="h-4 w-4 animate-spin" />} /> : null}
               {lifecycleQuery.error ? (
                 <EmptyState label={(lifecycleQuery.error as Error).message} icon={<AlertCircle className="h-4 w-4" />} tone="danger" />
               ) : null}
@@ -555,7 +555,7 @@ export function PaymentOperationsScreen() {
             {/* ---- Timeline events ---- */}
             <div className="mt-4 space-y-3">
               {!selectedInvoiceID ? <EmptyState label="Pick an invoice row to inspect its payment timeline." /> : null}
-              {selectedInvoiceID && eventsQuery.isLoading ? <EmptyState label="Loading timeline..." icon={<LoaderCircle className="h-4 w-4 animate-spin" />} /> : null}
+              {selectedInvoiceID && eventsQuery.isLoading ? <EmptyState label="" icon={<LoaderCircle className="h-4 w-4 animate-spin" />} /> : null}
               {selectedInvoiceID && eventsQuery.error ? <EmptyState label={(eventsQuery.error as Error).message} icon={<AlertCircle className="h-4 w-4" />} tone="danger" /> : null}
               {selectedInvoiceID && eventsQuery.data?.items?.length === 0 ? <EmptyState label="No webhook events found for this invoice yet." /> : null}
 

@@ -133,7 +133,6 @@ export function SessionMenu() {
                 {workspacesQuery.isLoading ? (
                   <div className="flex items-center gap-2 px-3.5 py-2 text-[11px] text-text-faint">
                     <LoaderCircle className="h-3 w-3 animate-spin" />
-                    Loading workspaces...
                   </div>
                 ) : (
                   <>

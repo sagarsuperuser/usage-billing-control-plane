@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { useQuery } from "@tanstack/react-query";
@@ -263,9 +263,10 @@ function DetailField({ label, value, mono }: { label: string; value: string; mon
 
 function LoadingState() {
   return (
-    <div className="flex items-center gap-2 px-5 py-8 text-sm text-text-muted">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      Loading usage events...
+    <div className="animate-pulse space-y-3 px-5 py-8">
+      <div className="h-4 w-full rounded bg-surface-secondary" />
+      <div className="h-4 w-full rounded bg-surface-secondary" />
+      <div className="h-4 w-3/4 rounded bg-surface-secondary" />
     </div>
   );
 }

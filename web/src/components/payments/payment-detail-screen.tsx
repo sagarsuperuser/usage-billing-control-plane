@@ -91,9 +91,10 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
         {isTenantSession ? (
           paymentQuery.isLoading ? (
             <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-sm text-text-muted">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading payment detail
+              <div className="animate-pulse space-y-3">
+                <div className="h-6 w-48 rounded bg-surface-secondary" />
+                <div className="h-4 w-72 rounded bg-surface-secondary" />
+                <div className="h-32 w-full rounded bg-surface-secondary" />
               </div>
             </section>
           ) : paymentQuery.isError || !payment ? (
