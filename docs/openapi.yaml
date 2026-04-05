@@ -1,0 +1,814 @@
+openapi: 3.1.0
+info:
+  title: Alpha — Usage Billing Control Plane API
+  version: 1.0.0
+  description: |
+    Multi-tenant usage-based billing platform with direct Stripe integration.
+    Manages pricing catalog, customers, subscriptions, usage metering, invoices,
+    payments, dunning, and workspace administration.
+
+servers:
+  - url: https://api-staging.sagarwaidande.org
+    description: Staging
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - apiKey: []
+  - session: []
+
+tags:
+  - name: Health
+    description: Service health and readiness
+  - name: Auth
+    description: Authentication, sessions, registration
+  - name: Customers
+    description: Customer lifecycle and billing profiles
+  - name: Pricing
+    description: Metrics, plans, add-ons, coupons, taxes
+  - name: Subscriptions
+    description: Subscription management
+  - name: Usage
+    description: Usage events and metering
+  - name: Invoices
+    description: Invoice generation, PDF, explainability
+  - name: Payments
+    description: Payment execution and status tracking
+  - name: Dunning
+    description: Collections automation and retry policies
+  - name: Workspace
+    description: Members, service accounts, API keys, audit
+  - name: Replay
+    description: Usage replay and reprocessing jobs
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ── Customers ──────────────────────────────────────────────────────
+
+  /v1/customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, suspended, archived] }
+        - name: external_id
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Customer list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Customer" }
+                  limit: { type: integer }
+                  offset: { type: integer }
+    post:
+      tags: [Customers]
+      summary: Create customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCustomerRequest" }
+      responses:
+        "201":
+          description: Customer created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+
+  /v1/customers/{externalId}:
+    get:
+      tags: [Customers]
+      summary: Get customer by external ID
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Customer detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+    patch:
+      tags: [Customers]
+      summary: Update customer
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCustomerRequest" }
+      responses:
+        "200":
+          description: Customer updated
+
+  /v1/customers/{externalId}/billing-profile:
+    put:
+      tags: [Customers]
+      summary: Update billing profile
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingProfile" }
+      responses:
+        "200":
+          description: Billing profile updated
+
+  /v1/customers/{externalId}/payment-setup/request:
+    post:
+      tags: [Customers]
+      summary: Send payment setup request
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payment setup initiated
+
+  # ── Pricing ────────────────────────────────────────────────────────
+
+  /v1/pricing/metrics:
+    get:
+      tags: [Pricing]
+      summary: List pricing metrics
+      responses:
+        "200":
+          description: Metrics list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PricingMetric" }
+    post:
+      tags: [Pricing]
+      summary: Create pricing metric
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePricingMetricRequest" }
+      responses:
+        "201":
+          description: Metric created
+
+  /v1/plans:
+    get:
+      tags: [Pricing]
+      summary: List plans
+      responses:
+        "200":
+          description: Plans list
+    post:
+      tags: [Pricing]
+      summary: Create plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePlanRequest" }
+      responses:
+        "201":
+          description: Plan created
+
+  /v1/add-ons:
+    get:
+      tags: [Pricing]
+      summary: List add-ons
+      responses:
+        "200":
+          description: Add-ons list
+    post:
+      tags: [Pricing]
+      summary: Create add-on
+      responses:
+        "201":
+          description: Add-on created
+
+  /v1/taxes:
+    get:
+      tags: [Pricing]
+      summary: List taxes
+      responses:
+        "200":
+          description: Taxes list
+    post:
+      tags: [Pricing]
+      summary: Create tax
+      responses:
+        "201":
+          description: Tax created
+
+  /v1/coupons:
+    get:
+      tags: [Pricing]
+      summary: List coupons
+      responses:
+        "200":
+          description: Coupons list
+    post:
+      tags: [Pricing]
+      summary: Create coupon
+      responses:
+        "201":
+          description: Coupon created
+
+  # ── Subscriptions ──────────────────────────────────────────────────
+
+  /v1/subscriptions:
+    get:
+      tags: [Subscriptions]
+      summary: List subscriptions
+      parameters:
+        - name: customer_external_id
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, canceled, archived] }
+      responses:
+        "200":
+          description: Subscriptions list
+    post:
+      tags: [Subscriptions]
+      summary: Create subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSubscriptionRequest" }
+      responses:
+        "201":
+          description: Subscription created
+
+  /v1/subscriptions/{id}:
+    get:
+      tags: [Subscriptions]
+      summary: Get subscription by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Subscription detail
+
+  # ── Usage ──────────────────────────────────────────────────────────
+
+  /v1/usage-events:
+    get:
+      tags: [Usage]
+      summary: List usage events
+      parameters:
+        - name: customer_id
+          in: query
+          schema: { type: string }
+        - name: meter_id
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc] }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Usage events
+    post:
+      tags: [Usage]
+      summary: Record usage event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUsageEventRequest" }
+      responses:
+        "201":
+          description: Event recorded
+
+  # ── Invoices ───────────────────────────────────────────────────────
+
+  /v1/invoices:
+    get:
+      tags: [Invoices]
+      summary: List invoices
+      parameters:
+        - name: customer_external_id
+          in: query
+          schema: { type: string }
+        - name: invoice_status
+          in: query
+          schema: { type: string, enum: [draft, finalized, paid, voided] }
+        - name: payment_status
+          in: query
+          schema: { type: string, enum: [pending, processing, succeeded, failed] }
+        - name: payment_overdue
+          in: query
+          schema: { type: boolean }
+        - name: sort_by
+          in: query
+          schema: { type: string }
+        - name: sort_direction
+          in: query
+          schema: { type: string, enum: [asc, desc] }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Invoice list
+
+  /v1/invoices/{id}:
+    get:
+      tags: [Invoices]
+      summary: Get invoice by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Invoice detail with lifecycle, timeline, and linked documents
+
+  /v1/invoices/{id}/pdf:
+    get:
+      tags: [Invoices]
+      summary: Download invoice PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "302":
+          description: Redirect to S3 presigned URL
+        "200":
+          description: On-demand PDF generation
+          content:
+            application/pdf: {}
+
+  /v1/invoices/{id}/retry-payment:
+    post:
+      tags: [Invoices]
+      summary: Retry failed payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payment retry initiated
+
+  # ── Payments ───────────────────────────────────────────────────────
+
+  /v1/payments:
+    get:
+      tags: [Payments]
+      summary: List payments
+      responses:
+        "200":
+          description: Payments list
+
+  /v1/payments/{id}:
+    get:
+      tags: [Payments]
+      summary: Get payment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payment detail
+
+  /v1/invoice-payment-statuses:
+    get:
+      tags: [Payments]
+      summary: List invoice payment statuses
+      responses:
+        "200":
+          description: Payment status list
+
+  /v1/invoice-payment-statuses/summary:
+    get:
+      tags: [Payments]
+      summary: Payment status summary counts
+      responses:
+        "200":
+          description: Summary with overdue, attention, and status breakdowns
+
+  # ── Dunning ────────────────────────────────────────────────────────
+
+  /v1/dunning/policy:
+    get:
+      tags: [Dunning]
+      summary: Get dunning policy
+      responses:
+        "200":
+          description: Active dunning policy
+    put:
+      tags: [Dunning]
+      summary: Update dunning policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DunningPolicy" }
+      responses:
+        "200":
+          description: Policy updated
+
+  /v1/dunning/runs:
+    get:
+      tags: [Dunning]
+      summary: List dunning runs
+      responses:
+        "200":
+          description: Active dunning runs
+
+  /v1/dunning/runs/{id}:
+    get:
+      tags: [Dunning]
+      summary: Get dunning run by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dunning run detail with event history
+
+  # ── Replay ─────────────────────────────────────────────────────────
+
+  /v1/replay-jobs:
+    get:
+      tags: [Replay]
+      summary: List replay jobs
+      responses:
+        "200":
+          description: Replay jobs list
+    post:
+      tags: [Replay]
+      summary: Create replay job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateReplayJobRequest" }
+      responses:
+        "201":
+          description: Replay job queued
+
+  /v1/replay-jobs/{id}:
+    get:
+      tags: [Replay]
+      summary: Get replay job by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Replay job detail with diagnostics
+
+  /v1/replay-jobs/{id}/retry:
+    post:
+      tags: [Replay]
+      summary: Retry failed replay job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Replay job retried
+
+  # ── Workspace ──────────────────────────────────────────────────────
+
+  /v1/workspace/members:
+    get:
+      tags: [Workspace]
+      summary: List workspace members
+      responses:
+        "200":
+          description: Members list
+
+  /v1/workspace/invitations:
+    get:
+      tags: [Workspace]
+      summary: List workspace invitations
+      responses:
+        "200":
+          description: Invitations list
+    post:
+      tags: [Workspace]
+      summary: Send workspace invitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { type: string, enum: [reader, writer, admin] }
+      responses:
+        "201":
+          description: Invitation sent
+
+  /v1/workspace/service-accounts:
+    get:
+      tags: [Workspace]
+      summary: List service accounts
+      responses:
+        "200":
+          description: Service accounts with credentials
+
+  /v1/ui/sessions/workspaces:
+    get:
+      tags: [Auth]
+      summary: List available workspaces
+      responses:
+        "200":
+          description: Workspace list with current tenant ID
+
+  /v1/ui/sessions/switch-workspace:
+    post:
+      tags: [Auth]
+      summary: Switch active workspace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id]
+              properties:
+                tenant_id: { type: string }
+      responses:
+        "200":
+          description: Session re-scoped to new workspace
+
+  # ── Auth ───────────────────────────────────────────────────────────
+
+  /v1/ui/sessions/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                tenant_id: { type: string }
+                next: { type: string }
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UISession" }
+
+  /v1/ui/register:
+    post:
+      tags: [Auth]
+      summary: Register new user with auto-workspace
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, display_name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                display_name: { type: string }
+      responses:
+        "201":
+          description: User registered with workspace
+
+  /v1/ui/sessions/me:
+    get:
+      tags: [Auth]
+      summary: Get current session
+      responses:
+        "200":
+          description: Current session info
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UISession" }
+        "401":
+          description: Not authenticated
+
+  /v1/ui/sessions/logout:
+    post:
+      tags: [Auth]
+      summary: Destroy session
+      responses:
+        "200":
+          description: Logged out
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Bearer {api_key}"
+    session:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Browser session cookie
+
+  schemas:
+    Customer:
+      type: object
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        external_id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        status: { type: string, enum: [active, suspended, archived] }
+        currency: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateCustomerRequest:
+      type: object
+      required: [external_id, name, email]
+      properties:
+        external_id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        currency: { type: string, default: USD }
+
+    UpdateCustomerRequest:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        status: { type: string }
+
+    BillingProfile:
+      type: object
+      properties:
+        legal_name: { type: string }
+        email: { type: string }
+        address_line1: { type: string }
+        city: { type: string }
+        state: { type: string }
+        postal_code: { type: string }
+        country: { type: string }
+        currency: { type: string }
+
+    PricingMetric:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        aggregation: { type: string, enum: [sum, count, max, unique_count] }
+
+    CreatePricingMetricRequest:
+      type: object
+      required: [key, name, unit, aggregation]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        aggregation: { type: string, enum: [sum, count, max, unique_count] }
+        currency: { type: string, default: USD }
+
+    CreatePlanRequest:
+      type: object
+      required: [name, code, interval]
+      properties:
+        name: { type: string }
+        code: { type: string }
+        interval: { type: string, enum: [monthly, yearly] }
+        base_amount_cents: { type: integer }
+        currency: { type: string }
+        metric_charges: { type: array }
+
+    CreateSubscriptionRequest:
+      type: object
+      required: [customer_external_id, plan_id]
+      properties:
+        customer_external_id: { type: string }
+        plan_id: { type: string }
+        billing_day: { type: integer }
+
+    CreateUsageEventRequest:
+      type: object
+      required: [customer_id, meter_id, quantity, timestamp]
+      properties:
+        customer_id: { type: string }
+        meter_id: { type: string }
+        quantity: { type: number }
+        timestamp: { type: string, format: date-time }
+        idempotency_key: { type: string }
+        subscription_id: { type: string }
+
+    CreateReplayJobRequest:
+      type: object
+      required: [customer_id, from, to]
+      properties:
+        customer_id: { type: string }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+
+    DunningPolicy:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        enabled: { type: boolean }
+        retry_schedule: { type: array, items: { type: string } }
+        max_retry_attempts: { type: integer }
+        final_action: { type: string, enum: [manual_review, cancel_subscription] }
+        grace_period_days: { type: integer }
+
+    UISession:
+      type: object
+      properties:
+        authenticated: { type: boolean }
+        subject_type: { type: string }
+        subject_id: { type: string }
+        user_email: { type: string }
+        scope: { type: string, enum: [tenant, platform] }
+        role: { type: string, enum: [reader, writer, admin] }
+        tenant_id: { type: string }
+        csrf_token: { type: string }
+        expires_at: { type: string, format: date-time }
