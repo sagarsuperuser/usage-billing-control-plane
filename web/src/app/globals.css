@@ -92,15 +92,26 @@ body {
   border-color: #d1d5db !important;
 }
 
-/* ── Borders ─────────────────────────────────────────────────────── */
-.dark .border-stone-200 { border-color: var(--border) !important; }
-.dark .border-stone-100 { border-color: var(--border-light) !important; }
-.dark .border-stone-300 { border-color: #3f3f46 !important; }
-.dark .border-slate-300 { border-color: #3f3f46 !important; }
-.dark .hover\:border-stone-300:hover { border-color: #52525b !important; }
+/* ── Borders ─────────────────────────────────────────────────────
+   Tailwind v4 generates border colors using oklch() or CSS custom
+   properties. Class-level overrides (.border-stone-200) don't always
+   win specificity. Use a global default + specific overrides.
+   ─────────────────────────────────────────────────────────────────── */
+
+/* Global: all borders default to --border in dark mode */
+.dark *:not([class*="border-emerald"]):not([class*="border-amber"]):not([class*="border-rose"]):not([class*="border-sky"]):not([class*="border-blue"]):not([class*="border-violet"]):not([class*="border-indigo"]):not([class*="border-transparent"]):not([class*="border-slate-900"]):not([class*="border-dashed"]) {
+  border-color: var(--border);
+}
+
+/* Lighter borders for subtle dividers */
+.dark .border-stone-100,
+.dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-light) !important;
+}
+
+/* Hover borders */
+.dark .hover\:border-stone-300:hover,
 .dark .hover\:border-slate-300:hover { border-color: #52525b !important; }
-.dark .divide-stone-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
-.dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-light) !important; }
 
 /* ── Text ────────────────────────────────────────────────────────── */
 .dark .text-slate-950 { color: #f1f5f9 !important; }
