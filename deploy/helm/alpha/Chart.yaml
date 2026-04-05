@@ -1,5 +1,5 @@
 apiVersion: v2
-name: alpha
+name: lago-alpha
 description: Usage billing control plane deployment chart
 type: application
 version: 0.1.0
