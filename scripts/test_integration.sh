@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Integration test runner: starts Postgres + Temporal, runs migrations, executes Go tests.
-# Lago is no longer required — the billing engine is fully native.
+# Integration test runner — the billing engine is fully native.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 compose_file="${COMPOSE_FILE:-docker-compose.postgres.yml}"
-test_database_url="${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable}"
+test_database_url="${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:15432/alpha_test?sslmode=disable}"
 test_s3_endpoint="${TEST_S3_ENDPOINT:-http://localhost:19000}"
 test_s3_region="${TEST_S3_REGION:-us-east-1}"
-test_s3_bucket="${TEST_S3_BUCKET:-lago-alpha-exports}"
+test_s3_bucket="${TEST_S3_BUCKET:-alpha-exports}"
 test_s3_access_key_id="${TEST_S3_ACCESS_KEY_ID:-minioadmin}"
 test_s3_secret_access_key="${TEST_S3_SECRET_ACCESS_KEY:-minioadmin123}"
 test_temporal_address="${TEST_TEMPORAL_ADDRESS:-127.0.0.1:17233}"
@@ -47,10 +47,10 @@ echo "Waiting for Postgres health..."
 
 echo "Creating test database if it does not exist..."
 docker compose -f "$compose_file" exec -T postgres \
-  psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'lago_alpha_test'" \
+  psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'alpha_test'" \
   | grep -q 1 || \
   docker compose -f "$compose_file" exec -T postgres \
-  psql -U postgres -c "CREATE DATABASE lago_alpha_test"
+  psql -U postgres -c "CREATE DATABASE alpha_test"
 
 echo "Running migrations..."
 DATABASE_URL="$test_database_url" go run "$repo_root/cmd/migrate"

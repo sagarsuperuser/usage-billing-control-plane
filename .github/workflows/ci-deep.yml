@@ -107,7 +107,7 @@ jobs:
       contents: read
     env:
       COMPOSE_FILE: docker-compose.postgres.yml
-      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/alpha_test?sslmode=disable
       TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
       TEST_TEMPORAL_NAMESPACE: default
       CLEANUP_ON_EXIT: 1
@@ -147,7 +147,7 @@ jobs:
       contents: read
     env:
       COMPOSE_FILE: docker-compose.postgres.yml
-      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/lago_alpha_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/alpha_test?sslmode=disable
       TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
       TEST_TEMPORAL_NAMESPACE: default
       RUN_LARGE_REPLAY_DATASET: 1

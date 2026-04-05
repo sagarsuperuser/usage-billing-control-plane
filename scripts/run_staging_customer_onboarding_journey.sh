@@ -55,7 +55,7 @@ if [[ -z "$connection_id" || -z "$provider_code" ]]; then
   connection_json="$(curl -fsS \
     -H "X-API-Key: $PLAYWRIGHT_LIVE_PLATFORM_API_KEY" \
     "$ALPHA_API_BASE_URL/internal/billing-provider-connections?limit=100")"
-  selected_row="$(printf '%s' "$connection_json" | jq -r '.items[] | select((.provider_type // "") == "stripe" and (.status // "") == "connected" and (.workspace_ready // false) == true and (.lago_provider_code // "") != "") | [.id, .lago_provider_code] | @tsv' | head -n 1)"
+  selected_row="$(printf '%s' "$connection_json" | jq -r '.items[] | select((.provider_type // "") == "stripe" and (.status // "") == "connected" and (.workspace_ready // false) == true and (.backend_provider_code // "") != "") | [.id, .backend_provider_code] | @tsv' | head -n 1)"
   if [[ -z "$selected_row" ]]; then
     echo "no connected workspace-ready stripe billing provider connection found" >&2
     exit 1
