@@ -952,7 +952,7 @@ func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
 		displayName = strings.Split(email, "@")[0]
 	}
 
-	// Create user.
+	// Create user (or recover orphaned user from a previously failed registration).
 	user, err := s.repo.CreateUser(domain.User{
 		Email:       email,
 		DisplayName: displayName,
@@ -960,26 +960,39 @@ func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
-			writeError(w, http.StatusConflict, "an account with this email already exists")
+			// Check if user has any workspace — if not, this is an orphaned
+			// registration (user created but tenant failed). Resume the flow.
+			existing, lookupErr := s.browserUserAuthService.AuthenticateIdentity(email, password)
+			if lookupErr != nil {
+				writeError(w, http.StatusConflict, "an account with this email already exists")
+				return
+			}
+			memberships, _ := s.repo.ListUserTenantMemberships(existing.ID)
+			if len(memberships) > 0 {
+				writeError(w, http.StatusConflict, "an account with this email already exists")
+				return
+			}
+			// Orphaned user — continue with workspace creation
+			user = existing
+		} else {
+			writeDomainError(w, err)
 			return
 		}
-		writeDomainError(w, err)
-		return
-	}
-
-	// Set password.
-	passwordHash, hashErr := service.HashPassword(password)
-	if hashErr != nil {
-		writeDomainError(w, hashErr)
-		return
-	}
-	_, err = s.repo.UpsertUserPasswordCredential(domain.UserPasswordCredential{
-		UserID:       user.ID,
-		PasswordHash: passwordHash,
-	})
-	if err != nil {
-		writeDomainError(w, err)
-		return
+	} else {
+		// New user — set password.
+		passwordHash, hashErr := service.HashPassword(password)
+		if hashErr != nil {
+			writeDomainError(w, hashErr)
+			return
+		}
+		_, err = s.repo.UpsertUserPasswordCredential(domain.UserPasswordCredential{
+			UserID:       user.ID,
+			PasswordHash: passwordHash,
+		})
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
 	}
 
 	// Auto-create workspace.
