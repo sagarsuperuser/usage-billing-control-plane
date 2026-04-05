@@ -1,9 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SubscriptionDetailScreen } from "@/components/subscriptions/subscription-detail-screen";
+import { lazy, Suspense } from "react";
+
+const SubscriptionDetailScreen = lazy(() => import("@/components/subscriptions/subscription-detail-screen").then(m => ({ default: m.SubscriptionDetailScreen })));
 
 export const Route = createFileRoute("/subscriptions/$id")({
   component: function SubscriptionDetailPageWrapper() {
     const { id } = Route.useParams();
-    return <SubscriptionDetailScreen subscriptionID={decodeURIComponent(id)} />;
+    return (
+      <Suspense fallback={null}>
+        <SubscriptionDetailScreen subscriptionID={decodeURIComponent(id)} />
+      </Suspense>
+    );
   },
 });

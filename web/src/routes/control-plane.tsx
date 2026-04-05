@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ControlPlaneOverviewScreen } from "@/components/overview/control-plane-overview-screen";
+import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/control-plane")({
-  component: ControlPlaneOverviewScreen,
+  component: lazyRouteComponent(() => import("@/components/overview/control-plane-overview-screen"), "ControlPlaneOverviewScreen"),
 });

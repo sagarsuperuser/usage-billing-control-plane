@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { TenantWorkspaceAccessScreen } from "@/components/workspaces/tenant-workspace-access-screen";
+import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/workspace-access")({
-  component: TenantWorkspaceAccessScreen,
+  component: lazyRouteComponent(() => import("@/components/workspaces/tenant-workspace-access-screen"), "TenantWorkspaceAccessScreen"),
 });

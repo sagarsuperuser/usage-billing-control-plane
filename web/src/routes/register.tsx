@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { RegistrationScreen } from "@/components/auth/registration-screen";
+import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/register")({
-  component: RegistrationScreen,
+  component: lazyRouteComponent(() => import("@/components/auth/registration-screen"), "RegistrationScreen"),
 });

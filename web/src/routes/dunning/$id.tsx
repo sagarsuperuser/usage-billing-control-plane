@@ -1,9 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DunningRunDetailScreen } from "@/components/dunning/dunning-run-detail-screen";
+import { lazy, Suspense } from "react";
+
+const DunningRunDetailScreen = lazy(() => import("@/components/dunning/dunning-run-detail-screen").then(m => ({ default: m.DunningRunDetailScreen })));
 
 export const Route = createFileRoute("/dunning/$id")({
   component: function DunningRunDetailPageWrapper() {
     const { id } = Route.useParams();
-    return <DunningRunDetailScreen runID={decodeURIComponent(id)} />;
+    return (
+      <Suspense fallback={null}>
+        <DunningRunDetailScreen runID={decodeURIComponent(id)} />
+      </Suspense>
+    );
   },
 });

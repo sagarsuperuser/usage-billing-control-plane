@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ReplayOperationsScreen } from "@/components/replay-ops/replay-operations-screen";
+import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/replay-operations")({
-  component: ReplayOperationsScreen,
+  component: lazyRouteComponent(() => import("@/components/replay-ops/replay-operations-screen"), "ReplayOperationsScreen"),
 });

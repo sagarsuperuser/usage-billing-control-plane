@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { DunningConsoleScreen } from "@/components/dunning/dunning-console-screen";
+import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/dunning/")({
-  component: DunningConsoleScreen,
+  component: lazyRouteComponent(() => import("@/components/dunning/dunning-console-screen"), "DunningConsoleScreen"),
 });

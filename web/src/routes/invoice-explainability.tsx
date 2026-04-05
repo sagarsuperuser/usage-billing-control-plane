@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { InvoiceExplainabilityScreen } from "@/components/invoice-explainability/invoice-explainability-screen";
+import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/invoice-explainability")({
-  component: InvoiceExplainabilityScreen,
+  component: lazyRouteComponent(() => import("@/components/invoice-explainability/invoice-explainability-screen"), "InvoiceExplainabilityScreen"),
 });

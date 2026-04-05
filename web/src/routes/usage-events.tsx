@@ -1,6 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { UsageEventsScreen } from "@/components/usage-events/usage-events-screen";
+import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/usage-events")({
-  component: UsageEventsScreen,
+  component: lazyRouteComponent(() => import("@/components/usage-events/usage-events-screen"), "UsageEventsScreen"),
 });
