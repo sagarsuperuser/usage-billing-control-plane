@@ -95,9 +95,10 @@ body {
 /* ── Borders ─────────────────────────────────────────────────────── */
 .dark .border-stone-200 { border-color: var(--border) !important; }
 .dark .border-stone-100 { border-color: var(--border-light) !important; }
-.dark .border-y { border-color: var(--border-light) !important; }
-.dark .border-b { border-bottom-color: var(--border) !important; }
-.dark .border-t { border-top-color: var(--border) !important; }
+.dark .border-stone-300 { border-color: #3f3f46 !important; }
+.dark .border-slate-300 { border-color: #3f3f46 !important; }
+.dark .hover\:border-stone-300:hover { border-color: #52525b !important; }
+.dark .hover\:border-slate-300:hover { border-color: #52525b !important; }
 .dark .divide-stone-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
 .dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-light) !important; }
 
@@ -140,6 +141,7 @@ body {
 .dark .shadow-xl { box-shadow: 0 20px 40px rgba(0,0,0,0.6) !important; }
 .dark .shadow-2xl { box-shadow: 0 25px 50px rgba(0,0,0,0.7) !important; }
 .dark .ring-1 { --tw-ring-color: var(--border) !important; }
+.dark .ring-stone-200 { --tw-ring-color: var(--border) !important; }
 
 /* ── Status chips (colored, translucent in dark mode) ────────────── */
 .dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.1) !important; }
