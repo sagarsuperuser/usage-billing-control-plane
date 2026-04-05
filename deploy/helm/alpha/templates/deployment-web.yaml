@@ -33,17 +33,9 @@ spec:
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
-          volumeMounts:
-            - name: nginx-cache
-              mountPath: /var/cache/nginx
-            - name: nginx-run
-              mountPath: /var/run
-            - name: nginx-tmp
-              mountPath: /tmp
           {{- $apiBaseURL := .Values.web.apiBaseURL }}
           {{- if and (not $apiBaseURL) .Values.ingress.apiHost }}
           {{- $apiBaseURL = printf "https://%s" .Values.ingress.apiHost }}
@@ -69,11 +61,4 @@ spec:
             periodSeconds: 15
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
-      volumes:
-        - name: nginx-cache
-          emptyDir: {}
-        - name: nginx-run
-          emptyDir: {}
-        - name: nginx-tmp
-          emptyDir: {}
 {{- end }}
