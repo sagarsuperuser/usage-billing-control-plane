@@ -48,7 +48,17 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusInternalServerError, "unknown error")
 		return
 	}
-	writeErrorCode(w, classifyDomainErrorStatus(err), err.Error(), classifyDomainErrorCode(err))
+	status := classifyDomainErrorStatus(err)
+	code := classifyDomainErrorCode(err)
+	message := err.Error()
+
+	// Never leak internal/SQL errors to the client.
+	// Only domain errors (4xx) get their original message.
+	if status >= 500 {
+		message = "an internal error occurred"
+	}
+
+	writeErrorCode(w, status, message, code)
 }
 
 func writeAuthError(w http.ResponseWriter, err error) {
