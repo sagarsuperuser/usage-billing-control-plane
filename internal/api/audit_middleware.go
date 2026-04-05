@@ -40,21 +40,19 @@ func (s *Server) auditLogMiddleware(next http.Handler) http.Handler {
 
 		route := routePattern(r)
 
-		if s.logger != nil {
-			s.logger.Info("audit",
-				"component", "audit",
-				"method", r.Method,
-				"route", route,
-				"path", r.URL.Path,
-				"status", statusCode,
-				"actor_id", actorID,
-				"actor_email", actorEmail,
-				"tenant_id", tenantID,
-				"duration_ms", time.Since(start).Milliseconds(),
-				"ip", requestClientIP(r),
-				"user_agent", truncate(r.UserAgent(), 200),
-			)
-		}
+		s.logInfo("audit",
+			"component", "audit",
+			"method", r.Method,
+			"route", route,
+			"path", r.URL.Path,
+			"status", statusCode,
+			"actor_id", actorID,
+			"actor_email", actorEmail,
+			"tenant_id", tenantID,
+			"duration_ms", time.Since(start).Milliseconds(),
+			"ip", requestClientIP(r),
+			"user_agent", truncate(r.UserAgent(), 200),
+		)
 	})
 }
 

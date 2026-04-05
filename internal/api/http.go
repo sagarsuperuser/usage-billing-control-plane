@@ -306,19 +306,26 @@ func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
 
 		switch {
 		case statusCode >= http.StatusInternalServerError:
-			s.logger.Error("http request", attrs...)
+			s.logError("http request", attrs...)
 		case statusCode >= http.StatusBadRequest:
-			s.logger.Warn("http request", attrs...)
+			s.logWarn("http request", attrs...)
 		default:
-			s.logger.Info("http request", attrs...)
+			s.logInfo("http request", attrs...)
 		}
 	})
 }
 
 func (s *Server) logAuthFailure(r *http.Request, statusCode int, reason string, err error) {
-	if s.logger == nil {
-		return
+	tenantID := ""
+	if principal, ok := principalFromContext(r.Context()); ok {
+		tenantID = normalizeTenantID(principal.TenantID)
+	} else {
+		var blocked tenantBlockedError
+		if errors.As(err, &blocked) {
+			tenantID = normalizeTenantID(blocked.TenantID)
+		}
 	}
+	s.requestMetrics.IncAuthDenied(tenantID, reason)
 
 	attrs := []any{
 		"component", "api",
@@ -334,29 +341,19 @@ func (s *Server) logAuthFailure(r *http.Request, statusCode int, reason string, 
 	if err != nil {
 		attrs = append(attrs, "error", err.Error())
 	}
-	tenantID := ""
-	if principal, ok := principalFromContext(r.Context()); ok {
-		tenantID = normalizeTenantID(principal.TenantID)
-	} else {
-		var blocked tenantBlockedError
-		if errors.As(err, &blocked) {
-			tenantID = normalizeTenantID(blocked.TenantID)
-		}
-	}
-	s.requestMetrics.IncAuthDenied(tenantID, reason)
 	if tenantID != "" {
 		attrs = append(attrs, "tenant_id", tenantID)
 	}
-
-	if statusCode >= http.StatusInternalServerError {
-		s.logger.Error("http auth denied", attrs...)
-		return
+	switch {
+	case statusCode >= http.StatusInternalServerError:
+		s.logError("http auth denied", attrs...)
+	default:
+		s.logWarn("http auth denied", attrs...)
 	}
-	s.logger.Warn("http auth denied", attrs...)
 }
 
 func (s *Server) logOnboardingFailure(r *http.Request, req service.TenantOnboardingRequest, err error) {
-	if s.logger == nil || err == nil {
+	if err == nil {
 		return
 	}
 
@@ -398,7 +395,7 @@ func (s *Server) logOnboardingFailure(r *http.Request, req service.TenantOnboard
 			)
 		}
 	}
-	s.logger.Error("tenant onboarding failed", attrs...)
+	s.logError("tenant onboarding failed", attrs...)
 }
 
 // requireAuth returns a chi middleware that authenticates the request, enforces
@@ -424,10 +421,11 @@ func (s *Server) requireAuth(minRole Role, scope authScope) func(http.Handler) h
 			if err != nil {
 				statusCode := http.StatusInternalServerError
 				reason := "authorization_failed"
-				if errors.Is(err, errUnauthorized) {
+				switch {
+				case errors.Is(err, errUnauthorized):
 					statusCode = http.StatusUnauthorized
 					reason = "unauthorized"
-				} else if errors.Is(err, errTenantBlocked) {
+				case errors.Is(err, errTenantBlocked):
 					statusCode = http.StatusForbidden
 					reason = "tenant_blocked"
 				}
@@ -662,16 +660,18 @@ func (s *Server) enforceRateLimit(w http.ResponseWriter, r *http.Request, policy
 		Identifier: identifier,
 	})
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Warn(
-				"rate limit check failed",
-				"component", "api",
-				"event", "rate_limit_error",
-				"request_id", requestIDFromContext(r.Context()),
-				"policy", policy,
-				"fail_open", failOpen,
-				"error", err.Error(),
-			)
+		attrs := []any{
+			"component", "api",
+			"event", "rate_limit_error",
+			"request_id", requestIDFromContext(r.Context()),
+			"policy", policy,
+			"fail_open", failOpen,
+			"error", err.Error(),
+		}
+		if failOpen {
+			s.logWarn("rate limit check failed (fail-open)", attrs...)
+		} else {
+			s.logError("rate limit check failed (fail-closed)", attrs...)
 		}
 		s.requestMetrics.IncRateLimitError(tenantID, policy)
 		if failOpen {
@@ -689,17 +689,14 @@ func (s *Server) enforceRateLimit(w http.ResponseWriter, r *http.Request, policy
 	if retryAfter := retryAfterSeconds(decision.ResetAt); retryAfter > 0 {
 		w.Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
 	}
-	if s.logger != nil {
-		s.logger.Warn(
-			"rate limit exceeded",
-			"component", "api",
-			"event", "rate_limited",
-			"request_id", requestIDFromContext(r.Context()),
-			"policy", policy,
-			"path", r.URL.Path,
-			"method", r.Method,
-		)
-	}
+	s.logWarn("rate limit exceeded",
+		"component", "api",
+		"event", "rate_limited",
+		"request_id", requestIDFromContext(r.Context()),
+		"policy", policy,
+		"path", r.URL.Path,
+		"method", r.Method,
+	)
 	s.requestMetrics.IncRateLimited(tenantID, policy)
 	writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 	return false

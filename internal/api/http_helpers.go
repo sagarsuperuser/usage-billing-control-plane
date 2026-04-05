@@ -196,3 +196,37 @@ func metricsTenantKey(principal Principal) string {
 	}
 	return normalizeTenantID(principal.TenantID)
 }
+
+// ---------------------------------------------------------------------------
+// Nil-safe structured logging helpers
+//
+// Every Server method that needs to log should call these instead of guarding
+// with `if s.logger != nil`. Eliminates boilerplate and guarantees consistent
+// behaviour when the logger is optional (e.g. unit tests).
+// ---------------------------------------------------------------------------
+
+func (s *Server) logInfo(msg string, attrs ...any)  { s.log(slogInfo, msg, attrs...) }
+func (s *Server) logWarn(msg string, attrs ...any)  { s.log(slogWarn, msg, attrs...) }
+func (s *Server) logError(msg string, attrs ...any) { s.log(slogError, msg, attrs...) }
+
+type slogLevel int
+
+const (
+	slogInfo  slogLevel = 0
+	slogWarn  slogLevel = 1
+	slogError slogLevel = 2
+)
+
+func (s *Server) log(level slogLevel, msg string, attrs ...any) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	switch level {
+	case slogWarn:
+		s.logger.Warn(msg, attrs...)
+	case slogError:
+		s.logger.Error(msg, attrs...)
+	default:
+		s.logger.Info(msg, attrs...)
+	}
+}

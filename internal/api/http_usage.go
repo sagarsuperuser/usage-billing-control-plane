@@ -820,8 +820,8 @@ func (s *Server) retryInvoicePayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if statusCode >= 200 && statusCode < 300 {
-		if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), id); syncErr != nil && s.logger != nil {
-			s.logger.Warn("materialize retry payment projection failed", "invoice_id", id, "tenant_id", requestTenantID(r), "error", syncErr)
+		if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), id); syncErr != nil {
+			s.logWarn("materialize retry payment projection failed", "invoice_id", id, "tenant_id", requestTenantID(r), "error", syncErr)
 		}
 	}
 	if statusCode < 200 || statusCode >= 300 {

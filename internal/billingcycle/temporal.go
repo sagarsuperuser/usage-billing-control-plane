@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -67,6 +67,7 @@ type BillingCycleActivities struct {
 	generationSvc   *service.InvoiceGenerationService
 	finalizationSvc *service.InvoiceFinalizationService
 	store           store.Repository
+	logger          *slog.Logger
 }
 
 type GenerateInvoicesBatchResult struct {
@@ -80,12 +81,18 @@ func NewBillingCycleActivities(
 	db *sql.DB,
 	stripeClient *service.StripeClient,
 	secretStore service.BillingSecretStore,
+	loggers ...*slog.Logger,
 ) *BillingCycleActivities {
+	logger := slog.Default()
+	if len(loggers) > 0 && loggers[0] != nil {
+		logger = loggers[0]
+	}
 	return &BillingCycleActivities{
 		generationSvc:   service.NewInvoiceGenerationService(repo, db),
 		finalizationSvc: service.NewInvoiceFinalizationService(repo, stripeClient, secretStore).
 			WithPDFService(service.NewInvoicePDFService(nil)),
 		store:           repo,
+		logger:          logger,
 	}
 }
 
@@ -114,7 +121,8 @@ func (a *BillingCycleActivities) RunGenerateInvoicesBatch(ctx context.Context, i
 			PeriodEnd:      advancePeriod(*sub.CurrentBillingPeriodEnd),
 		})
 		if err != nil {
-			log.Printf("billing-cycle: generate invoice for subscription %s: %v", sub.ID, err)
+			a.logger.Error("invoice generation failed",
+				"component", "billing_cycle", "subscription_id", sub.ID, "tenant_id", sub.TenantID, "error", err)
 			result.Errors++
 			continue
 		}
@@ -128,7 +136,8 @@ func (a *BillingCycleActivities) RunGenerateInvoicesBatch(ctx context.Context, i
 		paymentSetup, err := a.store.GetCustomerPaymentSetup(sub.TenantID, sub.CustomerID)
 		if err != nil || paymentSetup.ProviderCustomerReference == "" {
 			// Customer has no Stripe customer ID — finalization deferred.
-			log.Printf("billing-cycle: skip finalization for invoice %s (no stripe customer): %v", genResult.Invoice.ID, err)
+			a.logger.Info("invoice finalization deferred: no stripe customer",
+				"component", "billing_cycle", "invoice_id", genResult.Invoice.ID, "tenant_id", sub.TenantID)
 			result.Generated++
 			continue
 		}
@@ -139,7 +148,8 @@ func (a *BillingCycleActivities) RunGenerateInvoicesBatch(ctx context.Context, i
 			StripeCustomerID: paymentSetup.ProviderCustomerReference,
 		})
 		if err != nil {
-			log.Printf("billing-cycle: finalize invoice %s: %v", genResult.Invoice.ID, err)
+			a.logger.Error("invoice finalization failed",
+				"component", "billing_cycle", "invoice_id", genResult.Invoice.ID, "tenant_id", sub.TenantID, "error", err)
 			// Invoice was created as draft — finalization can be retried.
 		}
 
@@ -166,11 +176,12 @@ func RegisterBillingCycleWorker(
 	db *sql.DB,
 	stripeClient *service.StripeClient,
 	secretStore service.BillingSecretStore,
+	loggers ...*slog.Logger,
 ) error {
 	if repo == nil {
 		return fmt.Errorf("repository is required")
 	}
-	activities := NewBillingCycleActivities(repo, db, stripeClient, secretStore)
+	activities := NewBillingCycleActivities(repo, db, stripeClient, secretStore, loggers...)
 	w.RegisterWorkflowWithOptions(GenerateInvoicesWorkflow, workflow.RegisterOptions{Name: BillingCycleWorkflowName})
 	w.RegisterActivityWithOptions(activities.RunGenerateInvoicesBatch, activity.RegisterOptions{Name: BillingCycleRunActivityName})
 	return nil

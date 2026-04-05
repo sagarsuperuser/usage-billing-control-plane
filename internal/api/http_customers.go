@@ -198,7 +198,7 @@ func (s *Server) requestCustomerPaymentSetup(w http.ResponseWriter, r *http.Requ
 	}
 	if err != nil {
 		attrs = append(attrs, "error", err.Error())
-		s.logger.Warn("customer payment setup request dispatch failed", attrs...)
+		s.logPaymentSetupOutcome("customer payment setup request dispatch failed", err, attrs)
 		writeDomainError(w, err)
 		return
 	}
@@ -208,7 +208,7 @@ func (s *Server) requestCustomerPaymentSetup(w http.ResponseWriter, r *http.Requ
 		"action", result.Dispatch.Action,
 		"domain", result.Dispatch.Domain,
 	)
-	s.logger.Info("customer payment setup request dispatched", attrs...)
+	s.logInfo("customer payment setup request dispatched", attrs...)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -244,7 +244,7 @@ func (s *Server) resendCustomerPaymentSetup(w http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		attrs = append(attrs, "error", err.Error())
-		s.logger.Warn("customer payment setup request dispatch failed", attrs...)
+		s.logPaymentSetupOutcome("customer payment setup request dispatch failed", err, attrs)
 		writeDomainError(w, err)
 		return
 	}
@@ -254,8 +254,18 @@ func (s *Server) resendCustomerPaymentSetup(w http.ResponseWriter, r *http.Reque
 		"action", result.Dispatch.Action,
 		"domain", result.Dispatch.Domain,
 	)
-	s.logger.Info("customer payment setup request dispatched", attrs...)
+	s.logInfo("customer payment setup request dispatched", attrs...)
 	writeJSON(w, http.StatusOK, result)
+}
+
+// logPaymentSetupOutcome logs at ERROR for delivery/infrastructure failures (5xx)
+// and WARN for expected domain errors (validation, not-found — 4xx).
+func (s *Server) logPaymentSetupOutcome(msg string, err error, attrs []any) {
+	if classifyDomainErrorStatus(err) >= 500 {
+		s.logError(msg, attrs...)
+	} else {
+		s.logWarn(msg, attrs...)
+	}
 }
 
 func (s *Server) getCustomerCheckoutURL(w http.ResponseWriter, r *http.Request) {

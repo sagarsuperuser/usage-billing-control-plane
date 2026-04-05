@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"fmt"
-	"net/smtp"
 	"strings"
 )
 
@@ -20,49 +18,18 @@ type CustomerPaymentSetupRequestEmailSender interface {
 	SendCustomerPaymentSetupRequest(input CustomerPaymentSetupRequestEmail) error
 }
 
-type SMTPPaymentSetupRequestEmailConfig struct {
-	Host      string
-	Port      int
-	Username  string
-	Password  string
-	FromEmail string
-	FromName  string
-}
-
+// SMTPPaymentSetupRequestEmailSender sends payment setup request emails via a shared SMTPMailer.
 type SMTPPaymentSetupRequestEmailSender struct {
-	host      string
-	port      int
-	username  string
-	password  string
-	fromEmail string
-	fromName  string
+	mailer *SMTPMailer
 }
 
-func NewSMTPPaymentSetupRequestEmailSender(cfg SMTPPaymentSetupRequestEmailConfig) (*SMTPPaymentSetupRequestEmailSender, error) {
-	host := strings.TrimSpace(cfg.Host)
-	fromEmail := strings.TrimSpace(cfg.FromEmail)
-	if host == "" {
-		return nil, fmt.Errorf("smtp host is required")
-	}
-	if cfg.Port <= 0 {
-		return nil, fmt.Errorf("smtp port is required")
-	}
-	if fromEmail == "" {
-		return nil, fmt.Errorf("smtp from email is required")
-	}
-	return &SMTPPaymentSetupRequestEmailSender{
-		host:      host,
-		port:      cfg.Port,
-		username:  strings.TrimSpace(cfg.Username),
-		password:  strings.TrimSpace(cfg.Password),
-		fromEmail: fromEmail,
-		fromName:  strings.TrimSpace(cfg.FromName),
-	}, nil
+func NewSMTPPaymentSetupRequestEmailSender(mailer *SMTPMailer) *SMTPPaymentSetupRequestEmailSender {
+	return &SMTPPaymentSetupRequestEmailSender{mailer: mailer}
 }
 
 func (s *SMTPPaymentSetupRequestEmailSender) SendCustomerPaymentSetupRequest(input CustomerPaymentSetupRequestEmail) error {
-	if s == nil {
-		return fmt.Errorf("payment setup request email sender is required")
+	if s == nil || s.mailer == nil {
+		return fmt.Errorf("payment setup request email sender is not configured")
 	}
 	toEmail := strings.ToLower(strings.TrimSpace(input.ToEmail))
 	if toEmail == "" {
@@ -80,23 +47,12 @@ func (s *SMTPPaymentSetupRequestEmailSender) SendCustomerPaymentSetupRequest(inp
 	if workspaceName == "" {
 		workspaceName = "Alpha"
 	}
-	subject := fmt.Sprintf("Complete your payment setup for %s", workspaceName)
-	body := buildCustomerPaymentSetupRequestEmailBody(customerName, workspaceName, checkoutURL, input.RequestedByEmail, input.RequestKind)
-
-	var message bytes.Buffer
-	fmt.Fprintf(&message, "From: %s\r\n", formatEmailAddress(s.fromName, s.fromEmail))
-	fmt.Fprintf(&message, "To: %s\r\n", toEmail)
-	fmt.Fprintf(&message, "Subject: %s\r\n", subject)
-	fmt.Fprintf(&message, "MIME-Version: 1.0\r\n")
-	fmt.Fprintf(&message, "Content-Type: text/plain; charset=UTF-8\r\n")
-	fmt.Fprintf(&message, "\r\n%s", body)
-
-	addr := fmt.Sprintf("%s:%d", s.host, s.port)
-	var auth smtp.Auth
-	if s.username != "" {
-		auth = smtp.PlainAuth("", s.username, s.password, s.host)
-	}
-	return smtp.SendMail(addr, auth, s.fromEmail, []string{toEmail}, message.Bytes())
+	_, err := s.mailer.Send(SMTPMessage{
+		To:      toEmail,
+		Subject: fmt.Sprintf("Complete your payment setup for %s", workspaceName),
+		Body:    buildCustomerPaymentSetupRequestEmailBody(customerName, workspaceName, checkoutURL, input.RequestedByEmail, input.RequestKind),
+	})
+	return err
 }
 
 func buildCustomerPaymentSetupRequestEmailBody(customerName, workspaceName, checkoutURL, requestedByEmail, requestKind string) string {

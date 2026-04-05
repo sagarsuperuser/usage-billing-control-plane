@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"fmt"
-	"net/smtp"
 	"strings"
 	"time"
 )
@@ -18,49 +16,18 @@ type PasswordResetEmailSender interface {
 	SendPasswordReset(input PasswordResetEmail) error
 }
 
-type SMTPPasswordResetEmailConfig struct {
-	Host      string
-	Port      int
-	Username  string
-	Password  string
-	FromEmail string
-	FromName  string
-}
-
+// SMTPPasswordResetEmailSender sends password reset emails via a shared SMTPMailer.
 type SMTPPasswordResetEmailSender struct {
-	host      string
-	port      int
-	username  string
-	password  string
-	fromEmail string
-	fromName  string
+	mailer *SMTPMailer
 }
 
-func NewSMTPPasswordResetEmailSender(cfg SMTPPasswordResetEmailConfig) (*SMTPPasswordResetEmailSender, error) {
-	host := strings.TrimSpace(cfg.Host)
-	fromEmail := strings.TrimSpace(cfg.FromEmail)
-	if host == "" {
-		return nil, fmt.Errorf("smtp host is required")
-	}
-	if cfg.Port <= 0 {
-		return nil, fmt.Errorf("smtp port is required")
-	}
-	if fromEmail == "" {
-		return nil, fmt.Errorf("smtp from email is required")
-	}
-	return &SMTPPasswordResetEmailSender{
-		host:      host,
-		port:      cfg.Port,
-		username:  strings.TrimSpace(cfg.Username),
-		password:  strings.TrimSpace(cfg.Password),
-		fromEmail: fromEmail,
-		fromName:  strings.TrimSpace(cfg.FromName),
-	}, nil
+func NewSMTPPasswordResetEmailSender(mailer *SMTPMailer) *SMTPPasswordResetEmailSender {
+	return &SMTPPasswordResetEmailSender{mailer: mailer}
 }
 
 func (s *SMTPPasswordResetEmailSender) SendPasswordReset(input PasswordResetEmail) error {
-	if s == nil {
-		return fmt.Errorf("password reset email sender is required")
+	if s == nil || s.mailer == nil {
+		return fmt.Errorf("password reset email sender is not configured")
 	}
 	toEmail := strings.ToLower(strings.TrimSpace(input.ToEmail))
 	if toEmail == "" {
@@ -70,23 +37,12 @@ func (s *SMTPPasswordResetEmailSender) SendPasswordReset(input PasswordResetEmai
 	if resetURL == "" {
 		return fmt.Errorf("password reset url is required")
 	}
-	subject := "Reset your Alpha password"
-	body := buildPasswordResetEmailBody(resetURL, input.ExpiresAt)
-
-	var message bytes.Buffer
-	fmt.Fprintf(&message, "From: %s\r\n", formatEmailAddress(s.fromName, s.fromEmail))
-	fmt.Fprintf(&message, "To: %s\r\n", toEmail)
-	fmt.Fprintf(&message, "Subject: %s\r\n", subject)
-	fmt.Fprintf(&message, "MIME-Version: 1.0\r\n")
-	fmt.Fprintf(&message, "Content-Type: text/plain; charset=UTF-8\r\n")
-	fmt.Fprintf(&message, "\r\n%s", body)
-
-	addr := fmt.Sprintf("%s:%d", s.host, s.port)
-	var auth smtp.Auth
-	if s.username != "" {
-		auth = smtp.PlainAuth("", s.username, s.password, s.host)
-	}
-	return smtp.SendMail(addr, auth, s.fromEmail, []string{toEmail}, message.Bytes())
+	_, err := s.mailer.Send(SMTPMessage{
+		To:      toEmail,
+		Subject: "Reset your Alpha password",
+		Body:    buildPasswordResetEmailBody(resetURL, input.ExpiresAt),
+	})
+	return err
 }
 
 func buildPasswordResetEmailBody(resetURL string, expiresAt time.Time) string {

@@ -176,7 +176,7 @@ func (s *Server) logBillingNotificationDispatch(
 	dispatched service.NotificationDispatchResult,
 	err error,
 ) {
-	if s == nil || s.logger == nil {
+	if s == nil {
 		return
 	}
 
@@ -212,10 +212,10 @@ func (s *Server) logBillingNotificationDispatch(
 				attrs = append(attrs, "backend", dispatchErr.Backend)
 			}
 		}
-		s.logger.Warn("billing notification dispatch failed", attrs...)
+		s.logError("billing notification dispatch failed", attrs...)
 		return
 	}
 
 	attrs = append(attrs, "event", "billing_notification_dispatched")
-	s.logger.Info("billing notification dispatched", attrs...)
+	s.logInfo("billing notification dispatched", attrs...)
 }

@@ -65,29 +65,26 @@ func writeDomainError(w http.ResponseWriter, err error) {
 // generic message to the client. Use this for infrastructure errors
 // (DB, Stripe, S3) that should never be exposed.
 func (s *Server) writeInternalError(w http.ResponseWriter, r *http.Request, status int, userMessage string, err error) {
-	if s.logger != nil {
-		s.logger.Error("internal error",
-			"component", "api",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", status,
-			"error", err.Error(),
-			"request_id", w.Header().Get(requestIDHeaderKey),
-		)
-	}
+	s.logError("internal error",
+		"component", "api",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"status", status,
+		"error", err.Error(),
+		"request_id", w.Header().Get(requestIDHeaderKey),
+	)
 	writeError(w, status, userMessage)
 }
 
 func writeAuthError(w http.ResponseWriter, err error) {
-	if errors.Is(err, errUnauthorized) {
+	switch {
+	case errors.Is(err, errUnauthorized):
 		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	if errors.Is(err, errTenantBlocked) {
+	case errors.Is(err, errTenantBlocked):
 		writeError(w, http.StatusForbidden, "forbidden")
-		return
+	default:
+		writeError(w, http.StatusInternalServerError, "authorization failed")
 	}
-	writeError(w, http.StatusInternalServerError, "authorization failed")
 }
 
 // ---------------------------------------------------------------------------

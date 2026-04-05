@@ -176,16 +176,15 @@ func (s *Server) handleUIPasswordForgot(w http.ResponseWriter, r *http.Request) 
 	}
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	issued, err := s.passwordResetService.IssuePasswordReset(req.Email)
-	if err == nil {
+	switch {
+	case err == nil:
 		s.sendPasswordResetEmail(issued)
-	} else if s.logger != nil && !errors.Is(err, store.ErrNotFound) {
-		// Log internal errors but never expose them — response stays neutral
-		// to prevent account enumeration.
-		s.logger.Error("password reset issue failed",
-			"component", "auth",
-			"email", req.Email,
-			"error", err.Error(),
-		)
+	case errors.Is(err, store.ErrNotFound):
+		s.logInfo("password reset skipped: account not found",
+			"component", "email", "email_type", "password_reset", "email", req.Email)
+	default:
+		s.logError("password reset issue failed",
+			"component", "email", "email_type", "password_reset", "email", req.Email, "error", err.Error())
 	}
 	// Always return success — never reveal whether the email exists
 	writeJSON(w, http.StatusAccepted, passwordResetRequestedResponse{Requested: true})
@@ -841,6 +840,8 @@ func (s *Server) canSendPasswordResetEmail() bool {
 	return s.passwordResetEmailSender != nil
 }
 
+// sendWorkspaceInvitationEmail dispatches the invitation email asynchronously.
+// The HTTP response does not depend on delivery — failures are logged, not returned.
 func (s *Server) sendWorkspaceInvitationEmail(workspaceID, invitedByEmail string, issued service.IssuedWorkspaceInvitation) {
 	if s == nil || !s.canSendWorkspaceInvitationEmail() {
 		return
@@ -862,24 +863,19 @@ func (s *Server) sendWorkspaceInvitationEmail(workspaceID, invitedByEmail string
 		ExpiresAt:      issued.Invitation.ExpiresAt,
 		InvitedByEmail: invitedByEmail,
 	}
-	var err error
-	if s.notificationService != nil && s.notificationService.CanSendWorkspaceInvitations() {
-		err = s.notificationService.SendWorkspaceInvitation(input)
-	} else {
-		err = s.workspaceInvitationEmailSender.SendWorkspaceInvitation(input)
-	}
-	if err != nil && s.logger != nil {
-		s.logger.Warn(
-			"workspace invitation email delivery failed",
-			"component", "server",
-			"workspace_id", workspaceID,
-			"invitation_id", issued.Invitation.ID,
-			"email", issued.Invitation.Email,
-			"error", err,
-		)
-	}
+	go s.dispatchEmail("workspace_invitation", issued.Invitation.Email, func() error {
+		if s.notificationService != nil && s.notificationService.CanSendWorkspaceInvitations() {
+			return s.notificationService.SendWorkspaceInvitation(input)
+		}
+		return s.workspaceInvitationEmailSender.SendWorkspaceInvitation(input)
+	},
+		"workspace_id", workspaceID,
+		"invitation_id", issued.Invitation.ID,
+	)
 }
 
+// sendPasswordResetEmail dispatches the reset email asynchronously.
+// The HTTP response always returns 202 regardless — delivery is best-effort.
 func (s *Server) sendPasswordResetEmail(issued service.PasswordResetIssueResult) {
 	if s == nil || !s.canSendPasswordResetEmail() {
 		return
@@ -889,20 +885,42 @@ func (s *Server) sendPasswordResetEmail(issued service.PasswordResetIssueResult)
 		ResetURL:  s.uiPasswordResetURL(issued.RawToken),
 		ExpiresAt: issued.Token.ExpiresAt,
 	}
-	var err error
-	if s.notificationService != nil && s.notificationService.CanSendPasswordReset() {
-		err = s.notificationService.SendPasswordReset(input)
+	go s.dispatchEmail("password_reset", issued.UserEmail, func() error {
+		if s.notificationService != nil && s.notificationService.CanSendPasswordReset() {
+			return s.notificationService.SendPasswordReset(input)
+		}
+		return s.passwordResetEmailSender.SendPasswordReset(input)
+	},
+		"reset_token_id", issued.Token.ID,
+	)
+}
+
+// dispatchEmail is the shared async email dispatch with consistent observability.
+// It logs success (INFO with duration), failure (WARN with duration + error), and
+// recovers from panics so a mailer bug never crashes the server.
+func (s *Server) dispatchEmail(emailType, recipientEmail string, sendFn func() error, extraAttrs ...any) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logError("email dispatch panicked", append([]any{
+				"component", "email", "email_type", emailType,
+				"recipient", recipientEmail, "panic", r,
+			}, extraAttrs...)...)
+		}
+	}()
+
+	start := time.Now()
+	err := sendFn()
+	attrs := append([]any{
+		"component", "email",
+		"email_type", emailType,
+		"recipient", recipientEmail,
+		"duration_ms", time.Since(start).Milliseconds(),
+	}, extraAttrs...)
+
+	if err != nil {
+		s.logError("email delivery failed", append(attrs, "error", err)...)
 	} else {
-		err = s.passwordResetEmailSender.SendPasswordReset(input)
-	}
-	if err != nil && s.logger != nil {
-		s.logger.Warn(
-			"password reset email delivery failed",
-			"component", "server",
-			"user_email", issued.UserEmail,
-			"reset_token_id", issued.Token.ID,
-			"error", err,
-		)
+		s.logInfo("email delivered", attrs...)
 	}
 }
 

@@ -94,6 +94,7 @@ func main() {
 		customerBillingAdapter     service.CustomerBillingAdapter
 		billingSecretStore         service.BillingSecretStore
 		billingProviderSvc         *service.BillingProviderConnectionService
+		smtpMailer                 *service.SMTPMailer
 		invitationEmailSender      service.WorkspaceInvitationEmailSender
 		passwordResetEmailSender   service.PasswordResetEmailSender
 		paymentSetupEmailSender    service.CustomerPaymentSetupRequestEmailSender
@@ -212,7 +213,7 @@ func main() {
 
 	if needNotificationRuntime {
 		if strings.TrimSpace(cfg.Email.SMTPHost) != "" {
-			invitationEmailSender, err = service.NewSMTPWorkspaceInvitationEmailSender(service.SMTPWorkspaceInvitationEmailConfig{
+			smtpMailer, err = service.NewSMTPMailer(service.SMTPConfig{
 				Host:      cfg.Email.SMTPHost,
 				Port:      cfg.Email.SMTPPort,
 				Username:  cfg.Email.SMTPUsername,
@@ -222,52 +223,17 @@ func main() {
 			})
 			if err != nil {
 				closeReplayRuntime()
-				fatal(logger, "initialize workspace invitation email sender", "error", err)
+				fatal(logger, "initialize smtp mailer", "error", err)
 			}
-
-			passwordResetEmailSender, err = service.NewSMTPPasswordResetEmailSender(service.SMTPPasswordResetEmailConfig{
-				Host:      cfg.Email.SMTPHost,
-				Port:      cfg.Email.SMTPPort,
-				Username:  cfg.Email.SMTPUsername,
-				Password:  cfg.Email.SMTPPassword,
-				FromEmail: cfg.Email.FromEmail,
-				FromName:  cfg.Email.FromName,
-			})
-			if err != nil {
-				closeReplayRuntime()
-				fatal(logger, "initialize password reset email sender", "error", err)
-			}
-
-			paymentSetupEmailSender, err = service.NewSMTPPaymentSetupRequestEmailSender(service.SMTPPaymentSetupRequestEmailConfig{
-				Host:      cfg.Email.SMTPHost,
-				Port:      cfg.Email.SMTPPort,
-				Username:  cfg.Email.SMTPUsername,
-				Password:  cfg.Email.SMTPPassword,
-				FromEmail: cfg.Email.FromEmail,
-				FromName:  cfg.Email.FromName,
-			})
-			if err != nil {
-				closeReplayRuntime()
-				fatal(logger, "initialize payment setup request email sender", "error", err)
-			}
+			invitationEmailSender = service.NewSMTPWorkspaceInvitationEmailSender(smtpMailer)
+			passwordResetEmailSender = service.NewSMTPPasswordResetEmailSender(smtpMailer)
+			paymentSetupEmailSender = service.NewSMTPPaymentSetupRequestEmailSender(smtpMailer)
 			logger.Info(
-				"alpha notification service enabled",
-				"component", "server",
-				"smtp_host", cfg.Email.SMTPHost,
-				"from_email", cfg.Email.FromEmail,
-			)
-			logger.Info(
-				"password reset email enabled",
+				"email notifications enabled",
 				"component", "server",
 				"smtp_host", cfg.Email.SMTPHost,
 				"from_email", cfg.Email.FromEmail,
 				"reset_ttl", cfg.Email.ResetTokenTTL.String(),
-			)
-			logger.Info(
-				"payment setup request email enabled",
-				"component", "server",
-				"smtp_host", cfg.Email.SMTPHost,
-				"from_email", cfg.Email.FromEmail,
 			)
 		} else {
 			logger.Info("workspace invitation email disabled", "component", "server")
@@ -478,7 +444,7 @@ func main() {
 		stripeClient := service.NewStripeClient()
 		if cfg.Roles.RunBillingCycleWorker {
 			temporalBillingCycleWorker = temporalsdkworker.New(temporalClient, cfg.BillingCycle.TaskQueue, temporalsdkworker.Options{})
-			if err := billingcycle.RegisterBillingCycleWorker(temporalBillingCycleWorker, repo, db, stripeClient, billingSecretStore); err != nil {
+			if err := billingcycle.RegisterBillingCycleWorker(temporalBillingCycleWorker, repo, db, stripeClient, billingSecretStore, logger); err != nil {
 				closeReplayRuntime()
 				fatal(logger, "register billing cycle worker", "error", err)
 			}
