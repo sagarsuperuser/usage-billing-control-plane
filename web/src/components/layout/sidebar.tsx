@@ -61,7 +61,7 @@ export function AppSidebar() {
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-4">
         <Link to="/control-plane" className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600">
             <svg width="14" height="14" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.5"/>
               <rect x="7" y="5" width="3" height="11" rx="1" fill="white" fillOpacity="0.75"/>
