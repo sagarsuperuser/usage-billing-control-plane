@@ -95,10 +95,10 @@ body {
 /* ── Borders ─────────────────────────────────────────────────────── */
 .dark .border-stone-200 { border-color: var(--border) !important; }
 .dark .border-stone-100 { border-color: var(--border-light) !important; }
+.dark .border-y { border-color: var(--border-light) !important; }
+.dark .border-b { border-bottom-color: var(--border) !important; }
+.dark .border-t { border-top-color: var(--border) !important; }
 .dark .divide-stone-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
-.dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-light) !important; }
-
-/* Table row dividers — use subtle border-light for clean separation */
 .dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-light) !important; }
 
 /* ── Text ────────────────────────────────────────────────────────── */
