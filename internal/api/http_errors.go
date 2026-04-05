@@ -52,13 +52,30 @@ func writeDomainError(w http.ResponseWriter, err error) {
 	code := classifyDomainErrorCode(err)
 	message := err.Error()
 
-	// Never leak internal/SQL errors to the client.
+	// Never leak internal/SQL/infrastructure errors to the client.
 	// Only domain errors (4xx) get their original message.
 	if status >= 500 {
 		message = "an internal error occurred"
 	}
 
 	writeErrorCode(w, status, message, code)
+}
+
+// writeInternalError logs the full error server-side but returns a safe
+// generic message to the client. Use this for infrastructure errors
+// (DB, Stripe, S3) that should never be exposed.
+func (s *Server) writeInternalError(w http.ResponseWriter, r *http.Request, status int, userMessage string, err error) {
+	if s.logger != nil {
+		s.logger.Error("internal error",
+			"component", "api",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", status,
+			"error", err.Error(),
+			"request_id", w.Header().Get(requestIDHeaderKey),
+		)
+	}
+	writeError(w, status, userMessage)
 }
 
 func writeAuthError(w http.ResponseWriter, err error) {

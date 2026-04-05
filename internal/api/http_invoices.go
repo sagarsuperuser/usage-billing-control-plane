@@ -197,7 +197,7 @@ func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Req
 		"invoice_id": []string{invoiceID},
 	})
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "failed to load payment receipts from billing provider: "+err.Error())
+		s.writeInternalError(w, r, http.StatusBadGateway, "failed to load payment receipts", err)
 		return
 	}
 	if statusCode < 200 || statusCode >= 300 {
@@ -242,7 +242,7 @@ func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request
 		"external_customer_id": []string{customerExternalID},
 	})
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "failed to load credit notes from billing provider: "+err.Error())
+		s.writeInternalError(w, r, http.StatusBadGateway, "failed to load credit notes", err)
 		return
 	}
 	if statusCode < 200 || statusCode >= 300 {

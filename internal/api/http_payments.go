@@ -195,7 +195,7 @@ func (s *Server) retryPayment(w http.ResponseWriter, r *http.Request) {
 	ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 	statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
+		s.writeInternalError(w, r, http.StatusBadGateway, "payment retry failed", err)
 		return
 	}
 	if statusCode >= 200 && statusCode < 300 {

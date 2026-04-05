@@ -816,7 +816,7 @@ func (s *Server) retryInvoicePayment(w http.ResponseWriter, r *http.Request) {
 	ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 	statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, id, rawBody)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
+		s.writeInternalError(w, r, http.StatusBadGateway, "payment retry failed", err)
 		return
 	}
 	if statusCode >= 200 && statusCode < 300 {
@@ -874,7 +874,7 @@ func (s *Server) getInvoiceExplainability(w http.ResponseWriter, r *http.Request
 	ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
 	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, id)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "failed to fetch invoice: "+err.Error())
+		s.writeInternalError(w, r, http.StatusBadGateway, "failed to fetch invoice", err)
 		return
 	}
 	if statusCode < 200 || statusCode >= 300 {
@@ -884,7 +884,7 @@ func (s *Server) getInvoiceExplainability(w http.ResponseWriter, r *http.Request
 
 	explainability, err := service.BuildInvoiceExplainability(body, options)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "failed to compute invoice explainability: "+err.Error())
+		s.writeInternalError(w, r, http.StatusBadGateway, "failed to compute invoice explainability", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, explainability)
