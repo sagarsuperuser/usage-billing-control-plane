@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningPolicy, fetchDunningRuns, updateDunningPolicy } from "@/lib/api";
 import { formatExactTimestamp } from "@/lib/format";
+import { showError } from "@/lib/toast";
 import type { DunningPolicy } from "@/lib/types";
 
 type DunningPolicyDraftState = {
@@ -113,6 +114,7 @@ export function DunningConsoleScreen() {
       await queryClient.invalidateQueries({ queryKey: ["dunning-policy", apiBaseURL] });
       setPolicyOpen(false);
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   const runs = runsQuery.data?.items ?? [];

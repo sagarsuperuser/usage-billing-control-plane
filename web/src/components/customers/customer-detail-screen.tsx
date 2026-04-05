@@ -117,6 +117,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
     onSuccess: async () => {
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch()]);
     },
+    onError: (err: Error) => showError(err.message),
   });
   const requestSetupMutation = useMutation({
     mutationFn: () => requestCustomerPaymentSetup({ runtimeBaseURL: apiBaseURL, csrfToken, externalID }),
@@ -150,6 +151,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
       setProfileFlash("Billing profile saved.");
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch(), billingProfileQuery.refetch()]);
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   const customer = customersQuery.data?.[0] ?? null;

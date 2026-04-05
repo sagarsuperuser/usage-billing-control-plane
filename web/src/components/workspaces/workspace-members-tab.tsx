@@ -24,6 +24,7 @@ import {
   updateTenantWorkspaceMember,
 } from "@/lib/api";
 import { formatRelativeTimestamp } from "@/lib/format";
+import { showError } from "@/lib/toast";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -80,10 +81,12 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
       resetInvite();
       await queryClient.invalidateQueries({ queryKey: invitationQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
   const revokeInvitationMutation = useMutation({
     mutationFn: (invitationID: string) => revokeTenantWorkspaceInvitation({ runtimeBaseURL: apiBaseURL, csrfToken, invitationID }),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: invitationQueryKey }); },
+    onError: (err: Error) => showError(err.message),
   });
   const updateMemberMutation = useMutation({
     mutationFn: (input: { userID: string; role: "reader" | "writer" | "admin" }) =>
@@ -94,6 +97,7 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
       setSelectedMemberID("");
       await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
   const removeMemberMutation = useMutation({
     mutationFn: (userID: string) => removeTenantWorkspaceMember({ runtimeBaseURL: apiBaseURL, csrfToken, userID }),
@@ -102,6 +106,7 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
       setSelectedMemberID("");
       await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   /* --- Derived ---------------------------------------------------- */

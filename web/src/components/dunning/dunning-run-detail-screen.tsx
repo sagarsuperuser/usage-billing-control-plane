@@ -10,6 +10,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
 import { diagnoseDunningRun, dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
 import { formatExactTimestamp } from "@/lib/format";
+import { showError } from "@/lib/toast";
 
 function formatState(value?: string): string {
   if (!value) return "-";
@@ -30,26 +31,31 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
   const reminderMutation = useMutation({
     mutationFn: () => sendCollectPaymentReminder({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => { await detailQuery.refetch(); },
+    onError: (err: Error) => showError(err.message),
   });
 
   const retryMutation = useMutation({
     mutationFn: () => retryDunningRunNow({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => { await detailQuery.refetch(); },
+    onError: (err: Error) => showError(err.message),
   });
 
   const pauseMutation = useMutation({
     mutationFn: () => pauseDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => { await detailQuery.refetch(); },
+    onError: (err: Error) => showError(err.message),
   });
 
   const resumeMutation = useMutation({
     mutationFn: () => resumeDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => { await detailQuery.refetch(); },
+    onError: (err: Error) => showError(err.message),
   });
 
   const resolveMutation = useMutation({
     mutationFn: () => resolveDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => { await detailQuery.refetch(); },
+    onError: (err: Error) => showError(err.message),
   });
 
   const detail = detailQuery.data;

@@ -24,6 +24,7 @@ import {
 } from "@/lib/api";
 import { billingActionConfig, billingFailureDiagnosis, billingFailureEvidence, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
@@ -64,15 +65,18 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
     onSuccess: async () => {
       await Promise.all([invoiceQuery.refetch(), invoiceEventsQuery.refetch()]);
     },
+    onError: (err: Error) => showError(err.message),
   });
   const resendEmailMutation = useMutation({
     mutationFn: () => resendInvoiceEmail({ runtimeBaseURL: apiBaseURL, csrfToken, invoiceID }),
+    onError: (err: Error) => showError(err.message),
   });
   const reminderMutation = useMutation({
     mutationFn: (runID: string) => sendCollectPaymentReminder({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => {
       await invoiceQuery.refetch();
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   const invoice = invoiceQuery.data;
@@ -415,6 +419,7 @@ function BillingDocumentRow({
 }) {
   const resendMutation = useMutation({
     mutationFn: onResend,
+    onError: (err: Error) => showError(err.message),
   });
 
   return (

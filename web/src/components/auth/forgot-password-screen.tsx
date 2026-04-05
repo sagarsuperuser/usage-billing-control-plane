@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { fetchUIAuthProviders, requestPasswordReset } from "@/lib/api";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function ForgotPasswordScreen() {
@@ -17,6 +18,7 @@ export function ForgotPasswordScreen() {
   });
   const resetMutation = useMutation({
     mutationFn: () => requestPasswordReset({ runtimeBaseURL: apiBaseURL, email }),
+    onError: (err: Error) => showError(err.message),
   });
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {

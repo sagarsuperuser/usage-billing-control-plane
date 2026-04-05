@@ -29,7 +29,7 @@ import {
   updateTenantWorkspaceServiceAccountStatus,
 } from "@/lib/api";
 import { formatRelativeTimestamp } from "@/lib/format";
-import { showSuccess } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -101,6 +101,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       showSuccess("Service account created", "An initial API key has been issued.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
   const issueCredentialMutation = useMutation({
     mutationFn: (serviceAccountID: string) =>
@@ -114,6 +115,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       showSuccess("Key issued", "Copy it now — it won't be shown again.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
   const rotateCredentialMutation = useMutation({
     mutationFn: (input: { serviceAccountID: string; credentialID: string }) =>
@@ -128,6 +130,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       showSuccess("Key rotated", "The old key has been revoked. Copy the new one now.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
   const revokeCredentialMutation = useMutation({
     mutationFn: (input: { serviceAccountID: string; credentialID: string }) =>
@@ -141,6 +144,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       showSuccess("Key revoked", "This key will no longer authenticate.");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
   const updateServiceAccountStatusMutation = useMutation({
     mutationFn: (input: { serviceAccountID: string; status: "active" | "disabled" }) =>
@@ -154,6 +158,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
       showSuccess(input.status === "active" ? "Service account enabled" : "Service account disabled");
       await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   /* --- Derived ---------------------------------------------------- */

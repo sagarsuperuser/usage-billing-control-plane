@@ -4,6 +4,7 @@ import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 import { useMutation } from "@tanstack/react-query";
 
 import { resetPassword } from "@/lib/api";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function ResetPasswordScreen() {
@@ -18,6 +19,7 @@ export function ResetPasswordScreen() {
     onSuccess: () => {
       navigate({ to: "/login?reset=success", replace: true });
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;

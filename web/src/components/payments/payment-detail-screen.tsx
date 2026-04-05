@@ -14,6 +14,7 @@ import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { fetchDunningRunDetail, fetchPaymentDetail, fetchPaymentEvents, retryPayment, sendCollectPaymentReminder } from "@/lib/api";
 import { billingActionConfig, billingFailureDiagnosis, billingFailureEvidence, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
@@ -46,12 +47,14 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
     onSuccess: async () => {
       await Promise.all([paymentQuery.refetch(), eventsQuery.refetch()]);
     },
+    onError: (err: Error) => showError(err.message),
   });
   const reminderMutation = useMutation({
     mutationFn: (runID: string) => sendCollectPaymentReminder({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => {
       await Promise.all([paymentQuery.refetch(), eventsQuery.refetch()]);
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   const payment = paymentQuery.data;

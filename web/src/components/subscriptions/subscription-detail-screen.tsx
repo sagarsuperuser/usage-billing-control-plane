@@ -89,6 +89,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
       setSelectedPlanID(updated.plan_id);
       await detailQuery.refetch();
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   const subscription = detailQuery.data ?? null;

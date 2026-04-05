@@ -13,6 +13,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchSessionWorkspaces, switchWorkspace } from "@/lib/api";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function SessionMenu() {
@@ -61,6 +62,7 @@ export function SessionMenu() {
       setShowWorkspaces(false);
       window.location.assign("/control-plane");
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   if (!session?.authenticated) return null;

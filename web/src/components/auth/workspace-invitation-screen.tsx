@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { acceptWorkspaceInvitation, fetchUIAuthProviders, fetchWorkspaceInvitationPreview, registerWorkspaceInvitation } from "@/lib/api";
 import { buildAccessSwitchPath, buildLoginPath, getDefaultLandingPath, normalizeNextPath } from "@/lib/session-routing";
+import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 import { useSessionStore } from "@/store/use-session-store";
 
@@ -43,6 +44,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
       queryClient.setQueryData(["ui-session", apiBaseURL], payload.session);
       navigate({ to: normalizeNextPath("/customers", getDefaultLandingPath(payload.session)), replace: true });
     },
+    onError: (err: Error) => showError(err.message),
   });
   const registerMutation = useMutation({
     mutationFn: () =>
@@ -58,6 +60,7 @@ export function WorkspaceInvitationScreen({ token }: { token: string }) {
       setPassword("");
       navigate({ to: normalizeNextPath("/customers", getDefaultLandingPath(payload.session)), replace: true });
     },
+    onError: (err: Error) => showError(err.message),
   });
 
   const onRegister = (event: FormEvent<HTMLFormElement>) => {
