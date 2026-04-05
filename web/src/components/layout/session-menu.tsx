@@ -146,7 +146,7 @@ export function SessionMenu() {
                           disabled={isCurrent || switchMutation.isPending}
                           onClick={() => switchMutation.mutate(ws.tenant_id)}
                           className={`flex h-8 w-full items-center gap-2.5 px-3.5 text-left text-xs transition ${
-                            isCurrent ? "font-medium text-slate-900" : "text-slate-600 hover:bg-stone-100 disabled:opacity-50"
+                            isCurrent ? "font-medium text-slate-800" : "text-slate-700 hover:bg-stone-100"
                           }`}
                         >
                           <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-stone-100 text-[9px] font-bold text-slate-700 ring-1 ring-stone-200">
@@ -160,7 +160,7 @@ export function SessionMenu() {
                     <Link
                       to="/workspace-setup"
                       onClick={closeMenu}
-                      className="flex h-8 w-full items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-100"
+                      className="flex h-8 w-full items-center gap-2.5 px-3.5 text-xs text-slate-700 transition hover:bg-stone-100"
                     >
                       <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-dashed border-stone-200">
                         <Plus className="h-2.5 w-2.5 text-slate-500" />
