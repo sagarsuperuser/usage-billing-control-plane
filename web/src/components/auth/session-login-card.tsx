@@ -139,9 +139,13 @@ export function SessionLoginCard({
           Sign in
         </button>
 
-        {configError ? <p className="text-xs text-rose-600">{configError.message}</p> : null}
+        {configError ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{configError.message}</div>
+        ) : null}
         {!configError && (errors.root?.message || loginError?.message) ? (
-          <p className="text-xs text-rose-600">{errors.root?.message || loginError?.message}</p>
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {errors.root?.message || loginError?.message}
+          </div>
         ) : null}
       </form>
 

@@ -214,8 +214,10 @@ func (s *Server) handleUIPasswordReset(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusGone, "password reset token expired")
 		case errors.Is(err, service.ErrPasswordResetTokenUsed):
 			writeError(w, http.StatusGone, "password reset token already used")
+		case errors.Is(err, service.ErrValidation):
+			writeError(w, http.StatusBadRequest, err.Error())
 		default:
-			writeDomainError(w, err)
+			s.writeInternalError(w, r, http.StatusInternalServerError, "password reset failed — please try again", err)
 		}
 		return
 	}
