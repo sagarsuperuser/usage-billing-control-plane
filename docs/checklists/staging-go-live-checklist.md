@@ -76,7 +76,7 @@ make test-browser-staging-smoke
 
 Promote to prod when:
 
-- [ ] CI green (CI Fast + CI Deep)
+- [ ] CI green (all pipeline stages pass)
 - [ ] Manual walkthrough passes
 - [ ] Automated gates exit 0
 

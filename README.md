@@ -78,10 +78,10 @@ make test-real-env-smoke
 
 ## Deployment
 
-Push to `main` triggers three GitHub Actions workflows:
-1. **CI Fast** — Go build + lint + unit tests + Playwright E2E
-2. **CI Deep** — integration tests against real Postgres + Temporal
-3. **Deploy Staging** — Docker build → ECR → Helm upgrade to EKS
+Push to `main` triggers a unified pipeline (`.github/workflows/pipeline.yml`):
+1. **Stage 1** — Go tests, web lint/build/typecheck, migration verify, Helm lint (parallel, ~2 min)
+2. **Stage 2** — Playwright E2E, integration tests, Docker build → ECR (parallel, after Stage 1, ~5 min)
+3. **Stage 3** — Helm upgrade to EKS (after all tests + builds pass, ~3 min)
 
 ## Documentation
 

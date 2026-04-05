@@ -60,7 +60,7 @@ Never wipe staging blindly. Cleanup must:
 
 ## Release confidence set
 
-Minimum:
-1. CI Fast (Go build + unit tests + E2E browser tests)
-2. CI Deep (integration tests against real Postgres + Temporal)
-3. Deploy Staging (Helm upgrade succeeds, health check passes)
+Minimum (unified pipeline — `.github/workflows/pipeline.yml`):
+1. Stage 1: Go tests + web lint/build/typecheck + migration verify + Helm lint
+2. Stage 2: Playwright E2E + integration smoke/full + Docker builds
+3. Stage 3: Helm upgrade to staging (only after all tests + builds pass)
