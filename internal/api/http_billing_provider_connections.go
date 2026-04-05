@@ -127,7 +127,7 @@ func (s *Server) newBillingProviderConnectionResponse(item domain.BillingProvide
 	return out
 }
 
-func (s *Server) handleInternalBillingProviderConnections(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listBillingProviderConnections(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
@@ -136,64 +136,46 @@ func (s *Server) handleInternalBillingProviderConnections(w http.ResponseWriter,
 		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
 		return
 	}
-
-	switch r.Method {
-	case http.MethodPost:
-		var req service.CreateBillingProviderConnectionRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		created, err := s.billingProviderConnectionService.CreateBillingProviderConnection(r.Context(), req, "platform_api_key", requestActorAPIKeyID(r))
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, map[string]any{"connection": s.newBillingProviderConnectionResponse(created, 0)})
-	case http.MethodGet:
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		items, err := s.billingProviderConnectionService.ListBillingProviderConnections(service.ListBillingProviderConnectionsRequest{
-			ProviderType:  r.URL.Query().Get("provider_type"),
-			Environment:   r.URL.Query().Get("environment"),
-			Status:        r.URL.Query().Get("status"),
-			Scope:         r.URL.Query().Get("scope"),
-			OwnerTenantID: r.URL.Query().Get("owner_tenant_id"),
-			Limit:         limit,
-			Offset:        offset,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		ids := make([]string, 0, len(items))
-		for _, item := range items {
-			ids = append(ids, item.ID)
-		}
-		counts, err := s.repo.CountTenantsByBillingProviderConnections(ids)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		resp := make([]billingProviderConnectionResponse, 0, len(items))
-		for _, item := range items {
-			resp = append(resp, s.newBillingProviderConnectionResponse(item, counts[item.ID]))
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": resp})
-	default:
-		writeMethodNotAllowed(w)
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items, err := s.billingProviderConnectionService.ListBillingProviderConnections(service.ListBillingProviderConnectionsRequest{
+		ProviderType:  r.URL.Query().Get("provider_type"),
+		Environment:   r.URL.Query().Get("environment"),
+		Status:        r.URL.Query().Get("status"),
+		Scope:         r.URL.Query().Get("scope"),
+		OwnerTenantID: r.URL.Query().Get("owner_tenant_id"),
+		Limit:         limit,
+		Offset:        offset,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	counts, err := s.repo.CountTenantsByBillingProviderConnections(ids)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	resp := make([]billingProviderConnectionResponse, 0, len(items))
+	for _, item := range items {
+		resp = append(resp, s.newBillingProviderConnectionResponse(item, counts[item.ID]))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": resp})
 }
 
-func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createBillingProviderConnection(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
@@ -202,123 +184,164 @@ func (s *Server) handleInternalBillingProviderConnectionByID(w http.ResponseWrit
 		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
 		return
 	}
+	var req service.CreateBillingProviderConnectionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	created, err := s.billingProviderConnectionService.CreateBillingProviderConnection(r.Context(), req, "platform_api_key", requestActorAPIKeyID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"connection": s.newBillingProviderConnectionResponse(created, 0)})
+}
 
-	id, action := parseInternalBillingProviderConnectionPath(r.URL.Path)
+func (s *Server) billingProviderConnectionLoadCounts(w http.ResponseWriter, id string) (map[string]int, bool) {
+	counts, err := s.repo.CountTenantsByBillingProviderConnections([]string{id})
+	if err != nil {
+		writeDomainError(w, err)
+		return nil, false
+	}
+	return counts, true
+}
+
+func (s *Server) getBillingProviderConnection(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.billingProviderConnectionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
+		return
+	}
+	id := urlParam(r, "id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "connection id is required")
 		return
 	}
-	switch action {
-	case "", "sync", "disable", "rotate-secret":
-	default:
-		writeError(w, http.StatusBadRequest, "unsupported billing provider connection subresource")
+	item, err := s.billingProviderConnectionService.GetBillingProviderConnection(id)
+	if err != nil {
+		writeDomainError(w, err)
 		return
 	}
-
-	loadCounts := func() (map[string]int, bool) {
-		counts, err := s.repo.CountTenantsByBillingProviderConnections([]string{id})
-		if err != nil {
-			writeDomainError(w, err)
-			return nil, false
-		}
-		return counts, true
+	counts, ok := s.billingProviderConnectionLoadCounts(w, id)
+	if !ok {
+		return
 	}
-
-	switch {
-	case action == "sync":
-		if r.Method != http.MethodPost {
-			writeMethodNotAllowed(w)
-			return
-		}
-		item, err := s.billingProviderConnectionService.SyncBillingProviderConnection(r.Context(), id)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		counts, ok := loadCounts()
-		if !ok {
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
-	case action == "disable":
-		if r.Method != http.MethodPost {
-			writeMethodNotAllowed(w)
-			return
-		}
-		item, err := s.billingProviderConnectionService.DisableBillingProviderConnection(id)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		counts, ok := loadCounts()
-		if !ok {
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
-	case action == "rotate-secret":
-		if r.Method != http.MethodPost {
-			writeMethodNotAllowed(w)
-			return
-		}
-		var req rotateBillingProviderConnectionSecretRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		item, err := s.billingProviderConnectionService.RotateBillingProviderConnectionSecret(r.Context(), id, req.StripeSecretKey)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		counts, ok := loadCounts()
-		if !ok {
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
-	default:
-		switch r.Method {
-		case http.MethodGet:
-			item, err := s.billingProviderConnectionService.GetBillingProviderConnection(id)
-			if err != nil {
-				writeDomainError(w, err)
-				return
-			}
-			counts, ok := loadCounts()
-			if !ok {
-				return
-			}
-			writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
-		case http.MethodPatch:
-			var req service.UpdateBillingProviderConnectionRequest
-			if err := decodeJSON(r, &req); err != nil {
-				writeError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-			item, err := s.billingProviderConnectionService.UpdateBillingProviderConnection(id, req)
-			if err != nil {
-				writeDomainError(w, err)
-				return
-			}
-			counts, ok := loadCounts()
-			if !ok {
-				return
-			}
-			writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
-		default:
-			writeMethodNotAllowed(w)
-		}
-	}
+	writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
 }
 
-func parseInternalBillingProviderConnectionPath(path string) (connectionID string, action string) {
-	tail := strings.Trim(strings.TrimPrefix(path, "/internal/billing-provider-connections/"), "/")
-	if tail == "" {
-		return "", ""
+func (s *Server) updateBillingProviderConnection(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
 	}
-	parts := strings.Split(tail, "/")
-	connectionID = strings.TrimSpace(parts[0])
-	if len(parts) > 1 {
-		action = strings.TrimSpace(parts[1])
+	if s.billingProviderConnectionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
+		return
 	}
-	return connectionID, action
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "connection id is required")
+		return
+	}
+	var req service.UpdateBillingProviderConnectionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := s.billingProviderConnectionService.UpdateBillingProviderConnection(id, req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	counts, ok := s.billingProviderConnectionLoadCounts(w, id)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
+}
+
+func (s *Server) syncBillingProviderConnection(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.billingProviderConnectionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "connection id is required")
+		return
+	}
+	item, err := s.billingProviderConnectionService.SyncBillingProviderConnection(r.Context(), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	counts, ok := s.billingProviderConnectionLoadCounts(w, id)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
+}
+
+func (s *Server) disableBillingProviderConnection(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.billingProviderConnectionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "connection id is required")
+		return
+	}
+	item, err := s.billingProviderConnectionService.DisableBillingProviderConnection(id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	counts, ok := s.billingProviderConnectionLoadCounts(w, id)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
+}
+
+func (s *Server) rotateBillingProviderConnectionSecret(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.billingProviderConnectionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "connection id is required")
+		return
+	}
+	var req rotateBillingProviderConnectionSecretRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := s.billingProviderConnectionService.RotateBillingProviderConnectionSecret(r.Context(), id, req.StripeSecretKey)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	counts, ok := s.billingProviderConnectionLoadCounts(w, id)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connection": s.newBillingProviderConnectionResponse(item, counts[id])})
 }

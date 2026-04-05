@@ -172,25 +172,6 @@ func (s *Server) buildWorkspaceBillingSettingsResponse(workspaceID string) works
 	return resp
 }
 
-func parseInternalTenantPath(path string) (tenantID string, action string, actionID string, subaction string) {
-	tail := strings.Trim(strings.TrimPrefix(path, "/internal/tenants/"), "/")
-	if tail == "" {
-		return "", "", "", ""
-	}
-	parts := strings.Split(tail, "/")
-	tenantID = strings.TrimSpace(parts[0])
-	if len(parts) > 1 {
-		action = strings.TrimSpace(parts[1])
-	}
-	if len(parts) > 2 {
-		actionID = strings.TrimSpace(parts[2])
-	}
-	if len(parts) > 3 {
-		subaction = strings.TrimSpace(parts[3])
-	}
-	return tenantID, action, actionID, subaction
-}
-
 func newTenantAuditEventResponse(event domain.TenantAuditEvent) tenantAuditEventResponse {
 	presentation := presentTenantAuditEvent(event)
 	return tenantAuditEventResponse{
@@ -207,154 +188,148 @@ func newTenantAuditEventResponse(event domain.TenantAuditEvent) tenantAuditEvent
 	}
 }
 
-func (s *Server) handleInternalTenants(w http.ResponseWriter, r *http.Request) {
+// ── Internal Tenants ────────────────────────────────────────────────
+
+func (s *Server) listInternalTenants(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-
-	switch r.Method {
-	case http.MethodPost:
-		var req service.EnsureTenantRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		tenant, err := s.tenantService.CreateTenant(req, requestActorAPIKeyID(r))
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, map[string]any{
-			"tenant":  s.newTenantResponse(tenant),
-			"created": true,
-		})
-	case http.MethodGet:
-		tenants, err := s.tenantService.ListTenants(service.ListTenantsRequest{
-			Status: r.URL.Query().Get("status"),
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, s.newTenantResponses(tenants))
-	default:
-		writeMethodNotAllowed(w)
+	tenants, err := s.tenantService.ListTenants(service.ListTenantsRequest{
+		Status: r.URL.Query().Get("status"),
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
 	}
+	writeJSON(w, http.StatusOK, s.newTenantResponses(tenants))
 }
 
-func (s *Server) handleInternalTenantByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createInternalTenant(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	id, action, actionID, subaction := parseInternalTenantPath(r.URL.Path)
+	var req service.EnsureTenantRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	tenant, err := s.tenantService.CreateTenant(req, requestActorAPIKeyID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"tenant":  s.newTenantResponse(tenant),
+		"created": true,
+	})
+}
+
+func (s *Server) getInternalTenant(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	id := urlParam(r, "id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "tenant id is required")
 		return
 	}
-	if action != "" && action != "bootstrap-admin-key" && action != "workspace-billing" && action != "workspace-billing-settings" && action != "members" && action != "invitations" {
-		writeError(w, http.StatusBadRequest, "unsupported tenant subresource")
+	tenant, err := s.tenantService.GetTenant(id)
+	if err != nil {
+		writeDomainError(w, err)
 		return
 	}
-	if action == "bootstrap-admin-key" {
-		s.handleInternalTenantBootstrapAdminKey(w, r, id)
-		return
-	}
-	if action == "workspace-billing" {
-		s.handleInternalTenantWorkspaceBilling(w, r, id)
-		return
-	}
-	if action == "workspace-billing-settings" {
-		s.handleInternalTenantWorkspaceBillingSettings(w, r, id)
-		return
-	}
-	if action == "members" {
-		s.handleInternalTenantMembers(w, r, id, actionID)
-		return
-	}
-	if action == "invitations" {
-		s.handleInternalTenantInvitations(w, r, id, actionID, subaction)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		tenant, err := s.tenantService.GetTenant(id)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, s.newTenantResponse(tenant))
-	case http.MethodPatch:
-		var req struct {
-			Name                        *string              `json:"name,omitempty"`
-			Status                      *domain.TenantStatus `json:"status,omitempty"`
-			BillingProviderConnectionID *string              `json:"billing_provider_connection_id,omitempty"`
-		}
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		tenant, err := s.tenantService.UpdateTenant(id, service.UpdateTenantRequest{
-			Name:                        req.Name,
-			Status:                      req.Status,
-			BillingProviderConnectionID: req.BillingProviderConnectionID,
-		}, requestActorAPIKeyID(r))
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, s.newTenantResponse(tenant))
-	default:
-		writeMethodNotAllowed(w)
-	}
+	writeJSON(w, http.StatusOK, s.newTenantResponse(tenant))
 }
 
-func (s *Server) handleInternalTenantWorkspaceBilling(w http.ResponseWriter, r *http.Request, tenantID string) {
+func (s *Server) updateInternalTenant(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	switch r.Method {
-	case http.MethodGet:
-		tenant, err := s.tenantService.GetTenant(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"workspace_billing": s.buildWorkspaceBillingResponse(tenant),
-		})
-	case http.MethodPatch:
-		var req struct {
-			BillingProviderConnectionID string `json:"billing_provider_connection_id"`
-		}
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		connectionID := strings.TrimSpace(req.BillingProviderConnectionID)
-		if connectionID == "" {
-			writeError(w, http.StatusBadRequest, "billing_provider_connection_id is required")
-			return
-		}
-		tenant, err := s.tenantService.UpdateTenant(tenantID, service.UpdateTenantRequest{
-			BillingProviderConnectionID: &connectionID,
-		}, requestActorAPIKeyID(r))
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"tenant": s.newTenantResponse(tenant),
-		})
-	default:
-		writeMethodNotAllowed(w)
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
 	}
+	var req struct {
+		Name                        *string              `json:"name,omitempty"`
+		Status                      *domain.TenantStatus `json:"status,omitempty"`
+		BillingProviderConnectionID *string              `json:"billing_provider_connection_id,omitempty"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	tenant, err := s.tenantService.UpdateTenant(id, service.UpdateTenantRequest{
+		Name:                        req.Name,
+		Status:                      req.Status,
+		BillingProviderConnectionID: req.BillingProviderConnectionID,
+	}, requestActorAPIKeyID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.newTenantResponse(tenant))
 }
 
-func (s *Server) handleInternalTenantWorkspaceBillingSettings(w http.ResponseWriter, r *http.Request, tenantID string) {
+func (s *Server) getInternalTenantWorkspaceBilling(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	tenant, err := s.tenantService.GetTenant(tenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"workspace_billing": s.buildWorkspaceBillingResponse(tenant),
+	})
+}
+
+func (s *Server) updateInternalTenantWorkspaceBilling(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	var req struct {
+		BillingProviderConnectionID string `json:"billing_provider_connection_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	connectionID := strings.TrimSpace(req.BillingProviderConnectionID)
+	if connectionID == "" {
+		writeError(w, http.StatusBadRequest, "billing_provider_connection_id is required")
+		return
+	}
+	tenant, err := s.tenantService.UpdateTenant(tenantID, service.UpdateTenantRequest{
+		BillingProviderConnectionID: &connectionID,
+	}, requestActorAPIKeyID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tenant": s.newTenantResponse(tenant),
+	})
+}
+
+func (s *Server) getInternalTenantWorkspaceBillingSettings(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
@@ -363,36 +338,53 @@ func (s *Server) handleInternalTenantWorkspaceBillingSettings(w http.ResponseWri
 		writeError(w, http.StatusServiceUnavailable, "workspace billing settings are not configured")
 		return
 	}
-	switch r.Method {
-	case http.MethodGet:
-		settings, err := s.workspaceBillingSettingsService.GetWorkspaceBillingSettings(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"workspace_billing_settings": s.buildWorkspaceBillingSettingsResponse(settings.WorkspaceID),
-		})
-	case http.MethodPatch:
-		var req service.UpdateWorkspaceBillingSettingsRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		settings, err := s.workspaceBillingSettingsService.UpsertWorkspaceBillingSettings(tenantID, req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"workspace_billing_settings": s.buildWorkspaceBillingSettingsResponse(settings.WorkspaceID),
-		})
-	default:
-		writeMethodNotAllowed(w)
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
 	}
+	settings, err := s.workspaceBillingSettingsService.GetWorkspaceBillingSettings(tenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"workspace_billing_settings": s.buildWorkspaceBillingSettingsResponse(settings.WorkspaceID),
+	})
 }
 
-func (s *Server) handleInternalTenantMembers(w http.ResponseWriter, r *http.Request, tenantID, userID string) {
+func (s *Server) updateInternalTenantWorkspaceBillingSettings(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceBillingSettingsService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace billing settings are not configured")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	var req service.UpdateWorkspaceBillingSettingsRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	settings, err := s.workspaceBillingSettingsService.UpsertWorkspaceBillingSettings(tenantID, req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"workspace_billing_settings": s.buildWorkspaceBillingSettingsResponse(settings.WorkspaceID),
+	})
+}
+
+// ── Internal Tenant Members ─────────────────────────────────────────
+
+func (s *Server) listInternalTenantMembers(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
@@ -401,55 +393,20 @@ func (s *Server) handleInternalTenantMembers(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
 		return
 	}
-	switch r.Method {
-	case http.MethodGet:
-		if userID != "" {
-			writeMethodNotAllowed(w)
-			return
-		}
-		items, err := s.workspaceAccessService.ListWorkspaceMembers(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": items})
-	case http.MethodPatch:
-		if strings.TrimSpace(userID) == "" {
-			writeError(w, http.StatusBadRequest, "user id is required")
-			return
-		}
-		var req struct {
-			Role   string `json:"role"`
-			Reason string `json:"reason,omitempty"`
-		}
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		principal, _ := principalFromContext(r.Context())
-		member, err := s.workspaceAccessService.UpdateWorkspaceMemberRoleWithAudit(tenantID, userID, req.Role, workspaceAccessAuditActorFromPrincipal(principal, req.Reason))
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"member": member})
-	case http.MethodDelete:
-		if strings.TrimSpace(userID) == "" {
-			writeError(w, http.StatusBadRequest, "user id is required")
-			return
-		}
-		principal, _ := principalFromContext(r.Context())
-		if err := s.workspaceAccessService.RemoveWorkspaceMemberWithAudit(tenantID, userID, workspaceAccessAuditActorFromPrincipal(principal, strings.TrimSpace(r.URL.Query().Get("reason")))); err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	default:
-		writeMethodNotAllowed(w)
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
 	}
+	items, err := s.workspaceAccessService.ListWorkspaceMembers(tenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-func (s *Server) handleInternalTenantInvitations(w http.ResponseWriter, r *http.Request, tenantID, invitationID, subaction string) {
+func (s *Server) updateInternalTenantMember(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
@@ -458,77 +415,169 @@ func (s *Server) handleInternalTenantInvitations(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
 		return
 	}
-	switch r.Method {
-	case http.MethodGet:
-		if invitationID != "" || subaction != "" {
-			writeMethodNotAllowed(w)
-			return
-		}
-		items, err := s.workspaceAccessService.ListWorkspaceInvitations(tenantID, strings.TrimSpace(r.URL.Query().Get("status")))
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": newWorkspaceInvitationResponses(items)})
-	case http.MethodPost:
-		if invitationID != "" || subaction != "" {
-			if invitationID != "" && subaction == "revoke" {
-				var req struct {
-					Reason string `json:"reason,omitempty"`
-				}
-				if r.ContentLength != 0 {
-					if err := decodeJSON(r, &req); err != nil {
-						writeError(w, http.StatusBadRequest, err.Error())
-						return
-					}
-				}
-				principal, _ := principalFromContext(r.Context())
-				invite, err := s.workspaceAccessService.RevokeWorkspaceInvitationWithAudit(tenantID, invitationID, workspaceAccessAuditActorFromPrincipal(principal, req.Reason))
-				if err != nil {
-					writeDomainError(w, err)
-					return
-				}
-				writeJSON(w, http.StatusOK, map[string]any{"invitation": newWorkspaceInvitationResponse(invite)})
-				return
-			}
-			writeMethodNotAllowed(w)
-			return
-		}
-		var req struct {
-			Email string `json:"email"`
-			Role  string `json:"role"`
-		}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	userID := urlParam(r, "userId")
+	if strings.TrimSpace(userID) == "" {
+		writeError(w, http.StatusBadRequest, "user id is required")
+		return
+	}
+	var req struct {
+		Role   string `json:"role"`
+		Reason string `json:"reason,omitempty"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	principal, _ := principalFromContext(r.Context())
+	member, err := s.workspaceAccessService.UpdateWorkspaceMemberRoleWithAudit(tenantID, userID, req.Role, workspaceAccessAuditActorFromPrincipal(principal, req.Reason))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"member": member})
+}
+
+func (s *Server) removeInternalTenantMember(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceAccessService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	userID := urlParam(r, "userId")
+	if strings.TrimSpace(userID) == "" {
+		writeError(w, http.StatusBadRequest, "user id is required")
+		return
+	}
+	principal, _ := principalFromContext(r.Context())
+	if err := s.workspaceAccessService.RemoveWorkspaceMemberWithAudit(tenantID, userID, workspaceAccessAuditActorFromPrincipal(principal, strings.TrimSpace(r.URL.Query().Get("reason")))); err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ── Internal Tenant Invitations ─────────────────────────────────────
+
+func (s *Server) listInternalTenantInvitations(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceAccessService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	items, err := s.workspaceAccessService.ListWorkspaceInvitations(tenantID, strings.TrimSpace(r.URL.Query().Get("status")))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": newWorkspaceInvitationResponses(items)})
+}
+
+func (s *Server) createInternalTenantInvitation(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceAccessService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	var req struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	principal, _ := principalFromContext(r.Context())
+	invitedByUserID := ""
+	if strings.TrimSpace(principal.SubjectType) == "user" {
+		invitedByUserID = strings.TrimSpace(principal.SubjectID)
+	}
+	issued, err := s.workspaceAccessService.IssueWorkspaceInvitation(service.CreateWorkspaceInvitationRequest{
+		WorkspaceID:           tenantID,
+		Email:                 req.Email,
+		Role:                  req.Role,
+		InvitedByUserID:       invitedByUserID,
+		InvitedByPlatformUser: principal.Scope == ScopePlatform,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	acceptPath, acceptURL := s.workspaceInvitationAcceptURL(issued.Token)
+	s.sendWorkspaceInvitationEmail(tenantID, principal.UserEmail, issued)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"invitation":  newWorkspaceInvitationResponseWithAcceptURL(issued.Invitation, acceptURL),
+		"accept_url":  acceptURL,
+		"accept_path": acceptPath,
+	})
+}
+
+func (s *Server) revokeInternalTenantInvitation(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.workspaceAccessService == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	invitationID := urlParam(r, "invitationId")
+	if invitationID == "" {
+		writeError(w, http.StatusBadRequest, "invitation id is required")
+		return
+	}
+	var req struct {
+		Reason string `json:"reason,omitempty"`
+	}
+	if r.ContentLength != 0 {
 		if err := decodeJSON(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		principal, _ := principalFromContext(r.Context())
-		invitedByUserID := ""
-		if strings.TrimSpace(principal.SubjectType) == "user" {
-			invitedByUserID = strings.TrimSpace(principal.SubjectID)
-		}
-		issued, err := s.workspaceAccessService.IssueWorkspaceInvitation(service.CreateWorkspaceInvitationRequest{
-			WorkspaceID:           tenantID,
-			Email:                 req.Email,
-			Role:                  req.Role,
-			InvitedByUserID:       invitedByUserID,
-			InvitedByPlatformUser: principal.Scope == ScopePlatform,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		acceptPath, acceptURL := s.workspaceInvitationAcceptURL(issued.Token)
-		s.sendWorkspaceInvitationEmail(tenantID, principal.UserEmail, issued)
-		writeJSON(w, http.StatusCreated, map[string]any{
-			"invitation":  newWorkspaceInvitationResponseWithAcceptURL(issued.Invitation, acceptURL),
-			"accept_url":  acceptURL,
-			"accept_path": acceptPath,
-		})
-	default:
-		writeMethodNotAllowed(w)
 	}
+	principal, _ := principalFromContext(r.Context())
+	invite, err := s.workspaceAccessService.RevokeWorkspaceInvitationWithAudit(tenantID, invitationID, workspaceAccessAuditActorFromPrincipal(principal, req.Reason))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"invitation": newWorkspaceInvitationResponse(invite)})
 }
+
+// ── Internal Tenant Bootstrap Admin Key ─────────────────────────────
 
 type internalTenantBootstrapAdminKeyRequest struct {
 	Name                    string     `json:"name"`
@@ -536,9 +585,14 @@ type internalTenantBootstrapAdminKeyRequest struct {
 	AllowExistingActiveKeys bool       `json:"allow_existing_active_keys,omitempty"`
 }
 
-func (s *Server) handleInternalTenantBootstrapAdminKey(w http.ResponseWriter, r *http.Request, tenantID string) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
+func (s *Server) bootstrapInternalTenantAdminKey(w http.ResponseWriter, r *http.Request) {
+	if !s.isOperatorRequest(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	tenantID := urlParam(r, "id")
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "tenant id is required")
 		return
 	}
 
@@ -581,13 +635,11 @@ func (s *Server) handleInternalTenantBootstrapAdminKey(w http.ResponseWriter, r 
 	})
 }
 
+// ── Internal Tenant Audit ───────────────────────────────────────────
+
 func (s *Server) handleInternalTenantAudit(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
 		return
 	}
 	limit, err := parseQueryInt(r, "limit")
@@ -623,13 +675,11 @@ func (s *Server) handleInternalTenantAudit(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// ── Onboarding ──────────────────────────────────────────────────────
+
 func (s *Server) handleInternalOnboardingTenants(w http.ResponseWriter, r *http.Request) {
 	if !s.isOperatorRequest(r) {
 		writeError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
 		return
 	}
 
@@ -661,11 +711,7 @@ func (s *Server) handleInternalOnboardingTenantByID(w http.ResponseWriter, r *ht
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/internal/onboarding/tenants/"), "/")
+	id := urlParam(r, "id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "tenant id is required")
 		return

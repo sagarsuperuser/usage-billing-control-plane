@@ -41,11 +41,7 @@ type paymentDetailResponse struct {
 	Dunning   *domain.DunningSummary          `json:"dunning,omitempty"`
 }
 
-func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
+func (s *Server) listPayments(w http.ResponseWriter, r *http.Request) {
 	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
@@ -134,99 +130,15 @@ func (s *Server) handlePayments(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
-	tail := strings.TrimPrefix(r.URL.Path, "/v1/payments/")
-	parts := strings.Split(strings.Trim(tail, "/"), "/")
-	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
-		writeError(w, http.StatusBadRequest, "payment id is required")
-		return
-	}
-
-	invoiceID := strings.TrimSpace(parts[0])
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "retry") {
-		if s.invoiceBillingAdapter == nil {
-			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
-			return
-		}
-		if r.Method != http.MethodPost {
-			writeMethodNotAllowed(w)
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		rawBody, err := io.ReadAll(r.Body)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
-			return
-		}
-		if len(strings.TrimSpace(string(rawBody))) == 0 {
-			rawBody = []byte("{}")
-		}
-		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
-		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
-		if err != nil {
-			writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
-			return
-		}
-		if statusCode >= 200 && statusCode < 300 {
-			if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), invoiceID); syncErr != nil && s.logger != nil {
-				s.logger.Warn("materialize retry payment projection failed", "invoice_id", invoiceID, "tenant_id", requestTenantID(r), "error", syncErr)
-			}
-		}
-		if statusCode < 200 || statusCode >= 300 {
-			writeTranslatedUpstreamError(w, statusCode, "Payment retry could not be started right now.", body)
-			return
-		}
-		writeJSONRaw(w, statusCode, body)
-		return
-	}
-
+func (s *Server) getPayment(w http.ResponseWriter, r *http.Request) {
 	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
 	}
 
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "events") {
-		if r.Method != http.MethodGet {
-			writeMethodNotAllowed(w)
-			return
-		}
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		events, err := s.paymentStatusSvc.ListBillingEvents(
-			requestTenantID(r),
-			service.ListBillingEventsRequest{
-				OrganizationID: r.URL.Query().Get("organization_id"),
-				InvoiceID:      invoiceID,
-				WebhookType:    r.URL.Query().Get("webhook_type"),
-				SortBy:         r.URL.Query().Get("sort_by"),
-				Order:          r.URL.Query().Get("order"),
-				Limit:          limit,
-				Offset:         offset,
-			},
-		)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"items":      events,
-			"limit":      limit,
-			"offset":     offset,
-			"invoice_id": invoiceID,
-		})
-		return
-	}
-
-	if len(parts) != 1 || r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
+	invoiceID := urlParam(r, "id")
+	if invoiceID == "" {
+		writeError(w, http.StatusBadRequest, "payment id is required")
 		return
 	}
 
@@ -257,6 +169,91 @@ func (s *Server) handlePaymentByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, paymentDetailFromStatusView(view, customer, lifecycle, dunning))
+}
+
+func (s *Server) retryPayment(w http.ResponseWriter, r *http.Request) {
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
+		return
+	}
+
+	invoiceID := urlParam(r, "id")
+	if invoiceID == "" {
+		writeError(w, http.StatusBadRequest, "payment id is required")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(strings.TrimSpace(string(rawBody))) == 0 {
+		rawBody = []byte("{}")
+	}
+	ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
+	statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
+		return
+	}
+	if statusCode >= 200 && statusCode < 300 {
+		if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), invoiceID); syncErr != nil && s.logger != nil {
+			s.logger.Warn("materialize retry payment projection failed", "invoice_id", invoiceID, "tenant_id", requestTenantID(r), "error", syncErr)
+		}
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		writeTranslatedUpstreamError(w, statusCode, "Payment retry could not be started right now.", body)
+		return
+	}
+	writeJSONRaw(w, statusCode, body)
+}
+
+func (s *Server) listPaymentEvents(w http.ResponseWriter, r *http.Request) {
+	if s.paymentStatusSvc == nil {
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
+		return
+	}
+
+	invoiceID := urlParam(r, "id")
+	if invoiceID == "" {
+		writeError(w, http.StatusBadRequest, "payment id is required")
+		return
+	}
+
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	events, err := s.paymentStatusSvc.ListBillingEvents(
+		requestTenantID(r),
+		service.ListBillingEventsRequest{
+			OrganizationID: r.URL.Query().Get("organization_id"),
+			InvoiceID:      invoiceID,
+			WebhookType:    r.URL.Query().Get("webhook_type"),
+			SortBy:         r.URL.Query().Get("sort_by"),
+			Order:          r.URL.Query().Get("order"),
+			Limit:          limit,
+			Offset:         offset,
+		},
+	)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":      events,
+		"limit":      limit,
+		"offset":     offset,
+		"invoice_id": invoiceID,
+	})
 }
 
 func (s *Server) buildPaymentSummaries(tenantID string, items []domain.InvoicePaymentStatusView) ([]paymentSummaryResponse, error) {

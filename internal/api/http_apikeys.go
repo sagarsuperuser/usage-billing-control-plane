@@ -7,102 +7,89 @@ import (
 	"usage-billing-control-plane/internal/service"
 )
 
-func (s *Server) handleAPIKeys(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts")
+	tenantID := requestTenantID(r)
+
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	keys, err := s.apiKeyService.ListAPIKeys(tenantID, service.ListAPIKeysRequest{
+		Role:         r.URL.Query().Get("role"),
+		State:        r.URL.Query().Get("state"),
+		NameContains: r.URL.Query().Get("name_contains"),
+		Limit:        limit,
+		Offset:       offset,
+		Cursor:       r.URL.Query().Get("cursor"),
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, keys)
+}
+
+func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts")
 	tenantID := requestTenantID(r)
 	actorAPIKeyID := requestActorAPIKeyID(r)
 
-	switch r.Method {
-	case http.MethodPost:
-		var req service.CreateAPIKeyRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		created, err := s.apiKeyService.CreateAPIKey(tenantID, actorAPIKeyID, req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, created)
-	case http.MethodGet:
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		keys, err := s.apiKeyService.ListAPIKeys(tenantID, service.ListAPIKeysRequest{
-			Role:         r.URL.Query().Get("role"),
-			State:        r.URL.Query().Get("state"),
-			NameContains: r.URL.Query().Get("name_contains"),
-			Limit:        limit,
-			Offset:       offset,
-			Cursor:       r.URL.Query().Get("cursor"),
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, keys)
-	default:
-		writeMethodNotAllowed(w)
+	var req service.CreateAPIKeyRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	created, err := s.apiKeyService.CreateAPIKey(tenantID, actorAPIKeyID, req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
 }
 
-func (s *Server) handleAPIKeyByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) revokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts")
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	tail := strings.TrimPrefix(r.URL.Path, "/v1/api-keys/")
-	parts := strings.Split(strings.Trim(tail, "/"), "/")
-	if len(parts) != 2 {
-		writeError(w, http.StatusBadRequest, "expected /v1/api-keys/{id}/revoke or /v1/api-keys/{id}/rotate")
-		return
-	}
-
-	id := strings.TrimSpace(parts[0])
-	action := strings.ToLower(strings.TrimSpace(parts[1]))
+	id := urlParam(r, "id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
-
 	tenantID := requestTenantID(r)
 	actorAPIKeyID := requestActorAPIKeyID(r)
-	switch action {
-	case "revoke":
-		key, err := s.apiKeyService.RevokeAPIKey(tenantID, actorAPIKeyID, id)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, key)
-	case "rotate":
-		result, err := s.apiKeyService.RotateAPIKey(tenantID, actorAPIKeyID, id)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, result)
-	default:
-		writeError(w, http.StatusBadRequest, "unsupported action")
-	}
-}
-
-func (s *Server) handleAPIKeyAuditEvents(w http.ResponseWriter, r *http.Request) {
-	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit")
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
+	key, err := s.apiKeyService.RevokeAPIKey(tenantID, actorAPIKeyID, id)
+	if err != nil {
+		writeDomainError(w, err)
 		return
 	}
+	writeJSON(w, http.StatusOK, key)
+}
+
+func (s *Server) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts")
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	tenantID := requestTenantID(r)
+	actorAPIKeyID := requestActorAPIKeyID(r)
+	result, err := s.apiKeyService.RotateAPIKey(tenantID, actorAPIKeyID, id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) listAPIKeyAuditEvents(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit")
 
 	limit, err := parseQueryInt(r, "limit")
 	if err != nil {
@@ -146,76 +133,73 @@ func (s *Server) handleAPIKeyAuditEvents(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, events)
 }
 
-func (s *Server) handleAPIKeyAuditExports(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listAPIKeyAuditExports(w http.ResponseWriter, r *http.Request) {
 	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit/exports")
 	if s.auditExportSvc == nil {
 		writeError(w, http.StatusNotImplemented, "audit export service not configured")
 		return
 	}
-	switch r.Method {
-	case http.MethodPost:
-		var req service.CreateAuditExportJobRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		job, idempotent, err := s.auditExportSvc.CreateJob(requestTenantID(r), requestActorAPIKeyID(r), req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		status := http.StatusCreated
-		if idempotent {
-			status = http.StatusOK
-		}
-		writeJSON(w, status, map[string]any{
-			"idempotent_request": idempotent,
-			"job":                job,
-		})
-	case http.MethodGet:
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		list, err := s.auditExportSvc.ListJobs(requestTenantID(r), service.ListAuditExportJobsRequest{
-			Status:              r.URL.Query().Get("status"),
-			RequestedByAPIKeyID: r.URL.Query().Get("requested_by_api_key_id"),
-			OwnerType:           r.URL.Query().Get("owner_type"),
-			OwnerID:             r.URL.Query().Get("owner_id"),
-			Limit:               limit,
-			Offset:              offset,
-			Cursor:              r.URL.Query().Get("cursor"),
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, list)
-	default:
-		writeMethodNotAllowed(w)
-	}
-}
-
-func (s *Server) handleAPIKeyAuditExportByID(w http.ResponseWriter, r *http.Request) {
-	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit/exports/{job_id}")
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	list, err := s.auditExportSvc.ListJobs(requestTenantID(r), service.ListAuditExportJobsRequest{
+		Status:              r.URL.Query().Get("status"),
+		RequestedByAPIKeyID: r.URL.Query().Get("requested_by_api_key_id"),
+		OwnerType:           r.URL.Query().Get("owner_type"),
+		OwnerID:             r.URL.Query().Get("owner_id"),
+		Limit:               limit,
+		Offset:              offset,
+		Cursor:              r.URL.Query().Get("cursor"),
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (s *Server) createAPIKeyAuditExport(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit/exports")
+	if s.auditExportSvc == nil {
+		writeError(w, http.StatusNotImplemented, "audit export service not configured")
+		return
+	}
+	var req service.CreateAuditExportJobRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	job, idempotent, err := s.auditExportSvc.CreateJob(requestTenantID(r), requestActorAPIKeyID(r), req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusCreated
+	if idempotent {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, map[string]any{
+		"idempotent_request": idempotent,
+		"job":                job,
+	})
+}
+
+func (s *Server) getAPIKeyAuditExport(w http.ResponseWriter, r *http.Request) {
+	setCompatibilityDeprecationHeaders(w, "/v1/workspace/service-accounts/{id}/audit/exports/{job_id}")
 	if s.auditExportSvc == nil {
 		writeError(w, http.StatusNotImplemented, "audit export service not configured")
 		return
 	}
 
-	id := strings.TrimPrefix(r.URL.Path, "/v1/api-keys/audit/exports/")
-	id = strings.TrimSpace(id)
+	id := urlParam(r, "id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return

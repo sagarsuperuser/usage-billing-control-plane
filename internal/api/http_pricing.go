@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"usage-billing-control-plane/internal/domain"
@@ -62,7 +61,22 @@ type createCouponRequest struct {
 	ExpirationAt      *time.Time `json:"expiration_at"`
 }
 
-func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
+// ── Metrics ─────────────────────────────────────────────────────────────
+
+func (s *Server) listPricingMetrics(w http.ResponseWriter, r *http.Request) {
+	if s.pricingMetricService == nil {
+		writeError(w, http.StatusServiceUnavailable, "pricing metric service is required")
+		return
+	}
+	metrics, err := s.pricingMetricService.ListMetrics(requestTenantID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, metrics)
+}
+
+func (s *Server) createPricingMetric(w http.ResponseWriter, r *http.Request) {
 	if s.pricingMetricService == nil {
 		writeError(w, http.StatusServiceUnavailable, "pricing metric service is required")
 		return
@@ -71,55 +85,38 @@ func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
 		return
 	}
-
 	tenantID := requestTenantID(r)
-	switch r.Method {
-	case http.MethodGet:
-		metrics, err := s.pricingMetricService.ListMetrics(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, metrics)
-	case http.MethodPost:
-		var req createPricingMetricRequest
-		if err := decodeAndValidate(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		metric, err := s.pricingMetricService.CreateMetric(service.CreatePricingMetricInput{
-			TenantID:    tenantID,
-			Key:         req.Key,
-			Name:        req.Name,
-			Unit:        req.Unit,
-			Aggregation: req.Aggregation,
-			Currency:    req.Currency,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		if err := s.meterSyncAdapter.SyncMeter(r.Context(), metric); err != nil {
-			writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
-			return
-		}
-		writeJSON(w, http.StatusCreated, metric)
-	default:
-		writeMethodNotAllowed(w)
+	var req createPricingMetricRequest
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	metric, err := s.pricingMetricService.CreateMetric(service.CreatePricingMetricInput{
+		TenantID:    tenantID,
+		Key:         req.Key,
+		Name:        req.Name,
+		Unit:        req.Unit,
+		Aggregation: req.Aggregation,
+		Currency:    req.Currency,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if err := s.meterSyncAdapter.SyncMeter(r.Context(), metric); err != nil {
+		writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, metric)
 }
 
-func (s *Server) handlePricingMetricByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getPricingMetric(w http.ResponseWriter, r *http.Request) {
 	if s.pricingMetricService == nil {
 		writeError(w, http.StatusServiceUnavailable, "pricing metric service is required")
 		return
 	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-	id := strings.TrimPrefix(r.URL.Path, "/v1/pricing/metrics/")
-	if strings.TrimSpace(id) == "" {
+	id := urlParam(r, "id")
+	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
@@ -131,120 +128,59 @@ func (s *Server) handlePricingMetricByID(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, metric)
 }
 
-func (s *Server) handlePlans(w http.ResponseWriter, r *http.Request) {
+// ── Plans ───────────────────────────────────────────────────────────────
+
+func (s *Server) listPlans(w http.ResponseWriter, r *http.Request) {
 	if s.planService == nil {
 		writeError(w, http.StatusServiceUnavailable, "plan service is required")
 		return
 	}
-	tenantID := requestTenantID(r)
-	switch r.Method {
-	case http.MethodGet:
-		plans, err := s.planService.ListPlans(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, plans)
-	case http.MethodPost:
-		var req createPlanRequest
-		if err := decodeAndValidate(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		plan, err := s.planService.CreatePlan(r.Context(), domain.Plan{
-			TenantID:        tenantID,
-			Code:            req.Code,
-			Name:            req.Name,
-			Description:     req.Description,
-			Currency:        req.Currency,
-			BillingInterval: domain.BillingInterval(req.BillingInterval),
-			Status:          domain.PlanStatus(req.Status),
-			BaseAmountCents: req.BaseAmountCents,
-			MeterIDs:        req.MeterIDs,
-			AddOnIDs:        req.AddOnIDs,
-			CouponIDs:       req.CouponIDs,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, plan)
-	default:
-		writeMethodNotAllowed(w)
-	}
-}
-
-func (s *Server) handleTaxes(w http.ResponseWriter, r *http.Request) {
-	if s.taxService == nil {
-		writeError(w, http.StatusServiceUnavailable, "tax service is required")
-		return
-	}
-	tenantID := requestTenantID(r)
-	switch r.Method {
-	case http.MethodGet:
-		items, err := s.taxService.ListTaxes(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, items)
-	case http.MethodPost:
-		var req createTaxRequest
-		if err := decodeAndValidate(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		item, err := s.taxService.CreateTax(r.Context(), domain.Tax{
-			TenantID:    tenantID,
-			Code:        req.Code,
-			Name:        req.Name,
-			Description: req.Description,
-			Status:      domain.TaxStatus(req.Status),
-			Rate:        req.Rate,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, item)
-	default:
-		writeMethodNotAllowed(w)
-	}
-}
-
-func (s *Server) handleTaxByID(w http.ResponseWriter, r *http.Request) {
-	if s.taxService == nil {
-		writeError(w, http.StatusServiceUnavailable, "tax service is required")
-		return
-	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-	id := strings.TrimPrefix(r.URL.Path, "/v1/taxes/")
-	if strings.TrimSpace(id) == "" {
-		writeError(w, http.StatusBadRequest, "id is required")
-		return
-	}
-	item, err := s.taxService.GetTax(requestTenantID(r), id)
+	plans, err := s.planService.ListPlans(requestTenantID(r))
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, item)
+	writeJSON(w, http.StatusOK, plans)
 }
 
-func (s *Server) handlePlanByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 	if s.planService == nil {
 		writeError(w, http.StatusServiceUnavailable, "plan service is required")
 		return
 	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
+	tenantID := requestTenantID(r)
+	var req createPlanRequest
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/v1/plans/")
-	if strings.TrimSpace(id) == "" {
+	plan, err := s.planService.CreatePlan(r.Context(), domain.Plan{
+		TenantID:        tenantID,
+		Code:            req.Code,
+		Name:            req.Name,
+		Description:     req.Description,
+		Currency:        req.Currency,
+		BillingInterval: domain.BillingInterval(req.BillingInterval),
+		Status:          domain.PlanStatus(req.Status),
+		BaseAmountCents: req.BaseAmountCents,
+		MeterIDs:        req.MeterIDs,
+		AddOnIDs:        req.AddOnIDs,
+		CouponIDs:       req.CouponIDs,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, plan)
+}
+
+func (s *Server) getPlan(w http.ResponseWriter, r *http.Request) {
+	if s.planService == nil {
+		writeError(w, http.StatusServiceUnavailable, "plan service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
@@ -256,57 +192,115 @@ func (s *Server) handlePlanByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, plan)
 }
 
-func (s *Server) handleAddOns(w http.ResponseWriter, r *http.Request) {
+// ── Taxes ───────────────────────────────────────────────────────────────
+
+func (s *Server) listTaxes(w http.ResponseWriter, r *http.Request) {
+	if s.taxService == nil {
+		writeError(w, http.StatusServiceUnavailable, "tax service is required")
+		return
+	}
+	items, err := s.taxService.ListTaxes(requestTenantID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (s *Server) createTax(w http.ResponseWriter, r *http.Request) {
+	if s.taxService == nil {
+		writeError(w, http.StatusServiceUnavailable, "tax service is required")
+		return
+	}
+	tenantID := requestTenantID(r)
+	var req createTaxRequest
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := s.taxService.CreateTax(r.Context(), domain.Tax{
+		TenantID:    tenantID,
+		Code:        req.Code,
+		Name:        req.Name,
+		Description: req.Description,
+		Status:      domain.TaxStatus(req.Status),
+		Rate:        req.Rate,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, item)
+}
+
+func (s *Server) getTax(w http.ResponseWriter, r *http.Request) {
+	if s.taxService == nil {
+		writeError(w, http.StatusServiceUnavailable, "tax service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	item, err := s.taxService.GetTax(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
+// ── Add-Ons ─────────────────────────────────────────────────────────────
+
+func (s *Server) listAddOns(w http.ResponseWriter, r *http.Request) {
+	if s.addOnService == nil {
+		writeError(w, http.StatusServiceUnavailable, "add-on service is required")
+		return
+	}
+	items, err := s.addOnService.ListAddOns(requestTenantID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (s *Server) createAddOn(w http.ResponseWriter, r *http.Request) {
 	if s.addOnService == nil {
 		writeError(w, http.StatusServiceUnavailable, "add-on service is required")
 		return
 	}
 	tenantID := requestTenantID(r)
-	switch r.Method {
-	case http.MethodGet:
-		items, err := s.addOnService.ListAddOns(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, items)
-	case http.MethodPost:
-		var req createAddOnRequest
-		if err := decodeAndValidate(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		item, err := s.addOnService.CreateAddOn(domain.AddOn{
-			TenantID:        tenantID,
-			Code:            req.Code,
-			Name:            req.Name,
-			Description:     req.Description,
-			Currency:        req.Currency,
-			BillingInterval: domain.BillingInterval(req.BillingInterval),
-			Status:          domain.AddOnStatus(req.Status),
-			AmountCents:     req.AmountCents,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, item)
-	default:
-		writeMethodNotAllowed(w)
+	var req createAddOnRequest
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	item, err := s.addOnService.CreateAddOn(domain.AddOn{
+		TenantID:        tenantID,
+		Code:            req.Code,
+		Name:            req.Name,
+		Description:     req.Description,
+		Currency:        req.Currency,
+		BillingInterval: domain.BillingInterval(req.BillingInterval),
+		Status:          domain.AddOnStatus(req.Status),
+		AmountCents:     req.AmountCents,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, item)
 }
 
-func (s *Server) handleAddOnByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getAddOn(w http.ResponseWriter, r *http.Request) {
 	if s.addOnService == nil {
 		writeError(w, http.StatusServiceUnavailable, "add-on service is required")
 		return
 	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-	id := strings.TrimPrefix(r.URL.Path, "/v1/add-ons/")
-	if strings.TrimSpace(id) == "" {
+	id := urlParam(r, "id")
+	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
@@ -318,61 +312,60 @@ func (s *Server) handleAddOnByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, item)
 }
 
-func (s *Server) handleCoupons(w http.ResponseWriter, r *http.Request) {
+// ── Coupons ─────────────────────────────────────────────────────────────
+
+func (s *Server) listCoupons(w http.ResponseWriter, r *http.Request) {
+	if s.couponService == nil {
+		writeError(w, http.StatusServiceUnavailable, "coupon service is required")
+		return
+	}
+	items, err := s.couponService.ListCoupons(requestTenantID(r))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (s *Server) createCoupon(w http.ResponseWriter, r *http.Request) {
 	if s.couponService == nil {
 		writeError(w, http.StatusServiceUnavailable, "coupon service is required")
 		return
 	}
 	tenantID := requestTenantID(r)
-	switch r.Method {
-	case http.MethodGet:
-		items, err := s.couponService.ListCoupons(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, items)
-	case http.MethodPost:
-		var req createCouponRequest
-		if err := decodeAndValidate(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		item, err := s.couponService.CreateCoupon(domain.Coupon{
-			TenantID:          tenantID,
-			Code:              req.Code,
-			Name:              req.Name,
-			Description:       req.Description,
-			Status:            domain.CouponStatus(req.Status),
-			DiscountType:      domain.CouponDiscountType(req.DiscountType),
-			Currency:          req.Currency,
-			AmountOffCents:    req.AmountOffCents,
-			PercentOff:        req.PercentOff,
-			Frequency:         domain.CouponFrequency(req.Frequency),
-			FrequencyDuration: req.FrequencyDuration,
-			ExpirationAt:      req.ExpirationAt,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, item)
-	default:
-		writeMethodNotAllowed(w)
+	var req createCouponRequest
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	item, err := s.couponService.CreateCoupon(domain.Coupon{
+		TenantID:          tenantID,
+		Code:              req.Code,
+		Name:              req.Name,
+		Description:       req.Description,
+		Status:            domain.CouponStatus(req.Status),
+		DiscountType:      domain.CouponDiscountType(req.DiscountType),
+		Currency:          req.Currency,
+		AmountOffCents:    req.AmountOffCents,
+		PercentOff:        req.PercentOff,
+		Frequency:         domain.CouponFrequency(req.Frequency),
+		FrequencyDuration: req.FrequencyDuration,
+		ExpirationAt:      req.ExpirationAt,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, item)
 }
 
-func (s *Server) handleCouponByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getCoupon(w http.ResponseWriter, r *http.Request) {
 	if s.couponService == nil {
 		writeError(w, http.StatusServiceUnavailable, "coupon service is required")
 		return
 	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-	id := strings.TrimPrefix(r.URL.Path, "/v1/coupons/")
-	if strings.TrimSpace(id) == "" {
+	id := urlParam(r, "id")
+	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}

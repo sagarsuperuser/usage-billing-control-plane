@@ -30,10 +30,6 @@ func (s *Server) handleInvoiceResendEmail(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusServiceUnavailable, "invoice notification delivery is not configured")
 		return
 	}
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 
 	var req resendInvoiceEmailRequest
 	rawBody, err := io.ReadAll(r.Body)
@@ -79,49 +75,60 @@ func (s *Server) handleInvoiceResendEmail(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func (s *Server) handlePaymentReceiptByID(w http.ResponseWriter, r *http.Request) {
-	s.handleBillingDocumentNotificationByID(w, r, "/v1/payment-receipts/", "payment receipt", "payment_receipt", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
-		return s.notificationService.ResendPaymentReceiptEmail(service.ContextWithBillingTenant(r.Context(), requestTenantID(r)), id, service.BillingDocumentEmail{
-			To:  req.To,
-			Cc:  req.Cc,
-			Bcc: req.Bcc,
-		})
-	})
-}
-
-func (s *Server) handleCreditNoteByID(w http.ResponseWriter, r *http.Request) {
-	s.handleBillingDocumentNotificationByID(w, r, "/v1/credit-notes/", "credit note", "credit_note", func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
-		return s.notificationService.ResendCreditNoteEmail(service.ContextWithBillingTenant(r.Context(), requestTenantID(r)), id, service.BillingDocumentEmail{
-			To:  req.To,
-			Cc:  req.Cc,
-			Bcc: req.Bcc,
-		})
-	})
-}
-
-func (s *Server) handleBillingDocumentNotificationByID(
-	w http.ResponseWriter,
-	r *http.Request,
-	prefix string,
-	resourceLabel string,
-	resourceType string,
-	dispatch func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error),
-) {
-	tail := strings.TrimPrefix(r.URL.Path, prefix)
-	parts := strings.Split(strings.Trim(tail, "/"), "/")
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || !strings.EqualFold(strings.TrimSpace(parts[1]), "resend-email") {
-		writeError(w, http.StatusBadRequest, "unsupported "+resourceLabel+" subresource")
-		return
-	}
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
+func (s *Server) resendPaymentReceiptEmail(w http.ResponseWriter, r *http.Request) {
 	if s.notificationService == nil {
 		writeError(w, http.StatusServiceUnavailable, "billing notification delivery is not configured")
 		return
 	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	s.dispatchBillingDocumentEmail(w, r, id, "payment_receipt", "payment receipt", func(docID string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
+		return s.notificationService.ResendPaymentReceiptEmail(service.ContextWithBillingTenant(r.Context(), requestTenantID(r)), docID, service.BillingDocumentEmail{
+			To:  req.To,
+			Cc:  req.Cc,
+			Bcc: req.Bcc,
+		})
+	})
+}
 
+func (s *Server) resendCreditNoteEmail(w http.ResponseWriter, r *http.Request) {
+	if s.notificationService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing notification delivery is not configured")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	s.dispatchBillingDocumentEmail(w, r, id, "credit_note", "credit note", func(docID string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error) {
+		return s.notificationService.ResendCreditNoteEmail(service.ContextWithBillingTenant(r.Context(), requestTenantID(r)), docID, service.BillingDocumentEmail{
+			To:  req.To,
+			Cc:  req.Cc,
+			Bcc: req.Bcc,
+		})
+	})
+}
+
+func (s *Server) getPaymentReceipt(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "payment receipt retrieval not yet implemented")
+}
+
+func (s *Server) getCreditNote(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "credit note retrieval not yet implemented")
+}
+
+func (s *Server) dispatchBillingDocumentEmail(
+	w http.ResponseWriter,
+	r *http.Request,
+	resourceID string,
+	resourceType string,
+	resourceLabel string,
+	dispatch func(id string, req resendInvoiceEmailRequest) (service.NotificationDispatchResult, error),
+) {
 	var req resendInvoiceEmailRequest
 	rawBody, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -135,9 +142,9 @@ func (s *Server) handleBillingDocumentNotificationByID(
 		}
 	}
 
-	dispatched, err := dispatch(strings.TrimSpace(parts[0]), req)
+	dispatched, err := dispatch(resourceID, req)
 	if err != nil {
-		s.logBillingNotificationDispatch(r, resourceType, strings.TrimSpace(parts[0]), req, service.NotificationDispatchResult{}, err)
+		s.logBillingNotificationDispatch(r, resourceType, resourceID, req, service.NotificationDispatchResult{}, err)
 		var dispatchErr *service.NotificationDispatchError
 		if errors.As(err, &dispatchErr) {
 			status := dispatchErr.StatusCode
@@ -150,7 +157,7 @@ func (s *Server) handleBillingDocumentNotificationByID(
 		writeDomainError(w, err)
 		return
 	}
-	s.logBillingNotificationDispatch(r, resourceType, strings.TrimSpace(parts[0]), req, dispatched, nil)
+	s.logBillingNotificationDispatch(r, resourceType, resourceID, req, dispatched, nil)
 
 	writeJSON(w, http.StatusAccepted, billingNotificationDispatchResponse{
 		DispatchedAt: dispatched.DispatchedAt,

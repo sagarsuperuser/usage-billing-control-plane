@@ -19,244 +19,241 @@ import (
 	"usage-billing-control-plane/internal/service"
 )
 
-func (s *Server) handleUsageEvents(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		var req domain.UsageEvent
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		req.TenantID = requestTenantID(r)
-
-		event, idempotent, err := s.usageService.CreateUsageEventWithIdempotency(req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		status := http.StatusCreated
-		if idempotent {
-			status = http.StatusOK
-		}
-		writeJSON(w, status, event)
-	case http.MethodGet:
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		from, err := parseOptionalTime(r.URL.Query().Get("from"))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid from: "+err.Error())
-			return
-		}
-		to, err := parseOptionalTime(r.URL.Query().Get("to"))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid to: "+err.Error())
-			return
-		}
-
-		events, err := s.usageService.ListUsageEvents(requestTenantID(r), service.ListUsageEventsRequest{
-			CustomerID: r.URL.Query().Get("customer_id"),
-			MeterID:    r.URL.Query().Get("meter_id"),
-			Order:      r.URL.Query().Get("order"),
-			From:       from,
-			To:         to,
-			Limit:      limit,
-			Offset:     offset,
-			Cursor:     r.URL.Query().Get("cursor"),
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, events)
-	default:
-		writeMethodNotAllowed(w)
+func (s *Server) createUsageEvent(w http.ResponseWriter, r *http.Request) {
+	var req domain.UsageEvent
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	req.TenantID = requestTenantID(r)
+
+	event, idempotent, err := s.usageService.CreateUsageEventWithIdempotency(req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusCreated
+	if idempotent {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, event)
 }
 
-func (s *Server) handleBilledEntries(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		var req domain.BilledEntry
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		req.TenantID = requestTenantID(r)
-
-		entry, idempotent, err := s.usageService.CreateBilledEntryWithIdempotency(req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		status := http.StatusCreated
-		if idempotent {
-			status = http.StatusOK
-		}
-		writeJSON(w, status, entry)
-	case http.MethodGet:
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		from, err := parseOptionalTime(r.URL.Query().Get("from"))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid from: "+err.Error())
-			return
-		}
-		to, err := parseOptionalTime(r.URL.Query().Get("to"))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid to: "+err.Error())
-			return
-		}
-
-		entries, err := s.usageService.ListBilledEntries(requestTenantID(r), service.ListBilledEntriesRequest{
-			CustomerID:        r.URL.Query().Get("customer_id"),
-			MeterID:           r.URL.Query().Get("meter_id"),
-			BilledSource:      r.URL.Query().Get("billed_source"),
-			BilledReplayJobID: r.URL.Query().Get("billed_replay_job_id"),
-			Order:             r.URL.Query().Get("order"),
-			From:              from,
-			To:                to,
-			Limit:             limit,
-			Offset:            offset,
-			Cursor:            r.URL.Query().Get("cursor"),
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, entries)
-	default:
-		writeMethodNotAllowed(w)
+func (s *Server) listUsageEvents(w http.ResponseWriter, r *http.Request) {
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	from, err := parseOptionalTime(r.URL.Query().Get("from"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid from: "+err.Error())
+		return
+	}
+	to, err := parseOptionalTime(r.URL.Query().Get("to"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid to: "+err.Error())
+		return
+	}
+
+	events, err := s.usageService.ListUsageEvents(requestTenantID(r), service.ListUsageEventsRequest{
+		CustomerID: r.URL.Query().Get("customer_id"),
+		MeterID:    r.URL.Query().Get("meter_id"),
+		Order:      r.URL.Query().Get("order"),
+		From:       from,
+		To:         to,
+		Limit:      limit,
+		Offset:     offset,
+		Cursor:     r.URL.Query().Get("cursor"),
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, events)
 }
 
-func (s *Server) handleReplayJobs(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		var req replay.CreateReplayJobRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		req.TenantID = requestTenantID(r)
-
-		job, idempotent, err := s.replayService.CreateJob(req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		status := http.StatusCreated
-		if idempotent {
-			status = http.StatusOK
-		}
-		writeJSON(w, status, map[string]any{
-			"idempotent_replay": idempotent,
-			"job":               s.decorateReplayJob(r, job),
-		})
-	case http.MethodGet:
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		jobs, err := s.replayService.ListJobs(requestTenantID(r), replay.ListReplayJobsRequest{
-			CustomerID: r.URL.Query().Get("customer_id"),
-			MeterID:    r.URL.Query().Get("meter_id"),
-			Status:     r.URL.Query().Get("status"),
-			Limit:      limit,
-			Offset:     offset,
-			Cursor:     r.URL.Query().Get("cursor"),
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		items := make([]map[string]any, 0, len(jobs.Items))
-		for _, job := range jobs.Items {
-			items = append(items, s.decorateReplayJob(r, job))
-		}
-
-		writeJSON(w, http.StatusOK, map[string]any{
-			"items":       items,
-			"total":       jobs.Total,
-			"limit":       jobs.Limit,
-			"offset":      jobs.Offset,
-			"next_cursor": jobs.NextCursor,
-		})
-	default:
-		writeMethodNotAllowed(w)
+func (s *Server) createBilledEntry(w http.ResponseWriter, r *http.Request) {
+	var req domain.BilledEntry
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	req.TenantID = requestTenantID(r)
+
+	entry, idempotent, err := s.usageService.CreateBilledEntryWithIdempotency(req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusCreated
+	if idempotent {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, entry)
 }
 
-func (s *Server) handleReplayJobByID(w http.ResponseWriter, r *http.Request) {
-	tail := strings.TrimPrefix(r.URL.Path, "/v1/replay-jobs/")
-	parts := strings.Split(strings.Trim(tail, "/"), "/")
-	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+func (s *Server) listBilledEntries(w http.ResponseWriter, r *http.Request) {
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	from, err := parseOptionalTime(r.URL.Query().Get("from"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid from: "+err.Error())
+		return
+	}
+	to, err := parseOptionalTime(r.URL.Query().Get("to"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid to: "+err.Error())
+		return
+	}
+
+	entries, err := s.usageService.ListBilledEntries(requestTenantID(r), service.ListBilledEntriesRequest{
+		CustomerID:        r.URL.Query().Get("customer_id"),
+		MeterID:           r.URL.Query().Get("meter_id"),
+		BilledSource:      r.URL.Query().Get("billed_source"),
+		BilledReplayJobID: r.URL.Query().Get("billed_replay_job_id"),
+		Order:             r.URL.Query().Get("order"),
+		From:              from,
+		To:                to,
+		Limit:             limit,
+		Offset:            offset,
+		Cursor:            r.URL.Query().Get("cursor"),
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entries)
+}
+
+func (s *Server) createReplayJob(w http.ResponseWriter, r *http.Request) {
+	var req replay.CreateReplayJobRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.TenantID = requestTenantID(r)
+
+	job, idempotent, err := s.replayService.CreateJob(req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusCreated
+	if idempotent {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, map[string]any{
+		"idempotent_replay": idempotent,
+		"job":               s.decorateReplayJob(r, job),
+	})
+}
+
+func (s *Server) listReplayJobs(w http.ResponseWriter, r *http.Request) {
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	jobs, err := s.replayService.ListJobs(requestTenantID(r), replay.ListReplayJobsRequest{
+		CustomerID: r.URL.Query().Get("customer_id"),
+		MeterID:    r.URL.Query().Get("meter_id"),
+		Status:     r.URL.Query().Get("status"),
+		Limit:      limit,
+		Offset:     offset,
+		Cursor:     r.URL.Query().Get("cursor"),
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(jobs.Items))
+	for _, job := range jobs.Items {
+		items = append(items, s.decorateReplayJob(r, job))
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":       items,
+		"total":       jobs.Total,
+		"limit":       jobs.Limit,
+		"offset":      jobs.Offset,
+		"next_cursor": jobs.NextCursor,
+	})
+}
+
+func (s *Server) getReplayJob(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
-	id := strings.TrimSpace(parts[0])
-
-	switch r.Method {
-	case http.MethodGet:
-		if len(parts) == 1 {
-			job, err := s.replayService.GetJob(requestTenantID(r), id)
-			if err != nil {
-				writeDomainError(w, err)
-				return
-			}
-			writeJSON(w, http.StatusOK, s.decorateReplayJob(r, job))
-			return
-		}
-		if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "events") {
-			diag, err := s.replayService.GetJobDiagnostics(requestTenantID(r), id)
-			if err != nil {
-				writeDomainError(w, err)
-				return
-			}
-			writeJSON(w, http.StatusOK, diag)
-			return
-		}
-		if len(parts) == 3 && strings.EqualFold(strings.TrimSpace(parts[1]), "artifacts") {
-			s.handleReplayJobArtifact(w, r, id, strings.TrimSpace(parts[2]))
-			return
-		}
-		writeError(w, http.StatusBadRequest, "unsupported replay job subresource")
-	case http.MethodPost:
-		if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "retry") {
-			job, err := s.replayService.RetryJob(requestTenantID(r), id)
-			if err != nil {
-				writeDomainError(w, err)
-				return
-			}
-			writeJSON(w, http.StatusOK, s.decorateReplayJob(r, job))
-			return
-		}
-		writeError(w, http.StatusBadRequest, "unsupported replay job subresource")
-	default:
-		writeMethodNotAllowed(w)
+	job, err := s.replayService.GetJob(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
 	}
+	writeJSON(w, http.StatusOK, s.decorateReplayJob(r, job))
+}
+
+func (s *Server) getReplayJobEvents(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	diag, err := s.replayService.GetJobDiagnostics(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, diag)
+}
+
+func (s *Server) getReplayJobArtifact(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	artifactName := urlParam(r, "artifactName")
+	if artifactName == "" {
+		writeError(w, http.StatusBadRequest, "artifact name is required")
+		return
+	}
+	s.handleReplayJobArtifact(w, r, id, artifactName)
+}
+
+func (s *Server) retryReplayJob(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	job, err := s.replayService.RetryJob(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.decorateReplayJob(r, job))
 }
 
 func (s *Server) handleReplayJobArtifact(w http.ResponseWriter, r *http.Request, jobID, artifactName string) {
@@ -463,11 +460,6 @@ func replayDatasetDigest(diag replay.ReplayJobDiagnostics) string {
 }
 
 func (s *Server) handleReconciliationReport(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-
 	filter, err := parseFilter(r, requestTenantID(r))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -553,54 +545,47 @@ func parseFilter(r *http.Request, tenantID string) (reconcile.Filter, error) {
 	return filter, nil
 }
 
-func (s *Server) handleRatingRules(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createRatingRule(w http.ResponseWriter, r *http.Request) {
 	tenantID := requestTenantID(r)
-
-	switch r.Method {
-	case http.MethodPost:
-		var req domain.RatingRuleVersion
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		req.TenantID = tenantID
-		rule, err := s.ratingService.CreateRuleVersion(req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, rule)
-	case http.MethodGet:
-		latestOnly, err := parseQueryBool(r, "latest_only")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		allRules, err := s.ratingService.ListRuleVersions(tenantID, service.ListRuleVersionsRequest{
-			RuleKey:        r.URL.Query().Get("rule_key"),
-			LifecycleState: r.URL.Query().Get("lifecycle_state"),
-			LatestOnly:     latestOnly,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		rules := make([]domain.RatingRuleVersion, 0, len(allRules))
-		for _, rule := range allRules {
-			rules = append(rules, rule)
-		}
-		writeJSON(w, http.StatusOK, rules)
-	default:
-		writeMethodNotAllowed(w)
-	}
-}
-
-func (s *Server) handleRatingRuleByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
+	var req domain.RatingRuleVersion
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/v1/rating-rules/")
+	req.TenantID = tenantID
+	rule, err := s.ratingService.CreateRuleVersion(req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, rule)
+}
+
+func (s *Server) listRatingRules(w http.ResponseWriter, r *http.Request) {
+	tenantID := requestTenantID(r)
+	latestOnly, err := parseQueryBool(r, "latest_only")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	allRules, err := s.ratingService.ListRuleVersions(tenantID, service.ListRuleVersionsRequest{
+		RuleKey:        r.URL.Query().Get("rule_key"),
+		LifecycleState: r.URL.Query().Get("lifecycle_state"),
+		LatestOnly:     latestOnly,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	rules := make([]domain.RatingRuleVersion, 0, len(allRules))
+	for _, rule := range allRules {
+		rules = append(rules, rule)
+	}
+	writeJSON(w, http.StatusOK, rules)
+}
+
+func (s *Server) getRatingRule(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
@@ -613,97 +598,97 @@ func (s *Server) handleRatingRuleByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, rule)
 }
 
-func (s *Server) handleMeters(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createMeter(w http.ResponseWriter, r *http.Request) {
 	if s.meterSyncAdapter == nil {
 		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
 		return
 	}
-
 	tenantID := requestTenantID(r)
-
-	switch r.Method {
-	case http.MethodPost:
-		var req domain.Meter
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		req.TenantID = tenantID
-		meter, err := s.meterService.CreateMeter(req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
-			writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
-			return
-		}
-		writeJSON(w, http.StatusCreated, meter)
-	case http.MethodGet:
-		allMeters, err := s.meterService.ListMeters(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		meters := make([]domain.Meter, 0, len(allMeters))
-		for _, meter := range allMeters {
-			meters = append(meters, meter)
-		}
-		writeJSON(w, http.StatusOK, meters)
-	default:
-		writeMethodNotAllowed(w)
+	var req domain.Meter
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	req.TenantID = tenantID
+	meter, err := s.meterService.CreateMeter(req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
+		writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, meter)
 }
 
-func (s *Server) handleMeterByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listMeters(w http.ResponseWriter, r *http.Request) {
 	if s.meterSyncAdapter == nil {
 		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
 		return
 	}
-
 	tenantID := requestTenantID(r)
-	id := strings.TrimPrefix(r.URL.Path, "/v1/meters/")
+	allMeters, err := s.meterService.ListMeters(tenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	meters := make([]domain.Meter, 0, len(allMeters))
+	for _, meter := range allMeters {
+		meters = append(meters, meter)
+	}
+	writeJSON(w, http.StatusOK, meters)
+}
+
+func (s *Server) getMeter(w http.ResponseWriter, r *http.Request) {
+	if s.meterSyncAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
+		return
+	}
+	tenantID := requestTenantID(r)
+	id := urlParam(r, "id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
-
-	switch r.Method {
-	case http.MethodPut:
-		var req domain.Meter
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		req.TenantID = tenantID
-		meter, err := s.meterService.UpdateMeter(tenantID, id, req)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
-			writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
-			return
-		}
-		writeJSON(w, http.StatusOK, meter)
-	case http.MethodGet:
-		meter, err := s.meterService.GetMeter(tenantID, id)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, meter)
-	default:
-		writeMethodNotAllowed(w)
+	meter, err := s.meterService.GetMeter(tenantID, id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
 	}
+	writeJSON(w, http.StatusOK, meter)
+}
+
+func (s *Server) updateMeter(w http.ResponseWriter, r *http.Request) {
+	if s.meterSyncAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "Pricing updates are unavailable right now.")
+		return
+	}
+	tenantID := requestTenantID(r)
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	var req domain.Meter
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.TenantID = tenantID
+	meter, err := s.meterService.UpdateMeter(tenantID, id, req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if err := s.meterSyncAdapter.SyncMeter(r.Context(), meter); err != nil {
+		writeError(w, http.StatusBadGateway, "Pricing metric changes could not be applied right now.")
+		return
+	}
+	writeJSON(w, http.StatusOK, meter)
 }
 
 func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-
 	principal, ok := principalFromContext(r.Context())
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
@@ -768,144 +753,144 @@ func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
-	tail := strings.TrimPrefix(r.URL.Path, "/v1/invoices/")
-	parts := strings.Split(strings.Trim(tail, "/"), "/")
-	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+func (s *Server) getInvoice(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
 		writeError(w, http.StatusBadRequest, "invoice id is required")
 		return
 	}
-
-	invoiceID := strings.TrimSpace(parts[0])
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "payment-receipts") {
-		s.handleInvoicePaymentReceipts(w, r, invoiceID)
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
 		return
 	}
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "credit-notes") {
-		s.handleInvoiceCreditNotes(w, r, invoiceID)
+	statusCode, body, detail, err := s.loadInvoiceDetail(r.Context(), requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
 		return
 	}
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "retry-payment") {
-		if s.invoiceBillingAdapter == nil {
-			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
-			return
-		}
-		if r.Method != http.MethodPost {
-			writeMethodNotAllowed(w)
-			return
-		}
-
-		rawBody, err := io.ReadAll(r.Body)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
-			return
-		}
-		if len(strings.TrimSpace(string(rawBody))) == 0 {
-			rawBody = []byte("{}")
-		}
-
-		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
-		statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, invoiceID, rawBody)
-		if err != nil {
-			writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
-			return
-		}
-		if statusCode >= 200 && statusCode < 300 {
-			if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), invoiceID); syncErr != nil && s.logger != nil {
-				s.logger.Warn("materialize retry payment projection failed", "invoice_id", invoiceID, "tenant_id", requestTenantID(r), "error", syncErr)
-			}
-		}
-		if statusCode < 200 || statusCode >= 300 {
-			writeTranslatedUpstreamError(w, statusCode, "Payment retry could not be started right now.", body)
-			return
-		}
-		writeJSONRaw(w, statusCode, body)
+	if statusCode < 200 || statusCode >= 300 {
+		writeTranslatedUpstreamError(w, statusCode, "Invoice details could not be loaded right now.", body)
 		return
 	}
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "resend-email") {
-		s.handleInvoiceResendEmail(w, r, invoiceID)
+	writeJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) getInvoicePaymentReceipts(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
 		return
 	}
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "explainability") {
-		if s.invoiceBillingAdapter == nil {
-			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
-			return
-		}
-		if r.Method != http.MethodGet {
-			writeMethodNotAllowed(w)
-			return
-		}
+	s.handleInvoicePaymentReceipts(w, r, id)
+}
 
-		feeTypes := make([]string, 0, 8)
-		feeTypes = append(feeTypes, splitCommaSeparatedValues(r.URL.Query().Get("fee_types"))...)
-		feeTypes = append(feeTypes, r.URL.Query()["fee_type"]...)
-		lineItemSort := r.URL.Query().Get("line_item_sort")
-		page, err := parseQueryInt(r, "page")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		options, err := service.NewInvoiceExplainabilityOptions(feeTypes, lineItemSort, page, limit)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
+func (s *Server) getInvoiceCreditNotes(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
+		return
+	}
+	s.handleInvoiceCreditNotes(w, r, id)
+}
 
-		ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
-		statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, invoiceID)
-		if err != nil {
-			writeError(w, http.StatusBadGateway, "failed to fetch invoice: "+err.Error())
-			return
-		}
-		if statusCode < 200 || statusCode >= 300 {
-			writeTranslatedUpstreamError(w, statusCode, "Invoice explainability is unavailable right now.", body)
-			return
-		}
-
-		explainability, err := service.BuildInvoiceExplainability(body, options)
-		if err != nil {
-			writeError(w, http.StatusBadGateway, "failed to compute invoice explainability: "+err.Error())
-			return
-		}
-		writeJSON(w, http.StatusOK, explainability)
+func (s *Server) retryInvoicePayment(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
+		return
+	}
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
 		return
 	}
 
-	if len(parts) == 1 {
-		if r.Method != http.MethodGet {
-			writeMethodNotAllowed(w)
-			return
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(strings.TrimSpace(string(rawBody))) == 0 {
+		rawBody = []byte("{}")
+	}
+
+	ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
+	statusCode, body, err := s.invoiceBillingAdapter.RetryInvoicePayment(ctx, id, rawBody)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "payment retry failed: "+err.Error())
+		return
+	}
+	if statusCode >= 200 && statusCode < 300 {
+		if syncErr := s.materializeRetryPaymentProjection(r.Context(), requestTenantID(r), id); syncErr != nil && s.logger != nil {
+			s.logger.Warn("materialize retry payment projection failed", "invoice_id", id, "tenant_id", requestTenantID(r), "error", syncErr)
 		}
-		if s.invoiceBillingAdapter == nil {
-			writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
-			return
-		}
-		statusCode, body, detail, err := s.loadInvoiceDetail(r.Context(), requestTenantID(r), invoiceID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		if statusCode < 200 || statusCode >= 300 {
-			writeTranslatedUpstreamError(w, statusCode, "Invoice details could not be loaded right now.", body)
-			return
-		}
-		writeJSON(w, http.StatusOK, detail)
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		writeTranslatedUpstreamError(w, statusCode, "Payment retry could not be started right now.", body)
+		return
+	}
+	writeJSONRaw(w, statusCode, body)
+}
+
+func (s *Server) resendInvoiceEmail(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
+		return
+	}
+	s.handleInvoiceResendEmail(w, r, id)
+}
+
+func (s *Server) getInvoiceExplainability(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
+		return
+	}
+	if s.invoiceBillingAdapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
 		return
 	}
 
-	writeError(w, http.StatusBadRequest, "unsupported invoice subresource")
+	feeTypes := make([]string, 0, 8)
+	feeTypes = append(feeTypes, splitCommaSeparatedValues(r.URL.Query().Get("fee_types"))...)
+	feeTypes = append(feeTypes, r.URL.Query()["fee_type"]...)
+	lineItemSort := r.URL.Query().Get("line_item_sort")
+	page, err := parseQueryInt(r, "page")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	options, err := service.NewInvoiceExplainabilityOptions(feeTypes, lineItemSort, page, limit)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	ctx := service.ContextWithBillingTenant(r.Context(), requestTenantID(r))
+	statusCode, body, err := s.invoiceBillingAdapter.GetInvoice(ctx, id)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "failed to fetch invoice: "+err.Error())
+		return
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		writeTranslatedUpstreamError(w, statusCode, "Invoice explainability is unavailable right now.", body)
+		return
+	}
+
+	explainability, err := service.BuildInvoiceExplainability(body, options)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "failed to compute invoice explainability: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, explainability)
 }
 
 func (s *Server) handleInvoicePaymentStatuses(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
@@ -959,123 +944,126 @@ func (s *Server) handleInvoicePaymentStatuses(w http.ResponseWriter, r *http.Req
 	})
 }
 
-func (s *Server) handleInvoicePaymentStatusByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
+func (s *Server) getInvoicePaymentStatusSummary(w http.ResponseWriter, r *http.Request) {
 	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
 	}
+	staleAfterSec, err := parseQueryInt(r, "stale_after_sec")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	summary, err := s.paymentStatusSvc.GetInvoicePaymentStatusSummary(
+		requestTenantID(r),
+		service.GetInvoicePaymentStatusSummaryRequest{
+			OrganizationID:    r.URL.Query().Get("organization_id"),
+			StaleAfterSeconds: staleAfterSec,
+		},
+	)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
+}
 
-	tail := strings.TrimPrefix(r.URL.Path, "/v1/invoice-payment-statuses/")
-	parts := strings.Split(strings.Trim(tail, "/"), "/")
-	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+func (s *Server) getInvoicePaymentStatus(w http.ResponseWriter, r *http.Request) {
+	if s.paymentStatusSvc == nil {
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
+		return
+	}
+	invoiceID := urlParam(r, "id")
+	if invoiceID == "" {
 		writeError(w, http.StatusBadRequest, "invoice id is required")
 		return
 	}
-	invoiceID := strings.TrimSpace(parts[0])
-	if len(parts) == 1 && strings.EqualFold(invoiceID, "summary") {
-		staleAfterSec, err := parseQueryInt(r, "stale_after_sec")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		summary, err := s.paymentStatusSvc.GetInvoicePaymentStatusSummary(
-			requestTenantID(r),
-			service.GetInvoicePaymentStatusSummaryRequest{
-				OrganizationID:    r.URL.Query().Get("organization_id"),
-				StaleAfterSeconds: staleAfterSec,
-			},
-		)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, summary)
+	item, err := s.paymentStatusSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
+	if err != nil {
+		writeDomainError(w, err)
 		return
 	}
+	writeJSON(w, http.StatusOK, item)
+}
 
-	if len(parts) == 1 {
-		item, err := s.paymentStatusSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, item)
+func (s *Server) getInvoicePaymentStatusEvents(w http.ResponseWriter, r *http.Request) {
+	if s.paymentStatusSvc == nil {
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
 	}
-
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "events") {
-		limit, err := parseQueryInt(r, "limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		offset, err := parseQueryInt(r, "offset")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		events, err := s.paymentStatusSvc.ListBillingEvents(
-			requestTenantID(r),
-			service.ListBillingEventsRequest{
-				OrganizationID: r.URL.Query().Get("organization_id"),
-				InvoiceID:      invoiceID,
-				WebhookType:    r.URL.Query().Get("webhook_type"),
-				SortBy:         r.URL.Query().Get("sort_by"),
-				Order:          r.URL.Query().Get("order"),
-				Limit:          limit,
-				Offset:         offset,
-			},
-		)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"items":      events,
-			"limit":      limit,
-			"offset":     offset,
-			"invoice_id": invoiceID,
-		})
+	invoiceID := urlParam(r, "id")
+	if invoiceID == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
 		return
 	}
-
-	if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "lifecycle") {
-		eventLimit, err := parseQueryInt(r, "event_limit")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		view, err := s.paymentStatusSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		lifecycle, err := s.paymentStatusSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, eventLimit)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		lifecycle, err = s.enrichPaymentLifecycleWithCustomerReadiness(requestTenantID(r), view.CustomerExternalID, lifecycle)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, lifecycle)
+	limit, err := parseQueryInt(r, "limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	offset, err := parseQueryInt(r, "offset")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	events, err := s.paymentStatusSvc.ListBillingEvents(
+		requestTenantID(r),
+		service.ListBillingEventsRequest{
+			OrganizationID: r.URL.Query().Get("organization_id"),
+			InvoiceID:      invoiceID,
+			WebhookType:    r.URL.Query().Get("webhook_type"),
+			SortBy:         r.URL.Query().Get("sort_by"),
+			Order:          r.URL.Query().Get("order"),
+			Limit:          limit,
+			Offset:         offset,
+		},
+	)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":      events,
+		"limit":      limit,
+		"offset":     offset,
+		"invoice_id": invoiceID,
+	})
+}
 
-	writeError(w, http.StatusBadRequest, "unsupported invoice payment status subresource")
+func (s *Server) getInvoicePaymentStatusLifecycle(w http.ResponseWriter, r *http.Request) {
+	if s.paymentStatusSvc == nil {
+		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
+		return
+	}
+	invoiceID := urlParam(r, "id")
+	if invoiceID == "" {
+		writeError(w, http.StatusBadRequest, "invoice id is required")
+		return
+	}
+	eventLimit, err := parseQueryInt(r, "event_limit")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	view, err := s.paymentStatusSvc.GetInvoicePaymentStatusView(requestTenantID(r), invoiceID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	lifecycle, err := s.paymentStatusSvc.GetInvoicePaymentLifecycle(requestTenantID(r), invoiceID, eventLimit)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	lifecycle, err = s.enrichPaymentLifecycleWithCustomerReadiness(requestTenantID(r), view.CustomerExternalID, lifecycle)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, lifecycle)
 }
 
 func (s *Server) handleStripeWebhooks(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.stripeWebhookSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "stripe webhook service is required")
 		return

@@ -32,128 +32,148 @@ type subscriptionPaymentSetupRequest struct {
 	PaymentMethodType string `json:"payment_method_type,omitempty"`
 }
 
-func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listSubscriptions(w http.ResponseWriter, r *http.Request) {
 	if s.subscriptionService == nil {
 		writeError(w, http.StatusServiceUnavailable, "subscription service is required")
 		return
 	}
 	tenantID := requestTenantID(r)
-	switch r.Method {
-	case http.MethodGet:
-		items, err := s.subscriptionService.ListSubscriptions(tenantID)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, items)
-	case http.MethodPost:
-		var req createSubscriptionRequest
-		if err := decodeAndValidate(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		result, err := s.subscriptionService.CreateSubscription(r.Context(), service.CreateSubscriptionRequest{
-			TenantID:            tenantID,
-			Code:                req.Code,
-			DisplayName:         req.DisplayName,
-			CustomerExternalID:  req.CustomerExternalID,
-			PlanID:              req.PlanID,
-			BillingTime:         req.BillingTime,
-			StartedAt:           req.StartedAt,
-			RequestPaymentSetup: req.RequestPaymentSetup,
-			PaymentMethodType:   req.PaymentMethodType,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, result)
-	default:
-		writeMethodNotAllowed(w)
+	items, err := s.subscriptionService.ListSubscriptions(tenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
 	}
+	writeJSON(w, http.StatusOK, items)
 }
 
-func (s *Server) handleSubscriptionByID(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createSubscription(w http.ResponseWriter, r *http.Request) {
 	if s.subscriptionService == nil {
 		writeError(w, http.StatusServiceUnavailable, "subscription service is required")
 		return
 	}
-	path := strings.TrimPrefix(r.URL.Path, "/v1/subscriptions/")
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+	tenantID := requestTenantID(r)
+	var req createSubscriptionRequest
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := s.subscriptionService.CreateSubscription(r.Context(), service.CreateSubscriptionRequest{
+		TenantID:            tenantID,
+		Code:                req.Code,
+		DisplayName:         req.DisplayName,
+		CustomerExternalID:  req.CustomerExternalID,
+		PlanID:              req.PlanID,
+		BillingTime:         req.BillingTime,
+		StartedAt:           req.StartedAt,
+		RequestPaymentSetup: req.RequestPaymentSetup,
+		PaymentMethodType:   req.PaymentMethodType,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
+func (s *Server) getSubscription(w http.ResponseWriter, r *http.Request) {
+	if s.subscriptionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "subscription service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
-	id := strings.TrimSpace(parts[0])
-	action := ""
-	if len(parts) > 1 {
-		action = strings.Join(parts[1:], "/")
-	}
-
-	if action == "payment-setup/request" || action == "payment-setup/resend" {
-		if r.Method != http.MethodPost {
-			writeMethodNotAllowed(w)
-			return
-		}
-		var req subscriptionPaymentSetupRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		var (
-			result service.SubscriptionPaymentSetupResult
-			err    error
-		)
-		if action == "payment-setup/resend" {
-			result, err = s.subscriptionService.ResendPaymentSetup(requestTenantID(r), id, req.PaymentMethodType)
-		} else {
-			result, err = s.subscriptionService.RequestPaymentSetup(requestTenantID(r), id, req.PaymentMethodType)
-		}
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, result)
+	detail, err := s.subscriptionService.GetSubscription(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
 		return
 	}
+	writeJSON(w, http.StatusOK, detail)
+}
 
-	switch r.Method {
-	case http.MethodGet:
-		detail, err := s.subscriptionService.GetSubscription(requestTenantID(r), id)
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, detail)
-	case http.MethodPatch:
-		var req updateSubscriptionRequest
-		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		var status *domain.SubscriptionStatus
-		if req.Status != nil {
-			value := domain.SubscriptionStatus(strings.TrimSpace(*req.Status))
-			status = &value
-		}
-		var billingTime *domain.SubscriptionBillingTime
-		if req.BillingTime != nil {
-			value := domain.SubscriptionBillingTime(strings.TrimSpace(*req.BillingTime))
-			billingTime = &value
-		}
-		detail, err := s.subscriptionService.UpdateSubscription(r.Context(), requestTenantID(r), id, service.UpdateSubscriptionRequest{
-			DisplayName: req.DisplayName,
-			PlanID:      req.PlanID,
-			Status:      status,
-			BillingTime: billingTime,
-			StartedAt:   req.StartedAt,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, detail)
-	default:
-		writeMethodNotAllowed(w)
+func (s *Server) updateSubscription(w http.ResponseWriter, r *http.Request) {
+	if s.subscriptionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "subscription service is required")
+		return
 	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	var req updateSubscriptionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var status *domain.SubscriptionStatus
+	if req.Status != nil {
+		value := domain.SubscriptionStatus(strings.TrimSpace(*req.Status))
+		status = &value
+	}
+	var billingTime *domain.SubscriptionBillingTime
+	if req.BillingTime != nil {
+		value := domain.SubscriptionBillingTime(strings.TrimSpace(*req.BillingTime))
+		billingTime = &value
+	}
+	detail, err := s.subscriptionService.UpdateSubscription(r.Context(), requestTenantID(r), id, service.UpdateSubscriptionRequest{
+		DisplayName: req.DisplayName,
+		PlanID:      req.PlanID,
+		Status:      status,
+		BillingTime: billingTime,
+		StartedAt:   req.StartedAt,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) requestSubscriptionPaymentSetup(w http.ResponseWriter, r *http.Request) {
+	if s.subscriptionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "subscription service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	var req subscriptionPaymentSetupRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := s.subscriptionService.RequestPaymentSetup(requestTenantID(r), id, req.PaymentMethodType)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) resendSubscriptionPaymentSetup(w http.ResponseWriter, r *http.Request) {
+	if s.subscriptionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "subscription service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	var req subscriptionPaymentSetupRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := s.subscriptionService.ResendPaymentSetup(requestTenantID(r), id, req.PaymentMethodType)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }

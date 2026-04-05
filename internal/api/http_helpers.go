@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func requestTenantID(r *http.Request) string {
@@ -127,6 +129,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 func writeMethodNotAllowed(w http.ResponseWriter) {
 	writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+}
+
+// urlParam extracts a named URL parameter from the chi router context.
+func urlParam(r *http.Request, name string) string {
+	return strings.TrimSpace(chi.URLParam(r, name))
 }
 
 func parseTime(v string) (time.Time, error) {
