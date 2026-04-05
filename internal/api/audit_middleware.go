@@ -38,7 +38,7 @@ func (s *Server) auditLogMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		route := normalizeMetricsRoute(r.URL.Path)
+		route := routePattern(r)
 
 		if s.logger != nil {
 			s.logger.Info("audit",

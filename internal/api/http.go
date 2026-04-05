@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -106,169 +105,6 @@ const (
 	requestIDHeaderKey         = "X-Request-ID"
 )
 
-type requestMetricsCollector struct {
-	mu                   sync.Mutex
-	counts               map[string]int64
-	tenantCounts         map[string]int64
-	authDeniedCounts     map[string]map[string]int64
-	rateLimitedCounts    map[string]map[string]int64
-	rateLimitErrorCounts map[string]map[string]int64
-}
-
-func newRequestMetricsCollector() *requestMetricsCollector {
-	return &requestMetricsCollector{
-		counts:               make(map[string]int64),
-		tenantCounts:         make(map[string]int64),
-		authDeniedCounts:     make(map[string]map[string]int64),
-		rateLimitedCounts:    make(map[string]map[string]int64),
-		rateLimitErrorCounts: make(map[string]map[string]int64),
-	}
-}
-
-func (c *requestMetricsCollector) Inc(method, route string, statusCode int) {
-	if c == nil {
-		return
-	}
-	key := fmt.Sprintf("%s %s %d", strings.ToUpper(strings.TrimSpace(method)), strings.TrimSpace(route), statusCode)
-	c.mu.Lock()
-	c.counts[key]++
-	c.mu.Unlock()
-}
-
-func (c *requestMetricsCollector) Snapshot() map[string]int64 {
-	if c == nil {
-		return map[string]int64{}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	out := make(map[string]int64, len(c.counts))
-	for k, v := range c.counts {
-		out[k] = v
-	}
-	return out
-}
-
-func (c *requestMetricsCollector) TenantSnapshot() map[string]int64 {
-	if c == nil {
-		return map[string]int64{}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	out := make(map[string]int64, len(c.tenantCounts))
-	for k, v := range c.tenantCounts {
-		out[k] = v
-	}
-	return out
-}
-
-func (c *requestMetricsCollector) AuthDeniedSnapshot() map[string]map[string]int64 {
-	if c == nil {
-		return map[string]map[string]int64{}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return cloneNestedCounterMap(c.authDeniedCounts)
-}
-
-func (c *requestMetricsCollector) RateLimitedSnapshot() map[string]map[string]int64 {
-	if c == nil {
-		return map[string]map[string]int64{}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return cloneNestedCounterMap(c.rateLimitedCounts)
-}
-
-func (c *requestMetricsCollector) RateLimitErrorSnapshot() map[string]map[string]int64 {
-	if c == nil {
-		return map[string]map[string]int64{}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return cloneNestedCounterMap(c.rateLimitErrorCounts)
-}
-
-func (c *requestMetricsCollector) IncTenant(tenantID string) {
-	if c == nil {
-		return
-	}
-	tenantID = normalizeTenantID(strings.TrimSpace(tenantID))
-	c.mu.Lock()
-	c.tenantCounts[tenantID]++
-	c.mu.Unlock()
-}
-
-func (c *requestMetricsCollector) IncAuthDenied(tenantID, reason string) {
-	if c == nil {
-		return
-	}
-	tenantID = strings.TrimSpace(tenantID)
-	if tenantID == "" {
-		tenantID = "unknown"
-	}
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		reason = "unknown"
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if _, ok := c.authDeniedCounts[tenantID]; !ok {
-		c.authDeniedCounts[tenantID] = make(map[string]int64)
-	}
-	c.authDeniedCounts[tenantID][reason]++
-}
-
-func (c *requestMetricsCollector) IncRateLimited(tenantID, policy string) {
-	if c == nil {
-		return
-	}
-	tenantID = strings.TrimSpace(tenantID)
-	if tenantID == "" {
-		tenantID = "unknown"
-	}
-	policy = strings.TrimSpace(policy)
-	if policy == "" {
-		policy = "unknown"
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if _, ok := c.rateLimitedCounts[tenantID]; !ok {
-		c.rateLimitedCounts[tenantID] = make(map[string]int64)
-	}
-	c.rateLimitedCounts[tenantID][policy]++
-}
-
-func (c *requestMetricsCollector) IncRateLimitError(tenantID, policy string) {
-	if c == nil {
-		return
-	}
-	tenantID = strings.TrimSpace(tenantID)
-	if tenantID == "" {
-		tenantID = "unknown"
-	}
-	policy = strings.TrimSpace(policy)
-	if policy == "" {
-		policy = "unknown"
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if _, ok := c.rateLimitErrorCounts[tenantID]; !ok {
-		c.rateLimitErrorCounts[tenantID] = make(map[string]int64)
-	}
-	c.rateLimitErrorCounts[tenantID][policy]++
-}
-
-func cloneNestedCounterMap(src map[string]map[string]int64) map[string]map[string]int64 {
-	out := make(map[string]map[string]int64, len(src))
-	for key, inner := range src {
-		innerCopy := make(map[string]int64, len(inner))
-		for innerKey, value := range inner {
-			innerCopy[innerKey] = value
-		}
-		out[key] = innerCopy
-	}
-	return out
-}
 
 type statusCapturingResponseWriter struct {
 	http.ResponseWriter
@@ -584,7 +420,7 @@ func (s *Server) instrumentMiddleware(next http.Handler) http.Handler {
 		if statusCode == 0 {
 			statusCode = http.StatusOK
 		}
-		route := normalizeMetricsRoute(r.URL.Path)
+		route := routePattern(r)
 		s.requestMetrics.Inc(r.Method, route, statusCode)
 		httpRequestsTotal.WithLabelValues(r.Method, route, strconv.Itoa(statusCode)).Inc()
 		httpRequestDuration.WithLabelValues(r.Method, route).Observe(time.Since(start).Seconds())
@@ -627,7 +463,7 @@ func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
 			"event", "http_request",
 			"request_id", requestIDFromContext(r.Context()),
 			"method", r.Method,
-			"route", normalizeMetricsRoute(r.URL.Path),
+			"route", routePattern(r),
 			"path", r.URL.Path,
 			"status", statusCode,
 			"duration_ms", durationMs,
@@ -674,7 +510,7 @@ func (s *Server) logAuthFailure(r *http.Request, statusCode int, reason string, 
 		"event", "auth_denied",
 		"request_id", requestIDFromContext(r.Context()),
 		"method", r.Method,
-		"route", normalizeMetricsRoute(r.URL.Path),
+		"route", routePattern(r),
 		"path", r.URL.Path,
 		"status", statusCode,
 		"reason", reason,
@@ -718,7 +554,7 @@ func (s *Server) logOnboardingFailure(r *http.Request, req service.TenantOnboard
 		"component", "api",
 		"event", "tenant_onboarding_failed",
 		"request_id", requestIDFromContext(r.Context()),
-		"route", normalizeMetricsRoute(r.URL.Path),
+		"route", routePattern(r),
 		"path", r.URL.Path,
 		"method", r.Method,
 		"auth_method", inferAuthMethod(r),
@@ -906,7 +742,7 @@ func (s *Server) preAuthRateLimitTarget(r *http.Request, protected bool) (policy
 	case path == "/internal/stripe/webhooks":
 		return RateLimitPolicyWebhook, "ip:" + requestClientIP(r), s.rateLimitFailOpen, true
 	case protected:
-		return RateLimitPolicyPreAuthProtected, "ip:" + requestClientIP(r) + ":route:" + normalizeMetricsRoute(path), s.rateLimitFailOpen, true
+		return RateLimitPolicyPreAuthProtected, "ip:" + requestClientIP(r) + ":route:" + routePattern(r), s.rateLimitFailOpen, true
 	default:
 		return "", "", false, false
 	}
@@ -968,7 +804,7 @@ func authRateLimitIdentifier(r *http.Request, principal Principal, usingSession 
 }
 
 func preAuthLoginRateLimitIdentifier(r *http.Request) string {
-	return "ip:" + requestClientIP(r) + ":route:" + normalizeMetricsRoute(r.URL.Path)
+	return "ip:" + requestClientIP(r) + ":route:" + routePattern(r)
 }
 
 func requestClientIP(r *http.Request) string {
@@ -1320,239 +1156,10 @@ func subtleConstantTimeMatch(expected, provided string) bool {
 	return diff == 0
 }
 
-func normalizeMetricsRoute(path string) string {
-	switch {
-	case path == "/health":
-		return "/health"
-	case path == "/internal/metrics":
-		return "/internal/metrics"
-	case path == "/internal/ready":
-		return "/internal/ready"
-	case path == "/internal/onboarding/tenants":
-		return "/internal/onboarding/tenants"
-	case strings.HasPrefix(path, "/internal/onboarding/tenants/"):
-		return "/internal/onboarding/tenants/{id}"
-	case path == "/internal/stripe/webhooks":
-		return "/internal/stripe/webhooks"
-	case path == "/internal/tenants/audit":
-		return "/internal/tenants/audit"
-	case path == "/internal/billing-provider-connections":
-		return "/internal/billing-provider-connections"
-	case strings.HasPrefix(path, "/internal/billing-provider-connections/"):
-		return "/internal/billing-provider-connections/{id}"
-	case path == "/internal/tenants":
-		return "/internal/tenants"
-	case strings.HasPrefix(path, "/internal/tenants/"):
-		return "/internal/tenants/{id}"
-	case path == "/v1/ui/sessions/login":
-		return "/v1/ui/sessions/login"
-	case path == "/v1/ui/auth/providers":
-		return "/v1/ui/auth/providers"
-	case path == "/v1/ui/password/forgot":
-		return "/v1/ui/password/forgot"
-	case path == "/v1/ui/password/reset":
-		return "/v1/ui/password/reset"
-	case strings.HasPrefix(path, "/v1/ui/auth/sso/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/ui/auth/sso/"), "/")
-		if strings.HasSuffix(tail, "/start") {
-			return "/v1/ui/auth/sso/{provider}/start"
-		}
-		if strings.HasSuffix(tail, "/callback") {
-			return "/v1/ui/auth/sso/{provider}/callback"
-		}
-		return "/v1/ui/auth/sso/{provider}"
-	case path == "/v1/ui/sessions/rate-limit-probe":
-		return "/v1/ui/sessions/rate-limit-probe"
-	case path == "/v1/ui/sessions/me":
-		return "/v1/ui/sessions/me"
-	case path == "/v1/ui/sessions/logout":
-		return "/v1/ui/sessions/logout"
-	case path == "/v1/customer-onboarding":
-		return "/v1/customer-onboarding"
-	case path == "/v1/customers":
-		return "/v1/customers"
-	case strings.HasPrefix(path, "/v1/customers/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/customers/"), "/")
-		if strings.HasSuffix(tail, "/billing-profile/retry-sync") {
-			return "/v1/customers/{id}/billing-profile/retry-sync"
-		}
-		if strings.HasSuffix(tail, "/billing-profile") {
-			return "/v1/customers/{id}/billing-profile"
-		}
-		if strings.HasSuffix(tail, "/payment-setup/checkout-url") {
-			return "/v1/customers/{id}/payment-setup/checkout-url"
-		}
-		if strings.HasSuffix(tail, "/payment-setup/request") {
-			return "/v1/customers/{id}/payment-setup/request"
-		}
-		if strings.HasSuffix(tail, "/payment-setup/resend") {
-			return "/v1/customers/{id}/payment-setup/resend"
-		}
-		if strings.HasSuffix(tail, "/payment-setup/refresh") {
-			return "/v1/customers/{id}/payment-setup/refresh"
-		}
-		if strings.HasSuffix(tail, "/payment-setup") {
-			return "/v1/customers/{id}/payment-setup"
-		}
-		if strings.HasSuffix(tail, "/readiness") {
-			return "/v1/customers/{id}/readiness"
-		}
-		return "/v1/customers/{id}"
-	case path == "/v1/rating-rules":
-		return "/v1/rating-rules"
-	case strings.HasPrefix(path, "/v1/rating-rules/"):
-		return "/v1/rating-rules/{id}"
-	case path == "/v1/meters":
-		return "/v1/meters"
-	case strings.HasPrefix(path, "/v1/meters/"):
-		return "/v1/meters/{id}"
-	case path == "/v1/pricing/metrics":
-		return "/v1/pricing/metrics"
-	case strings.HasPrefix(path, "/v1/pricing/metrics/"):
-		return "/v1/pricing/metrics/{id}"
-	case path == "/v1/taxes":
-		return "/v1/taxes"
-	case strings.HasPrefix(path, "/v1/taxes/"):
-		return "/v1/taxes/{id}"
-	case path == "/v1/plans":
-		return "/v1/plans"
-	case strings.HasPrefix(path, "/v1/plans/"):
-		return "/v1/plans/{id}"
-	case path == "/v1/subscriptions":
-		return "/v1/subscriptions"
-	case strings.HasPrefix(path, "/v1/subscriptions/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/subscriptions/"), "/")
-		if strings.HasSuffix(tail, "/payment-setup/request") {
-			return "/v1/subscriptions/{id}/payment-setup/request"
-		}
-		if strings.HasSuffix(tail, "/payment-setup/resend") {
-			return "/v1/subscriptions/{id}/payment-setup/resend"
-		}
-		return "/v1/subscriptions/{id}"
-	case path == "/v1/invoices":
-		return "/v1/invoices"
-	case path == "/v1/payments":
-		return "/v1/payments"
-	case path == "/v1/invoices/preview":
-		return "/v1/invoices/preview"
-	case strings.HasPrefix(path, "/v1/invoices/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/invoices/"), "/")
-		if strings.HasSuffix(tail, "/retry-payment") {
-			return "/v1/invoices/{id}/retry-payment"
-		}
-		if strings.HasSuffix(tail, "/resend-email") {
-			return "/v1/invoices/{id}/resend-email"
-		}
-		if strings.HasSuffix(tail, "/payment-receipts") {
-			return "/v1/invoices/{id}/payment-receipts"
-		}
-		if strings.HasSuffix(tail, "/credit-notes") {
-			return "/v1/invoices/{id}/credit-notes"
-		}
-		if strings.HasSuffix(tail, "/explainability") {
-			return "/v1/invoices/{id}/explainability"
-		}
-		return "/v1/invoices/{id}"
-	case strings.HasPrefix(path, "/v1/payment-receipts/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/payment-receipts/"), "/")
-		if strings.HasSuffix(tail, "/resend-email") {
-			return "/v1/payment-receipts/{id}/resend-email"
-		}
-		return "/v1/payment-receipts/{id}"
-	case strings.HasPrefix(path, "/v1/credit-notes/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/credit-notes/"), "/")
-		if strings.HasSuffix(tail, "/resend-email") {
-			return "/v1/credit-notes/{id}/resend-email"
-		}
-		return "/v1/credit-notes/{id}"
-	case strings.HasPrefix(path, "/v1/payments/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/payments/"), "/")
-		if strings.HasSuffix(tail, "/events") {
-			return "/v1/payments/{id}/events"
-		}
-		if strings.HasSuffix(tail, "/retry") {
-			return "/v1/payments/{id}/retry"
-		}
-		return "/v1/payments/{id}"
-	case path == "/v1/usage-events":
-		return "/v1/usage-events"
-	case path == "/v1/billed-entries":
-		return "/v1/billed-entries"
-	case path == "/v1/replay-jobs":
-		return "/v1/replay-jobs"
-	case strings.HasPrefix(path, "/v1/replay-jobs/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/replay-jobs/"), "/")
-		if strings.HasSuffix(tail, "/events") {
-			return "/v1/replay-jobs/{id}/events"
-		}
-		if strings.Contains(tail, "/artifacts/") {
-			return "/v1/replay-jobs/{id}/artifacts/{artifact}"
-		}
-		if strings.HasSuffix(tail, "/retry") {
-			return "/v1/replay-jobs/{id}/retry"
-		}
-		return "/v1/replay-jobs/{id}"
-	case path == "/v1/reconciliation-report":
-		return "/v1/reconciliation-report"
-	case path == "/v1/invoice-payment-statuses":
-		return "/v1/invoice-payment-statuses"
-	case path == "/v1/invoice-payment-statuses/summary":
-		return "/v1/invoice-payment-statuses/summary"
-	case strings.HasPrefix(path, "/v1/invoice-payment-statuses/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/invoice-payment-statuses/"), "/")
-		if strings.HasSuffix(tail, "/events") {
-			return "/v1/invoice-payment-statuses/{id}/events"
-		}
-		if strings.HasSuffix(tail, "/lifecycle") {
-			return "/v1/invoice-payment-statuses/{id}/lifecycle"
-		}
-		return "/v1/invoice-payment-statuses/{id}"
-	case path == "/v1/dunning/policy":
-		return "/v1/dunning/policy"
-	case path == "/v1/dunning/runs":
-		return "/v1/dunning/runs"
-	case strings.HasPrefix(path, "/v1/dunning/runs/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/dunning/runs/"), "/")
-		if strings.HasSuffix(tail, "/collect-payment-reminder") {
-			return "/v1/dunning/runs/{id}/collect-payment-reminder"
-		}
-		return "/v1/dunning/runs/{id}"
-	case path == "/v1/api-keys":
-		return "/v1/api-keys"
-	case path == "/v1/api-keys/audit":
-		return "/v1/api-keys/audit"
-	case path == "/v1/api-keys/audit/exports":
-		return "/v1/api-keys/audit/exports"
-	case strings.HasPrefix(path, "/v1/api-keys/audit/exports/"):
-		return "/v1/api-keys/audit/exports/{id}"
-	case strings.HasPrefix(path, "/v1/api-keys/"):
-		return "/v1/api-keys/{id}/{action}"
-	case path == "/v1/workspace/service-accounts":
-		return "/v1/workspace/service-accounts"
-	case strings.HasPrefix(path, "/v1/workspace/service-accounts/"):
-		tail := strings.Trim(strings.TrimPrefix(path, "/v1/workspace/service-accounts/"), "/")
-		if strings.HasSuffix(tail, "/audit/exports") {
-			return "/v1/workspace/service-accounts/{id}/audit/exports"
-		}
-		if strings.Contains(tail, "/audit/exports/") {
-			return "/v1/workspace/service-accounts/{id}/audit/exports/{job_id}"
-		}
-		if strings.HasSuffix(tail, "/audit") {
-			return "/v1/workspace/service-accounts/{id}/audit"
-		}
-		if strings.Contains(tail, "/credentials/") {
-			return "/v1/workspace/service-accounts/{id}/credentials/{credential_id}/{action}"
-		}
-		if strings.HasSuffix(tail, "/credentials") {
-			return "/v1/workspace/service-accounts/{id}/credentials"
-		}
-		return "/v1/workspace/service-accounts/{id}"
-	case strings.HasPrefix(path, "/v1/"):
-		return "/v1/*"
-	default:
-		return path
-	}
-}
+// normalizeMetricsRoute is no longer needed — chi's RouteContext().RoutePattern()
+// provides the matched route pattern automatically. See routePattern() in http_helpers.go.
+//
+// Deleted 230 lines of hand-maintained switch statement.
 
 func (s *Server) registerRoutes() {
 	r := s.router

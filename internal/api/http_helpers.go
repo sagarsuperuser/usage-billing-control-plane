@@ -136,6 +136,17 @@ func urlParam(r *http.Request, name string) string {
 	return strings.TrimSpace(chi.URLParam(r, name))
 }
 
+// routePattern returns chi's matched route pattern (e.g. "/v1/customers/{externalId}").
+// Falls back to the raw path if no route was matched.
+func routePattern(r *http.Request) string {
+	if rctx := chi.RouteContext(r.Context()); rctx != nil {
+		if pattern := rctx.RoutePattern(); pattern != "" {
+			return pattern
+		}
+	}
+	return r.URL.Path
+}
+
 func parseTime(v string) (time.Time, error) {
 	if unixSec, err := strconv.ParseInt(v, 10, 64); err == nil {
 		return time.Unix(unixSec, 0).UTC(), nil
