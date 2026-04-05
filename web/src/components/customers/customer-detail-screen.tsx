@@ -10,6 +10,7 @@ import { z } from "zod";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   beginCustomerPaymentSetup,
   fetchCustomerBillingProfile,
@@ -21,27 +22,13 @@ import {
   retryCustomerBillingSync,
   updateCustomerBillingProfile,
 } from "@/lib/api";
+import { statusTone } from "@/lib/badge";
 import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
 import { showError, showSuccess } from "@/lib/toast";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { type CustomerBillingProfile, type CustomerBillingProfileInput } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
-
-function tone(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "ready":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "pending":
-    case "incomplete":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "sync_error":
-    case "error":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    default:
-      return "border-stone-200 bg-slate-50 text-slate-700";
-  }
-}
 
 const billingProfileSchema = z.object({
   legal_name: z.string().min(1),
@@ -62,7 +49,7 @@ const billingProfileSchema = z.object({
 type BillingProfileFormValues = z.infer<typeof billingProfileSchema>;
 
 export function CustomerDetailScreen({ externalID }: { externalID: string }) {
-  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [profileFlash, setProfileFlash] = useState<string | null>(null);
   const { register, handleSubmit: handleProfileSubmit, reset: resetProfile, watch: watchProfile, formState: profileFormState } = useForm<BillingProfileFormValues>({
@@ -229,9 +216,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                   <div className="flex items-center gap-3 min-w-0">
                     <h1 className="text-base font-semibold text-slate-900 truncate">{customer.display_name}</h1>
                     <span className="font-mono text-xs text-slate-400">{customer.external_id}</span>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${tone(readiness.status)}`}>
-                      {formatReadinessStatus(readiness.status)}
-                    </span>
+                    <StatusChip tone={statusTone(readiness.status)}>{formatReadinessStatus(readiness.status)}</StatusChip>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Link

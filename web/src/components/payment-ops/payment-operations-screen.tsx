@@ -14,7 +14,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchInvoiceEvents, fetchInvoiceLifecycle, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
+import { statusTone, diagnosisTone } from "@/lib/badge";
 import { formatExactTimestamp, formatMoney, formatRelativeTimestamp } from "@/lib/format";
 import { useUISession } from "@/hooks/use-ui-session";
 import { type InvoiceStatusFilters } from "@/lib/types";
@@ -39,29 +41,6 @@ const orderOptions = [
   { value: "asc", label: "Oldest first" },
 ] as const;
 
-function paymentBadgeClass(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "failed":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    case "succeeded":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "pending":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    default:
-      return "border-stone-200 bg-slate-50 text-slate-600";
-  }
-}
-
-function diagnosisBadgeClass(tone: "healthy" | "warning" | "danger"): string {
-  switch (tone) {
-    case "healthy":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "warning":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    default:
-      return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-}
 
 export function PaymentOperationsScreen() {
   const queryClient = useQueryClient();
@@ -329,18 +308,14 @@ export function PaymentOperationsScreen() {
                           </td>
                           <td className="px-3 py-3 align-top text-slate-700">{item.customer_external_id || "-"}</td>
                           <td className="px-3 py-3 align-top">
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${paymentBadgeClass(item.payment_status)}`}>
-                              {item.payment_status || "unknown"}
-                            </span>
+                            <StatusChip tone={statusTone(item.payment_status)}>{item.payment_status || "unknown"}</StatusChip>
                             {item.last_payment_error ? (
                               <p className="mt-1 flex items-start gap-1 text-xs text-rose-700">
                                 <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
                                 <span className="line-clamp-1">{item.last_payment_error}</span>
                               </p>
                             ) : null}
-                            <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${diagnosisBadgeClass(diagnosis.tone)}`}>
-                              {diagnosis.title}
-                            </span>
+                            <StatusChip tone={diagnosisTone(diagnosis.tone)}>{diagnosis.title}</StatusChip>
                           </td>
                           <td className="px-3 py-3 align-top">
                             <p className="text-slate-700">{formatMoney(item.total_due_amount_cents, item.currency || "USD")}</p>
@@ -656,9 +631,7 @@ function TimelineEventRow({
           <p className="mt-0.5 text-xs text-slate-400">Occurred {formatExactTimestamp(event.occurred_at)}</p>
           <p className="text-[11px] text-slate-400">Received {formatRelativeTimestamp(event.received_at)}</p>
         </div>
-        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${paymentBadgeClass(event.payment_status)}`}>
-          {event.payment_status || "n/a"}
-        </span>
+        <StatusChip tone={statusTone(event.payment_status)}>{event.payment_status || "n/a"}</StatusChip>
       </div>
     </button>
   );

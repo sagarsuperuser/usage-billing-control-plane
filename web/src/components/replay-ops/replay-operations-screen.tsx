@@ -14,7 +14,9 @@ import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { StatusChip } from "@/components/ui/status-chip";
 import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryReplayJob } from "@/lib/api";
+import { statusTone } from "@/lib/badge";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -31,21 +33,6 @@ function normalizeDateTimeToISOString(value: string): string | undefined {
   const date = new Date(trimmed);
   if (Number.isNaN(date.getTime())) return undefined;
   return date.toISOString();
-}
-
-function replayBadgeClass(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "queued":
-      return "border-indigo-200 bg-indigo-50 text-indigo-700";
-    case "running":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "done":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "failed":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    default:
-      return "border-stone-200 bg-slate-50 text-slate-700";
-  }
 }
 
 export function ReplayOperationsScreen() {
@@ -221,9 +208,7 @@ export function ReplayOperationsScreen() {
                       <td className="px-4 py-3 text-slate-600">{job.customer_id || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{job.meter_id || "-"}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${replayBadgeClass(job.status)}`}>
-                          {job.status}
-                        </span>
+                        <StatusChip tone={statusTone(job.status)}>{job.status}</StatusChip>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{formatRelativeTimestamp(job.created_at)}</td>
                       <td className="px-4 py-3">
@@ -395,9 +380,7 @@ export function ReplayOperationsScreen() {
               Retry
             </button>
             {selectedJob ? (
-              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${replayBadgeClass(selectedJob.status)}`}>
-                {selectedJob.status}
-              </span>
+              <StatusChip tone={statusTone(selectedJob.status)}>{selectedJob.status}</StatusChip>
             ) : null}
           </div>
 

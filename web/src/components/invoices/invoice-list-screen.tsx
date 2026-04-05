@@ -9,7 +9,9 @@ import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchInvoices } from "@/lib/api";
+import { statusTone, diagnosisTone } from "@/lib/badge";
 import { billingFailureDiagnosis } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { type InvoiceStatusFilters } from "@/lib/types";
@@ -32,31 +34,6 @@ function formatInvoiceState(value?: string): string {
   return value.replaceAll("_", " ");
 }
 
-function diagnosisToneClass(tone: "healthy" | "warning" | "danger"): string {
-  switch (tone) {
-    case "healthy":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    case "warning":
-      return "border-amber-200 bg-amber-50 text-amber-800";
-    default:
-      return "border-rose-200 bg-rose-50 text-rose-800";
-  }
-}
-
-function paymentTone(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "succeeded":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "pending":
-    case "processing":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "failed":
-    case "requires_action":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    default:
-      return "border-stone-200 bg-slate-50 text-slate-700";
-  }
-}
 
 export function InvoiceListScreen() {
   const searchParams = useSearchParamsCompat();
@@ -195,14 +172,10 @@ export function InvoiceListScreen() {
                         <td className="px-4 py-3 text-slate-600">{item.customer_display_name || item.customer_external_id || "—"}</td>
                         <td className="px-4 py-3 text-slate-900 font-medium">{formatMoney(item.total_amount_cents, item.currency || "USD")}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${diagnosisToneClass(diagnosis.tone)}`}>
-                            {formatInvoiceState(item.invoice_status)}
-                          </span>
+                          <StatusChip tone={diagnosisTone(diagnosis.tone)}>{formatInvoiceState(item.invoice_status)}</StatusChip>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${paymentTone(item.payment_status)}`}>
-                            {formatInvoiceState(item.payment_status)}
-                          </span>
+                          <StatusChip tone={statusTone(item.payment_status)}>{formatInvoiceState(item.payment_status)}</StatusChip>
                         </td>
                         <td className="px-4 py-3 text-slate-500 text-xs">{formatExactTimestamp(item.last_event_at)}</td>
                       </tr>

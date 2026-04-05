@@ -6,27 +6,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchPlans, fetchSubscription, requestSubscriptionPaymentSetup, resendSubscriptionPaymentSetup, updateSubscription } from "@/lib/api";
+import { statusTone } from "@/lib/badge";
 import { formatExactTimestamp } from "@/lib/format";
 import { describeCustomerMissingStep, formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
-
-function tone(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "active":
-    case "ready":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "pending":
-    case "pending_payment_setup":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "action_required":
-    case "error":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    default:
-      return "border-stone-200 bg-slate-50 text-slate-700";
-  }
-}
 
 function formatSubscriptionPaymentSetupStatus(status: string): string {
   switch (status) {
@@ -145,9 +131,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   <div className="flex items-center gap-3 min-w-0">
                     <h1 className="text-base font-semibold text-slate-900 truncate">{subscription.display_name}</h1>
                     <span className="font-mono text-xs text-slate-400">{subscription.code}</span>
-                    <span data-testid="subscription-status-badge" className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${tone(subscription.status)}`}>
-                      {formatReadinessStatus(subscription.status)}
-                    </span>
+                    <StatusChip tone={statusTone(subscription.status)}>{formatReadinessStatus(subscription.status)}</StatusChip>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {canRequestSetup ? (

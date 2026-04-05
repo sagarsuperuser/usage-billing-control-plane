@@ -8,8 +8,10 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusChip } from "@/components/ui/status-chip";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningPolicy, fetchDunningRuns, updateDunningPolicy } from "@/lib/api";
+import { statusTone } from "@/lib/badge";
 import { formatExactTimestamp } from "@/lib/format";
 import { showError } from "@/lib/toast";
 import type { DunningPolicy } from "@/lib/types";
@@ -36,20 +38,6 @@ function formatState(value?: string): string {
   return value.replaceAll("_", " ");
 }
 
-function stateBadgeClass(state?: string): string {
-  switch (state) {
-    case "retry_due":
-      return "border-indigo-200 bg-indigo-50 text-indigo-700";
-    case "awaiting_payment_setup":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "escalated":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    case "resolved":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    default:
-      return "border-stone-200 bg-stone-50 text-slate-700";
-  }
-}
 
 const PAGE_SIZE = 20;
 
@@ -191,9 +179,7 @@ export function DunningConsoleScreen() {
                         <td className="px-5 py-3 font-mono text-xs text-slate-600">{run.invoice_id}</td>
                         <td className="px-4 py-3 text-slate-600">{run.customer_external_id || "-"}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${stateBadgeClass(run.state)}`}>
-                            {formatState(run.state)}
-                          </span>
+                          <StatusChip tone={statusTone(run.state)}>{formatState(run.state)}</StatusChip>
                         </td>
                         <td className="px-4 py-3 capitalize text-slate-600">{formatState(run.next_action_type)}</td>
                         <td className="px-4 py-3 text-slate-600">{formatExactTimestamp(run.next_action_at)}</td>

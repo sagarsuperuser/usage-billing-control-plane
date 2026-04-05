@@ -10,27 +10,13 @@ import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
-import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
+import { statusTone, diagnosisTone } from "@/lib/badge";
+import { diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
 import { formatReadinessStatus } from "@/lib/readiness";
 import { type CustomerReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
-
-function tone(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "ready":
-    case "active":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "pending":
-    case "incomplete":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "sync_error":
-    case "error":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    default:
-      return "border-stone-200 bg-slate-50 text-slate-700";
-  }
-}
 
 export function CustomerListScreen() {
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
@@ -135,18 +121,16 @@ export function CustomerListScreen() {
                           </Link>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${tone(customer.status)}`}>
-                            {customer.status}
-                          </span>
+                          <StatusChip tone={statusTone(customer.status)}>{customer.status}</StatusChip>
                         </td>
                         <td className="px-4 py-3 text-slate-600">
                           {readiness ? formatReadinessStatus(readiness.billing_profile_status) : "—"}
                         </td>
                         <td className="px-4 py-3">
                           {diagnosis ? (
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${customerCollectionDiagnosisToneClass(diagnosis.tone)}`}>
+                            <StatusChip tone={diagnosisTone(diagnosis.tone)}>
                               {diagnosis.tone === "healthy" ? "Ready" : diagnosis.tone === "warning" ? "Pending" : "Blocked"}
-                            </span>
+                            </StatusChip>
                           ) : <span className="text-slate-400">—</span>}
                         </td>
                       </tr>

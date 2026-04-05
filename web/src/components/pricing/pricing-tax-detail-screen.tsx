@@ -6,21 +6,10 @@ import { useQuery } from "@tanstack/react-query";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchTax } from "@/lib/api";
+import { statusTone } from "@/lib/badge";
 import { useUISession } from "@/hooks/use-ui-session";
-
-function statusBadgeClass(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "active":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "draft":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "archived":
-      return "border-stone-200 bg-slate-100 text-slate-500";
-    default:
-      return "border-stone-200 bg-slate-50 text-slate-600";
-  }
-}
 
 export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
   const { apiBaseURL, isAuthenticated, scope } = useUISession();
@@ -66,9 +55,7 @@ export function PricingTaxDetailScreen({ taxID }: { taxID: string }) {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <h1 className="text-base font-semibold text-slate-900 truncate">{tax.name}</h1>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(tax.status)}`}>
-                      {tax.status}
-                    </span>
+                    <StatusChip tone={statusTone(tax.status)}>{tax.status}</StatusChip>
                   </div>
                   <Link to="/pricing/taxes" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                     <ArrowLeft className="h-3.5 w-3.5" />

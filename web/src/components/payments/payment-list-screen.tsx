@@ -9,7 +9,9 @@ import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchPayments } from "@/lib/api";
+import { diagnosisTone } from "@/lib/badge";
 import { billingFailureDiagnosis } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
 import { type PaymentFilters } from "@/lib/types";
@@ -35,16 +37,6 @@ function formatState(value?: string): string {
   return value.replaceAll("_", " ");
 }
 
-function diagnosisToneClass(tone: "healthy" | "warning" | "danger"): string {
-  switch (tone) {
-    case "healthy":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    case "warning":
-      return "border-amber-200 bg-amber-50 text-amber-800";
-    default:
-      return "border-rose-200 bg-rose-50 text-rose-800";
-  }
-}
 
 export function PaymentListScreen() {
   const searchParams = useSearchParamsCompat();
@@ -205,9 +197,7 @@ export function PaymentListScreen() {
                         <td className="px-4 py-3 text-slate-600">{item.customer_display_name || item.customer_external_id || "—"}</td>
                         <td className="px-4 py-3 text-slate-900 font-medium">{formatMoney(item.total_due_amount_cents, item.currency || "USD")}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${diagnosisToneClass(diagnosis.tone)}`}>
-                            {formatState(item.payment_status)}
-                          </span>
+                          <StatusChip tone={diagnosisTone(diagnosis.tone)}>{formatState(item.payment_status)}</StatusChip>
                         </td>
                         <td className="px-4 py-3 text-slate-500 text-xs">{formatExactTimestamp(item.last_event_at)}</td>
                       </tr>
