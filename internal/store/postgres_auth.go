@@ -253,10 +253,13 @@ func (s *PostgresStore) CreatePasswordResetToken(input domain.PasswordResetToken
 	}
 	defer rollbackSilently(tx)
 
-	row := tx.QueryRowContext(ctx, `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, used_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+	if strings.TrimSpace(input.ID) == "" {
+		input.ID = newID("prt")
+	}
+	row := tx.QueryRowContext(ctx, `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, user_id, token_hash, expires_at, used_at, created_at, updated_at`,
-		input.UserID, input.TokenHash, input.ExpiresAt, input.UsedAt, input.CreatedAt, input.UpdatedAt)
+		input.ID, input.UserID, input.TokenHash, input.ExpiresAt, input.UsedAt, input.CreatedAt, input.UpdatedAt)
 	out, err := scanPasswordResetToken(row)
 	if err != nil {
 		if isUniqueViolation(err) {
