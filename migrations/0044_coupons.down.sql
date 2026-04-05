@@ -1,2 +1,0 @@
-DROP TABLE IF EXISTS plan_coupons;
-DROP TABLE IF EXISTS coupons;

@@ -1,2 +1,0 @@
-DROP TABLE IF EXISTS plan_add_ons;
-DROP TABLE IF EXISTS add_ons;
