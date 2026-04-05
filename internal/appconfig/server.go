@@ -63,6 +63,14 @@ type RoleConfig struct {
 	RunBillingCycleScheduler           bool
 }
 
+func (r RoleConfig) AnyEnabled() bool {
+	return r.RunAPIServer || r.RunReplayWorker || r.RunReplayDispatcher ||
+		r.RunBillingConnectionCheckWorker || r.RunBillingConnectionCheckScheduler ||
+		r.RunPaymentReconcileWorker || r.RunPaymentReconcileScheduler ||
+		r.RunDunningWorker || r.RunDunningScheduler ||
+		r.RunBillingCycleWorker || r.RunBillingCycleScheduler
+}
+
 type TemporalConfig struct {
 	Address               string
 	Namespace             string
@@ -184,7 +192,7 @@ func LoadServerConfigFromEnv() (ServerConfig, error) {
 		RunBillingCycleWorker:              getBoolEnv("RUN_BILLING_CYCLE_WORKER", false),
 		RunBillingCycleScheduler:           getBoolEnv("RUN_BILLING_CYCLE_SCHEDULER", false),
 	}
-	if !roles.RunAPIServer && !roles.RunReplayWorker && !roles.RunReplayDispatcher && !roles.RunBillingConnectionCheckWorker && !roles.RunBillingConnectionCheckScheduler && !roles.RunPaymentReconcileWorker && !roles.RunPaymentReconcileScheduler && !roles.RunDunningWorker && !roles.RunDunningScheduler && !roles.RunBillingCycleWorker && !roles.RunBillingCycleScheduler {
+	if !roles.AnyEnabled() {
 		return ServerConfig{}, fmt.Errorf("at least one role must be enabled")
 	}
 	uiSessionCookieSecure := getBoolEnv("UI_SESSION_COOKIE_SECURE", productionLike)
