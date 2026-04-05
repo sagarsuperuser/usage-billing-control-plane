@@ -12,7 +12,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 const registrationSchema = z.object({
   display_name: z.string().min(1, "Display name is required"),
   email: z.string().email("Enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(12, "Password must be at least 12 characters"),
 });
 
 type RegistrationFields = z.infer<typeof registrationSchema>;
@@ -104,7 +104,7 @@ export function RegistrationScreen() {
                   <input
                     type="password"
                     data-testid="register-password"
-                    placeholder="At least 8 characters"
+                    placeholder="At least 12 characters"
                     autoComplete="new-password"
                     className="h-11 rounded-xl border border-border bg-surface px-3.5 text-sm text-text-primary outline-none ring-slate-300 transition placeholder:text-text-faint focus:ring-2 aria-invalid:border-rose-300 aria-invalid:ring-rose-200"
                     aria-invalid={errors.password ? "true" : undefined}
