@@ -55,10 +55,12 @@ type Principal struct {
 	SubjectType  string
 	SubjectID    string
 	UserEmail    string
+	DisplayName  string
 	Scope        Scope
 	Role         Role
 	PlatformRole PlatformRole
 	TenantID     string
+	TenantName   string
 	APIKeyID     string
 }
 

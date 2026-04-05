@@ -72,6 +72,8 @@ export function SessionMenu() {
 
   const role = session.role ?? "reader";
   const tenantID = session.tenant_id || "";
+  const tenantName = session.tenant_name || tenantID || "Workspace";
+  const displayName = session.display_name || "";
   const email = session.user_email || "";
   const closeMenu = () => { setOpen(false); setShowWorkspaces(false); };
 
@@ -88,10 +90,10 @@ export function SessionMenu() {
         className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-surface-tertiary/80"
       >
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-[11px] font-bold text-white">
-          {(tenantID || email).charAt(0).toUpperCase()}
+          {(tenantName || email).charAt(0).toUpperCase()}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-text-secondary">{tenantID || "Workspace"}</span>
+          <span className="block truncate text-[13px] font-semibold text-text-secondary">{tenantName}</span>
           <span className="block truncate text-[11px] text-text-faint">{email}</span>
         </span>
       </button>
@@ -103,10 +105,10 @@ export function SessionMenu() {
           <div className="bg-surface-secondary/80 px-3.5 py-3">
             <div className="flex items-center gap-2.5">
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-[11px] font-bold text-white">
-                {(tenantID || email).charAt(0).toUpperCase()}
+                {(tenantName || email).charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-text-primary">{tenantID || "Workspace"}</p>
+                <p className="truncate text-sm font-semibold text-text-primary">{tenantName}</p>
                 <p className="truncate text-[11px] text-text-faint">{email}</p>
               </div>
             </div>

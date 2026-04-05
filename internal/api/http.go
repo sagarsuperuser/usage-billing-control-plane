@@ -90,10 +90,12 @@ const (
 	sessionSubjectTypeKey      = "principal_subject_type"
 	sessionSubjectIDKey        = "principal_subject_id"
 	sessionUserEmailKey        = "principal_user_email"
+	sessionDisplayNameKey      = "principal_display_name"
 	sessionScopeKey            = "principal_scope"
 	sessionRoleKey             = "principal_role"
 	sessionPlatformRoleKey     = "principal_platform_role"
 	sessionTenantIDKey         = "principal_tenant_id"
+	sessionTenantNameKey       = "principal_tenant_name"
 	sessionAPIKeyIDKey         = "principal_api_key_id"
 	sessionCSRFKey             = "csrf_token"
 	sessionSSOStateKey         = "ui_sso_state"
@@ -909,10 +911,12 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 	subjectType := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSubjectTypeKey))
 	subjectID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSubjectIDKey))
 	userEmail := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionUserEmailKey))
+	displayName := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionDisplayNameKey))
 	scopeRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionScopeKey))
 	roleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionRoleKey))
 	platformRoleRaw := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionPlatformRoleKey))
 	tenantID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionTenantIDKey))
+	tenantName := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionTenantNameKey))
 	apiKeyID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionAPIKeyIDKey))
 	switch Scope(scopeRaw) {
 	case ScopePlatform:
@@ -924,6 +928,7 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 			SubjectType:  subjectType,
 			SubjectID:    subjectID,
 			UserEmail:    userEmail,
+			DisplayName:  displayName,
 			Scope:        ScopePlatform,
 			PlatformRole: platformRole,
 			APIKeyID:     apiKeyID,
@@ -940,9 +945,11 @@ func (s *Server) authorizePrincipal(r *http.Request) (Principal, bool, error) {
 			SubjectType: subjectType,
 			SubjectID:   subjectID,
 			UserEmail:   userEmail,
+			DisplayName: displayName,
 			Scope:       ScopeTenant,
 			Role:        role,
 			TenantID:    normalizeTenantID(tenantID),
+			TenantName:  tenantName,
 			APIKeyID:    apiKeyID,
 		}, true, nil
 	default:

@@ -261,10 +261,12 @@ export interface UISession {
   subject_type?: "user" | "api_key";
   subject_id?: string;
   user_email?: string;
+  display_name?: string;
   scope?: "tenant" | "platform";
   role?: "reader" | "writer" | "admin";
   platform_role?: "platform_admin";
   tenant_id?: string;
+  tenant_name?: string;
   api_key_id?: string;
   csrf_token: string;
   expires_at?: string;

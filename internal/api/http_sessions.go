@@ -679,6 +679,7 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 		SubjectType: "user",
 		SubjectID:   authResult.User.ID,
 		UserEmail:   authResult.User.Email,
+		DisplayName: authResult.User.DisplayName,
 		Scope:       Scope(authResult.Scope),
 	}
 	if principal.Scope == ScopePlatform {
@@ -686,6 +687,10 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	} else {
 		principal.Role = Role(authResult.Role)
 		principal.TenantID = normalizeTenantID(authResult.TenantID)
+		// Look up workspace name for display
+		if tenant, err := s.repo.GetTenant(authResult.TenantID); err == nil {
+			principal.TenantName = tenant.Name
+		}
 	}
 
 	if err := s.sessionManager.RenewToken(r.Context()); err != nil {
@@ -739,6 +744,7 @@ func buildUISessionResponse(principal Principal, csrfToken string, expiresAt tim
 		"subject_type":  strings.TrimSpace(principal.SubjectType),
 		"subject_id":    strings.TrimSpace(principal.SubjectID),
 		"user_email":    strings.TrimSpace(principal.UserEmail),
+		"display_name":  strings.TrimSpace(principal.DisplayName),
 		"scope":         principal.Scope,
 		"api_key_id":    strings.TrimSpace(principal.APIKeyID),
 		"csrf_token":    csrfToken,
@@ -751,6 +757,7 @@ func buildUISessionResponse(principal Principal, csrfToken string, expiresAt tim
 	} else {
 		resp["role"] = principal.Role
 		resp["tenant_id"] = normalizeTenantID(principal.TenantID)
+		resp["tenant_name"] = strings.TrimSpace(principal.TenantName)
 	}
 	return resp
 }
@@ -759,15 +766,18 @@ func (s *Server) putUISessionPrincipal(ctx context.Context, principal Principal,
 	s.sessionManager.Put(ctx, sessionSubjectTypeKey, strings.TrimSpace(principal.SubjectType))
 	s.sessionManager.Put(ctx, sessionSubjectIDKey, strings.TrimSpace(principal.SubjectID))
 	s.sessionManager.Put(ctx, sessionUserEmailKey, strings.TrimSpace(principal.UserEmail))
+	s.sessionManager.Put(ctx, sessionDisplayNameKey, strings.TrimSpace(principal.DisplayName))
 	s.sessionManager.Put(ctx, sessionScopeKey, string(principal.Scope))
 	if principal.Scope == ScopePlatform {
 		s.sessionManager.Remove(ctx, sessionRoleKey)
 		s.sessionManager.Put(ctx, sessionPlatformRoleKey, string(principal.PlatformRole))
 		s.sessionManager.Remove(ctx, sessionTenantIDKey)
+		s.sessionManager.Remove(ctx, sessionTenantNameKey)
 	} else {
 		s.sessionManager.Put(ctx, sessionRoleKey, string(principal.Role))
 		s.sessionManager.Remove(ctx, sessionPlatformRoleKey)
 		s.sessionManager.Put(ctx, sessionTenantIDKey, normalizeTenantID(principal.TenantID))
+		s.sessionManager.Put(ctx, sessionTenantNameKey, strings.TrimSpace(principal.TenantName))
 	}
 	s.sessionManager.Put(ctx, sessionAPIKeyIDKey, strings.TrimSpace(principal.APIKeyID))
 	s.sessionManager.Put(ctx, sessionCSRFKey, csrfToken)
@@ -988,12 +998,14 @@ func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.putUISessionPrincipal(r.Context(), Principal{
-		SubjectType:  "user",
-		SubjectID:    user.ID,
-		UserEmail:    user.Email,
-		Scope:        ScopeTenant,
-		TenantID:     tenant.ID,
-		Role:         RoleAdmin,
+		SubjectType: "user",
+		SubjectID:   user.ID,
+		UserEmail:   user.Email,
+		DisplayName: user.DisplayName,
+		Scope:       ScopeTenant,
+		TenantID:    tenant.ID,
+		TenantName:  tenant.Name,
+		Role:        RoleAdmin,
 	}, csrfToken)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
