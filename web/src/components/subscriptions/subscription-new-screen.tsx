@@ -51,11 +51,8 @@ export function SubscriptionNewScreen() {
     },
   });
 
-  const _watched = {
-    customer_external_id: watch("customer_external_id"),
-    plan_id: watch("plan_id"),
-    request_payment_setup: watch("request_payment_setup"),
-  };
+  // eslint-disable-next-line react-hooks/incompatible-library -- watch() triggers re-render on form value changes
+  const _watched = { customer_external_id: watch("customer_external_id"), plan_id: watch("plan_id"), request_payment_setup: watch("request_payment_setup") };
 
   const customersQuery = useQuery({
     queryKey: ["customers", apiBaseURL, "subscriptions-new"],
