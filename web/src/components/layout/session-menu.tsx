@@ -7,14 +7,17 @@ import {
   ChevronRight,
   LoaderCircle,
   LogOut,
+  Moon,
   Plus,
   Settings,
+  Sun,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchSessionWorkspaces, switchWorkspace } from "@/lib/api";
 import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
+import { useTheme } from "@/hooks/use-theme";
 
 export function SessionMenu() {
   const { session, apiBaseURL, csrfToken, logout, loggingOut, setSession } = useUISession();
@@ -182,6 +185,11 @@ export function SessionMenu() {
             </Link>
           </div>
 
+          {/* Theme toggle */}
+          <div className="border-t border-stone-100">
+            <ThemeToggle />
+          </div>
+
           {/* Sign out */}
           <div className="border-t border-stone-100">
             <button
@@ -198,5 +206,21 @@ export function SessionMenu() {
         </div>
       )}
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="flex h-9 w-full items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-50"
+    >
+      {isDark ? <Sun className="h-3.5 w-3.5 text-slate-400" /> : <Moon className="h-3.5 w-3.5 text-slate-400" />}
+      {isDark ? "Light mode" : "Dark mode"}
+    </button>
   );
 }

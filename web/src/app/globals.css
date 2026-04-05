@@ -1,10 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #090d16;
-  --foreground: #e2e8f0;
+  --background: #f7f8fa;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-secondary: #f1f5f9;
+  --border: #e2e8f0;
   --font-space-grotesk: "Space Grotesk", "Segoe UI", sans-serif;
   --font-ibm-plex-mono: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #e2e8f0;
+  --surface: #141414;
+  --surface-secondary: #1a1a1a;
+  --border: #262626;
 }
 
 @theme inline {
@@ -28,8 +39,30 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 ::selection {
   background: rgba(15, 23, 42, 0.12);
 }
+
+.dark ::selection {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+/* Dark mode overrides for core surfaces */
+.dark .bg-white { background-color: var(--surface) !important; }
+.dark .bg-\[\#f7f8fa\] { background-color: var(--background) !important; }
+.dark .bg-\[\#f5f7fb\] { background-color: var(--background) !important; }
+.dark .bg-stone-50 { background-color: var(--surface-secondary) !important; }
+.dark .border-stone-200 { border-color: var(--border) !important; }
+.dark .border-stone-100 { border-color: #1f1f1f !important; }
+.dark .text-slate-900 { color: #e2e8f0 !important; }
+.dark .text-slate-800 { color: #cbd5e1 !important; }
+.dark .text-slate-700 { color: #94a3b8 !important; }
+.dark .text-slate-600 { color: #94a3b8 !important; }
+.dark .text-slate-500 { color: #64748b !important; }
+.dark .text-slate-400 { color: #475569 !important; }
+.dark .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.3) !important; }
+.dark .shadow-lg { box-shadow: 0 10px 25px rgba(0,0,0,0.4) !important; }
+.dark .shadow-xl { box-shadow: 0 20px 40px rgba(0,0,0,0.5) !important; }
