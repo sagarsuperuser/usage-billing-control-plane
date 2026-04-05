@@ -971,12 +971,13 @@ func (s *PostgresStore) RegisterUserWithWorkspace(input RegisterUserInput) (Regi
 	defer rollbackSilently(tx)
 
 	// 1. Create user
+	userID := newID("usr")
 	var user domain.User
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO users (email, display_name, status, created_at, updated_at)
-		 VALUES ($1, $2, $3, NOW(), NOW())
+		`INSERT INTO users (id, email, display_name, status, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, NOW(), NOW())
 		 RETURNING id, email, display_name, status, created_at, updated_at`,
-		input.Email, input.DisplayName, domain.UserStatusActive,
+		userID, input.Email, input.DisplayName, domain.UserStatusActive,
 	).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
