@@ -1,0 +1,355 @@
+name: Pipeline
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+# ─── Pipeline structure ─────────────────────────────────────────────
+#
+#  push/PR
+#    │
+#    ├── go-test ─────────┐
+#    ├── web-validate ────┤  Stage 1: Fast checks (~2 min)
+#    ├── migration-verify ┤  All run in parallel
+#    └── infra-validate ──┘
+#              │
+#              ▼ (all must pass)
+#    ┌─────────┴──────────┐
+#    │                    │
+#    ├── web-e2e          │  Stage 2: Deep tests + build (~5 min)
+#    ├── integration-smoke│  Run in parallel
+#    ├── build-api ───────┤  Images build while tests run
+#    └── build-web ───────┘
+#              │
+#              ▼ (all must pass, main branch only)
+#         deploy-staging      Stage 3: Deploy (~3 min)
+#
+# ────────────────────────────────────────────────────────────────────
+
+jobs:
+  # ── Stage 1: Fast checks (gate for everything) ────────────────────
+
+  go-test:
+    name: go-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - run: go mod download
+      - run: make test
+
+  web-validate:
+    name: web-validate
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: web }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.30.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm typecheck
+
+  migration-verify:
+    name: migration-verify
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - run: go mod download
+      - run: |
+          make migrate
+          make migrate-verify
+          make migrate
+          make migrate-verify
+      - run: go test ./migrations -run TestRunnerAppliesMigrationsIdempotently -v
+
+  infra-validate:
+    name: infra-validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.9.8 }
+      - run: terraform fmt -check -recursive infra/terraform/aws
+      - run: terraform -chdir=infra/terraform/aws init -backend=false
+      - run: terraform -chdir=infra/terraform/aws validate
+      - uses: azure/setup-helm@v4
+        with: { version: v3.16.4 }
+      - run: helm lint deploy/helm/alpha
+      - run: |
+          helm template lago-alpha deploy/helm/alpha \
+            -f deploy/helm/alpha/environments/staging-values.yaml >/tmp/helm-staging.yaml
+      - run: |
+          helm template lago-alpha deploy/helm/alpha \
+            -f deploy/helm/alpha/environments/prod-values.yaml >/tmp/helm-prod.yaml
+
+  # ── Stage 2: Deep tests + image builds (after fast checks pass) ───
+
+  changes:
+    name: detect-changes
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      integration_smoke: ${{ steps.filter.outputs.integration_smoke }}
+      integration_full: ${{ steps.filter.outputs.integration_full }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'web/**'
+              - 'internal/api/**'
+              - 'internal/service/**'
+              - 'internal/appconfig/**'
+              - '.github/workflows/pipeline.yml'
+            integration_smoke:
+              - 'internal/**'
+              - 'cmd/**'
+              - 'migrations/**'
+              - 'scripts/test_integration.sh'
+              - 'scripts/test_real_env_smoke.sh'
+              - 'docker-compose*.yml'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/pipeline.yml'
+            integration_full:
+              - 'internal/api/**'
+              - 'internal/service/**'
+              - 'internal/replay/**'
+              - 'internal/dunningflow/**'
+              - 'internal/paymentsync/**'
+              - 'internal/billingcheck/**'
+              - 'internal/billingcycle/**'
+              - 'cmd/**'
+              - 'migrations/**'
+              - 'scripts/test_integration.sh'
+              - 'docker-compose*.yml'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/pipeline.yml'
+
+  web-e2e:
+    name: web-e2e
+    needs: [go-test, web-validate, migration-verify, infra-validate, changes]
+    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: web }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.30.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run Playwright
+        env: { PLAYWRIGHT_WEB_SERVER_MODE: production }
+        run: pnpm e2e
+
+  integration-smoke:
+    name: integration-smoke
+    needs: [go-test, web-validate, migration-verify, infra-validate, changes]
+    if: github.event_name == 'push' || needs.changes.outputs.integration_smoke == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_FILE: docker-compose.postgres.yml
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/alpha_test?sslmode=disable
+      TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
+      TEST_TEMPORAL_NAMESPACE: default
+      CLEANUP_ON_EXIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - run: go mod download
+      - run: docker compose version
+      - run: make test-real-env-smoke
+
+  integration-full:
+    name: integration-full
+    needs: [integration-smoke, changes]
+    if: github.event_name == 'push' || needs.changes.outputs.integration_full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE_FILE: docker-compose.postgres.yml
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:15432/alpha_test?sslmode=disable
+      TEST_TEMPORAL_ADDRESS: 127.0.0.1:17233
+      TEST_TEMPORAL_NAMESPACE: default
+      RUN_LARGE_REPLAY_DATASET: 1
+      LARGE_REPLAY_EVENT_COUNT: 2000
+      LARGE_REPLAY_MAX_MISMATCH_ROWS: 0
+      LARGE_REPLAY_MAX_TOTAL_ABS_DELTA_CENTS: 0
+      CLEANUP_ON_EXIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - run: go mod download
+      - run: docker compose version
+      - run: make test-integration
+
+  build-api:
+    name: build-api
+    needs: [go-test, web-validate, migration-verify, infra-validate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ secrets.AWS_ROLE_TO_ASSUME }}", aws-region: us-east-1 }
+      - uses: docker/setup-buildx-action@v3
+      - id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: meta
+        run: echo "image=${{ steps.login-ecr.outputs.registry }}/lago-alpha-staging/api:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+  build-web:
+    name: build-web
+    needs: [go-test, web-validate, migration-verify, infra-validate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ secrets.AWS_ROLE_TO_ASSUME }}", aws-region: us-east-1 }
+      - uses: docker/setup-buildx-action@v3
+      - id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: meta
+        run: echo "image=${{ steps.login-ecr.outputs.registry }}/lago-alpha-staging/web:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: web
+          file: web/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+  # ── Stage 3: Deploy (after ALL tests + builds pass, main only) ────
+
+  deploy-staging:
+    name: deploy-staging
+    needs: [web-e2e, integration-smoke, build-api, build-web]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.sagarwaidande.org
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ secrets.AWS_ROLE_TO_ASSUME }}", aws-region: us-east-1 }
+      - run: aws eks update-kubeconfig --region us-east-1 --name lago-alpha-staging-eks
+      - uses: azure/setup-helm@v4
+        with: { version: v3.16.4 }
+      - name: Write image tag overrides
+        run: |
+          SHA="${{ github.sha }}"
+          cat > /tmp/image-tags.yaml <<EOF
+          api:
+            image:
+              tag: "${SHA}"
+          replayWorker:
+            image:
+              tag: "${SHA}"
+          replayDispatcher:
+            image:
+              tag: "${SHA}"
+          billingConnectionCheckWorker:
+            image:
+              tag: "${SHA}"
+          billingConnectionCheckScheduler:
+            image:
+              tag: "${SHA}"
+          paymentReconcileWorker:
+            image:
+              tag: "${SHA}"
+          paymentReconcileScheduler:
+            image:
+              tag: "${SHA}"
+          dunningWorker:
+            image:
+              tag: "${SHA}"
+          dunningScheduler:
+            image:
+              tag: "${SHA}"
+          billingCycleWorker:
+            image:
+              tag: "${SHA}"
+          billingCycleScheduler:
+            image:
+              tag: "${SHA}"
+          web:
+            image:
+              tag: "${SHA}"
+          EOF
+      - name: Clean stale Helm hooks
+        run: kubectl delete job -n lago-alpha -l app.kubernetes.io/component=migrate --ignore-not-found=true 2>/dev/null || true
+      - name: Helm upgrade
+        run: |
+          helm upgrade lago-alpha deploy/helm/alpha \
+            --install --atomic --wait --timeout 10m \
+            --namespace lago-alpha \
+            --values deploy/helm/alpha/environments/staging-values.yaml \
+            --values /tmp/image-tags.yaml
+      - name: Summary
+        run: |
+          SHORT="${{ github.sha }}"
+          SHORT="${SHORT:0:7}"
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Deployed to staging
+          | | |
+          |---|---|
+          | **Commit** | [\`${SHORT}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |
+          | **Triggered by** | ${{ github.actor }} |
+          | **URL** | [staging.sagarwaidande.org](https://staging.sagarwaidande.org) |
+          EOF
