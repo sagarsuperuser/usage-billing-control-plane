@@ -73,7 +73,7 @@ export function SessionMenu() {
   const role = session.role ?? "reader";
   const tenantID = session.tenant_id || "";
   const tenantName = session.tenant_name || tenantID || "Workspace";
-  const displayName = session.display_name || "";
+  const _displayName = session.display_name || "";
   const email = session.user_email || "";
   const closeMenu = () => { setOpen(false); setShowWorkspaces(false); };
 
