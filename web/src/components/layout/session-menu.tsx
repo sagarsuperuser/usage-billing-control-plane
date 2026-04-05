@@ -149,7 +149,7 @@ export function SessionMenu() {
                             isCurrent ? "font-medium text-slate-900" : "text-slate-600 hover:bg-stone-100 disabled:opacity-50"
                           }`}
                         >
-                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-white text-[9px] font-bold text-slate-500 ring-1 ring-stone-200">
+                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-stone-100 text-[9px] font-bold text-slate-700 ring-1 ring-stone-200">
                             {ws.name.charAt(0).toUpperCase()}
                           </span>
                           <span className="min-w-0 flex-1 truncate">{ws.name}</span>
@@ -160,10 +160,10 @@ export function SessionMenu() {
                     <Link
                       to="/workspace-setup"
                       onClick={closeMenu}
-                      className="flex h-8 w-full items-center gap-2.5 px-3.5 text-xs text-slate-500 transition hover:bg-stone-100"
+                      className="flex h-8 w-full items-center gap-2.5 px-3.5 text-xs text-slate-600 transition hover:bg-stone-100"
                     >
-                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-dashed border-stone-300">
-                        <Plus className="h-2.5 w-2.5 text-slate-400" />
+                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-dashed border-stone-200">
+                        <Plus className="h-2.5 w-2.5 text-slate-500" />
                       </span>
                       New workspace
                     </Link>

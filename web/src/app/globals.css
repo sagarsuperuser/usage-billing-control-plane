@@ -98,9 +98,7 @@ body {
 .dark .divide-stone-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
 .dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-light) !important; }
 
-/* Table header borders should be slightly more visible than row dividers */
-.dark thead .border-b { border-color: var(--border) !important; }
-.dark tbody .divide-y > :not([hidden]) ~ :not([hidden]),
+/* Table row dividers — use subtle border-light for clean separation */
 .dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-light) !important; }
 
 /* ── Text ────────────────────────────────────────────────────────── */
@@ -132,6 +130,9 @@ body {
 .dark .hover\:bg-stone-50:hover { background-color: var(--surface-secondary) !important; }
 .dark .hover\:bg-stone-100:hover { background-color: var(--surface-tertiary) !important; }
 .dark .hover\:bg-slate-50:hover { background-color: var(--surface-secondary) !important; }
+
+/* ── Dashed borders (workspace switcher "new" button) ─────────── */
+.dark .border-dashed { border-color: #3f3f46 !important; }
 
 /* ── Shadows ─────────────────────────────────────────────────────── */
 .dark .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important; }
