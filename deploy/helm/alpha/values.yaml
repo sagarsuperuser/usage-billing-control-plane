@@ -4,6 +4,9 @@ fullnameOverride: ""
 reloader:
   enabled: false
 
+monitoring:
+  enabled: false
+
 serviceAccounts:
   api:
     create: true

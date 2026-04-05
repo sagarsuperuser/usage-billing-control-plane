@@ -1559,6 +1559,7 @@ func (s *Server) registerRoutes() {
 
 	// Global middleware (applied to every route).
 	r.Use(s.requestIDMiddleware)
+	r.Use(s.versionMiddleware)
 	r.Use(s.instrumentMiddleware)
 	r.Use(s.auditLogMiddleware)
 	r.Use(s.corsMiddleware)
