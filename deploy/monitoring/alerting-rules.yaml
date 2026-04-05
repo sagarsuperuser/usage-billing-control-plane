@@ -1,0 +1,106 @@
+# Prometheus alerting rules for Alpha Billing Control Plane
+# Import into Prometheus/Alertmanager or Grafana Cloud alerts
+
+groups:
+  - name: alpha-billing
+    interval: 30s
+    rules:
+      # ── Payment failures ─────────────────────────────────────────────
+
+      - alert: PaymentFailureRateHigh
+        expr: rate(alpha_payments_failed_total[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: billing
+        annotations:
+          summary: "Payment failure rate is elevated"
+          description: "More than 0.1 payment failures per second over the last 10 minutes. Check Stripe integration and customer payment methods."
+
+      - alert: NoPaymentsProcessed
+        expr: rate(alpha_payments_succeeded_total[30m]) == 0 and rate(alpha_invoices_finalized_total[30m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          team: billing
+        annotations:
+          summary: "Invoices are being finalized but no payments are succeeding"
+          description: "Invoices are going out but all payment attempts are failing. Possible Stripe connectivity or API key issue."
+
+      # ── Billing engine ───────────────────────────────────────────────
+
+      - alert: BillingCycleStalled
+        expr: rate(alpha_invoices_generated_total[1h]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          team: billing
+        annotations:
+          summary: "No invoices generated in the last 30 minutes"
+          description: "The billing cycle workflow may be stuck. Check Temporal workflow status."
+
+      - alert: InvoiceFinalizationBacklog
+        expr: (rate(alpha_invoices_generated_total[15m]) - rate(alpha_invoices_finalized_total[15m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: billing
+        annotations:
+          summary: "Invoice finalization is falling behind generation"
+          description: "Invoices are being generated faster than they can be finalized. Check Stripe PaymentIntent creation."
+
+      # ── API health ──────────────────────────────────────────────────
+
+      - alert: HighErrorRate
+        expr: sum(rate(alpha_http_requests_total{status=~"5.."}[5m])) / sum(rate(alpha_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "API error rate above 5%"
+          description: "More than 5% of all API requests are returning 5xx errors."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(alpha_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API p95 latency above 2 seconds"
+          description: "The 95th percentile request latency exceeds 2 seconds. Check database performance and downstream services."
+
+      - alert: RateLimitingActive
+        expr: sum(rate(alpha_rate_limited_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "Rate limiting is actively throttling requests"
+          description: "Requests are being rate-limited. Check if a tenant is hitting API limits."
+
+      # ── Dunning ─────────────────────────────────────────────────────
+
+      - alert: DunningRunsEscalating
+        expr: alpha_dunning_runs_active > 50
+        for: 10m
+        labels:
+          severity: warning
+          team: billing
+        annotations:
+          summary: "More than 50 active dunning runs"
+          description: "A large number of invoices are in collections. Review payment setup status across customers."
+
+      # ── Authentication ──────────────────────────────────────────────
+
+      - alert: AuthDenialSpike
+        expr: sum(rate(alpha_auth_denied_total[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Authentication denial rate is elevated"
+          description: "More than 5 auth denials per second. Possible brute force or misconfigured API keys."

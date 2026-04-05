@@ -1,0 +1,117 @@
+{
+  "dashboard": {
+    "title": "Alpha Billing Control Plane",
+    "uid": "alpha-billing",
+    "timezone": "utc",
+    "refresh": "30s",
+    "panels": [
+      {
+        "title": "Request Rate (req/s)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(alpha_http_requests_total[5m])) by (route)",
+            "legendFormat": "{{route}}"
+          }
+        ]
+      },
+      {
+        "title": "Request Latency (p95)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(alpha_http_request_duration_seconds_bucket[5m])) by (le, route))",
+            "legendFormat": "p95 {{route}}"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate (5xx)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(alpha_http_requests_total{status=~\"5..\"}[5m])) by (route)",
+            "legendFormat": "{{route}}"
+          }
+        ]
+      },
+      {
+        "title": "Auth Denials",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(alpha_auth_denied_total[5m])) by (reason)",
+            "legendFormat": "{{reason}}"
+          }
+        ]
+      },
+      {
+        "title": "Invoices Generated vs Finalized",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "rate(alpha_invoices_generated_total[5m])",
+            "legendFormat": "generated"
+          },
+          {
+            "expr": "rate(alpha_invoices_finalized_total[5m])",
+            "legendFormat": "finalized"
+          }
+        ]
+      },
+      {
+        "title": "Payments",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "rate(alpha_payments_succeeded_total[5m])",
+            "legendFormat": "succeeded"
+          },
+          {
+            "expr": "rate(alpha_payments_failed_total[5m])",
+            "legendFormat": "failed"
+          }
+        ]
+      },
+      {
+        "title": "Rate Limited Requests",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+        "targets": [
+          {
+            "expr": "sum(rate(alpha_rate_limited_total[5m])) by (policy)",
+            "legendFormat": "{{policy}}"
+          }
+        ]
+      },
+      {
+        "title": "Active Dunning Runs",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+        "targets": [
+          {
+            "expr": "alpha_dunning_runs_active",
+            "legendFormat": "active runs"
+          }
+        ]
+      },
+      {
+        "title": "Webhooks Received",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+        "targets": [
+          {
+            "expr": "sum(rate(alpha_webhooks_received_total[5m])) by (event_type)",
+            "legendFormat": "{{event_type}}"
+          }
+        ]
+      }
+    ]
+  }
+}
