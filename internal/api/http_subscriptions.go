@@ -12,8 +12,8 @@ import (
 type createSubscriptionRequest struct {
 	Code                string     `json:"code"`
 	DisplayName         string     `json:"display_name"`
-	CustomerExternalID  string     `json:"customer_external_id"`
-	PlanID              string     `json:"plan_id"`
+	CustomerExternalID  string     `json:"customer_external_id" validate:"required"`
+	PlanID              string     `json:"plan_id" validate:"required"`
 	BillingTime         string     `json:"billing_time,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	RequestPaymentSetup bool       `json:"request_payment_setup"`
@@ -48,7 +48,7 @@ func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, items)
 	case http.MethodPost:
 		var req createSubscriptionRequest
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeAndValidate(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}

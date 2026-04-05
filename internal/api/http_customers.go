@@ -30,7 +30,7 @@ func (s *Server) handleCustomerOnboarding(w http.ResponseWriter, r *http.Request
 	}
 	tenantID := requestTenantID(r)
 	var req service.CustomerOnboardingRequest
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeAndValidate(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -51,7 +51,7 @@ func (s *Server) handleCustomers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		var req service.CreateCustomerRequest
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeAndValidate(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -145,7 +145,7 @@ func (s *Server) handleCustomerByExternalID(w http.ResponseWriter, r *http.Reque
 			writeJSON(w, http.StatusOK, profile)
 		case http.MethodPut:
 			var req service.UpsertCustomerBillingProfileRequest
-			if err := decodeJSON(r, &req); err != nil {
+			if err := decodeAndValidate(r, &req); err != nil {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}

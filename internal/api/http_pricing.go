@@ -10,55 +10,55 @@ import (
 )
 
 type createPricingMetricRequest struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	Unit        string `json:"unit"`
-	Aggregation string `json:"aggregation"`
-	Currency    string `json:"currency"`
+	Key         string `json:"key" validate:"required,min=1,max=100"`
+	Name        string `json:"name" validate:"required,min=1,max=200"`
+	Unit        string `json:"unit" validate:"required,min=1,max=50"`
+	Aggregation string `json:"aggregation" validate:"required,oneof=sum count max unique_count"`
+	Currency    string `json:"currency" validate:"max=3"`
 }
 
 type createPlanRequest struct {
-	Code            string   `json:"code"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Currency        string   `json:"currency"`
-	BillingInterval string   `json:"billing_interval"`
-	Status          string   `json:"status"`
-	BaseAmountCents int64    `json:"base_amount_cents"`
+	Code            string   `json:"code" validate:"required,min=1,max=100"`
+	Name            string   `json:"name" validate:"required,min=1,max=200"`
+	Description     string   `json:"description" validate:"max=1000"`
+	Currency        string   `json:"currency" validate:"required,len=3"`
+	BillingInterval string   `json:"billing_interval" validate:"required,oneof=monthly yearly"`
+	Status          string   `json:"status" validate:"oneof=draft active archived"`
+	BaseAmountCents int64    `json:"base_amount_cents" validate:"gte=0"`
 	MeterIDs        []string `json:"meter_ids"`
 	AddOnIDs        []string `json:"add_on_ids"`
 	CouponIDs       []string `json:"coupon_ids"`
 }
 
 type createTaxRequest struct {
-	Code        string  `json:"code"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Status      string  `json:"status"`
-	Rate        float64 `json:"rate"`
+	Code        string  `json:"code" validate:"required,min=1,max=100"`
+	Name        string  `json:"name" validate:"required,min=1,max=200"`
+	Description string  `json:"description" validate:"max=1000"`
+	Status      string  `json:"status" validate:"oneof=active inactive"`
+	Rate        float64 `json:"rate" validate:"gte=0,lte=1"`
 }
 
 type createAddOnRequest struct {
-	Code            string `json:"code"`
-	Name            string `json:"name"`
-	Description     string `json:"description"`
-	Currency        string `json:"currency"`
-	BillingInterval string `json:"billing_interval"`
-	Status          string `json:"status"`
-	AmountCents     int64  `json:"amount_cents"`
+	Code            string `json:"code" validate:"required,min=1,max=100"`
+	Name            string `json:"name" validate:"required,min=1,max=200"`
+	Description     string `json:"description" validate:"max=1000"`
+	Currency        string `json:"currency" validate:"required,len=3"`
+	BillingInterval string `json:"billing_interval" validate:"required,oneof=monthly yearly"`
+	Status          string `json:"status" validate:"oneof=draft active archived"`
+	AmountCents     int64  `json:"amount_cents" validate:"gte=0"`
 }
 
 type createCouponRequest struct {
-	Code              string     `json:"code"`
-	Name              string     `json:"name"`
-	Description       string     `json:"description"`
-	Status            string     `json:"status"`
-	DiscountType      string     `json:"discount_type"`
-	Currency          string     `json:"currency"`
-	AmountOffCents    int64      `json:"amount_off_cents"`
-	PercentOff        int        `json:"percent_off"`
-	Frequency         string     `json:"frequency"`
-	FrequencyDuration int        `json:"frequency_duration"`
+	Code              string     `json:"code" validate:"required,min=1,max=100"`
+	Name              string     `json:"name" validate:"required,min=1,max=200"`
+	Description       string     `json:"description" validate:"max=1000"`
+	Status            string     `json:"status" validate:"oneof=draft active archived"`
+	DiscountType      string     `json:"discount_type" validate:"required,oneof=percent_off amount_off"`
+	Currency          string     `json:"currency" validate:"max=3"`
+	AmountOffCents    int64      `json:"amount_off_cents" validate:"gte=0"`
+	PercentOff        int        `json:"percent_off" validate:"gte=0,lte=100"`
+	Frequency         string     `json:"frequency" validate:"required,oneof=forever once recurring"`
+	FrequencyDuration int        `json:"frequency_duration" validate:"gte=0"`
 	ExpirationAt      *time.Time `json:"expiration_at"`
 }
 
@@ -83,7 +83,7 @@ func (s *Server) handlePricingMetrics(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, metrics)
 	case http.MethodPost:
 		var req createPricingMetricRequest
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeAndValidate(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -147,7 +147,7 @@ func (s *Server) handlePlans(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, plans)
 	case http.MethodPost:
 		var req createPlanRequest
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeAndValidate(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -190,7 +190,7 @@ func (s *Server) handleTaxes(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, items)
 	case http.MethodPost:
 		var req createTaxRequest
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeAndValidate(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -272,7 +272,7 @@ func (s *Server) handleAddOns(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, items)
 	case http.MethodPost:
 		var req createAddOnRequest
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeAndValidate(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -334,7 +334,7 @@ func (s *Server) handleCoupons(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, items)
 	case http.MethodPost:
 		var req createCouponRequest
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeAndValidate(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}

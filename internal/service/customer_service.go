@@ -18,9 +18,9 @@ type CustomerService struct {
 }
 
 type CreateCustomerRequest struct {
-	ExternalID     string `json:"external_id"`
+	ExternalID     string `json:"external_id" validate:"required"`
 	DisplayName    string `json:"display_name,omitempty"`
-	Email          string `json:"email,omitempty"`
+	Email          string `json:"email,omitempty" validate:"omitempty,email"`
 }
 
 type UpdateCustomerRequest struct {
@@ -38,15 +38,15 @@ type ListCustomersRequest struct {
 
 type UpsertCustomerBillingProfileRequest struct {
 	LegalName     string   `json:"legal_name,omitempty"`
-	Email         string   `json:"email,omitempty"`
+	Email         string   `json:"email,omitempty" validate:"omitempty,email"`
 	Phone         string   `json:"phone,omitempty"`
 	AddressLine1  string   `json:"billing_address_line1,omitempty"`
 	AddressLine2  string   `json:"billing_address_line2,omitempty"`
 	City          string   `json:"billing_city,omitempty"`
 	State         string   `json:"billing_state,omitempty"`
 	PostalCode    string   `json:"billing_postal_code,omitempty"`
-	Country       string   `json:"billing_country,omitempty"`
-	Currency      string   `json:"currency,omitempty"`
+	Country       string   `json:"billing_country,omitempty" validate:"omitempty,max=2"`
+	Currency      string   `json:"currency,omitempty" validate:"omitempty,len=3"`
 	TaxIdentifier string   `json:"tax_identifier,omitempty"`
 	TaxCodes      []string `json:"tax_codes,omitempty"`
 	ProviderCode  string   `json:"provider_code,omitempty"`

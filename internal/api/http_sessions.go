@@ -35,28 +35,28 @@ type workspaceInvitationPreviewResponse struct {
 }
 
 type uiSessionLoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
 	TenantID string `json:"tenant_id"`
 	Next     string `json:"next"`
 }
 
 type uiInvitationRegisterRequest struct {
 	DisplayName string `json:"display_name"`
-	Password    string `json:"password"`
+	Password    string `json:"password" validate:"required"`
 }
 
 type uiPasswordForgotRequest struct {
-	Email string `json:"email"`
+	Email string `json:"email" validate:"required,email"`
 }
 
 type uiPasswordResetRequest struct {
-	Token    string `json:"token"`
-	Password string `json:"password"`
+	Token    string `json:"token" validate:"required"`
+	Password string `json:"password" validate:"required"`
 }
 
 type uiWorkspaceSelectRequest struct {
-	TenantID string `json:"tenant_id"`
+	TenantID string `json:"tenant_id" validate:"required"`
 }
 
 func newBrowserWorkspaceOptionResponses(items []service.BrowserWorkspaceOption) []browserWorkspaceOptionResponse {
@@ -181,15 +181,11 @@ func (s *Server) handleUIPasswordForgot(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var req uiPasswordForgotRequest
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeAndValidate(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
-	if req.Email == "" {
-		writeError(w, http.StatusBadRequest, "email is required")
-		return
-	}
 	issued, err := s.passwordResetService.IssuePasswordReset(req.Email)
 	switch {
 	case err == nil:
@@ -218,16 +214,12 @@ func (s *Server) handleUIPasswordReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req uiPasswordResetRequest
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeAndValidate(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	req.Token = strings.TrimSpace(req.Token)
 	req.Password = strings.TrimSpace(req.Password)
-	if req.Token == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "token and password are required")
-		return
-	}
 	user, err := s.passwordResetService.ResetPassword(req.Token, req.Password)
 	if err != nil {
 		switch {
@@ -297,7 +289,7 @@ func (s *Server) handleUISessionSwitchWorkspace(w http.ResponseWriter, r *http.R
 		return
 	}
 	var req uiWorkspaceSelectRequest
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeAndValidate(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -485,16 +477,12 @@ func (s *Server) handleUIInvitationRegister(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req uiInvitationRegisterRequest
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeAndValidate(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	req.DisplayName = strings.TrimSpace(req.DisplayName)
 	req.Password = strings.TrimSpace(req.Password)
-	if req.Password == "" {
-		writeError(w, http.StatusBadRequest, "password is required")
-		return
-	}
 
 	user, invite, _, err := s.workspaceAccessService.RegisterInvitedUser(token, req.DisplayName, req.Password)
 	if err != nil {
@@ -699,7 +687,7 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req uiSessionLoginRequest
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeAndValidate(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -707,10 +695,6 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	req.Password = strings.TrimSpace(req.Password)
 	req.TenantID = strings.TrimSpace(req.TenantID)
 	req.Next = normalizeUINextPath(strings.TrimSpace(req.Next))
-	if req.Email == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "email and password are required")
-		return
-	}
 
 	if s.browserUserAuthService == nil {
 		writeError(w, http.StatusServiceUnavailable, "browser user auth is not configured")

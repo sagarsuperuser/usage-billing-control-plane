@@ -14,9 +14,9 @@ type CustomerOnboardingService struct {
 }
 
 type CustomerOnboardingRequest struct {
-	ExternalID        string                               `json:"external_id"`
+	ExternalID        string                               `json:"external_id" validate:"required"`
 	DisplayName       string                               `json:"display_name,omitempty"`
-	Email             string                               `json:"email,omitempty"`
+	Email             string                               `json:"email,omitempty" validate:"omitempty,email"`
 	BillingProfile    *UpsertCustomerBillingProfileRequest `json:"billing_profile,omitempty"`
 	StartPaymentSetup bool                                 `json:"start_payment_setup,omitempty"`
 	PaymentMethodType string                               `json:"payment_method_type,omitempty"`
