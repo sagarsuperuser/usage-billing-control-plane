@@ -4,9 +4,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AppProviders } from "@/app/providers";
 import { SidebarLayout } from "@/components/layout/sidebar";
 import { CommandPalette } from "@/components/ui/command-palette";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 export const Route = createRootRoute({
   component: function RootLayout() {
+    useKeyboardShortcuts();
     return (
       <AppProviders>
         <CommandPalette />

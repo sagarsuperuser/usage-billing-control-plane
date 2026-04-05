@@ -1,6 +1,7 @@
 
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { LoaderCircle, Mail, RefreshCw } from "lucide-react";
+import { FileText, LoaderCircle, Mail, RefreshCw, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -29,6 +30,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 
 export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, scope } = useUISession();
+  const [showPDF, setShowPDF] = useState(false);
   const isTenantSession = isAuthenticated && scope === "tenant";
 
   const invoiceQuery = useQuery({
@@ -108,7 +110,36 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
           ]}
         />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
+        <LoginRedirectNotice />
+
+        {/* PDF Viewer Modal */}
+        {showPDF && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={(e) => { if (e.target === e.currentTarget) setShowPDF(false); }}>
+            <div className="relative flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3">
+                <p className="text-sm font-semibold text-slate-900">Invoice PDF</p>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`${apiBaseURL || ""}/v1/invoices/${encodeURIComponent(invoiceID)}/pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-7 items-center gap-1.5 rounded border border-stone-200 px-2 text-xs font-medium text-slate-600 transition hover:bg-stone-100"
+                  >
+                    Download
+                  </a>
+                  <button type="button" onClick={() => setShowPDF(false)} className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-400 transition hover:bg-stone-100 hover:text-slate-700">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <iframe
+                src={`${apiBaseURL || ""}/v1/invoices/${encodeURIComponent(invoiceID)}/pdf`}
+                className="flex-1 border-none"
+                title="Invoice PDF"
+              />
+            </div>
+          </div>
+        )}
 
         {isTenantSession ? (
           invoiceQuery.isLoading ? (
@@ -144,6 +175,14 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowPDF(true)}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      View PDF
+                    </button>
                     <button
                       type="button"
                       onClick={() => resendEmailMutation.mutate()}
