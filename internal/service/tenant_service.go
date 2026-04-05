@@ -73,7 +73,10 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 		return domain.Tenant{}, fmt.Errorf("%w: tenant repository is required", ErrValidation)
 	}
 
-	id := normalizeTenantID(req.ID)
+	id := strings.TrimSpace(req.ID)
+	if id == "" {
+		id = generateTenantID()
+	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		name = id
