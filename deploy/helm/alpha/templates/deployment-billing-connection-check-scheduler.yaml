@@ -31,10 +31,20 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: billing-connection-check-scheduler
           image: "{{ default .Values.api.image.repository .Values.billingConnectionCheckScheduler.image.repository }}:{{ default .Values.api.image.tag .Values.billingConnectionCheckScheduler.image.tag }}"
           imagePullPolicy: {{ .Values.billingConnectionCheckScheduler.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           {{- include "lago-alpha.runtimeEnvFrom" . | nindent 10 }}
           env:
             - name: RUN_API_SERVER

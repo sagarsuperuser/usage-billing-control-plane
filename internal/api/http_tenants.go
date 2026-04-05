@@ -372,7 +372,7 @@ func (s *Server) updateInternalTenantWorkspaceBillingSettings(w http.ResponseWri
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	settings, err := s.workspaceBillingSettingsService.UpsertWorkspaceBillingSettings(tenantID, req)
+	settings, err := s.workspaceBillingSettingsService.UpsertWorkspaceBillingSettings(r.Context(), tenantID, req)
 	if err != nil {
 		writeDomainError(w, err)
 		return

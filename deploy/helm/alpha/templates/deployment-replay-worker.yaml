@@ -31,10 +31,20 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: replay-worker
           image: "{{ .Values.replayWorker.image.repository }}:{{ .Values.replayWorker.image.tag }}"
           imagePullPolicy: {{ .Values.replayWorker.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           {{- include "lago-alpha.runtimeEnvFrom" . | nindent 10 }}
           env:
             - name: RUN_API_SERVER

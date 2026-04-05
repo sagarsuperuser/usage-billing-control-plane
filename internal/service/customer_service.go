@@ -359,6 +359,7 @@ func (s *CustomerService) BeginCustomerPaymentSetup(tenantID, externalID string,
 		return BeginCustomerPaymentSetupResult{}, fmt.Errorf("%w: default payment method is already verified", ErrValidation)
 	}
 
+	// TODO(context): thread parent ctx through BeginCustomerPaymentSetup call chain
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -510,6 +511,7 @@ func (s *CustomerService) syncAndVerifyCustomerBilling(tenantID string, customer
 		return customer, profile, setup, nil
 	}
 
+	// TODO(context): thread parent ctx through syncAndVerifyCustomerBilling call chain
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

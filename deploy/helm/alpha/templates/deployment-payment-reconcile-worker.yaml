@@ -31,10 +31,20 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: payment-reconcile-worker
           image: "{{ default .Values.api.image.repository .Values.paymentReconcileWorker.image.repository }}:{{ default .Values.api.image.tag .Values.paymentReconcileWorker.image.tag }}"
           imagePullPolicy: {{ .Values.paymentReconcileWorker.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           {{- include "lago-alpha.runtimeEnvFrom" . | nindent 10 }}
           env:
             - name: RUN_API_SERVER

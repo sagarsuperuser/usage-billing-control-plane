@@ -140,6 +140,7 @@ func (s *UsageService) CreateUsageEventWithIdempotency(input domain.UsageEvent) 
 		return domain.UsageEvent{}, false, err
 	}
 	if s.usageSyncAdapter != nil && input.SubscriptionID != "" {
+		// Background context: best-effort sync, not request-scoped
 		if err := s.usageSyncAdapter.SyncUsageEvent(context.Background(), created, meter, subscription); err != nil {
 			return domain.UsageEvent{}, false, err
 		}

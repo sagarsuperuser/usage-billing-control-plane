@@ -12,10 +12,12 @@ export function QueryProvider({ children }: { children: ReactNode }) {
           queries: {
             staleTime: 10_000,
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: 2,
+            retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
           },
           mutations: {
-            retry: 0,
+            retry: 1,
+            retryDelay: 1000,
           },
         },
       })

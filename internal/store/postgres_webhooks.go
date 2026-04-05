@@ -184,7 +184,10 @@ func (s *PostgresStore) upsertInvoicePaymentStatusViewTx(ctx context.Context, tx
 		event.WebhookKey,
 		time.Now().UTC(),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("upsert invoice payment status view: %w", err)
+	}
+	return nil
 }
 
 func (s *PostgresStore) UpsertInvoicePaymentStatusView(input domain.InvoicePaymentStatusView) (domain.InvoicePaymentStatusView, error) {

@@ -63,7 +63,7 @@ export function PricingTaxListScreen() {
                 <input
                   value={search}
                   onChange={(event) => { setSearch(event.target.value); setPage(1); }}
-                  placeholder="Search..."
+                  aria-label="Search" placeholder="Search..."
                   className="h-8 w-48 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-2"
                 />
                 <Link to="/pricing/taxes/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">

@@ -516,13 +516,13 @@ func (s *PostgresStore) SetInvoicePDFKey(tenantID, invoiceID, pdfObjectKey strin
 
 	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer rollbackSilently(tx)
 
 	_, err = tx.ExecContext(ctx, `UPDATE invoices SET pdf_object_key = $1, updated_at = NOW() WHERE id = $2`, pdfObjectKey, invoiceID)
 	if err != nil {
-		return err
+		return fmt.Errorf("update invoice pdf key: %w", err)
 	}
 	return tx.Commit()
 }

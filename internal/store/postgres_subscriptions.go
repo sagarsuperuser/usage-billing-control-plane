@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -184,7 +185,7 @@ func (s *PostgresStore) UpdateSubscriptionBillingCycle(tenantID, id string, peri
 
 	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer rollbackSilently(tx)
 
@@ -196,7 +197,7 @@ func (s *PostgresStore) UpdateSubscriptionBillingCycle(tenantID, id string, peri
 			updated_at = NOW()
 		WHERE id = $4`, periodStart, periodEnd, nextBillingAt, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("update subscription billing cycle: %w", err)
 	}
 	return tx.Commit()
 }

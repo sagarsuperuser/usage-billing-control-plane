@@ -169,23 +169,23 @@ func (s *PostgresStore) TouchPlatformAPIKeyLastUsed(id string, usedAt time.Time)
 
 	tx, err := s.beginTxWithSession(ctx, txSessionBypass, "")
 	if err != nil {
-		return err
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer rollbackSilently(tx)
 
 	res, err := tx.ExecContext(ctx, `UPDATE platform_api_keys SET last_used_at = $1 WHERE id = $2`, usedAt, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("update platform api key last_used_at: %w", err)
 	}
 	updated, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("rows affected: %w", err)
 	}
 	if updated == 0 {
 		return ErrNotFound
 	}
 	if err := tx.Commit(); err != nil {
-		return err
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
 }

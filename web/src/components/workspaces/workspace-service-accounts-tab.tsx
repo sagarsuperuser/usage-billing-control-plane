@@ -272,7 +272,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                 type="text"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setServiceAccountPage(1); }}
-                placeholder="Search..."
+                aria-label="Search" placeholder="Search..."
                 className="h-7 w-full rounded border border-stone-200 bg-white pl-8 pr-3 text-xs text-slate-900 outline-none ring-slate-400 transition placeholder:text-slate-400 focus:ring-1"
               />
             </div>

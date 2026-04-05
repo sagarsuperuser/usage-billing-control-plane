@@ -54,7 +54,7 @@ func (s *WorkspaceBillingSettingsService) GetWorkspaceBillingSettings(workspaceI
 	return settings, nil
 }
 
-func (s *WorkspaceBillingSettingsService) UpsertWorkspaceBillingSettings(workspaceID string, req UpdateWorkspaceBillingSettingsRequest) (domain.WorkspaceBillingSettings, error) {
+func (s *WorkspaceBillingSettingsService) UpsertWorkspaceBillingSettings(ctx context.Context, workspaceID string, req UpdateWorkspaceBillingSettingsRequest) (domain.WorkspaceBillingSettings, error) {
 	if s == nil || s.store == nil {
 		return domain.WorkspaceBillingSettings{}, fmt.Errorf("%w: workspace billing settings repository is required", ErrValidation)
 	}

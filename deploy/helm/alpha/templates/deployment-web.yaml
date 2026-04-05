@@ -23,10 +23,20 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        fsGroup: 1000
       containers:
         - name: web
           image: "{{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}"
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           {{- $apiBaseURL := .Values.web.apiBaseURL }}
           {{- if and (not $apiBaseURL) .Values.ingress.apiHost }}
           {{- $apiBaseURL = printf "https://%s" .Values.ingress.apiHost }}

@@ -295,6 +295,7 @@ func (s *SubscriptionService) requestPaymentSetup(tenantID, id, paymentMethodTyp
 		}
 		// Initialize billing cycle so the subscription is picked up by the billing engine.
 		if s.subscriptionSyncAdapter != nil {
+			// Background context: best-effort sync, not request-scoped
 			_ = s.subscriptionSyncAdapter.SyncSubscription(context.Background(), updated, customer, plan)
 		}
 		detail, err := s.buildSubscriptionDetail(updated)
@@ -322,6 +323,7 @@ func (s *SubscriptionService) requestPaymentSetup(tenantID, id, paymentMethodTyp
 	}
 	// Initialize billing cycle if subscription just became active.
 	if updated.Status == domain.SubscriptionStatusActive && s.subscriptionSyncAdapter != nil {
+		// Background context: best-effort sync, not request-scoped
 		_ = s.subscriptionSyncAdapter.SyncSubscription(context.Background(), updated, customer, plan)
 	}
 	detail, err := s.buildSubscriptionDetail(updated)

@@ -25,10 +25,20 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: migrate
           image: "{{ default .Values.api.image.repository .Values.migrations.image.repository }}:{{ default .Values.api.image.tag .Values.migrations.image.tag }}"
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           command: ["/app/migrate"]
           {{- include "lago-alpha.runtimeEnvFrom" . | nindent 10 }}
           resources:
