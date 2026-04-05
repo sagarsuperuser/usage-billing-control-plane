@@ -9,23 +9,7 @@ import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchSubscriptions } from "@/lib/api";
-import { type SubscriptionSummary } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
-
-function formatSubscriptionPaymentSetupStatus(status: SubscriptionSummary["payment_setup_status"]): string {
-  switch (status) {
-    case "missing":
-      return "Not requested";
-    case "pending":
-      return "Pending";
-    case "ready":
-      return "Ready";
-    case "error":
-      return "Action required";
-    default:
-      return status;
-  }
-}
 
 function statusTone(status: string): string {
   switch (status) {

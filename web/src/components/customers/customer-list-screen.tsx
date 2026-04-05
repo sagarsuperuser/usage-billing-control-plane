@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchCustomerReadiness, fetchCustomers } from "@/lib/api";
 import { customerCollectionDiagnosisToneClass, diagnoseCustomerCollection } from "@/lib/customer-collection-diagnosis";
 import { formatReadinessStatus } from "@/lib/readiness";
-import { type Customer, type CustomerReadiness } from "@/lib/types";
+import { type CustomerReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 function tone(status?: string): string {
@@ -69,19 +69,6 @@ export function CustomerListScreen() {
     });
     return map;
   }, [filteredCustomers, readinessQueries]);
-
-  const summary = useMemo(() => {
-    const readiness = filteredCustomers.flatMap((customer) => {
-      const item = readinessByCustomer.get(customer.external_id);
-      return item ? [item] : [];
-    });
-    return {
-      total: filteredCustomers.length,
-      ready: readiness.filter((item) => item.status === "ready").length,
-      pendingPayment: readiness.filter((item) => diagnoseCustomerCollection(item).code === "awaiting_customer_setup" || diagnoseCustomerCollection(item).code === "setup_request_failed" || diagnoseCustomerCollection(item).code === "collection_missing").length,
-      syncErrors: readiness.filter((item) => diagnoseCustomerCollection(item).code === "billing_sync_error").length,
-    };
-  }, [filteredCustomers, readinessByCustomer]);
 
   return (
     <div className="text-slate-900">

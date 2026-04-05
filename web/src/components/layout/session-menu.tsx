@@ -9,7 +9,6 @@ import {
   LogOut,
   Plus,
   Settings,
-  UserRoundCog,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 

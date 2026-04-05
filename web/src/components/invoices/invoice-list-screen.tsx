@@ -10,7 +10,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { fetchInvoices } from "@/lib/api";
 import { billingFailureDiagnosis } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
-import { type InvoiceSummary, type InvoiceStatusFilters } from "@/lib/types";
+import { type InvoiceStatusFilters } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const sortOptions = [

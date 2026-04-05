@@ -52,19 +52,6 @@ function paymentBadgeClass(status?: string): string {
   }
 }
 
-function invoiceBadgeClass(status?: string): string {
-  switch ((status || "").toLowerCase()) {
-    case "voided":
-      return "border-slate-200 bg-slate-50 text-slate-600";
-    case "finalized":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "draft":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    default:
-      return "border-slate-200 bg-slate-50 text-slate-600";
-  }
-}
-
 function diagnosisBadgeClass(tone: "healthy" | "warning" | "danger"): string {
   switch (tone) {
     case "healthy":
@@ -79,7 +66,7 @@ function diagnosisBadgeClass(tone: "healthy" | "warning" | "danger"): string {
 export function PaymentOperationsScreen() {
   const queryClient = useQueryClient();
   const { selectedInvoiceID, setSelectedInvoiceID } = useSessionStore();
-  const { apiBaseURL, csrfToken, isAuthenticated, isLoading: sessionLoading, canWrite, role, scope } = useUISession();
+  const { apiBaseURL, csrfToken, isAuthenticated, isLoading: _sessionLoading, canWrite, role, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [organizationID, setOrganizationID] = useState("");
@@ -88,7 +75,7 @@ export function PaymentOperationsScreen() {
   const [overdue, setOverdue] = useState<"all" | "true" | "false">("all");
   const [statusSortBy, setStatusSortBy] = useState<(typeof statusSortOptions)[number]["value"]>("last_event_at");
   const [statusOrder, setStatusOrder] = useState<(typeof orderOptions)[number]["value"]>("desc");
-  const [statusLimit, setStatusLimit] = useState(25);
+  const [statusLimit, _setStatusLimit] = useState(25);
   const [statusOffset, setStatusOffset] = useState(0);
 
   const [timelineOpen, setTimelineOpen] = useState(false);

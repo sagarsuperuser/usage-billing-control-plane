@@ -10,9 +10,8 @@ import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningPolicy, fetchDunningRuns, updateDunningPolicy } from "@/lib/api";
-import { dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
 import { formatExactTimestamp } from "@/lib/format";
-import type { DunningPolicy, DunningRun } from "@/lib/types";
+import type { DunningPolicy } from "@/lib/types";
 
 type DunningPolicyDraftState = {
   sourceKey: string;

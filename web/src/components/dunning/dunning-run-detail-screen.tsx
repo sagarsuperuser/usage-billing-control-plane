@@ -55,7 +55,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
   const detail = detailQuery.data;
   const run = detail?.run;
   const diagnosis = useMemo(() => (run ? diagnoseDunningRun(run) : null), [run]);
-  const anyPending = reminderMutation.isPending || retryMutation.isPending || pauseMutation.isPending || resumeMutation.isPending || resolveMutation.isPending;
+  const _anyPending = reminderMutation.isPending || retryMutation.isPending || pauseMutation.isPending || resumeMutation.isPending || resolveMutation.isPending;
 
   return (
     <div className="text-slate-900">

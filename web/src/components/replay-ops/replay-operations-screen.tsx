@@ -18,7 +18,6 @@ import { createReplayJob, fetchReplayJobDiagnostics, fetchReplayJobs, retryRepla
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
 import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
-import { type ReplayJob } from "@/lib/types";
 
 type ReplayStatusFilter = "" | "queued" | "running" | "done" | "failed";
 
@@ -55,7 +54,7 @@ export function ReplayOperationsScreen() {
   const { apiBaseURL, csrfToken, isAuthenticated, isLoading: sessionLoading, canWrite, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
-  const [customerFilter, setCustomerFilter] = useState(searchParams.get("customer_id") || "");
+  const [customerFilter, _setCustomerFilter] = useState(searchParams.get("customer_id") || "");
   const [statusFilter, setStatusFilter] = useState<ReplayStatusFilter>((searchParams.get("status") as ReplayStatusFilter) || "");
   const [limit] = useState(20);
   const [offset, setOffset] = useState(0);

@@ -130,14 +130,14 @@ jobs:
           version: v3.16.4
 
       - name: Helm lint
-        run: helm lint deploy/helm/lago-alpha
+        run: helm lint deploy/helm/alpha
 
       - name: Helm template staging
         run: |
-          helm template lago-alpha deploy/helm/lago-alpha \
-            -f deploy/helm/lago-alpha/environments/staging-values.yaml >/tmp/helm-staging.yaml
+          helm template alpha deploy/helm/alpha \
+            -f deploy/helm/alpha/environments/staging-values.yaml >/tmp/helm-staging.yaml
 
       - name: Helm template prod
         run: |
-          helm template lago-alpha deploy/helm/lago-alpha \
-            -f deploy/helm/lago-alpha/environments/prod-values.yaml >/tmp/helm-prod.yaml
+          helm template alpha deploy/helm/alpha \
+            -f deploy/helm/alpha/environments/prod-values.yaml >/tmp/helm-prod.yaml

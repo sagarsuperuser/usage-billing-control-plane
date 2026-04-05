@@ -83,9 +83,6 @@ async function fulfillJSON(route: Route, status: number, payload: unknown) {
   });
 }
 
-function focusLine(page: Page, title: string) {
-  return page.locator("a").filter({ has: page.getByText(title, { exact: true }) }).first();
-}
 
 
 

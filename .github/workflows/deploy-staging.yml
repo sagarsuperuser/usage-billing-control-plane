@@ -161,13 +161,13 @@ jobs:
 
       - name: Helm upgrade
         run: |
-          helm upgrade lago-alpha deploy/helm/lago-alpha \
+          helm upgrade alpha deploy/helm/alpha \
             --install \
             --atomic \
             --wait \
             --timeout 10m \
             --namespace lago-alpha \
-            --values deploy/helm/lago-alpha/environments/staging-values.yaml \
+            --values deploy/helm/alpha/environments/staging-values.yaml \
             --values /tmp/image-tags.yaml
 
       - name: Deployment summary

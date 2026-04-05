@@ -52,7 +52,7 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
   const selectedAuditServiceAccount =
     serviceAccounts.find((item) => item.id === selectedAuditServiceAccountIDValue) ?? serviceAccounts[0] ?? null;
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+  /* eslint-disable react-hooks/set-state-in-effect -- resetting derived state when the selected service account changes */
   useEffect(() => {
     setSelectedAuditEventID("");
     setAuditPage(1);

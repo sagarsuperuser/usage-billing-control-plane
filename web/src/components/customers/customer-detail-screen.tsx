@@ -194,7 +194,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileSourceKey]);
 
-  const profileValues = watchProfile();
+  const _profileValues = watchProfile();
   const billingProfileDirty = profileFormState.isDirty;
   const billingProfileReady = profileFormState.isValid;
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { LoaderCircle, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
@@ -8,13 +8,12 @@ import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchInvoiceExplainability } from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
-import { type InvoiceExplainabilityLineItem } from "@/lib/types";
 
 const feeTypeOptions = ["", "charge", "subscription", "add_on", "credit", "minimum_commitment"] as const;
 
 export function InvoiceExplainabilityScreen() {
   const searchParams = useSearchParamsCompat();
-  const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
+  const { apiBaseURL, isAuthenticated, isLoading: _sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const initialInvoiceID = searchParams.get("invoice_id") || "";
   const [invoiceID, setInvoiceID] = useState(initialInvoiceID);

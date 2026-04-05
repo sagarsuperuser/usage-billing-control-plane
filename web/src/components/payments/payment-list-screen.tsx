@@ -10,7 +10,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { fetchPayments } from "@/lib/api";
 import { billingFailureDiagnosis } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
-import { type PaymentFilters, type PaymentSummary } from "@/lib/types";
+import { type PaymentFilters } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const sortOptions = [
@@ -50,12 +50,12 @@ export function PaymentListScreen() {
   const isTenantSession = isAuthenticated && scope === "tenant";
 
   const [customerExternalID, setCustomerExternalID] = useState(searchParams.get("customer_external_id") || "");
-  const [invoiceID, setInvoiceID] = useState(searchParams.get("invoice_id") || "");
-  const [invoiceNumber, setInvoiceNumber] = useState(searchParams.get("invoice_number") || "");
+  const [invoiceID, _setInvoiceID] = useState(searchParams.get("invoice_id") || "");
+  const [invoiceNumber, _setInvoiceNumber] = useState(searchParams.get("invoice_number") || "");
   const [invoiceStatus, setInvoiceStatus] = useState(searchParams.get("invoice_status") || "");
   const [paymentStatus, setPaymentStatus] = useState(searchParams.get("payment_status") || "");
-  const [lastEventType, setLastEventType] = useState(searchParams.get("last_event_type") || "");
-  const [paymentOverdue, setPaymentOverdue] = useState<"all" | "true" | "false">("all");
+  const [lastEventType, _setLastEventType] = useState(searchParams.get("last_event_type") || "");
+  const [paymentOverdue, _setPaymentOverdue] = useState<"all" | "true" | "false">("all");
   const [sortBy, setSortBy] = useState<PaymentFilters["sort_by"]>("last_event_at");
   const [order, setOrder] = useState<PaymentFilters["order"]>("desc");
   const [page, setPage] = useState(1);
