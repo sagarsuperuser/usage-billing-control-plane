@@ -29,7 +29,7 @@ import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
-  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
+  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: _sessionLoading, scope } = useUISession();
   const [showPDF, setShowPDF] = useState(false);
   const isTenantSession = isAuthenticated && scope === "tenant";
 

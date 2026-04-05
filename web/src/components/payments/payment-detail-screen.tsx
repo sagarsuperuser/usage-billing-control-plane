@@ -18,7 +18,7 @@ import { showError } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
-  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
+  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: _sessionLoading, scope } = useUISession();
   const [eventLimit, setEventLimit] = useState(25);
   const isTenantSession = isAuthenticated && scope === "tenant";
 

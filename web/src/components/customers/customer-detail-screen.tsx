@@ -49,7 +49,7 @@ const billingProfileSchema = z.object({
 type BillingProfileFormValues = z.infer<typeof billingProfileSchema>;
 
 export function CustomerDetailScreen({ externalID }: { externalID: string }) {
-  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
+  const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: _sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [profileFlash, setProfileFlash] = useState<string | null>(null);
   const { register, handleSubmit: handleProfileSubmit, reset: resetProfile, watch: watchProfile, formState: profileFormState } = useForm<BillingProfileFormValues>({
