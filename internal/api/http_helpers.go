@@ -98,10 +98,7 @@ func splitCommaSeparatedValues(raw string) []string {
 func decodeJSON(r *http.Request, target any) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(target); err != nil {
-		return err
-	}
-	return nil
+	return dec.Decode(target)
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -127,9 +124,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeErrorCode(w, status, message, defaultErrorCodeForStatus(status))
 }
 
-func writeMethodNotAllowed(w http.ResponseWriter) {
-	writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-}
+
 
 // urlParam extracts a named URL parameter from the chi router context.
 func urlParam(r *http.Request, name string) string {

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -690,7 +691,7 @@ func (s *Server) requireAuth(minRole Role, scope authScope) func(http.Handler) h
 				}
 				expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
 				providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
-				if expectedCSRF == "" || providedCSRF == "" || !subtleConstantTimeMatch(expectedCSRF, providedCSRF) {
+				if expectedCSRF == "" || providedCSRF == "" || subtle.ConstantTimeCompare([]byte(expectedCSRF), []byte(providedCSRF)) != 1 {
 					s.logAuthFailure(r, http.StatusForbidden, "csrf_mismatch", nil)
 					writeError(w, http.StatusForbidden, "forbidden")
 					return
@@ -1145,21 +1146,6 @@ func isUnsafeMethod(method string) bool {
 	}
 }
 
-func subtleConstantTimeMatch(expected, provided string) bool {
-	if len(expected) == 0 || len(expected) != len(provided) {
-		return false
-	}
-	var diff byte
-	for i := 0; i < len(expected); i++ {
-		diff |= expected[i] ^ provided[i]
-	}
-	return diff == 0
-}
-
-// normalizeMetricsRoute is no longer needed — chi's RouteContext().RoutePattern()
-// provides the matched route pattern automatically. See routePattern() in http_helpers.go.
-//
-// Deleted 230 lines of hand-maintained switch statement.
 
 func (s *Server) registerRoutes() {
 	r := s.router

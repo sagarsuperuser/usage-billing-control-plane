@@ -10,10 +10,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInternalMetrics(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 
 	if s.metricsFn == nil {
 		writeError(w, http.StatusNotFound, "metrics not configured")
@@ -37,10 +33,6 @@ func (s *Server) handleInternalMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInternalReady(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 
 	if s.readinessFn != nil {
 		if err := s.readinessFn(); err != nil {

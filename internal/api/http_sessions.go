@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"net/url"
@@ -132,10 +133,6 @@ func normalizeUINextPath(nextPath string) string {
 }
 
 func (s *Server) handleUIPreAuthRateLimitProbe(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.rateLimiter != nil {
 		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
 			return
@@ -145,10 +142,6 @@ func (s *Server) handleUIPreAuthRateLimitProbe(w http.ResponseWriter, r *http.Re
 }
 
 func (s *Server) handleUIAuthProviders(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	providers := make([]map[string]any, 0)
 	if s.browserSSOService != nil {
 		for _, provider := range s.browserSSOService.ListProviders() {
@@ -167,10 +160,6 @@ func (s *Server) handleUIAuthProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUIPasswordForgot(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.rateLimiter != nil {
 		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
 			return
@@ -200,10 +189,6 @@ func (s *Server) handleUIPasswordForgot(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleUIPasswordReset(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.rateLimiter != nil {
 		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
 			return
@@ -244,10 +229,6 @@ func (s *Server) handleUIPasswordReset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUISessionWorkspaces(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.sessionManager == nil || s.browserUserAuthService == nil {
 		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
 		return
@@ -269,10 +250,6 @@ func (s *Server) handleUISessionWorkspaces(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleUISessionSwitchWorkspace(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.sessionManager == nil || s.browserUserAuthService == nil {
 		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
 		return
@@ -284,7 +261,7 @@ func (s *Server) handleUISessionSwitchWorkspace(w http.ResponseWriter, r *http.R
 	}
 	expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
 	providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
-	if expectedCSRF == "" || providedCSRF == "" || !subtleConstantTimeMatch(expectedCSRF, providedCSRF) {
+	if expectedCSRF == "" || providedCSRF == "" || subtle.ConstantTimeCompare([]byte(expectedCSRF), []byte(providedCSRF)) != 1 {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -347,10 +324,6 @@ func (s *Server) handleUIInvitations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUIInvitationPreview(w http.ResponseWriter, r *http.Request, token string) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.workspaceAccessService == nil {
 		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
 		return
@@ -388,17 +361,13 @@ func (s *Server) handleUIInvitationPreview(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleUIInvitationAccept(w http.ResponseWriter, r *http.Request, token string) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.workspaceAccessService == nil || s.browserUserAuthService == nil || s.sessionManager == nil {
 		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
 		return
 	}
 	expectedCSRF := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionCSRFKey))
 	providedCSRF := strings.TrimSpace(r.Header.Get(csrfHeaderName))
-	if expectedCSRF == "" || providedCSRF == "" || !subtleConstantTimeMatch(expectedCSRF, providedCSRF) {
+	if expectedCSRF == "" || providedCSRF == "" || subtle.ConstantTimeCompare([]byte(expectedCSRF), []byte(providedCSRF)) != 1 {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -462,10 +431,6 @@ func (s *Server) handleUIInvitationAccept(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleUIInvitationRegister(w http.ResponseWriter, r *http.Request, token string) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.workspaceAccessService == nil || s.browserUserAuthService == nil || s.sessionManager == nil || s.repo == nil {
 		writeError(w, http.StatusServiceUnavailable, "workspace access is not configured")
 		return
@@ -547,10 +512,6 @@ func (s *Server) handleUISSO(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUISSOStart(w http.ResponseWriter, r *http.Request, providerKey string) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.sessionManager == nil || s.browserSSOService == nil {
 		writeError(w, http.StatusNotFound, "sso is not configured")
 		return
@@ -595,15 +556,11 @@ func (s *Server) handleUISSOStart(w http.ResponseWriter, r *http.Request, provid
 	s.sessionManager.Put(r.Context(), sessionSSONonceKey, nonce)
 	s.sessionManager.Put(r.Context(), sessionSSOPKCEKey, codeVerifier)
 	s.sessionManager.Put(r.Context(), sessionSSONextKey, normalizeUINextPath(strings.TrimSpace(r.URL.Query().Get("next"))))
-	s.sessionManager.Put(r.Context(), sessionSSOTenantIDKey, normalizeOptionalTenantID(strings.TrimSpace(r.URL.Query().Get("tenant_id"))))
+	s.sessionManager.Put(r.Context(), sessionSSOTenantIDKey, strings.TrimSpace(r.URL.Query().Get("tenant_id")))
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
 func (s *Server) handleUISSOCallback(w http.ResponseWriter, r *http.Request, providerKey string) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.sessionManager == nil || s.browserSSOService == nil || strings.TrimSpace(s.uiPublicBaseURL) == "" {
 		writeError(w, http.StatusNotFound, "sso is not configured")
 		return
@@ -625,9 +582,9 @@ func (s *Server) handleUISSOCallback(w http.ResponseWriter, r *http.Request, pro
 	expectedProvider := strings.ToLower(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOProviderKey)))
 	nonce := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSONonceKey))
 	codeVerifier := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOPKCEKey))
-	tenantID := normalizeOptionalTenantID(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOTenantIDKey)))
+	tenantID := strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSOTenantIDKey))
 	nextPath := normalizeUINextPath(strings.TrimSpace(s.sessionManager.GetString(r.Context(), sessionSSONextKey)))
-	if expectedState == "" || !subtleConstantTimeMatch(expectedState, state) || expectedProvider != strings.ToLower(strings.TrimSpace(providerKey)) || codeVerifier == "" {
+	if expectedState == "" || subtle.ConstantTimeCompare([]byte(expectedState), []byte(state)) != 1 || expectedProvider != strings.ToLower(strings.TrimSpace(providerKey)) || codeVerifier == "" {
 		s.clearSSOSessionState(r.Context())
 		s.redirectUISSOFailure(w, r, strings.TrimSpace(providerKey), "sso_state_invalid")
 		return
@@ -672,10 +629,6 @@ func (s *Server) handleUISSOCallback(w http.ResponseWriter, r *http.Request, pro
 }
 
 func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.rateLimiter != nil {
 		if !s.enforceRateLimit(w, r, RateLimitPolicyPreAuthLogin, preAuthLoginRateLimitIdentifier(r), "", s.rateLimitLoginFailOpen) {
 			return
@@ -752,10 +705,6 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.sessionManager == nil {
 		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
 		return
@@ -776,10 +725,6 @@ func (s *Server) handleUISessionMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUISessionLogout(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.sessionManager == nil {
 		writeError(w, http.StatusServiceUnavailable, "ui sessions are not configured")
 		return
@@ -977,10 +922,6 @@ func (s *Server) sendPasswordResetEmail(issued service.PasswordResetIssueResult)
 // ---------------------------------------------------------------------------
 
 func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.browserUserAuthService == nil || s.repo == nil {
 		writeError(w, http.StatusServiceUnavailable, "registration is not configured")
 		return
@@ -1093,10 +1034,6 @@ func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUISelfServeCreateWorkspace(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
 
 	principal, ok := principalFromContext(r.Context())
 	if !ok || principal.SubjectID == "" {

@@ -23,10 +23,6 @@ type invoiceDetailResponse struct {
 }
 
 func (s *Server) handleInvoices(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.paymentStatusSvc == nil {
 		writeError(w, http.StatusServiceUnavailable, "payment status service is required")
 		return
@@ -191,10 +187,6 @@ func (s *Server) loadInvoiceDetail(ctx context.Context, tenantID, invoiceID stri
 }
 
 func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Request, invoiceID string) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.invoiceBillingAdapter == nil {
 		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
 		return
@@ -225,10 +217,6 @@ func (s *Server) handleInvoicePaymentReceipts(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleInvoiceCreditNotes(w http.ResponseWriter, r *http.Request, invoiceID string) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
 	if s.invoiceBillingAdapter == nil {
 		writeError(w, http.StatusServiceUnavailable, "invoice billing adapter is required")
 		return

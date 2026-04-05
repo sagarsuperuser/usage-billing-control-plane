@@ -410,9 +410,6 @@ func normalizeTenantID(v string) string {
 	return v
 }
 
-func normalizeOptionalTenantID(v string) string {
-	return strings.TrimSpace(v)
-}
 
 func ParseRole(raw string) (Role, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
