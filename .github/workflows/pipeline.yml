@@ -278,7 +278,7 @@ jobs:
 
   deploy-staging:
     name: deploy-staging
-    needs: [web-e2e, integration-smoke, build-api, build-web]
+    needs: [web-e2e, integration-full, build-api, build-web]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment:
