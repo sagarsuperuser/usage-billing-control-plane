@@ -3,11 +3,13 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { AppProviders } from "@/app/providers";
 import { SidebarLayout } from "@/components/layout/sidebar";
+import { CommandPalette } from "@/components/ui/command-palette";
 
 export const Route = createRootRoute({
   component: function RootLayout() {
     return (
       <AppProviders>
+        <CommandPalette />
         <SidebarLayout>
           <PageTransition />
         </SidebarLayout>
