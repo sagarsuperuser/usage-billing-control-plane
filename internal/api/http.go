@@ -570,13 +570,17 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 
 func (s *Server) instrumentMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		recorder := &statusCapturingResponseWriter{ResponseWriter: w}
 		next.ServeHTTP(recorder, r)
 		statusCode := recorder.statusCode
 		if statusCode == 0 {
 			statusCode = http.StatusOK
 		}
-		s.requestMetrics.Inc(r.Method, normalizeMetricsRoute(r.URL.Path), statusCode)
+		route := normalizeMetricsRoute(r.URL.Path)
+		s.requestMetrics.Inc(r.Method, route, statusCode)
+		httpRequestsTotal.WithLabelValues(r.Method, route, strconv.Itoa(statusCode)).Inc()
+		httpRequestDuration.WithLabelValues(r.Method, route).Observe(time.Since(start).Seconds())
 	})
 }
 
@@ -1555,6 +1559,7 @@ func (s *Server) registerRoutes() {
 
 	// ── Public routes (no auth) ─────────────────────────────────────────
 	r.Get("/health", s.handleHealth)
+	r.Handle("/metrics", prometheusHandler())
 	r.HandleFunc("/internal/stripe/webhooks", s.handleStripeWebhooks)
 	r.HandleFunc("/v1/ui/sessions/login", s.handleUISessionLogin)
 	r.Post("/v1/ui/register", s.handleUIRegister)
