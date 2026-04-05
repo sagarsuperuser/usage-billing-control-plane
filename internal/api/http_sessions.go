@@ -952,70 +952,30 @@ func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
 		displayName = strings.Split(email, "@")[0]
 	}
 
-	// Create user (or recover orphaned user from a previously failed registration).
-	user, err := s.repo.CreateUser(domain.User{
-		Email:       email,
-		DisplayName: displayName,
-		Status:      domain.UserStatusActive,
+	// All-or-nothing: user + password + workspace + membership in one transaction.
+	// If any step fails, everything rolls back — no orphaned records.
+	passwordHash, hashErr := service.HashPassword(password)
+	if hashErr != nil {
+		writeError(w, http.StatusBadRequest, hashErr.Error())
+		return
+	}
+	result, err := s.repo.RegisterUserWithWorkspace(store.RegisterUserInput{
+		Email:         email,
+		DisplayName:   displayName,
+		PasswordHash:  passwordHash,
+		TenantID:      service.GenerateTenantID(),
+		WorkspaceName: displayName + "'s workspace",
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
-			// Check if user has any workspace — if not, this is an orphaned
-			// registration (user created but tenant failed). Resume the flow.
-			existing, lookupErr := s.browserUserAuthService.AuthenticateIdentity(email, password)
-			if lookupErr != nil {
-				writeError(w, http.StatusConflict, "an account with this email already exists")
-				return
-			}
-			memberships, _ := s.repo.ListUserTenantMemberships(existing.ID)
-			if len(memberships) > 0 {
-				writeError(w, http.StatusConflict, "an account with this email already exists")
-				return
-			}
-			// Orphaned user — continue with workspace creation
-			user = existing
-		} else {
-			writeDomainError(w, err)
+			writeError(w, http.StatusConflict, "an account with this email already exists")
 			return
 		}
-	} else {
-		// New user — set password.
-		passwordHash, hashErr := service.HashPassword(password)
-		if hashErr != nil {
-			writeDomainError(w, hashErr)
-			return
-		}
-		_, err = s.repo.UpsertUserPasswordCredential(domain.UserPasswordCredential{
-			UserID:       user.ID,
-			PasswordHash: passwordHash,
-		})
-		if err != nil {
-			writeDomainError(w, err)
-			return
-		}
-	}
-
-	// Auto-create workspace.
-	workspaceName := displayName + "'s workspace"
-	tenant, err := s.tenantService.CreateTenant(service.EnsureTenantRequest{
-		Name: workspaceName,
-	}, "")
-	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-
-	// Auto-create admin membership.
-	_, err = s.repo.UpsertUserTenantMembership(domain.UserTenantMembership{
-		UserID:   user.ID,
-		TenantID: tenant.ID,
-		Role:     "admin",
-		Status:   "active",
-	})
-	if err != nil {
-		writeDomainError(w, err)
-		return
-	}
+	user := result.User
+	tenant := result.Tenant
 
 	// Create session with tenant scope.
 	if err := s.sessionManager.RenewToken(r.Context()); err != nil {

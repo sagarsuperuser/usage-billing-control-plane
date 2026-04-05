@@ -291,6 +291,8 @@ type DunningNotificationIntentListFilter struct {
 type Repository interface {
 	Migrate() error
 
+	RegisterUserWithWorkspace(input RegisterUserInput) (RegisterUserResult, error)
+
 	CreateTenant(input domain.Tenant) (domain.Tenant, error)
 	GetTenant(id string) (domain.Tenant, error)
 	UpdateTenant(input domain.Tenant) (domain.Tenant, error)

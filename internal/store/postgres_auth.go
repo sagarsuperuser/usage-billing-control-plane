@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -955,3 +956,85 @@ func scanUserFederatedIdentity(s rowScanner) (domain.UserFederatedIdentity, erro
 	return out, nil
 }
 
+
+// RegisterUserWithWorkspace creates a user, password credential, tenant, and
+// membership in a single transaction. If any step fails, everything rolls back.
+// No orphaned users possible.
+func (s *PostgresStore) RegisterUserWithWorkspace(input RegisterUserInput) (RegisterUserResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), s.queryTimeout)
+	defer cancel()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return RegisterUserResult{}, fmt.Errorf("begin registration tx: %w", err)
+	}
+	defer rollbackSilently(tx)
+
+	// 1. Create user
+	var user domain.User
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO users (email, display_name, status, created_at, updated_at)
+		 VALUES ($1, $2, $3, NOW(), NOW())
+		 RETURNING id, email, display_name, status, created_at, updated_at`,
+		input.Email, input.DisplayName, domain.UserStatusActive,
+	).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return RegisterUserResult{}, ErrAlreadyExists
+		}
+		return RegisterUserResult{}, fmt.Errorf("create user: %w", err)
+	}
+
+	// 2. Store password credential
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO user_password_credentials (user_id, password_hash, password_updated_at, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW(), NOW())
+		 ON CONFLICT (user_id) DO UPDATE SET password_hash = $2, password_updated_at = NOW(), updated_at = NOW()`,
+		user.ID, input.PasswordHash,
+	)
+	if err != nil {
+		return RegisterUserResult{}, fmt.Errorf("store password: %w", err)
+	}
+
+	// 3. Create tenant
+	var tenant domain.Tenant
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO tenants (id, name, status, created_at, updated_at)
+		 VALUES ($1, $2, 'active', NOW(), NOW())
+		 RETURNING id, name, status, created_at, updated_at`,
+		input.TenantID, input.WorkspaceName,
+	).Scan(&tenant.ID, &tenant.Name, &tenant.Status, &tenant.CreatedAt, &tenant.UpdatedAt)
+	if err != nil {
+		return RegisterUserResult{}, fmt.Errorf("create tenant: %w", err)
+	}
+
+	// 4. Create admin membership
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO user_tenant_memberships (user_id, tenant_id, role, status, created_at, updated_at)
+		 VALUES ($1, $2, 'admin', 'active', NOW(), NOW())
+		 ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = 'admin', status = 'active', updated_at = NOW()`,
+		user.ID, tenant.ID,
+	)
+	if err != nil {
+		return RegisterUserResult{}, fmt.Errorf("create membership: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return RegisterUserResult{}, fmt.Errorf("commit registration: %w", err)
+	}
+
+	return RegisterUserResult{User: user, Tenant: tenant}, nil
+}
+
+type RegisterUserInput struct {
+	Email         string
+	DisplayName   string
+	PasswordHash  string
+	TenantID      string
+	WorkspaceName string
+}
+
+type RegisterUserResult struct {
+	User   domain.User
+	Tenant domain.Tenant
+}

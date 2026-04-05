@@ -75,7 +75,7 @@ func (s *TenantService) CreateTenant(req EnsureTenantRequest, actorAPIKeyID stri
 
 	id := strings.TrimSpace(req.ID)
 	if id == "" {
-		id = generateTenantID()
+		id = GenerateTenantID()
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
