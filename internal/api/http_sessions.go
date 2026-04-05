@@ -645,7 +645,7 @@ func (s *Server) handleUISessionLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidBrowserCredentials), errors.Is(err, service.ErrBrowserPasswordUnavailable):
-			writeError(w, http.StatusUnauthorized, "invalid credentials")
+			writeError(w, http.StatusUnauthorized, "Incorrect email or password.")
 		case errors.Is(err, service.ErrBrowserUserDisabled):
 			writeError(w, http.StatusForbidden, "user disabled")
 		default:
