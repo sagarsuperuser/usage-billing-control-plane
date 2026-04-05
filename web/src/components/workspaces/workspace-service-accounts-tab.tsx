@@ -154,11 +154,25 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
         serviceAccountID: input.serviceAccountID,
         status: input.status,
       }),
-    onSuccess: async (_payload, input) => {
-      showSuccess(input.status === "active" ? "Service account enabled" : "Service account disabled");
-      await queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
+    // Optimistic update: toggle status instantly, rollback on error
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: serviceAccountQueryKey });
+      const previous = queryClient.getQueryData(serviceAccountQueryKey);
+      queryClient.setQueryData(serviceAccountQueryKey, (old: typeof serviceAccounts) =>
+        old?.map((sa: typeof serviceAccounts[number]) => sa.id === input.serviceAccountID ? { ...sa, status: input.status } : sa)
+      );
+      return { previous };
     },
-    onError: (err: Error) => showError(err.message),
+    onSuccess: (_payload, input) => {
+      showSuccess(input.status === "active" ? "Service account enabled" : "Service account disabled");
+    },
+    onError: (err: Error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(serviceAccountQueryKey, context.previous);
+      showError(err.message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: serviceAccountQueryKey });
+    },
   });
 
   /* --- Derived ---------------------------------------------------- */
