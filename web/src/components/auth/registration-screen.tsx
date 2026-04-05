@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { AuthLayout } from "@/components/auth/auth-layout";
 import { useEffect, useState } from "react";
 import { LoaderCircle, UserPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -64,49 +65,8 @@ export function RegistrationScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
-      <main className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_480px]">
-
-        {/* Left -- brand panel */}
-        <div className="hidden xl:flex flex-col justify-between bg-slate-950 px-14 py-12">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.4"/>
-                <rect x="7" y="5" width="3" height="11" rx="1" fill="white" fillOpacity="0.65"/>
-                <rect x="12" y="2" width="3" height="14" rx="1" fill="white"/>
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-white">Alpha</span>
-          </div>
-
-          <div>
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-white">
-              Usage billing<br />control plane
-            </h1>
-            <p className="mt-4 max-w-sm text-base leading-7 text-slate-400">
-              Create your workspace and start billing in minutes.
-            </p>
-          </div>
-
-          <p className="text-xs text-slate-600">Staging environment</p>
-        </div>
-
-        {/* Right -- registration form */}
-        <div className="flex flex-col items-center justify-center px-6 py-12 sm:px-10">
-          <div className="w-full max-w-[400px]">
-            <div className="mb-8 xl:hidden flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900">
-                <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="2" y="9" width="3" height="7" rx="1" fill="white" fillOpacity="0.4"/>
-                  <rect x="7" y="5" width="3" height="11" rx="1" fill="white" fillOpacity="0.65"/>
-                  <rect x="12" y="2" width="3" height="14" rx="1" fill="white"/>
-                </svg>
-              </div>
-              <span className="text-sm font-semibold text-slate-900">Alpha</span>
-            </div>
-
-            <div className="w-full">
+    <AuthLayout>
+      <div className="w-full">
               <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Create account</h2>
               <p className="mt-1.5 text-sm text-slate-500">Set up your workspace and start billing.</p>
 
@@ -173,9 +133,6 @@ export function RegistrationScreen() {
                 </Link>
               </p>
             </div>
-          </div>
-        </div>
-      </main>
-    </div>
+    </AuthLayout>
   );
 }
