@@ -1,6 +1,8 @@
 
 import { Link } from "@tanstack/react-router";
-import { Plus, Tag } from "lucide-react";
+import { Plus } from "lucide-react";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -79,7 +81,7 @@ export function PricingCouponListScreen() {
             {sessionLoading || couponsQuery.isLoading ? (
               <LoadingState />
             ) : filtered.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No coupons yet" description="Create discount coupons for subscriptions." actionLabel="New coupon" actionHref="/pricing/coupons/new" />
             ) : (
               <>
                 <table className="w-full text-sm">
@@ -130,20 +132,6 @@ function LoadingState() {
           <Skeleton className="h-4 w-14 rounded-full" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <Tag className="h-8 w-8 text-slate-300" />
-      <p className="text-sm font-medium text-slate-700">No coupons yet</p>
-      <p className="text-xs text-slate-500">Create the first coupon, then attach it to plans.</p>
-      <Link to="/pricing/coupons/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-        <Plus className="h-3.5 w-3.5" />
-        New coupon
-      </Link>
     </div>
   );
 }

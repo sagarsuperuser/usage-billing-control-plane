@@ -1,6 +1,8 @@
 
 import { Link } from "@tanstack/react-router";
-import { Plus, Ruler } from "lucide-react";
+import { Plus } from "lucide-react";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -60,7 +62,7 @@ export function PricingMetricListScreen() {
           {sessionLoading || metricsQuery.isLoading ? (
             <LoadingState />
           ) : filtered.length === 0 ? (
-            <EmptyState />
+            <EmptyState title="No metrics yet" description="Define what your plans charge against." actionLabel="New metric" actionHref="/pricing/metrics/new" />
           ) : (
               <>
                 <table className="w-full text-sm">
@@ -107,20 +109,6 @@ function LoadingState() {
           <Skeleton className="h-3 w-20" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <Ruler className="h-8 w-8 text-slate-300" />
-      <p className="text-sm font-medium text-slate-700">No metrics yet</p>
-      <p className="text-xs text-slate-500">Create the first metric to define what your plans can charge against.</p>
-      <Link to="/pricing/metrics/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-        <Plus className="h-3.5 w-3.5" />
-        New metric
-      </Link>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 
 import { Link } from "@tanstack/react-router";
-import { Plus, Puzzle } from "lucide-react";
+import { Plus } from "lucide-react";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -73,7 +75,7 @@ export function PricingAddOnListScreen() {
             {sessionLoading || addOnsQuery.isLoading ? (
               <LoadingState />
             ) : filtered.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No add-ons yet" description="Create add-on charges for your plans." actionLabel="New add-on" actionHref="/pricing/add-ons/new" />
             ) : (
               <>
                 <table className="w-full text-sm">
@@ -124,20 +126,6 @@ function LoadingState() {
           <Skeleton className="h-3 w-20" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <Puzzle className="h-8 w-8 text-slate-300" />
-      <p className="text-sm font-medium text-slate-700">No add-ons yet</p>
-      <p className="text-xs text-slate-500">Create the first add-on, then attach it to plans.</p>
-      <Link to="/pricing/add-ons/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-        <Plus className="h-3.5 w-3.5" />
-        New add-on
-      </Link>
     </div>
   );
 }

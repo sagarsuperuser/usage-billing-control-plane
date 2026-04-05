@@ -1,6 +1,8 @@
 
 import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -74,7 +76,7 @@ export function SubscriptionListScreen() {
             {sessionLoading || subscriptionsQuery.isLoading ? (
               <LoadingState />
             ) : filtered.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No subscriptions yet" description="Subscribe a customer to a plan." actionLabel="New subscription" actionHref="/subscriptions/new" />
             ) : (
               <>
               <table className="w-full text-sm">
@@ -131,19 +133,6 @@ function LoadingState() {
           <Skeleton className="h-3 w-28" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <p className="text-sm font-medium text-slate-700">No subscriptions</p>
-      <p className="text-xs text-slate-500">Create a subscription after you have at least one customer and one plan.</p>
-      <Link to="/subscriptions/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-        <Plus className="h-3.5 w-3.5" />
-        New subscription
-      </Link>
     </div>
   );
 }

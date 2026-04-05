@@ -1,6 +1,8 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { useQuery } from "@tanstack/react-query";
 
 import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
@@ -149,7 +151,7 @@ export function UsageEventsScreen() {
             ) : query.isError ? (
               <ErrorState message={query.error instanceof Error ? query.error.message : "Loading usage events failed."} />
             ) : items.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No usage events matched" description="Try adjusting the filters or recording usage events." />
             ) : (
               <>
                 <div className="grid grid-cols-[1fr] xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -264,15 +266,6 @@ function LoadingState() {
     <div className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
       <LoaderCircle className="h-4 w-4 animate-spin" />
       Loading usage events...
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 px-5 py-16 text-center">
-      <p className="text-sm font-medium text-slate-700">No usage events matched</p>
-      <p className="text-xs text-slate-500">Try adjusting the customer, meter, or time range filters.</p>
     </div>
   );
 }

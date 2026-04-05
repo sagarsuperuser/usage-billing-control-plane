@@ -1,6 +1,8 @@
 
 import { Link } from "@tanstack/react-router";
-import { Plus, Receipt } from "lucide-react";
+import { Plus } from "lucide-react";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -73,7 +75,7 @@ export function PricingTaxListScreen() {
             {sessionLoading || taxesQuery.isLoading ? (
               <LoadingState />
             ) : filtered.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No taxes yet" description="Define tax rates for invoicing." actionLabel="New tax" actionHref="/pricing/taxes/new" />
             ) : (
               <>
                 <table className="w-full text-sm">
@@ -124,20 +126,6 @@ function LoadingState() {
           <Skeleton className="h-4 w-14 rounded-full" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <Receipt className="h-8 w-8 text-slate-300" />
-      <p className="text-sm font-medium text-slate-700">No taxes yet</p>
-      <p className="text-xs text-slate-500">Create the first tax, then assign it to customer profiles or workspace billing settings.</p>
-      <Link to="/pricing/taxes/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-        <Plus className="h-3.5 w-3.5" />
-        New tax
-      </Link>
     </div>
   );
 }

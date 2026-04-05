@@ -1,6 +1,8 @@
 
 import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
@@ -108,7 +110,7 @@ export function CustomerListScreen() {
             {sessionLoading || customersQuery.isLoading ? (
               <LoadingState />
             ) : filteredCustomers.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No customers yet" description="Create a customer to start billing." actionLabel="New customer" actionHref="/customers/new" />
             ) : (
               <>
               <table className="w-full text-sm">
@@ -172,19 +174,6 @@ function LoadingState() {
           <Skeleton className="h-4 w-14 rounded-full" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <p className="text-sm font-medium text-slate-700">No customers</p>
-      <p className="text-xs text-slate-500">Create a customer to get started.</p>
-      <Link to="/customers/new" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
-        <Plus className="h-3.5 w-3.5" />
-        New customer
-      </Link>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -166,7 +168,7 @@ export function InvoiceListScreen() {
             {sessionLoading || invoicesQuery.isLoading ? (
               <LoadingState />
             ) : items.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No invoices yet" description="Invoices are generated automatically from subscriptions." />
             ) : (
               <>
               <table className="w-full text-sm">
@@ -230,18 +232,6 @@ function LoadingState() {
           <Skeleton className="h-3 w-20" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <p className="text-sm font-medium text-slate-700">No invoices</p>
-      <p className="text-xs text-slate-500">Invoices appear once a billing cycle completes for an active subscription.</p>
-      <Link to="/subscriptions" className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">
-        View subscriptions
-      </Link>
     </div>
   );
 }

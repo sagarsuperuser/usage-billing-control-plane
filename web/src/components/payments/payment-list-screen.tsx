@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -177,7 +179,7 @@ export function PaymentListScreen() {
             {sessionLoading || paymentsQuery.isLoading ? (
               <LoadingState />
             ) : items.length === 0 ? (
-              <EmptyState />
+              <EmptyState title="No payments yet" description="Payments appear after invoices are finalized." />
             ) : (
               <>
               <table className="w-full text-sm">
@@ -234,18 +236,6 @@ function LoadingState() {
           <Skeleton className="h-3 w-20" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-5 py-16 text-center">
-      <p className="text-sm font-medium text-slate-700">No payments</p>
-      <p className="text-xs text-slate-500">Payments appear once invoices are finalized and collection begins.</p>
-      <Link to="/invoices" className="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-stone-50">
-        View invoices
-      </Link>
     </div>
   );
 }
