@@ -176,15 +176,18 @@ func (s *Server) handleUIPasswordForgot(w http.ResponseWriter, r *http.Request) 
 	}
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	issued, err := s.passwordResetService.IssuePasswordReset(req.Email)
-	switch {
-	case err == nil:
+	if err == nil {
 		s.sendPasswordResetEmail(issued)
-	case errors.Is(err, store.ErrNotFound):
-		// Keep the response neutral to avoid leaking account existence.
-	default:
-		writeDomainError(w, err)
-		return
+	} else if s.logger != nil && !errors.Is(err, store.ErrNotFound) {
+		// Log internal errors but never expose them — response stays neutral
+		// to prevent account enumeration.
+		s.logger.Error("password reset issue failed",
+			"component", "auth",
+			"email", req.Email,
+			"error", err.Error(),
+		)
 	}
+	// Always return success — never reveal whether the email exists
 	writeJSON(w, http.StatusAccepted, passwordResetRequestedResponse{Requested: true})
 }
 
