@@ -4,7 +4,6 @@ import { ArrowLeft } from "lucide-react";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -60,7 +59,6 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/plans", label: "Plans" }, { label: plan?.name || planID }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
         {isTenantSession ? planQuery.isLoading ? (
           <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">

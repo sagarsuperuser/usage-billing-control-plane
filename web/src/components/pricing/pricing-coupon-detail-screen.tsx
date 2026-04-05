@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -39,7 +38,6 @@ export function PricingCouponDetailScreen({ couponID }: { couponID: string }) {
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/coupons", label: "Coupons" }, { label: coupon?.name || couponID }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
 
         {isTenantSession ? couponQuery.isLoading ? (

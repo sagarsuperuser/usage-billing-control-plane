@@ -4,7 +4,6 @@ import { LoaderCircle, RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
 import { BillingFailureEvidence } from "@/components/billing/billing-failure-evidence";
@@ -85,7 +84,6 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
           ]}
         />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
         {isTenantSession ? (
           paymentQuery.isLoading ? (

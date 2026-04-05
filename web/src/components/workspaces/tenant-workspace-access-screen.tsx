@@ -6,7 +6,6 @@ import {
   UserRound,
 } from "lucide-react";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -31,7 +30,6 @@ export function TenantWorkspaceAccessScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
         <AppBreadcrumbs items={[{ label: "Access" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
         {isAuthenticated && scope === "tenant" && !isAdmin ? (
           <ScopeNotice
             title="Workspace admin role required"

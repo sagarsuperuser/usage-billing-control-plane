@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { CreditCard, LoaderCircle, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -107,7 +106,6 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
       <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: subscription?.display_name || subscriptionID }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
         {isTenantSession ? (
           detailQuery.isLoading ? (

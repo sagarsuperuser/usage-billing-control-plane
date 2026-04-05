@@ -3,7 +3,6 @@ import { LoaderCircle, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchInvoiceExplainability } from "@/lib/api";
@@ -48,7 +47,6 @@ export function InvoiceExplainabilityScreen() {
           ]}
         />
 
-        <LoginRedirectNotice />
 
         <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
             {/* Header with search */}

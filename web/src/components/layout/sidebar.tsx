@@ -1,5 +1,5 @@
-import type { ComponentType } from "react";
-import { Link, useLocation } from "@tanstack/react-router";
+import { useEffect, type ComponentType } from "react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRightLeft,
@@ -16,6 +16,7 @@ import {
 
 import { useUISession } from "@/hooks/use-ui-session";
 import { SessionMenu } from "@/components/layout/session-menu";
+import { buildLoginPath } from "@/lib/session-routing";
 
 // Pages that render without the sidebar (auth flow).
 const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/invite", "/workspace-setup"];
@@ -138,8 +139,27 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      <AuthGuard />
       <AppSidebar />
       <div className="pl-[220px]">{children}</div>
     </div>
   );
+}
+
+/**
+ * Centralized auth guard for all protected routes.
+ * Redirects to /login if the session check completes and the user is not
+ * authenticated. Replaces per-component LoginRedirectNotice (35 call sites).
+ */
+function AuthGuard() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { isLoading, isAuthenticated } = useUISession();
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+    navigate({ to: buildLoginPath(pathname), replace: true });
+  }, [isLoading, isAuthenticated, pathname, navigate]);
+
+  return null;
 }

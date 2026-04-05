@@ -8,7 +8,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createSubscription, fetchCustomers, fetchPlans } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
@@ -96,7 +95,6 @@ export function SubscriptionNewScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: "New" }]} />
 
-        {!isAuthenticated ? <LoginRedirectNotice /> : null}
 
         {isTenantSession && mutation.isSuccess ? (
           <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 shadow-sm">

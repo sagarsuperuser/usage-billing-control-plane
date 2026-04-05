@@ -6,7 +6,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { LoginRedirectNotice } from "@/components/auth/login-redirect-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,7 +59,6 @@ export function PricingCouponListScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Coupons" }]} />
 
-        <LoginRedirectNotice />
 
         <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
