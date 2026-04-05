@@ -612,6 +612,7 @@ func main() {
 	).WithDunningService(webhookDunningSvc)
 	serverOpts = append(serverOpts, api.WithStripeWebhookService(stripeWebhookSvc))
 	serverOpts = append(serverOpts, api.WithInvoicePDFService(service.NewInvoicePDFService(nil)))
+	serverOpts = append(serverOpts, api.WithInvoiceGenerationService(service.NewInvoiceGenerationService(repo, db)))
 	if cfg.BillingProviders.StripeWebhookSecret != "" {
 		serverOpts = append(serverOpts, api.WithStripeWebhookSecret(cfg.BillingProviders.StripeWebhookSecret))
 		logger.Info("stripe webhook signature verification enabled", "component", "server")

@@ -298,6 +298,192 @@ func (s *InvoiceGenerationService) Generate(ctx context.Context, input GenerateI
 	}, nil
 }
 
+// Preview computes what the next invoice would look like for a subscription
+// without persisting anything. Same calculation as Generate, no side effects.
+func (s *InvoiceGenerationService) Preview(ctx context.Context, tenantID, subscriptionID string) (GenerateInvoiceResult, error) {
+	subscription, err := s.store.GetSubscription(tenantID, subscriptionID)
+	if err != nil {
+		return GenerateInvoiceResult{}, fmt.Errorf("load subscription: %w", err)
+	}
+	plan, err := s.store.GetPlan(tenantID, subscription.PlanID)
+	if err != nil {
+		return GenerateInvoiceResult{}, fmt.Errorf("load plan: %w", err)
+	}
+	settings, err := s.store.GetWorkspaceBillingSettings(tenantID)
+	if err != nil {
+		settings = domain.WorkspaceBillingSettings{}
+	}
+
+	now := time.Now().UTC()
+	periodStart := now.AddDate(0, -1, 0)
+	if subscription.CurrentBillingPeriodStart != nil {
+		periodStart = *subscription.CurrentBillingPeriodStart
+	}
+	periodEnd := now
+	if subscription.CurrentBillingPeriodEnd != nil {
+		periodEnd = *subscription.CurrentBillingPeriodEnd
+	}
+
+	var lineItems []domain.InvoiceLineItem
+	var subtotalCents int64
+
+	if plan.BaseAmountCents > 0 {
+		item := domain.InvoiceLineItem{
+			LineType:         domain.LineTypeBaseFee,
+			Description:      fmt.Sprintf("Base fee — %s", plan.Name),
+			Quantity:         1,
+			UnitAmountCents:  plan.BaseAmountCents,
+			AmountCents:      plan.BaseAmountCents,
+			TotalAmountCents: plan.BaseAmountCents,
+			BillingPeriodStart: &periodStart,
+			BillingPeriodEnd:   &periodEnd,
+		}
+		lineItems = append(lineItems, item)
+		subtotalCents += item.AmountCents
+	}
+
+	if len(plan.MeterIDs) > 0 {
+		usageTotals, err := s.store.AggregateUsageForBillingPeriod(
+			tenantID, subscriptionID, plan.MeterIDs, periodStart, periodEnd,
+		)
+		if err != nil {
+			return GenerateInvoiceResult{}, fmt.Errorf("aggregate usage: %w", err)
+		}
+		for _, meterID := range plan.MeterIDs {
+			quantity := usageTotals[meterID]
+			if quantity == 0 {
+				continue
+			}
+			meter, err := s.store.GetMeter(tenantID, meterID)
+			if err != nil {
+				continue
+			}
+			rule, err := s.store.GetRatingRuleVersion(tenantID, meter.RatingRuleVersionID)
+			if err != nil {
+				continue
+			}
+			amountCents, err := domain.ComputeAmountCents(rule, quantity)
+			if err != nil {
+				continue
+			}
+			lineItems = append(lineItems, domain.InvoiceLineItem{
+				LineType:            domain.LineTypeUsage,
+				MeterID:             meterID,
+				Description:         fmt.Sprintf("Usage — %s (%d %s)", meter.Name, quantity, meter.Unit),
+				Quantity:            quantity,
+				UnitAmountCents:     divSafe(amountCents, quantity),
+				AmountCents:         amountCents,
+				TotalAmountCents:    amountCents,
+				PricingMode:         string(rule.Mode),
+				RatingRuleVersionID: rule.ID,
+				BillingPeriodStart:  &periodStart,
+				BillingPeriodEnd:    &periodEnd,
+			})
+			subtotalCents += amountCents
+		}
+	}
+
+	for _, addOnID := range plan.AddOnIDs {
+		addOn, err := s.store.GetAddOn(tenantID, addOnID)
+		if err != nil {
+			continue
+		}
+		lineItems = append(lineItems, domain.InvoiceLineItem{
+			LineType:         domain.LineTypeAddOn,
+			AddOnID:          addOnID,
+			Description:      fmt.Sprintf("Add-on — %s", addOn.Name),
+			Quantity:         1,
+			UnitAmountCents:  addOn.AmountCents,
+			AmountCents:      addOn.AmountCents,
+			TotalAmountCents: addOn.AmountCents,
+		})
+		subtotalCents += addOn.AmountCents
+	}
+
+	var discountCents int64
+	for _, couponID := range plan.CouponIDs {
+		coupon, err := s.store.GetCoupon(tenantID, couponID)
+		if err != nil || coupon.Status != domain.CouponStatusActive {
+			continue
+		}
+		var discountAmount int64
+		switch coupon.DiscountType {
+		case domain.CouponDiscountTypeAmountOff:
+			discountAmount = coupon.AmountOffCents
+		case domain.CouponDiscountTypePercentOff:
+			discountAmount = int64(math.Round(float64(subtotalCents) * float64(coupon.PercentOff) / 100.0))
+		}
+		if discountAmount <= 0 {
+			continue
+		}
+		lineItems = append(lineItems, domain.InvoiceLineItem{
+			LineType:         domain.LineTypeDiscount,
+			CouponID:         couponID,
+			Description:      fmt.Sprintf("Discount — %s", coupon.Name),
+			Quantity:         1,
+			AmountCents:      -discountAmount,
+			TotalAmountCents: -discountAmount,
+		})
+		discountCents += discountAmount
+	}
+
+	taxableAmount := subtotalCents - discountCents
+	if taxableAmount < 0 {
+		taxableAmount = 0
+	}
+	var totalTaxCents int64
+	for _, taxCode := range settings.TaxCodes {
+		tax, err := s.store.GetTaxByCode(tenantID, taxCode)
+		if err != nil || tax.Status != domain.TaxStatusActive {
+			continue
+		}
+		taxAmount := int64(math.Round(float64(taxableAmount) * tax.Rate))
+		lineItems = append(lineItems, domain.InvoiceLineItem{
+			LineType:         domain.LineTypeTax,
+			TaxID:            tax.ID,
+			Description:      fmt.Sprintf("Tax — %s", tax.Name),
+			Quantity:         1,
+			AmountCents:      taxAmount,
+			TaxRate:          tax.Rate,
+			TaxAmountCents:   taxAmount,
+			TotalAmountCents: taxAmount,
+		})
+		totalTaxCents += taxAmount
+	}
+
+	totalAmountCents := subtotalCents - discountCents + totalTaxCents
+	if totalAmountCents < 0 {
+		totalAmountCents = 0
+	}
+
+	netPaymentTermDays := 0
+	if settings.NetPaymentTermDays != nil {
+		netPaymentTermDays = *settings.NetPaymentTermDays
+	}
+	dueAt := periodEnd.AddDate(0, 0, netPaymentTermDays)
+
+	invoice := domain.Invoice{
+		TenantID:           tenantID,
+		CustomerID:         subscription.CustomerID,
+		SubscriptionID:     subscriptionID,
+		InvoiceNumber:      "(preview)",
+		Status:             domain.InvoiceStatusDraft,
+		PaymentStatus:      domain.InvoicePaymentPending,
+		Currency:           plan.Currency,
+		SubtotalCents:      subtotalCents,
+		DiscountCents:      discountCents,
+		TaxAmountCents:     totalTaxCents,
+		TotalAmountCents:   totalAmountCents,
+		AmountDueCents:     totalAmountCents,
+		BillingPeriodStart: periodStart,
+		BillingPeriodEnd:   periodEnd,
+		DueAt:              &dueAt,
+		NetPaymentTermDays: netPaymentTermDays,
+	}
+
+	return GenerateInvoiceResult{Invoice: invoice, LineItems: lineItems}, nil
+}
+
 func advanceBillingPeriod(from time.Time, interval domain.BillingInterval) time.Time {
 	switch interval {
 	case domain.BillingIntervalYearly:

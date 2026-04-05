@@ -68,6 +68,7 @@ type Server struct {
 	stripeWebhookSvc                   *service.StripeWebhookService
 	stripeWebhookSecret                string
 	invoicePDFService                  *service.InvoicePDFService
+	invoiceGenerationService           *service.InvoiceGenerationService
 	replayService                      *replay.Service
 	recService                         *reconcile.Service
 	authorizer                         APIKeyAuthorizer
@@ -427,6 +428,12 @@ func WithStripeWebhookService(stripeWebhookSvc *service.StripeWebhookService) Se
 func WithInvoicePDFService(svc *service.InvoicePDFService) ServerOption {
 	return func(s *Server) {
 		s.invoicePDFService = svc
+	}
+}
+
+func WithInvoiceGenerationService(svc *service.InvoiceGenerationService) ServerOption {
+	return func(s *Server) {
+		s.invoiceGenerationService = svc
 	}
 }
 

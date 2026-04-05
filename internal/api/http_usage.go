@@ -699,7 +699,73 @@ func (s *Server) handleMeterByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInvoicePreview(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotFound, "invoice preview is not available in the current alpha release")
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	tenantID := normalizeTenantID(principal.TenantID)
+
+	subscriptionID := strings.TrimSpace(r.URL.Query().Get("subscription_id"))
+	if subscriptionID == "" {
+		writeError(w, http.StatusBadRequest, "subscription_id is required")
+		return
+	}
+
+	if s.invoiceGenerationService == nil {
+		writeError(w, http.StatusServiceUnavailable, "invoice generation is not configured")
+		return
+	}
+
+	result, err := s.invoiceGenerationService.Preview(r.Context(), tenantID, subscriptionID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	type lineItemResponse struct {
+		LineType         string  `json:"line_type"`
+		Description      string  `json:"description"`
+		Quantity         int64   `json:"quantity"`
+		UnitAmountCents  int64   `json:"unit_amount_cents"`
+		AmountCents      int64   `json:"amount_cents"`
+		TotalAmountCents int64   `json:"total_amount_cents"`
+		TaxRate          float64 `json:"tax_rate,omitempty"`
+	}
+
+	items := make([]lineItemResponse, 0, len(result.LineItems))
+	for _, li := range result.LineItems {
+		items = append(items, lineItemResponse{
+			LineType:         string(li.LineType),
+			Description:      li.Description,
+			Quantity:         li.Quantity,
+			UnitAmountCents:  li.UnitAmountCents,
+			AmountCents:      li.AmountCents,
+			TotalAmountCents: li.TotalAmountCents,
+			TaxRate:          li.TaxRate,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"preview":            true,
+		"subscription_id":    subscriptionID,
+		"customer_id":        result.Invoice.CustomerID,
+		"currency":           result.Invoice.Currency,
+		"subtotal_cents":     result.Invoice.SubtotalCents,
+		"discount_cents":     result.Invoice.DiscountCents,
+		"tax_amount_cents":   result.Invoice.TaxAmountCents,
+		"total_amount_cents": result.Invoice.TotalAmountCents,
+		"billing_period_start": result.Invoice.BillingPeriodStart,
+		"billing_period_end":   result.Invoice.BillingPeriodEnd,
+		"due_at":               result.Invoice.DueAt,
+		"line_items":           items,
+		"generated_at":         time.Now().UTC(),
+	})
 }
 
 func (s *Server) handleInvoiceByID(w http.ResponseWriter, r *http.Request) {
