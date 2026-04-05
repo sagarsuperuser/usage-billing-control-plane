@@ -95,8 +95,9 @@ Billing adapters (defined in `internal/service/adapter_interfaces.go`):
 
 ## Deployment flow
 
-1. Push to `main` triggers CI (fast + deep) and staging deploy
-2. CI Fast: Go build + lint + unit tests + E2E browser tests
-3. CI Deep: integration tests against real Postgres + Temporal
-4. Deploy: Docker build → ECR push → Helm upgrade with immutable tags
-5. Post-deploy: `/health` endpoint, Temporal worker poll active
+Unified pipeline (`.github/workflows/pipeline.yml`):
+
+1. **Stage 1** (parallel): Go tests, web lint/build/typecheck, migration verify, Helm/Terraform validate
+2. **Stage 2** (after Stage 1): E2E browser tests, integration smoke/full, Docker build → ECR push
+3. **Stage 3** (after Stage 2): Helm upgrade to EKS with immutable image tags
+4. Post-deploy: `/health` readiness probe, Temporal worker poll active
