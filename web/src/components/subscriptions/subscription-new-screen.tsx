@@ -11,7 +11,7 @@ import { z } from "zod";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createSubscription, fetchCustomers, fetchPlans } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const schema = z.object({
@@ -81,6 +81,7 @@ export function SubscriptionNewScreen() {
           payment_method_type: data.payment_method_type,
         },
       }),
+    onSuccess: () => showSuccess("Subscription ready"),
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create subscription", err.message);

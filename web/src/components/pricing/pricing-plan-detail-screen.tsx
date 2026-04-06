@@ -9,7 +9,7 @@ import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { StatusChip } from "@/components/ui/status-chip";
 import { activatePlan, archivePlan, updatePlan, fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
 import { statusTone } from "@/lib/badge";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function PricingPlanDetailScreen({ planID }: { planID: string }) {
@@ -74,19 +74,19 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
           base_amount_cents: Math.round(parseFloat(editBase || "0") * 100),
         },
       }),
-    onSuccess: invalidate,
+    onSuccess: () => { showSuccess("Plan updated"); invalidate(); },
     onError: (err: Error) => showError(err.message),
   });
 
   const activateMutation = useMutation({
     mutationFn: () => activatePlan({ runtimeBaseURL: apiBaseURL, csrfToken, planID }),
-    onSuccess: invalidate,
+    onSuccess: () => { showSuccess("Plan activated"); invalidate(); },
     onError: (err: Error) => showError(err.message),
   });
 
   const archiveMutation = useMutation({
     mutationFn: () => archivePlan({ runtimeBaseURL: apiBaseURL, csrfToken, planID }),
-    onSuccess: invalidate,
+    onSuccess: () => { showSuccess("Plan archived"); invalidate(); },
     onError: (err: Error) => showError(err.message),
   });
 

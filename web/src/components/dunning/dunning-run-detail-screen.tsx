@@ -9,7 +9,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
 import { diagnoseDunningRun, dunningDiagnosisToneClass } from "@/lib/dunning-diagnosis";
 import { formatExactTimestamp } from "@/lib/format";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 
 function formatState(value?: string): string {
   if (!value) return "-";
@@ -29,31 +29,31 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
 
   const reminderMutation = useMutation({
     mutationFn: () => sendCollectPaymentReminder({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
-    onSuccess: async () => { await detailQuery.refetch(); },
+    onSuccess: async () => { showSuccess("Reminder sent"); await detailQuery.refetch(); },
     onError: (err: Error) => showError(err.message),
   });
 
   const retryMutation = useMutation({
     mutationFn: () => retryDunningRunNow({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
-    onSuccess: async () => { await detailQuery.refetch(); },
+    onSuccess: async () => { showSuccess("Retry initiated"); await detailQuery.refetch(); },
     onError: (err: Error) => showError(err.message),
   });
 
   const pauseMutation = useMutation({
     mutationFn: () => pauseDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
-    onSuccess: async () => { await detailQuery.refetch(); },
+    onSuccess: async () => { showSuccess("Run paused"); await detailQuery.refetch(); },
     onError: (err: Error) => showError(err.message),
   });
 
   const resumeMutation = useMutation({
     mutationFn: () => resumeDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
-    onSuccess: async () => { await detailQuery.refetch(); },
+    onSuccess: async () => { showSuccess("Run resumed"); await detailQuery.refetch(); },
     onError: (err: Error) => showError(err.message),
   });
 
   const resolveMutation = useMutation({
     mutationFn: () => resolveDunningRun({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
-    onSuccess: async () => { await detailQuery.refetch(); },
+    onSuccess: async () => { showSuccess("Run resolved"); await detailQuery.refetch(); },
     onError: (err: Error) => showError(err.message),
   });
 

@@ -71,6 +71,7 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
     mutationFn: (body: { plan_id?: string; status?: string }) =>
       updateSubscription({ runtimeBaseURL: apiBaseURL, csrfToken, subscriptionID, body }),
     onSuccess: async (updated) => {
+      showSuccess("Subscription updated");
       setSelectedPlanID(updated.plan_id);
       await detailQuery.refetch();
     },

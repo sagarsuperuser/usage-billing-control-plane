@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createCoupon } from "@/lib/api";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const schema = z.object({
@@ -29,6 +29,7 @@ type FormFields = z.infer<typeof schema>;
 
 export function PricingCouponNewScreen() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -78,7 +79,11 @@ export function PricingCouponNewScreen() {
           expiration_at: data.expiration_at ? new Date(data.expiration_at).toISOString() : null,
         },
       }),
-    onSuccess: (coupon) => navigate({ to: `/pricing/coupons/${encodeURIComponent(coupon.id)}` }),
+    onSuccess: (coupon) => {
+      showSuccess("Coupon created");
+      queryClient.invalidateQueries({ queryKey: ["pricing-coupons"] });
+      navigate({ to: `/pricing/coupons/${encodeURIComponent(coupon.id)}` });
+    },
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create coupon", err.message);

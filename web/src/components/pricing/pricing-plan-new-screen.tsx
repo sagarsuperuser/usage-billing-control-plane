@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,7 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createPlan, fetchAddOns, fetchCoupons, fetchPricingMetrics } from "@/lib/api";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const schema = z.object({
@@ -26,6 +26,7 @@ type FormFields = z.infer<typeof schema>;
 
 export function PricingPlanNewScreen() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -77,7 +78,11 @@ export function PricingPlanNewScreen() {
           coupon_ids: selectedCouponIDs,
         },
       }),
-    onSuccess: (plan) => navigate({ to: `/pricing/plans/${encodeURIComponent(plan.id)}` }),
+    onSuccess: (plan) => {
+      showSuccess("Plan created");
+      queryClient.invalidateQueries({ queryKey: ["pricing-plans"] });
+      navigate({ to: `/pricing/plans/${encodeURIComponent(plan.id)}` });
+    },
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create plan", err.message);

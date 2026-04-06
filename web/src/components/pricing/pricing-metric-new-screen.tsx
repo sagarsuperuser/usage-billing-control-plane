@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import type { InputHTMLAttributes, SelectHTMLAttributes } from "react";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createPricingMetric } from "@/lib/api";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const schema = z.object({
@@ -23,6 +23,7 @@ type FormFields = z.infer<typeof schema>;
 
 export function PricingMetricNewScreen() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -39,7 +40,11 @@ export function PricingMetricNewScreen() {
   const mutation = useMutation({
     mutationFn: (data: FormFields) =>
       createPricingMetric({ runtimeBaseURL: apiBaseURL, csrfToken, body: data }),
-    onSuccess: (metric) => navigate({ to: `/pricing/metrics/${encodeURIComponent(metric.id)}` }),
+    onSuccess: (metric) => {
+      showSuccess("Metric created");
+      queryClient.invalidateQueries({ queryKey: ["pricing-metrics"] });
+      navigate({ to: `/pricing/metrics/${encodeURIComponent(metric.id)}` });
+    },
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create metric", err.message);

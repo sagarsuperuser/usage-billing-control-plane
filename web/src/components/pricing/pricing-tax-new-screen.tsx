@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createTax } from "@/lib/api";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const schema = z.object({
@@ -23,6 +23,7 @@ type FormFields = z.infer<typeof schema>;
 
 export function PricingTaxNewScreen() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -49,7 +50,11 @@ export function PricingTaxNewScreen() {
           rate: Number(data.rate),
         },
       }),
-    onSuccess: (tax) => navigate({ to: "/pricing/taxes/" + encodeURIComponent(tax.id) }),
+    onSuccess: (tax) => {
+      showSuccess("Tax created");
+      queryClient.invalidateQueries({ queryKey: ["pricing-taxes"] });
+      navigate({ to: "/pricing/taxes/" + encodeURIComponent(tax.id) });
+    },
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create tax", err.message);

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { createAddOn } from "@/lib/api";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 const schema = z.object({
@@ -25,6 +25,7 @@ type FormFields = z.infer<typeof schema>;
 
 export function PricingAddOnNewScreen() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -53,7 +54,11 @@ export function PricingAddOnNewScreen() {
           amount_cents: Math.round(Number(data.amount) * 100),
         },
       }),
-    onSuccess: (item) => navigate({ to: `/pricing/add-ons/${encodeURIComponent(item.id)}` }),
+    onSuccess: (item) => {
+      showSuccess("Add-on created");
+      queryClient.invalidateQueries({ queryKey: ["pricing-add-ons"] });
+      navigate({ to: `/pricing/add-ons/${encodeURIComponent(item.id)}` });
+    },
     onError: (err: Error) => {
       setError("root", { message: err.message });
       showError("Failed to create add-on", err.message);

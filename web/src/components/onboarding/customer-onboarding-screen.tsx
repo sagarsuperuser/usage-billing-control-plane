@@ -12,7 +12,7 @@ import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { onboardCustomer } from "@/lib/api";
 import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { type CustomerOnboardingResult } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
@@ -90,6 +90,7 @@ export function CustomerOnboardingScreen() {
         },
       }),
     onSuccess: async (payload) => {
+      showSuccess("Customer created");
       setResult(payload);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["customers"] }),

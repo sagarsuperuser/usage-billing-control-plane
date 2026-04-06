@@ -24,7 +24,7 @@ import {
   updateTenantWorkspaceMember,
 } from "@/lib/api";
 import { formatRelativeTimestamp } from "@/lib/format";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -85,13 +85,14 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
   });
   const revokeInvitationMutation = useMutation({
     mutationFn: (invitationID: string) => revokeTenantWorkspaceInvitation({ runtimeBaseURL: apiBaseURL, csrfToken, invitationID }),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: invitationQueryKey }); },
+    onSuccess: async () => { showSuccess("Invitation revoked"); await queryClient.invalidateQueries({ queryKey: invitationQueryKey }); },
     onError: (err: Error) => showError(err.message),
   });
   const updateMemberMutation = useMutation({
     mutationFn: (input: { userID: string; role: "reader" | "writer" | "admin" }) =>
       updateTenantWorkspaceMember({ runtimeBaseURL: apiBaseURL, csrfToken, userID: input.userID, role: input.role }),
     onSuccess: async (_payload, input) => {
+      showSuccess("Role updated");
       setMemberDraftRoles((c) => { const n = { ...c }; delete n[input.userID]; return n; });
       setConfirmingMemberAction(null);
       setSelectedMemberID("");
@@ -102,6 +103,7 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
   const removeMemberMutation = useMutation({
     mutationFn: (userID: string) => removeTenantWorkspaceMember({ runtimeBaseURL: apiBaseURL, csrfToken, userID }),
     onSuccess: async () => {
+      showSuccess("Member removed");
       setConfirmingMemberAction(null);
       setSelectedMemberID("");
       await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });

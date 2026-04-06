@@ -24,7 +24,7 @@ import {
 } from "@/lib/api";
 import { billingActionConfig, billingFailureDiagnosis, billingFailureEvidence, formatBillingState } from "@/lib/billing-lifecycle";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
@@ -64,17 +64,20 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
   const retryMutation = useMutation({
     mutationFn: () => retryInvoicePayment({ runtimeBaseURL: apiBaseURL, csrfToken, invoiceID }),
     onSuccess: async () => {
+      showSuccess("Payment retry initiated");
       await Promise.all([invoiceQuery.refetch(), invoiceEventsQuery.refetch()]);
     },
     onError: (err: Error) => showError(err.message),
   });
   const resendEmailMutation = useMutation({
     mutationFn: () => resendInvoiceEmail({ runtimeBaseURL: apiBaseURL, csrfToken, invoiceID }),
+    onSuccess: () => showSuccess("Invoice email resent"),
     onError: (err: Error) => showError(err.message),
   });
   const reminderMutation = useMutation({
     mutationFn: (runID: string) => sendCollectPaymentReminder({ runtimeBaseURL: apiBaseURL, csrfToken, runID }),
     onSuccess: async () => {
+      showSuccess("Payment reminder sent");
       await invoiceQuery.refetch();
     },
     onError: (err: Error) => showError(err.message),
