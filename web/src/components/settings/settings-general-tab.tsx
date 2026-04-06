@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button } from "@/components/ui/button";
 import { fetchWorkspaceSettings, updateWorkspaceSettings, updateUserProfile } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
 import type { UISession } from "@/lib/types";
@@ -104,13 +105,15 @@ export function SettingsGeneralTab({
               <code className="flex-1 rounded-lg border border-border bg-surface-secondary px-3 py-2.5 font-mono text-xs text-text-secondary">
                 {workspace?.id ?? "..."}
               </code>
-              <button
+              <Button
+                variant="secondary"
+                size="lg"
                 type="button"
                 onClick={copyID}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition hover:bg-surface-secondary hover:text-text-primary"
+                className="w-10 shrink-0 !px-0"
               >
                 {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -132,14 +135,9 @@ export function SettingsGeneralTab({
         {/* Save bar — always visible, disabled when clean */}
         <div className="mt-6 flex items-center gap-3 border-t border-border pt-4">
           {isDirty ? <p className="flex-1 text-xs text-amber-600 dark:text-amber-400">Unsaved changes</p> : <span className="flex-1" />}
-          <button
-            type="submit"
-            disabled={!isDirty || busy}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-secondary disabled:text-text-faint dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:border-border dark:disabled:bg-surface-secondary dark:disabled:text-text-faint"
-          >
-            {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+          <Button variant="primary" size="lg" type="submit" loading={busy} disabled={!isDirty}>
             Save changes
-          </button>
+          </Button>
         </div>
       </form>
     </div>
@@ -189,13 +187,9 @@ function ProfileNameField({ apiBaseURL, csrfToken, currentName }: { apiBaseURL: 
         <span className="text-xs font-medium text-text-muted">Display name</span>
         <div className="flex items-center gap-2">
           <p className="text-sm text-text-secondary">{currentName || "Not set"}</p>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="text-xs font-medium text-text-faint transition hover:text-text-secondary"
-          >
+          <Button variant="ghost" size="sm" type="button" onClick={() => setEditing(true)}>
             Edit
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -212,22 +206,12 @@ function ProfileNameField({ apiBaseURL, csrfToken, currentName }: { apiBaseURL: 
           autoFocus
           className="h-9 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
         />
-        <button
-          type="button"
-          onClick={() => mutation.mutate()}
-          disabled={!dirty || mutation.isPending}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900"
-        >
-          {mutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+        <Button variant="primary" size="sm" type="button" onClick={() => mutation.mutate()} disabled={!dirty} loading={mutation.isPending}>
           Save
-        </button>
-        <button
-          type="button"
-          onClick={() => { setName(currentName); setEditing(false); }}
-          className="text-xs font-medium text-text-faint transition hover:text-text-secondary"
-        >
+        </Button>
+        <Button variant="ghost" size="sm" type="button" onClick={() => { setName(currentName); setEditing(false); }}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

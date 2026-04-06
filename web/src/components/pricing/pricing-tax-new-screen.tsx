@@ -1,12 +1,12 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { LoaderCircle } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Button } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import { createTax } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -78,7 +78,7 @@ export function PricingTaxNewScreen() {
                 <h1 className="text-base font-semibold text-text-primary">Create tax</h1>
                 <p className="mt-0.5 text-xs text-text-muted">Reusable tax code and rate for customer billing profiles.</p>
               </div>
-              <Link to="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
+              <Button variant="secondary" size="lg" onClick={() => navigate({ to: "/pricing/taxes" })}>Cancel</Button>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -95,11 +95,10 @@ export function PricingTaxNewScreen() {
                 {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-                <Link to="/pricing/taxes" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
-                <button data-testid="pricing-tax-submit" type="submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                  {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                <Button variant="secondary" size="lg" onClick={() => navigate({ to: "/pricing/taxes" })}>Cancel</Button>
+                <Button data-testid="pricing-tax-submit" variant="primary" size="lg" type="submit" loading={busy} disabled={!csrfToken}>
                   Create tax
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -109,33 +108,33 @@ export function PricingTaxNewScreen() {
   );
 }
 
-function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & InputHTMLAttributes<HTMLInputElement>) {
+function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="grid gap-2 text-sm text-text-secondary">
       <span className="text-xs font-medium text-text-muted">{label}</span>
-      <input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-border"}`} />
+      <Input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );
 }
 
-function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & SelectHTMLAttributes<HTMLSelectElement>) {
+function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <label className="grid gap-2 text-sm text-text-secondary">
       <span className="text-xs font-medium text-text-muted">{label}</span>
-      <select {...selectProps} aria-invalid={Boolean(error)} className={`h-10 rounded-lg border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2 ${error ? "border-rose-300" : "border-border"}`}>
+      <Select {...selectProps} aria-invalid={Boolean(error)} error={Boolean(error)}>
         {options.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
-      </select>
+      </Select>
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );
 }
 
-function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <label className="grid gap-2 text-sm text-text-secondary">
       <span className="text-xs font-medium text-text-muted">{label}</span>
-      <textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} className={`min-h-[120px] rounded-lg border bg-surface px-3 py-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-border"}`} />
+      <Textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );

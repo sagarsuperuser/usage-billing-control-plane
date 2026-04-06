@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { useQuery } from "@tanstack/react-query";
@@ -133,13 +134,9 @@ export function UsageEventsScreen() {
                   <option value="desc">Newest first</option>
                   <option value="asc">Oldest first</option>
                 </select>
-                <button
-                  type="button"
-                  onClick={applyFilters}
-                  className="inline-flex h-8 items-center rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                >
+                <Button onClick={applyFilters}>
                   Apply
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -198,24 +195,14 @@ export function UsageEventsScreen() {
             {/* Pagination */}
             {!query.isLoading && items.length > 0 ? (
               <div className="flex items-center justify-between border-t border-border px-5 py-3">
-                <button
-                  type="button"
-                  onClick={openPreviousPage}
-                  disabled={cursorTrail.length === 0 || query.isLoading}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-sm text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                >
+                <Button variant="secondary" onClick={openPreviousPage} disabled={cursorTrail.length === 0 || query.isLoading}>
                   <ChevronLeft className="h-3.5 w-3.5" />
                   Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={openNextPage}
-                  disabled={!query.data?.next_cursor || query.isLoading}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-sm text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                >
+                </Button>
+                <Button variant="secondary" onClick={openNextPage} disabled={!query.data?.next_cursor || query.isLoading}>
                   Next
                   <ChevronRight className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>

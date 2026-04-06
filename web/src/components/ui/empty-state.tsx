@@ -16,7 +16,7 @@ export function EmptyState({ icon, title, description, actionLabel, actionHref }
       <p className="text-sm font-medium text-text-secondary">{title}</p>
       {description ? <p className="max-w-xs text-xs text-text-muted">{description}</p> : null}
       {actionLabel && actionHref ? (
-        <Link to={actionHref} className="mt-1 inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
+        <Link to={actionHref} className="mt-1 inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
           {actionLabel}
         </Link>
       ) : null}

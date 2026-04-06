@@ -1,6 +1,6 @@
 
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -9,6 +9,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/input";
 import { createSubscription, fetchCustomers, fetchPlans } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
 import { showError, showSuccess } from "@/lib/toast";
@@ -24,9 +26,6 @@ const schema = z.object({
 });
 
 type FormFields = z.infer<typeof schema>;
-
-const inputClass = "h-10 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2";
-const inputErrorClass = "h-10 rounded-lg border border-rose-300 bg-surface px-3 text-sm text-text-primary outline-none ring-rose-200 transition placeholder:text-text-faint focus:ring-2";
 
 export function SubscriptionNewScreen() {
   const { apiBaseURL, csrfToken, isAuthenticated, scope } = useUISession();
@@ -130,32 +129,32 @@ export function SubscriptionNewScreen() {
                 <h1 className="text-base font-semibold text-text-primary">Create subscription</h1>
                 <p className="mt-0.5 text-xs text-text-muted">Choose the customer and plan, then decide whether to start hosted payment setup.</p>
               </div>
-              <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
+              <Button variant="secondary" size="lg" onClick={() => window.history.back()}>Cancel</Button>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Subscription name" hint="Optional. Alpha can generate a default.">
-                    <input data-testid="subscription-name" placeholder="Acme Growth" className={inputClass} {...register("display_name")} />
+                    <Input data-testid="subscription-name" placeholder="Acme Growth" {...register("display_name")} />
                   </Field>
                   <Field label="Code" hint="Optional stable internal reference.">
-                    <input data-testid="subscription-code" placeholder="acme_growth" className={inputClass} {...register("code")} />
+                    <Input data-testid="subscription-code" placeholder="acme_growth" {...register("code")} />
                   </Field>
                   <Field label="Customer" hint="The account that is subscribing." error={errors.customer_external_id?.message}>
-                    <select data-testid="subscription-customer" className={errors.customer_external_id ? inputErrorClass : inputClass} {...register("customer_external_id")}>
+                    <Select data-testid="subscription-customer" error={Boolean(errors.customer_external_id)} {...register("customer_external_id")}>
                       <option value="">Select customer</option>
                       {customers.map((customer) => (
                         <option key={customer.id} value={customer.external_id}>{customer.display_name} ({customer.external_id})</option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
                   <Field label="Plan" hint="The commercial package this customer is signing up for." error={errors.plan_id?.message}>
-                    <select data-testid="subscription-plan" className={errors.plan_id ? inputErrorClass : inputClass} {...register("plan_id")}>
+                    <Select data-testid="subscription-plan" error={Boolean(errors.plan_id)} {...register("plan_id")}>
                       <option value="">Select plan</option>
                       {plans.map((plan) => (
                         <option key={plan.id} value={plan.id}>{plan.name} ({plan.code})</option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
                 </div>
 
@@ -168,7 +167,7 @@ export function SubscriptionNewScreen() {
                 </label>
                 <div className="max-w-sm">
                   <Field label="Payment method type" hint="Defaults to card.">
-                    <input data-testid="subscription-payment-method-type" placeholder="card" className={inputClass} {...register("payment_method_type")} />
+                    <Input data-testid="subscription-payment-method-type" placeholder="card" {...register("payment_method_type")} />
                   </Field>
                 </div>
 
@@ -176,10 +175,9 @@ export function SubscriptionNewScreen() {
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
-                <button type="submit" data-testid="subscription-submit" disabled={busy || !csrfToken} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                  {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                <Button variant="primary" size="lg" type="submit" data-testid="subscription-submit" loading={busy} disabled={!csrfToken}>
                   Create subscription
-                </button>
+                </Button>
               </div>
             </form>
           </div>

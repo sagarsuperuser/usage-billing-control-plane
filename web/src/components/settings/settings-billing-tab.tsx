@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button } from "@/components/ui/button";
 import {
   fetchWorkspaceSettings, updateWorkspaceSettings,
   fetchWorkspaceBillingConnection, createWorkspaceBillingConnection, verifyWorkspaceBillingConnection,
@@ -181,14 +182,9 @@ export function SettingsBillingTab({
         {/* Sticky save bar */}
         <div className="sticky bottom-0 flex items-center gap-3 border-t border-border bg-surface px-6 py-4">
           {isDirty ? <p className="flex-1 text-xs text-amber-600 dark:text-amber-400">Unsaved changes</p> : <span className="flex-1" />}
-          <button
-            type="submit"
-            disabled={!isDirty || busy}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-secondary disabled:text-text-faint dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:border-border dark:disabled:bg-surface-secondary dark:disabled:text-text-faint"
-          >
-            {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+          <Button variant="primary" size="lg" type="submit" loading={busy} disabled={!isDirty}>
             Save changes
-          </button>
+          </Button>
         </div>
       </form>
     </div>
@@ -256,15 +252,10 @@ function PaymentProviderCard({ apiBaseURL, csrfToken }: { apiBaseURL: string; cs
               </span>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={() => verifyMutation.mutate()}
-            disabled={verifyMutation.isPending}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:opacity-50"
-          >
-            {verifyMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          <Button variant="secondary" size="sm" type="button" onClick={() => verifyMutation.mutate()} loading={verifyMutation.isPending}>
+            {!verifyMutation.isPending ? <RefreshCw className="h-3 w-3" /> : null}
             Verify
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="mt-4 max-w-2xl">
@@ -294,15 +285,17 @@ function PaymentProviderCard({ apiBaseURL, csrfToken }: { apiBaseURL: string; cs
                 </button>
               </div>
             </label>
-            <button
+            <Button
+              variant="primary"
+              size="lg"
               type="button"
               onClick={() => connectMutation.mutate()}
-              disabled={connectMutation.isPending || !secretKey.trim().startsWith("sk_")}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!secretKey.trim().startsWith("sk_")}
+              loading={connectMutation.isPending}
             >
-              {connectMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              {!connectMutation.isPending ? <Zap className="h-3.5 w-3.5" /> : null}
               Connect
-            </button>
+            </Button>
           </div>
           <p className="mt-2 text-[11px] text-text-faint">
             Find your key in the{" "}

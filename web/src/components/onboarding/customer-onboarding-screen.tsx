@@ -1,15 +1,16 @@
 
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, CreditCard, LoaderCircle } from "lucide-react";
+import { ArrowRight, CreditCard } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import type { InputHTMLAttributes } from "react";
 
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { onboardCustomer } from "@/lib/api";
 import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
 import { showError, showSuccess } from "@/lib/toast";
@@ -142,7 +143,7 @@ export function CustomerOnboardingScreen() {
                 <h1 className="text-base font-semibold text-text-primary">Create customer</h1>
                 <p className="mt-0.5 text-xs text-text-muted">Create the customer record, apply the billing profile, and optionally start payment setup.</p>
               </div>
-              <Link to="/customers" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
+              <Button variant="secondary" size="lg" onClick={() => window.history.back()}>Cancel</Button>
             </div>
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
@@ -215,21 +216,13 @@ export function CustomerOnboardingScreen() {
                 ) : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary"
-                >
+                <Button variant="secondary" size="lg" type="button" onClick={handleReset}>
                   Reset form
-                </button>
-                <button
-                  type="submit"
-                  disabled={!canWrite || !csrfToken || busy}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                </Button>
+                <Button variant="primary" size="lg" type="submit" loading={busy} disabled={!canWrite || !csrfToken}>
+                  <CreditCard className="h-4 w-4" />
                   Run customer setup
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -239,15 +232,11 @@ export function CustomerOnboardingScreen() {
   );
 }
 
-function InputField({ label, error, ...inputProps }: { label: string; error?: string } & InputHTMLAttributes<HTMLInputElement>) {
+function InputField({ label, error, ...inputProps }: { label: string; error?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="grid gap-2 text-sm text-text-secondary">
       <span className="text-xs font-medium text-text-muted">{label}</span>
-      <input
-        {...inputProps}
-        aria-invalid={Boolean(error)}
-        className={`h-10 rounded-lg border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2 ${error ? "border-rose-300 focus:ring-rose-200" : "border-border"}`}
-      />
+      <Input {...inputProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
       {error ? <span className="text-xs text-rose-600">{error}</span> : null}
     </label>
   );
