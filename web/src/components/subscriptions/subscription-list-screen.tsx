@@ -1,5 +1,5 @@
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -26,6 +26,7 @@ function statusTone(status: string): string {
 }
 
 export function SubscriptionListScreen() {
+  const navigate = useNavigate();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
@@ -89,12 +90,10 @@ export function SubscriptionListScreen() {
                 </thead>
                 <tbody className="divide-y divide-border-light">
                   {paginated.map((item) => (
-                    <tr key={item.id} className="transition hover:bg-surface-secondary">
+                    <tr key={item.id} className="cursor-pointer transition hover:bg-surface-secondary" onClick={() => navigate({ to: `/subscriptions/${encodeURIComponent(item.id)}` })}>
                       <td className="px-5 py-3">
-                        <Link to={`/subscriptions/${encodeURIComponent(item.id)}`} className="block">
-                          <p className="font-medium text-text-primary">{item.display_name}</p>
-                          <p className="mt-0.5 font-mono text-xs text-text-faint">{item.code}</p>
-                        </Link>
+                        <p className="font-medium text-text-primary">{item.display_name}</p>
+                        <p className="mt-0.5 font-mono text-xs text-text-faint">{item.code}</p>
                       </td>
                       <td className="px-4 py-3 text-text-muted">{item.customer_display_name}</td>
                       <td className="px-4 py-3 text-text-muted">{item.plan_name}</td>

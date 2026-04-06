@@ -1,5 +1,5 @@
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -34,6 +34,7 @@ function formatDiscountType(coupon: Coupon): string {
 }
 
 export function PricingCouponListScreen() {
+  const navigate = useNavigate();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
@@ -93,11 +94,9 @@ export function PricingCouponListScreen() {
                   </thead>
                   <tbody className="divide-y divide-border-light">
                     {paginated.map((coupon) => (
-                      <tr key={coupon.id} className="transition hover:bg-surface-secondary">
-                        <td className="px-5 py-3">
-                          <Link to={`/pricing/coupons/${encodeURIComponent(coupon.id)}`} className="block font-medium text-text-primary">
-                            {coupon.name}
-                          </Link>
+                      <tr key={coupon.id} className="cursor-pointer transition hover:bg-surface-secondary" onClick={() => navigate({ to: `/pricing/coupons/${encodeURIComponent(coupon.id)}` })}>
+                        <td className="px-5 py-3 font-medium text-text-primary">
+                          {coupon.name}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-text-muted">{coupon.code}</td>
                         <td className="px-4 py-3 text-text-muted">{formatDiscountType(coupon)}</td>

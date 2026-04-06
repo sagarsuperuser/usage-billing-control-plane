@@ -1,5 +1,5 @@
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,6 +28,7 @@ function statusTone(status: string): string {
 }
 
 export function PricingTaxListScreen() {
+  const navigate = useNavigate();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
@@ -87,11 +88,9 @@ export function PricingTaxListScreen() {
                   </thead>
                   <tbody className="divide-y divide-border-light">
                     {paginated.map((tax) => (
-                      <tr key={tax.id} className="transition hover:bg-surface-secondary">
-                        <td className="px-5 py-3">
-                          <Link to={`/pricing/taxes/${encodeURIComponent(tax.id)}`} className="block font-medium text-text-primary">
-                            {tax.name}
-                          </Link>
+                      <tr key={tax.id} className="cursor-pointer transition hover:bg-surface-secondary" onClick={() => navigate({ to: `/pricing/taxes/${encodeURIComponent(tax.id)}` })}>
+                        <td className="px-5 py-3 font-medium text-text-primary">
+                          {tax.name}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-text-muted">{tax.code}</td>
                         <td className="px-4 py-3 text-text-muted">{tax.rate.toFixed(2)}%</td>

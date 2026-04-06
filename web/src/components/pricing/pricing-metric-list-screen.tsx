@@ -1,5 +1,5 @@
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,6 +15,7 @@ import { useUISession } from "@/hooks/use-ui-session";
 const PAGE_SIZE = 20;
 
 export function PricingMetricListScreen() {
+  const navigate = useNavigate();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
@@ -74,11 +75,9 @@ export function PricingMetricListScreen() {
                   </thead>
                   <tbody className="divide-y divide-border-light">
                     {paginated.map((metric) => (
-                      <tr key={metric.id} className="transition hover:bg-surface-secondary">
-                        <td className="px-5 py-3">
-                          <Link to={`/pricing/metrics/${encodeURIComponent(metric.id)}`} className="block font-medium text-text-primary">
-                            {metric.name}
-                          </Link>
+                      <tr key={metric.id} className="cursor-pointer transition hover:bg-surface-secondary" onClick={() => navigate({ to: `/pricing/metrics/${encodeURIComponent(metric.id)}` })}>
+                        <td className="px-5 py-3 font-medium text-text-primary">
+                          {metric.name}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-text-muted">{metric.key}</td>
                         <td className="px-4 py-3 text-text-muted">{metric.unit}</td>

@@ -1,5 +1,5 @@
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,6 +18,7 @@ import { type CustomerReadiness } from "@/lib/types";
 import { useUISession } from "@/hooks/use-ui-session";
 
 export function CustomerListScreen() {
+  const navigate = useNavigate();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [statusFilter, setStatusFilter] = useState("");
@@ -111,7 +112,7 @@ export function CustomerListScreen() {
                     const readiness = readinessByCustomer.get(customer.external_id);
                     const diagnosis = readiness ? diagnoseCustomerCollection(readiness) : null;
                     return (
-                      <tr key={customer.external_id} className="transition hover:bg-surface-secondary">
+                      <tr key={customer.external_id} className="cursor-pointer transition hover:bg-surface-secondary" onClick={() => navigate({ to: `/customers/${encodeURIComponent(customer.external_id)}` })}>
                         <td className="px-5 py-3">
                           <Link to={`/customers/${encodeURIComponent(customer.external_id)}`} className="block">
                             <p className="font-medium text-text-primary">{customer.display_name}</p>

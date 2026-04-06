@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +36,7 @@ function formatInvoiceState(value?: string): string {
 
 export function InvoiceListScreen() {
   const searchParams = useSearchParamsCompat();
+  const navigate = useNavigate();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
 
@@ -161,11 +162,9 @@ export function InvoiceListScreen() {
                   {paginatedItems.map((item) => {
                     const diagnosis = billingFailureDiagnosis(item);
                     return (
-                      <tr key={item.invoice_id} className="transition hover:bg-surface-secondary">
+                      <tr key={item.invoice_id} className="cursor-pointer transition hover:bg-surface-secondary" onClick={() => navigate({ to: `/invoices/${encodeURIComponent(item.invoice_id)}` })}>
                         <td className="px-5 py-3">
-                          <Link to={`/invoices/${encodeURIComponent(item.invoice_id)}`} className="block">
-                            <p className="font-medium text-text-primary">{item.invoice_number || item.invoice_id}</p>
-                          </Link>
+                          <p className="font-medium text-text-primary">{item.invoice_number || item.invoice_id}</p>
                         </td>
                         <td className="px-4 py-3 text-text-muted">{item.customer_display_name || item.customer_external_id || "—"}</td>
                         <td className="px-4 py-3 text-text-primary font-medium">{formatMoney(item.total_amount_cents, item.currency || "USD")}</td>
