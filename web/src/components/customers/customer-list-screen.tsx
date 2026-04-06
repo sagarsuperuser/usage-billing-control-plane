@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/ui/page-container";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -59,12 +61,11 @@ export function CustomerListScreen() {
   }, [filteredCustomers, readinessQueries]);
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+    <PageContainer>
         <AppBreadcrumbs items={[{ label: "Customers" }]} />
 
 
-        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+        <Card>
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <div className="flex items-center gap-3">
                 <h1 className="text-sm font-semibold text-text-primary">Customers{filteredCustomers.length > 0 ? ` (${filteredCustomers.length})` : ""}</h1>
@@ -140,9 +141,8 @@ export function CustomerListScreen() {
               <Pagination page={page} pageSize={PAGE_SIZE} total={filteredCustomers.length} onPageChange={setPage} />
               </>
             )}
-          </div>
-      </main>
-    </div>
+          </Card>
+    </PageContainer>
   );
 }
 

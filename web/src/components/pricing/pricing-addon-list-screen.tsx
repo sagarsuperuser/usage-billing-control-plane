@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/ui/page-container";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchAddOns } from "@/lib/api";
@@ -50,12 +52,11 @@ export function PricingAddOnListScreen() {
   const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+    <PageContainer>
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { label: "Add-ons" }]} />
 
 
-        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+        <Card>
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h1 className="text-sm font-semibold text-text-primary">Add-ons{filtered.length > 0 ? ` (${filtered.length})` : ""}</h1>
               <div className="flex items-center gap-2">
@@ -106,9 +107,8 @@ export function PricingAddOnListScreen() {
                 <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
               </>
             )}
-          </div>
-      </main>
-    </div>
+          </Card>
+    </PageContainer>
   );
 }
 

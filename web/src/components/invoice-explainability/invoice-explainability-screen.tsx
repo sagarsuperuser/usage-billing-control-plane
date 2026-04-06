@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/ui/page-container";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchInvoiceExplainability } from "@/lib/api";
 import { formatExactTimestamp, formatMoney } from "@/lib/format";
@@ -39,7 +41,7 @@ export function InvoiceExplainabilityScreen() {
 
   return (
     <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <PageContainer>
         <AppBreadcrumbs
           items={[
             { href: "/invoices", label: "Invoices" },
@@ -48,7 +50,7 @@ export function InvoiceExplainabilityScreen() {
         />
 
 
-        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+        <Card>
             {/* Header with search */}
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h1 className="text-sm font-semibold text-text-primary">Invoice explainability</h1>
@@ -164,8 +166,8 @@ export function InvoiceExplainabilityScreen() {
                 </tbody>
               </table>
             ) : null}
-          </div>
-      </main>
+          </Card>
+      </PageContainer>
 
       {/* Line item detail slide-out */}
       {selectedLineItem ? (

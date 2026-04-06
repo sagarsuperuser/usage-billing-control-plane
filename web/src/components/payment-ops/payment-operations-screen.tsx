@@ -13,6 +13,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/ui/page-container";
 import { StatusChip } from "@/components/ui/status-chip";
 import { fetchInvoiceEvents, fetchInvoiceLifecycle, fetchInvoiceStatusSummary, fetchInvoiceStatuses, retryInvoicePayment } from "@/lib/api";
 import { statusTone, diagnosisTone } from "@/lib/badge";
@@ -182,11 +184,11 @@ export function PaymentOperationsScreen() {
 
   return (
     <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+      <PageContainer>
 
 
         <>
-            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm divide-y divide-border">
+            <Card className="divide-y divide-border">
               {/* ---- Header ---- */}
               <div className="px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -375,7 +377,7 @@ export function PaymentOperationsScreen() {
                   </button>
                 </div>
               </div>
-            </div>
+            </Card>
 
             {statusesQuery.error ? (
               <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -401,7 +403,7 @@ export function PaymentOperationsScreen() {
               </div>
             ) : null}
           </>
-      </main>
+      </PageContainer>
 
       {/* ---- Slide-out timeline panel ---- */}
       {timelineOpen && selectedInvoiceID ? (

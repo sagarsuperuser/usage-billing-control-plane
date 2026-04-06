@@ -8,6 +8,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Card } from "@/components/ui/card";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
+import { PageContainer } from "@/components/ui/page-container";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { fetchUsageEvents } from "@/lib/api";
 import { formatExactTimestamp, formatRelativeTimestamp } from "@/lib/format";
@@ -102,12 +105,11 @@ export function UsageEventsScreen() {
   };
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+    <PageContainer>
         <AppBreadcrumbs items={[{ label: "Usage events" }]} />
 
 
-        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+        <Card>
             {/* Header with title + inline filters */}
             <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
               <h1 className="text-sm font-semibold text-text-primary">Usage events{items.length > 0 ? ` (${items.length})` : ""}</h1>
@@ -206,9 +208,8 @@ export function UsageEventsScreen() {
                 </Button>
               </div>
             ) : null}
-          </div>
-      </main>
-    </div>
+          </Card>
+    </PageContainer>
   );
 }
 
@@ -248,13 +249,7 @@ function DetailField({ label, value, mono }: { label: string; value: string; mon
 }
 
 function LoadingState() {
-  return (
-    <div className="animate-pulse space-y-3 px-5 py-8">
-      <div className="h-4 w-full rounded bg-surface-secondary" />
-      <div className="h-4 w-full rounded bg-surface-secondary" />
-      <div className="h-4 w-3/4 rounded bg-surface-secondary" />
-    </div>
-  );
+  return <LoadingSkeleton variant="table" lines={5} />;
 }
 
 function ErrorState({ message }: { message: string }) {

@@ -8,6 +8,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
+import { PageContainer } from "@/components/ui/page-container";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { StatusChip } from "@/components/ui/status-chip";
 import { activatePlan, archivePlan, updatePlan, fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
@@ -107,18 +109,11 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   }, [couponsQuery.data, plan]);
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+    <PageContainer>
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }, { href: "/pricing/plans", label: "Plans" }, { label: plan?.name || planID }]} />
 
         {isTenantSession ? planQuery.isLoading ? (
-          <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
-            <div className="animate-pulse space-y-3">
-              <div className="h-6 w-48 rounded bg-surface-secondary" />
-              <div className="h-4 w-72 rounded bg-surface-secondary" />
-              <div className="h-32 w-full rounded bg-surface-secondary" />
-            </div>
-          </section>
+          <LoadingSkeleton variant="card" />
         ) : !plan ? (
           <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
             <p className="text-sm font-semibold text-text-primary">Plan not available</p>
@@ -305,7 +300,6 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
             </div>
           </SectionErrorBoundary>
         ) : null}
-      </main>
-    </div>
+    </PageContainer>
   );
 }

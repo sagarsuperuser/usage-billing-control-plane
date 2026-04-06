@@ -3,6 +3,8 @@ import { Building2, CreditCard, Users } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/ui/page-container";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { useUISession } from "@/hooks/use-ui-session";
 import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
@@ -38,8 +40,7 @@ export function SettingsScreen() {
   };
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
+    <PageContainer>
         <AppBreadcrumbs items={[{ label: "Settings" }]} />
 
         {/* Page header */}
@@ -58,7 +59,7 @@ export function SettingsScreen() {
         ) : null}
 
         {isTenantSession && isAdmin ? (
-          <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+          <Card>
             <div className="flex border-b border-border" role="tablist">
               {tabs.map((tab) => (
                 <button
@@ -93,9 +94,8 @@ export function SettingsScreen() {
                 session={session ? { tenant_id: session.tenant_id, subject_id: session.subject_id } : null}
               />
             )}
-          </div>
+          </Card>
         ) : null}
-      </main>
-    </div>
+    </PageContainer>
   );
 }

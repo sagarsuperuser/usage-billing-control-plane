@@ -10,6 +10,8 @@ import { z } from "zod";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/ui/page-container";
 import { FormField } from "@/components/ui/form-field";
 import { Input, Select } from "@/components/ui/input";
 import { createSubscription, fetchCustomers, fetchPlans } from "@/lib/api";
@@ -92,8 +94,7 @@ export function SubscriptionNewScreen() {
   const busy = isSubmitting || mutation.isPending;
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+    <PageContainer>
         <AppBreadcrumbs items={[{ href: "/subscriptions", label: "Subscriptions" }, { label: "New" }]} />
 
 
@@ -124,7 +125,7 @@ export function SubscriptionNewScreen() {
         ) : null}
 
         {isTenantSession ? (
-          <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+          <Card>
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
                 <h1 className="text-base font-semibold text-text-primary">Create subscription</h1>
@@ -181,10 +182,9 @@ export function SubscriptionNewScreen() {
                 </Button>
               </div>
             </form>
-          </div>
+          </Card>
         ) : null}
-      </main>
-    </div>
+    </PageContainer>
   );
 }
 

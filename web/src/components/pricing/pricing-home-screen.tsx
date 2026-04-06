@@ -4,6 +4,9 @@ import { ArrowRight, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Card } from "@/components/ui/card";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
+import { PageContainer } from "@/components/ui/page-container";
 import {
   fetchAddOns,
   fetchCoupons,
@@ -69,13 +72,12 @@ export function PricingHomeScreen() {
   ] as const;
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+    <PageContainer>
         <AppBreadcrumbs items={[{ href: "/pricing", label: "Pricing" }]} />
 
 
         {isAuthenticated ? (
-          <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+          <Card>
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h1 className="text-sm font-semibold text-text-primary">Pricing catalog</h1>
               <div className="flex items-center gap-2">
@@ -91,11 +93,7 @@ export function PricingHomeScreen() {
             </div>
 
             {loading ? (
-              <div className="animate-pulse space-y-3 px-5 py-8">
-                <div className="h-4 w-full rounded bg-surface-secondary" />
-                <div className="h-4 w-full rounded bg-surface-secondary" />
-                <div className="h-4 w-3/4 rounded bg-surface-secondary" />
-              </div>
+              <LoadingSkeleton variant="table" lines={5} />
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -135,9 +133,8 @@ export function PricingHomeScreen() {
                 </tbody>
               </table>
             )}
-          </div>
+          </Card>
         ) : null}
-      </main>
-    </div>
+    </PageContainer>
   );
 }

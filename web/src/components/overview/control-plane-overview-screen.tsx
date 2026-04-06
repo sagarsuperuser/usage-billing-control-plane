@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
+import { Card } from "@/components/ui/card";
+import { PageContainer } from "@/components/ui/page-container";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchCustomerReadiness,
@@ -58,10 +60,9 @@ export function ControlPlaneOverviewScreen() {
   const hasAttention = attentionItems.some((item) => item.value > 0);
 
   return (
-    <div className="text-text-primary">
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-6 lg:px-8">
+    <PageContainer>
 
-        <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+        <Card>
           {/* Header */}
           <div className="border-b border-border px-5 py-3">
             <h1 className="text-sm font-semibold text-text-primary">Overview</h1>
@@ -122,9 +123,8 @@ export function ControlPlaneOverviewScreen() {
               </div>
             </div>
           ) : null}
-        </div>
-      </main>
-    </div>
+        </Card>
+    </PageContainer>
   );
 }
 
