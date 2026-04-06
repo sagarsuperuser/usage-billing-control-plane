@@ -275,6 +275,7 @@ func (s *InvoiceGenerationService) Generate(ctx context.Context, input GenerateI
 	var createdItems []domain.InvoiceLineItem
 	for _, item := range lineItems {
 		item.InvoiceID = created.ID
+		item.Currency = created.Currency
 		createdItem, err := s.store.CreateInvoiceLineItem(item)
 		if err != nil {
 			return GenerateInvoiceResult{}, fmt.Errorf("create line item: %w", err)
@@ -481,6 +482,9 @@ func (s *InvoiceGenerationService) Preview(ctx context.Context, tenantID, subscr
 		NetPaymentTermDays: netPaymentTermDays,
 	}
 
+	for i := range lineItems {
+		lineItems[i].Currency = plan.Currency
+	}
 	return GenerateInvoiceResult{Invoice: invoice, LineItems: lineItems}, nil
 }
 

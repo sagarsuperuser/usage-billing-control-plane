@@ -491,7 +491,7 @@ func classifyTenantAuditChangeAction(metadata map[string]any, statusOnly bool) s
 	if statusOnly {
 		return "workspace.status_changed"
 	}
-	if metadataHasTenantAuditKey(metadata, "previous_billing_provider_connection_id", "new_billing_provider_connection_id", "previous_lago_organization_id", "new_lago_organization_id", "previous_lago_billing_provider_code", "new_lago_billing_provider_code") {
+	if metadataHasTenantAuditKey(metadata, "previous_billing_provider_connection_id", "new_billing_provider_connection_id") {
 		return "workspace.billing_connection_changed"
 	}
 	if metadataHasTenantAuditKey(metadata, "previous_name", "new_name") {

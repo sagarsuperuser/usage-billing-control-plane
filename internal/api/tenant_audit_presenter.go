@@ -55,7 +55,7 @@ func presentTenantAuditEvent(event domain.TenantAuditEvent) tenantAuditEventPres
 			Summary:  "Workspace billing configuration was updated.",
 		}
 	case "workspace.updated", "updated":
-		if metadataHasAny(metadata, "previous_billing_provider_connection_id", "new_billing_provider_connection_id", "previous_lago_organization_id", "new_lago_organization_id", "previous_lago_billing_provider_code", "new_lago_billing_provider_code") {
+		if metadataHasAny(metadata, "previous_billing_provider_connection_id", "new_billing_provider_connection_id") {
 			return tenantAuditEventPresentation{
 				Code:     "workspace.billing_connection_changed",
 				Category: "Billing",
@@ -180,10 +180,6 @@ func humanizeAuditField(field string) string {
 	switch strings.TrimSpace(field) {
 	case "billing_provider_connection_id":
 		return "Billing connection"
-	case "lago_organization_id":
-		return "Billing organization"
-	case "lago_billing_provider_code":
-		return "Billing provider code"
 	case "name":
 		return "Workspace name"
 	case "status":

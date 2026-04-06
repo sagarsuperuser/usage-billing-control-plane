@@ -623,18 +623,12 @@ func resetTables(t *testing.T, db *sql.DB) {
 			name,
 			status,
 			billing_provider_connection_id,
-			lago_organization_id,
-			lago_billing_provider_code,
-			lago_api_key,
 			created_at,
 			updated_at
 		) VALUES (
 			'default',
 			'Default Tenant',
 			'active',
-			NULL,
-			NULL,
-			NULL,
 			NULL,
 			NOW(),
 			NOW()
@@ -643,9 +637,6 @@ func resetTables(t *testing.T, db *sql.DB) {
 		SET name = EXCLUDED.name,
 		    status = EXCLUDED.status,
 		    billing_provider_connection_id = EXCLUDED.billing_provider_connection_id,
-		    lago_organization_id = EXCLUDED.lago_organization_id,
-		    lago_billing_provider_code = EXCLUDED.lago_billing_provider_code,
-		    lago_api_key = EXCLUDED.lago_api_key,
 		    updated_at = NOW()`)
 	if err != nil {
 		t.Fatalf("upsert default tenant: %v", err)
@@ -1906,8 +1897,8 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	created := postJSON(t, ts.URL+"/internal/tenants", map[string]any{
 		"id":                         "tenant_ops",
 		"name":                       "Tenant Ops",
-		"lago_organization_id":       "org_ops",
-		"lago_billing_provider_code": "stripe_ops",
+		"stripe_account_id":       "org_ops",
+		"stripe_provider_code": "stripe_ops",
 	}, "platform-admin", http.StatusCreated)
 	createdTenant, ok := created["tenant"].(map[string]any)
 	if !ok {
@@ -1941,7 +1932,7 @@ func TestInternalTenantOperatorEndpoints(t *testing.T) {
 	}
 
 	updated2 := patchJSON(t, ts.URL+"/internal/tenants/tenant_ops", map[string]any{
-		"lago_billing_provider_code": "stripe_v2",
+		"stripe_provider_code": "stripe_v2",
 	}, "platform-admin", http.StatusOK)
 	if updated2["id"] != "tenant_ops" {
 		t.Fatalf("expected updated tenant response to remain sanitized, got %v", updated2["id"])
@@ -2038,8 +2029,8 @@ func TestInternalTenantOnboardingFlow(t *testing.T) {
 	onboarded := postJSON(t, ts.URL+"/internal/onboarding/tenants", map[string]any{
 		"id":                         "tenant_onboard",
 		"name":                       "Tenant Onboard",
-		"lago_organization_id":       "org_onboard",
-		"lago_billing_provider_code": "stripe_onboard",
+		"stripe_account_id":       "org_onboard",
+		"stripe_provider_code": "stripe_onboard",
 		"admin_key_name":             "tenant-onboard-admin",
 	}, "platform-admin", http.StatusCreated)
 
@@ -2229,8 +2220,8 @@ func TestInternalTenantOnboardingStatusPagesCustomers(t *testing.T) {
 	onboarded := postJSON(t, ts.URL+"/internal/onboarding/tenants", map[string]any{
 		"id":                         "tenant_onboard_paged",
 		"name":                       "Tenant Onboard Paged",
-		"lago_organization_id":       "org_onboard_paged",
-		"lago_billing_provider_code": "stripe_onboard_paged",
+		"stripe_account_id":       "org_onboard_paged",
+		"stripe_provider_code": "stripe_onboard_paged",
 		"admin_key_name":             "tenant-onboard-paged-admin",
 	}, "platform-admin", http.StatusCreated)
 	bootstrap, ok := onboarded["tenant_admin_bootstrap"].(map[string]any)

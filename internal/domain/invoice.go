@@ -83,6 +83,7 @@ type InvoiceLineItem struct {
 	TaxRate              float64             `json:"tax_rate"`
 	TaxAmountCents       int64               `json:"tax_amount_cents"`
 	TotalAmountCents     int64               `json:"total_amount_cents"`
+	Currency             string              `json:"currency"`
 	PricingMode          string              `json:"pricing_mode,omitempty"`
 	RatingRuleVersionID  string              `json:"rating_rule_version_id,omitempty"`
 	BillingPeriodStart   *time.Time          `json:"billing_period_start,omitempty"`

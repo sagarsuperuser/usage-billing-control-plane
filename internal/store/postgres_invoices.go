@@ -357,25 +357,29 @@ func (s *PostgresStore) CreateInvoiceLineItem(input domain.InvoiceLineItem) (dom
 
 	metadataJSON, _ := json.Marshal(input.Metadata)
 
+	currency := input.Currency
+	if currency == "" {
+		currency = "USD"
+	}
 	row := tx.QueryRowContext(ctx, `
 		INSERT INTO invoice_line_items (
 			id, invoice_id, tenant_id, line_type,
 			meter_id, add_on_id, coupon_id, tax_id,
 			description, quantity, unit_amount_cents, amount_cents,
-			tax_rate, tax_amount_cents, total_amount_cents,
+			tax_rate, tax_amount_cents, total_amount_cents, currency,
 			pricing_mode, rating_rule_version_id,
 			billing_period_start, billing_period_end, metadata, created_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 		RETURNING id, invoice_id, tenant_id, line_type,
 			meter_id, add_on_id, coupon_id, tax_id,
 			description, quantity, unit_amount_cents, amount_cents,
-			tax_rate, tax_amount_cents, total_amount_cents,
+			tax_rate, tax_amount_cents, total_amount_cents, currency,
 			pricing_mode, rating_rule_version_id,
 			billing_period_start, billing_period_end, metadata, created_at`,
 		input.ID, input.InvoiceID, input.TenantID, string(input.LineType),
 		nullIfEmpty(input.MeterID), nullIfEmpty(input.AddOnID), nullIfEmpty(input.CouponID), nullIfEmpty(input.TaxID),
 		input.Description, input.Quantity, input.UnitAmountCents, input.AmountCents,
-		input.TaxRate, input.TaxAmountCents, input.TotalAmountCents,
+		input.TaxRate, input.TaxAmountCents, input.TotalAmountCents, currency,
 		nullIfEmpty(input.PricingMode), nullIfEmpty(input.RatingRuleVersionID),
 		input.BillingPeriodStart, input.BillingPeriodEnd, metadataJSON, input.CreatedAt,
 	)
@@ -403,7 +407,7 @@ func (s *PostgresStore) ListInvoiceLineItems(tenantID, invoiceID string) ([]doma
 		SELECT id, invoice_id, tenant_id, line_type,
 			meter_id, add_on_id, coupon_id, tax_id,
 			description, quantity, unit_amount_cents, amount_cents,
-			tax_rate, tax_amount_cents, total_amount_cents,
+			tax_rate, tax_amount_cents, total_amount_cents, currency,
 			pricing_mode, rating_rule_version_id,
 			billing_period_start, billing_period_end, metadata, created_at
 		FROM invoice_line_items WHERE invoice_id = $1 ORDER BY created_at`, invoiceID)
@@ -478,7 +482,7 @@ func scanInvoiceLineItem(s rowScanner) (domain.InvoiceLineItem, error) {
 		&out.ID, &out.InvoiceID, &out.TenantID, &lineType,
 		&meterID, &addOnID, &couponID, &taxID,
 		&out.Description, &out.Quantity, &out.UnitAmountCents, &out.AmountCents,
-		&out.TaxRate, &out.TaxAmountCents, &out.TotalAmountCents,
+		&out.TaxRate, &out.TaxAmountCents, &out.TotalAmountCents, &out.Currency,
 		&pricingMode, &ratingRuleVersionID,
 		&out.BillingPeriodStart, &out.BillingPeriodEnd, &metadataRaw, &out.CreatedAt,
 	); err != nil {
