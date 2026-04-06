@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -54,7 +55,15 @@ func writeDomainError(w http.ResponseWriter, err error) {
 
 	// Never leak internal/SQL/infrastructure errors to the client.
 	// Only domain errors (4xx) get their original message.
+	// Log 5xx errors server-side so we can debug without redeploying.
 	if status >= 500 {
+		requestID := w.Header().Get(requestIDHeaderKey)
+		slog.Error("domain error (5xx)",
+			"component", "api",
+			"status", status,
+			"error", err.Error(),
+			"request_id", requestID,
+		)
 		message = "an internal error occurred"
 	}
 
