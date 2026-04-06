@@ -378,6 +378,50 @@ export async function fetchPlans(input: {
   return payload;
 }
 
+export async function updatePlan(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  planID: string;
+  body: Record<string, unknown>;
+}): Promise<Plan> {
+  const payload = await apiRequest<Plan>(`/v1/plans/${encodeURIComponent(input.planID)}`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "PATCH",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload;
+}
+
+export async function activatePlan(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  planID: string;
+}): Promise<Plan> {
+  const payload = await apiRequest<Plan>(`/v1/plans/${encodeURIComponent(input.planID)}/activate`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload;
+}
+
+export async function archivePlan(input: {
+  runtimeBaseURL?: string;
+  csrfToken: string;
+  planID: string;
+}): Promise<Plan> {
+  const payload = await apiRequest<Plan>(`/v1/plans/${encodeURIComponent(input.planID)}/archive`, {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload;
+}
+
 export async function fetchAddOns(input: {
   runtimeBaseURL?: string;
 }): Promise<AddOn[]> {

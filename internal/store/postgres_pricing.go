@@ -464,6 +464,42 @@ func (s *PostgresStore) CreatePlan(input domain.Plan) (domain.Plan, error) {
 	return input, nil
 }
 
+func (s *PostgresStore) UpdatePlan(tenantID string, input domain.Plan) (domain.Plan, error) {
+	ctx, cancel := s.withTimeout()
+	defer cancel()
+
+	tx, err := s.beginTxWithSession(ctx, txSessionTenant, tenantID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	defer rollbackSilently(tx)
+
+	result, err := tx.ExecContext(ctx, `UPDATE plans
+		SET name = $1, description = NULLIF($2,''), status = $3,
+		    base_amount_cents = $4, updated_at = $5
+		WHERE id = $6 AND tenant_id = $7`,
+		strings.TrimSpace(input.Name),
+		strings.TrimSpace(input.Description),
+		string(input.Status),
+		input.BaseAmountCents,
+		time.Now().UTC(),
+		strings.TrimSpace(input.ID),
+		normalizeTenantID(tenantID),
+	)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return domain.Plan{}, ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Plan{}, err
+	}
+
+	// Return full plan with junction table IDs.
+	return s.GetPlan(tenantID, input.ID)
+}
+
 func (s *PostgresStore) CreateAddOn(input domain.AddOn) (domain.AddOn, error) {
 	if input.ID == "" {
 		input.ID = newID("aon")

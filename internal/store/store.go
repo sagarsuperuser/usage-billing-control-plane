@@ -365,6 +365,7 @@ type Repository interface {
 	ListCoupons(tenantID string) ([]domain.Coupon, error)
 	GetCoupon(tenantID, id string) (domain.Coupon, error)
 	CreatePlan(input domain.Plan) (domain.Plan, error)
+	UpdatePlan(tenantID string, input domain.Plan) (domain.Plan, error)
 	ListPlans(tenantID string) ([]domain.Plan, error)
 	GetPlan(tenantID, id string) (domain.Plan, error)
 	CreateSubscription(input domain.Subscription) (domain.Subscription, error)

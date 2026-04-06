@@ -110,6 +110,9 @@ func (s *SubscriptionService) CreateSubscription(ctx context.Context, req Create
 	if err != nil {
 		return CreateSubscriptionResult{}, err
 	}
+	if plan.Status != domain.PlanStatusActive {
+		return CreateSubscriptionResult{}, fmt.Errorf("%w: plan must be active to create a subscription (current status: %s)", ErrValidation, plan.Status)
+	}
 
 	displayName := strings.TrimSpace(req.DisplayName)
 	if displayName == "" {

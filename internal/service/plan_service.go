@@ -108,6 +108,76 @@ func (s *PlanService) CreatePlan(ctx context.Context, input domain.Plan) (domain
 	return plan, nil
 }
 
+// UpdatePlan edits a plan. Only draft plans can have pricing fields changed.
+// Active plans allow only name and description edits.
+func (s *PlanService) UpdatePlan(ctx context.Context, tenantID, planID string, req UpdatePlanRequest) (domain.Plan, error) {
+	tenantID = normalizeTenantID(tenantID)
+	existing, err := s.store.GetPlan(tenantID, planID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+
+	if existing.Status == domain.PlanStatusArchived {
+		return domain.Plan{}, fmt.Errorf("%w: archived plans cannot be modified", store.ErrInvalidState)
+	}
+
+	if req.Name != nil {
+		existing.Name = strings.TrimSpace(*req.Name)
+	}
+	if req.Description != nil {
+		existing.Description = strings.TrimSpace(*req.Description)
+	}
+
+	// Pricing fields — only editable while draft.
+	if existing.Status == domain.PlanStatusDraft {
+		if req.BaseAmountCents != nil {
+			existing.BaseAmountCents = *req.BaseAmountCents
+		}
+	}
+
+	if existing.Name == "" {
+		return domain.Plan{}, fmt.Errorf("%w: name is required", ErrValidation)
+	}
+
+	return s.store.UpdatePlan(tenantID, existing)
+}
+
+// ActivatePlan transitions a plan from draft to active.
+// Once active, pricing fields are locked.
+func (s *PlanService) ActivatePlan(tenantID, planID string) (domain.Plan, error) {
+	tenantID = normalizeTenantID(tenantID)
+	existing, err := s.store.GetPlan(tenantID, planID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	if existing.Status != domain.PlanStatusDraft {
+		return domain.Plan{}, fmt.Errorf("%w: only draft plans can be activated", store.ErrInvalidState)
+	}
+	existing.Status = domain.PlanStatusActive
+	return s.store.UpdatePlan(tenantID, existing)
+}
+
+// ArchivePlan transitions a plan from active to archived.
+// Existing subscriptions continue, but no new subscriptions can use it.
+func (s *PlanService) ArchivePlan(tenantID, planID string) (domain.Plan, error) {
+	tenantID = normalizeTenantID(tenantID)
+	existing, err := s.store.GetPlan(tenantID, planID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	if existing.Status == domain.PlanStatusArchived {
+		return domain.Plan{}, fmt.Errorf("%w: plan is already archived", store.ErrInvalidState)
+	}
+	existing.Status = domain.PlanStatusArchived
+	return s.store.UpdatePlan(tenantID, existing)
+}
+
+type UpdatePlanRequest struct {
+	Name            *string `json:"name,omitempty"`
+	Description     *string `json:"description,omitempty"`
+	BaseAmountCents *int64  `json:"base_amount_cents,omitempty"`
+}
+
 func (s *PlanService) ListPlans(tenantID string) ([]domain.Plan, error) {
 	return s.store.ListPlans(normalizeTenantID(tenantID))
 }

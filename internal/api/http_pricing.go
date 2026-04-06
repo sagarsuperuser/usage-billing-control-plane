@@ -174,6 +174,65 @@ func (s *Server) createPlan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, plan)
 }
 
+func (s *Server) updatePlan(w http.ResponseWriter, r *http.Request) {
+	if s.planService == nil {
+		writeError(w, http.StatusServiceUnavailable, "plan service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	var req service.UpdatePlanRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	plan, err := s.planService.UpdatePlan(r.Context(), requestTenantID(r), id, req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, plan)
+}
+
+func (s *Server) activatePlan(w http.ResponseWriter, r *http.Request) {
+	if s.planService == nil {
+		writeError(w, http.StatusServiceUnavailable, "plan service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	plan, err := s.planService.ActivatePlan(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, plan)
+}
+
+func (s *Server) archivePlan(w http.ResponseWriter, r *http.Request) {
+	if s.planService == nil {
+		writeError(w, http.StatusServiceUnavailable, "plan service is required")
+		return
+	}
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	plan, err := s.planService.ArchivePlan(requestTenantID(r), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, plan)
+}
+
 func (s *Server) getPlan(w http.ResponseWriter, r *http.Request) {
 	if s.planService == nil {
 		writeError(w, http.StatusServiceUnavailable, "plan service is required")
