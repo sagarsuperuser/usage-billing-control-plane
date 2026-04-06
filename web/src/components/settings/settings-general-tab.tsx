@@ -135,7 +135,7 @@ export function SettingsGeneralTab({
           <button
             type="submit"
             disabled={!isDirty || busy}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-secondary disabled:text-text-faint dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:border-border dark:disabled:bg-surface-secondary dark:disabled:text-text-faint"
           >
             {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
             Save changes

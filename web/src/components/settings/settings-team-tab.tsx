@@ -29,7 +29,7 @@ export function SettingsTeamTab({
 
   return (
     <div>
-      <div className="flex gap-1 border-b border-border px-6 pt-4" role="tablist">
+      <div className="flex gap-1 border-b border-border bg-surface-secondary/50 px-6 pt-2" role="tablist">
         {subtabs.map((tab) => (
           <button
             key={tab.id}
@@ -37,13 +37,13 @@ export function SettingsTeamTab({
             role="tab"
             aria-selected={active === tab.id}
             onClick={() => setActive(tab.id)}
-            className={`flex items-center gap-1.5 rounded-t-md px-3 py-2 text-xs font-medium transition ${
+            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-[13px] font-medium transition ${
               active === tab.id
-                ? "border-b-2 border-slate-900 text-text-primary dark:border-white"
-                : "text-text-muted hover:text-text-secondary"
+                ? "border-blue-600 text-text-primary dark:border-blue-400"
+                : "border-transparent text-text-muted hover:text-text-secondary"
             }`}
           >
-            <tab.Icon className="h-3 w-3" />
+            <tab.Icon className="h-3.5 w-3.5" />
             {tab.label}
           </button>
         ))}

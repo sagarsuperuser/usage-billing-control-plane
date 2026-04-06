@@ -67,10 +67,10 @@ export function SettingsScreen() {
                   role="tab"
                   aria-selected={activeTab === tab.id}
                   onClick={() => setTab(tab.id)}
-                  className={`flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-medium transition ${
+                  className={`flex items-center gap-2 border-b-[3px] px-5 py-3.5 text-sm font-semibold transition ${
                     activeTab === tab.id
-                      ? "border-slate-900 text-text-primary dark:border-white"
-                      : "border-transparent text-text-muted hover:border-border hover:text-text-secondary"
+                      ? "border-blue-600 text-text-primary dark:border-blue-400"
+                      : "border-transparent text-text-muted hover:text-text-secondary"
                   }`}
                 >
                   <tab.Icon className="h-3.5 w-3.5" />
