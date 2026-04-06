@@ -16,7 +16,7 @@ import {
 
 import { useUISession } from "@/hooks/use-ui-session";
 import { SessionMenu } from "@/components/layout/session-menu";
-import { buildLoginPath } from "@/lib/session-routing";
+import { normalizeNextPath } from "@/lib/session-routing";
 
 // Pages that render without the sidebar (auth flow).
 const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/invite", "/workspace-setup"];
@@ -158,7 +158,8 @@ function AuthGuard() {
 
   useEffect(() => {
     if (isLoading || isAuthenticated) return;
-    navigate({ to: buildLoginPath(pathname), replace: true });
+    const next = normalizeNextPath(pathname, "/control-plane");
+    navigate({ to: "/login", search: { next }, replace: true });
   }, [isLoading, isAuthenticated, pathname, navigate]);
 
   return null;

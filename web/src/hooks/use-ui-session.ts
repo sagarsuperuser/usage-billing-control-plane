@@ -73,7 +73,7 @@ export function useUISession() {
     isAdmin,
     csrfToken: session?.csrf_token ?? "",
     isAuthenticated: Boolean(session?.authenticated),
-    isLoading: (!configReady) || sessionQuery.isPending,
+    isLoading: (!configReady) || sessionQuery.isPending || (sessionQuery.isSuccess && sessionQuery.data?.authenticated && !session),
     configError: runtimeConfigQuery.error as Error | null,
     login: loginMutation.mutateAsync,
     loggingIn: loginMutation.isPending,
