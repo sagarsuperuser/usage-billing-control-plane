@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { FormField, SectionHeader } from "@/components/ui/form-field";
 import {
   fetchWorkspaceSettings, updateWorkspaceSettings,
   fetchWorkspaceBillingConnection, createWorkspaceBillingConnection, verifyWorkspaceBillingConnection,
@@ -117,20 +119,20 @@ export function SettingsBillingTab({
           <div className="px-6 py-5">
             <SectionHeader title="Entity & numbering" />
             <div className="mt-4 grid gap-4 max-w-2xl md:grid-cols-2">
-              <Field label="Billing entity code" hint="e.g. ACME-US">
+              <FormField label="Billing entity code" hint="e.g. ACME-US">
                 <input placeholder="ACME-US" className={inputClass} {...register("billing_entity_code")} />
-              </Field>
-              <Field label="Document number prefix" hint="e.g. INV-">
+              </FormField>
+              <FormField label="Document number prefix" hint="e.g. INV-">
                 <input placeholder="INV-" className={inputClass} {...register("document_number_prefix")} />
-              </Field>
-              <Field label="Document numbering">
+              </FormField>
+              <FormField label="Document numbering">
                 <select className={inputClass} {...register("document_numbering")}>
                   <option value="">Default</option>
                   <option value="sequential">Sequential</option>
                   <option value="per_customer">Per customer</option>
                 </select>
-              </Field>
-              <Field label="Document locale">
+              </FormField>
+              <FormField label="Document locale">
                 <select className={inputClass} {...register("document_locale")}>
                   <option value="">Default (en)</option>
                   <option value="en">English</option>
@@ -138,7 +140,7 @@ export function SettingsBillingTab({
                   <option value="de">German</option>
                   <option value="es">Spanish</option>
                 </select>
-              </Field>
+              </FormField>
             </div>
           </div>
 
@@ -146,12 +148,12 @@ export function SettingsBillingTab({
           <div className="px-6 py-5">
             <SectionHeader title="Payment terms" />
             <div className="mt-4 grid gap-4 max-w-2xl md:grid-cols-2">
-              <Field label="Net payment terms" hint="Days until invoice is due.">
+              <FormField label="Net payment terms" hint="Days until invoice is due.">
                 <input type="number" min="0" placeholder="30" className={inputClass} {...register("net_payment_term_days")} />
-              </Field>
-              <Field label="Grace period" hint="Days after due date before dunning.">
+              </FormField>
+              <FormField label="Grace period" hint="Days after due date before dunning.">
                 <input type="number" min="0" placeholder="3" className={inputClass} {...register("invoice_grace_period_days")} />
-              </Field>
+              </FormField>
             </div>
           </div>
 
@@ -159,22 +161,22 @@ export function SettingsBillingTab({
           <div className="px-6 py-5">
             <SectionHeader title="Invoice content" />
             <div className="mt-4 grid gap-4 max-w-2xl">
-              <Field label="Invoice memo">
+              <FormField label="Invoice memo">
                 <textarea
                   rows={2}
                   placeholder="Thank you for your business."
                   className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                   {...register("invoice_memo")}
                 />
-              </Field>
-              <Field label="Invoice footer">
+              </FormField>
+              <FormField label="Invoice footer">
                 <textarea
                   rows={2}
                   placeholder="Acme Inc. | 123 Main St | support@acme.com"
                   className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
                   {...register("invoice_footer")}
                 />
-              </Field>
+              </FormField>
             </div>
           </div>
         </div>
@@ -260,9 +262,9 @@ function PaymentProviderCard({ apiBaseURL, csrfToken }: { apiBaseURL: string; cs
       ) : (
         <div className="mt-4 max-w-2xl">
           {isFailed && conn ? (
-            <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300">
+            <Alert tone="danger" className="mb-3">
               {conn.last_sync_error || "API key could not be verified."}
-            </div>
+            </Alert>
           ) : null}
           <div className="flex items-end gap-2">
             <label className="grid flex-1 gap-1.5">
@@ -308,18 +310,3 @@ function PaymentProviderCard({ apiBaseURL, csrfToken }: { apiBaseURL: string; cs
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
-  return <h3 className="text-sm font-semibold text-text-primary">{title}</h3>;
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-xs font-medium text-text-muted">
-        {label}
-        {hint ? <span className="ml-1.5 font-normal text-text-faint">{hint}</span> : null}
-      </span>
-      {children}
-    </label>
-  );
-}

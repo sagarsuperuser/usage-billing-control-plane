@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -259,10 +260,10 @@ function LoadingState() {
 function ErrorState({ message }: { message: string }) {
   return (
     <div className="px-5 py-6">
-      <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        <p className="font-medium text-rose-900">Usage events could not be loaded</p>
+      <Alert tone="danger">
+        <p className="font-medium">Usage events could not be loaded</p>
         <p className="mt-1">{message}</p>
-      </div>
+      </Alert>
     </div>
   );
 }

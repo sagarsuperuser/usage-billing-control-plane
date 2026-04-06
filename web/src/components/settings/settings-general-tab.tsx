@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
+import { ReadOnlyField, SectionHeader } from "@/components/ui/form-field";
 import { fetchWorkspaceSettings, updateWorkspaceSettings, updateUserProfile } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
 import type { UISession } from "@/lib/types";
@@ -144,23 +145,6 @@ export function SettingsGeneralTab({
   );
 }
 
-function SectionHeader({ title, description }: { title: string; description: string }) {
-  return (
-    <div>
-      <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-      <p className="mt-0.5 text-xs text-text-muted">{description}</p>
-    </div>
-  );
-}
-
-function ReadOnlyField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="grid gap-1">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <p className={`text-sm text-text-secondary ${mono ? "font-mono" : ""}`}>{value}</p>
-    </div>
-  );
-}
 
 function ProfileNameField({ apiBaseURL, csrfToken, currentName }: { apiBaseURL: string; csrfToken: string; currentName: string }) {
   const queryClient = useQueryClient();

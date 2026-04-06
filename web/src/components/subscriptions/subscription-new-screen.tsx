@@ -2,7 +2,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { useMemo } from "react";
-import type { ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +9,8 @@ import { z } from "zod";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { FormField } from "@/components/ui/form-field";
 import { Input, Select } from "@/components/ui/input";
 import { createSubscription, fetchCustomers, fetchPlans } from "@/lib/api";
 import { formatReadinessStatus } from "@/lib/readiness";
@@ -134,28 +135,28 @@ export function SubscriptionNewScreen() {
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Subscription name" hint="Optional. Alpha can generate a default.">
+                  <FormField label="Subscription name" hint="Optional. Alpha can generate a default.">
                     <Input data-testid="subscription-name" placeholder="Acme Growth" {...register("display_name")} />
-                  </Field>
-                  <Field label="Code" hint="Optional stable internal reference.">
+                  </FormField>
+                  <FormField label="Code" hint="Optional stable internal reference.">
                     <Input data-testid="subscription-code" placeholder="acme_growth" {...register("code")} />
-                  </Field>
-                  <Field label="Customer" hint="The account that is subscribing." error={errors.customer_external_id?.message}>
+                  </FormField>
+                  <FormField label="Customer" hint="The account that is subscribing." error={errors.customer_external_id?.message}>
                     <Select data-testid="subscription-customer" error={Boolean(errors.customer_external_id)} {...register("customer_external_id")}>
                       <option value="">Select customer</option>
                       {customers.map((customer) => (
                         <option key={customer.id} value={customer.external_id}>{customer.display_name} ({customer.external_id})</option>
                       ))}
                     </Select>
-                  </Field>
-                  <Field label="Plan" hint="The commercial package this customer is signing up for." error={errors.plan_id?.message}>
+                  </FormField>
+                  <FormField label="Plan" hint="The commercial package this customer is signing up for." error={errors.plan_id?.message}>
                     <Select data-testid="subscription-plan" error={Boolean(errors.plan_id)} {...register("plan_id")}>
                       <option value="">Select plan</option>
                       {plans.map((plan) => (
                         <option key={plan.id} value={plan.id}>{plan.name} ({plan.code})</option>
                       ))}
                     </Select>
-                  </Field>
+                  </FormField>
                 </div>
 
                 <label className="flex items-start gap-3 text-sm text-text-secondary">
@@ -166,12 +167,12 @@ export function SubscriptionNewScreen() {
                   </span>
                 </label>
                 <div className="max-w-sm">
-                  <Field label="Payment method type" hint="Defaults to card.">
+                  <FormField label="Payment method type" hint="Defaults to card.">
                     <Input data-testid="subscription-payment-method-type" placeholder="card" {...register("payment_method_type")} />
-                  </Field>
+                  </FormField>
                 </div>
 
-                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <Alert tone="danger">{errors.root.message}</Alert> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Link to="/subscriptions" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface-secondary px-4 text-sm text-text-secondary transition hover:bg-surface-tertiary">Cancel</Link>
@@ -187,12 +188,3 @@ export function SubscriptionNewScreen() {
   );
 }
 
-function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
-  return (
-    <label className="grid gap-2">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      {children}
-      {error ? <span className="text-xs text-rose-600">{error}</span> : hint ? <span className="text-xs text-text-muted">{hint}</span> : null}
-    </label>
-  );
-}

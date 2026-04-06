@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { useUISession } from "@/hooks/use-ui-session";
@@ -74,9 +75,9 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
 
 
         {detailQuery.error ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <Alert tone="danger">
             {(detailQuery.error as Error).message}
-          </div>
+          </Alert>
         ) : null}
 
         {detailQuery.isLoading ? (

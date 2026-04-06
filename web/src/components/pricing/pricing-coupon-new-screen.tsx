@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { FormField } from "@/components/ui/form-field";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { createCoupon } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
@@ -112,40 +114,65 @@ export function PricingCouponNewScreen() {
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Coupon name" placeholder="Launch 20" testID="pricing-coupon-name" error={errors.name?.message} {...register("name")} />
-                  <Field label="Coupon code" placeholder="launch_20" testID="pricing-coupon-code" error={errors.code?.message} {...register("code")} />
-                  <SelectField label="Status" options={["draft", "active", "archived"]} error={errors.status?.message} {...register("status")} />
-                  <SelectField label="Discount type" options={["percent_off", "amount_off"]} error={errors.discount_type?.message} {...register("discount_type")} />
+                  <FormField label="Coupon name" error={errors.name?.message}>
+                    <Input data-testid="pricing-coupon-name" placeholder="Launch 20" {...register("name")} error={Boolean(errors.name)} />
+                  </FormField>
+                  <FormField label="Coupon code" error={errors.code?.message}>
+                    <Input data-testid="pricing-coupon-code" placeholder="launch_20" {...register("code")} error={Boolean(errors.code)} />
+                  </FormField>
+                  <FormField label="Status" error={errors.status?.message}>
+                    <Select {...register("status")} error={Boolean(errors.status)}>
+                      {["draft", "active", "archived"].map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Discount type" error={errors.discount_type?.message}>
+                    <Select {...register("discount_type")} error={Boolean(errors.discount_type)}>
+                      {["percent_off", "amount_off"].map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
+                    </Select>
+                  </FormField>
                   {discountType === "amount_off" ? (
                     <>
-                      <Field label="Currency" placeholder="USD" testID="pricing-coupon-currency" error={errors.currency?.message} {...register("currency")} />
-                      <Field label="Amount off" placeholder="10" testID="pricing-coupon-amount-off" error={errors.amount_off?.message} {...register("amount_off")} />
+                      <FormField label="Currency" error={errors.currency?.message}>
+                        <Input data-testid="pricing-coupon-currency" placeholder="USD" {...register("currency")} error={Boolean(errors.currency)} />
+                      </FormField>
+                      <FormField label="Amount off" error={errors.amount_off?.message}>
+                        <Input data-testid="pricing-coupon-amount-off" placeholder="10" {...register("amount_off")} error={Boolean(errors.amount_off)} />
+                      </FormField>
                     </>
                   ) : (
-                    <Field label="Percent off" placeholder="20" testID="pricing-coupon-percent-off" error={errors.percent_off?.message} {...register("percent_off")} />
+                    <FormField label="Percent off" error={errors.percent_off?.message}>
+                      <Input data-testid="pricing-coupon-percent-off" placeholder="20" {...register("percent_off")} error={Boolean(errors.percent_off)} />
+                    </FormField>
                   )}
                   <div className="md:col-span-2">
-                    <TextareaField label="Description" placeholder="Applied to early launch customers on annual commit." testID="pricing-coupon-description" error={errors.description?.message} {...register("description")} />
+                    <FormField label="Description" error={errors.description?.message}>
+                      <Textarea data-testid="pricing-coupon-description" placeholder="Applied to early launch customers on annual commit." {...register("description")} error={Boolean(errors.description)} />
+                    </FormField>
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <SelectField label="Frequency" options={["forever", "once", "recurring"]} testID="pricing-coupon-frequency" error={errors.frequency?.message} {...register("frequency")} />
+                  <FormField label="Frequency" error={errors.frequency?.message}>
+                    <Select data-testid="pricing-coupon-frequency" {...register("frequency")} error={Boolean(errors.frequency)}>
+                      {["forever", "once", "recurring"].map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
+                    </Select>
+                  </FormField>
                   {frequency === "recurring" ? (
-                    <Field label="Recurring billing periods" placeholder="3" testID="pricing-coupon-frequency-duration" error={errors.frequency_duration?.message} {...register("frequency_duration")} />
+                    <FormField label="Recurring billing periods" error={errors.frequency_duration?.message}>
+                      <Input data-testid="pricing-coupon-frequency-duration" placeholder="3" {...register("frequency_duration")} error={Boolean(errors.frequency_duration)} />
+                    </FormField>
                   ) : (
                     <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-3 text-sm text-text-muted">Recurring duration is only needed when frequency is recurring.</div>
                   )}
-                  <label className="grid gap-2 text-sm text-text-secondary">
-                    <span className="text-xs font-medium text-text-muted">Expires at</span>
+                  <FormField label="Expires at">
                     <Input data-testid="pricing-coupon-expiration-at" type="datetime-local" inputSize="md" {...register("expiration_at")} />
-                  </label>
+                  </FormField>
                   <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-3 text-sm text-text-muted">
                     Leave expiration empty for ongoing coupons. Use once or recurring when the discount should stop after a defined number of billing periods.
                   </div>
                 </div>
 
-                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <Alert tone="danger">{errors.root.message}</Alert> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Button variant="secondary" size="lg" onClick={() => navigate({ to: "/pricing/coupons" })}>Cancel</Button>
@@ -161,34 +188,3 @@ export function PricingCouponNewScreen() {
   );
 }
 
-function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-function SelectField({ label, error, options, testID, ...selectProps }: { label: string; error?: string; options: string[]; testID?: string } & React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Select data-testid={testID} {...selectProps} aria-invalid={Boolean(error)} error={Boolean(error)}>
-        {options.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
-      </Select>
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}

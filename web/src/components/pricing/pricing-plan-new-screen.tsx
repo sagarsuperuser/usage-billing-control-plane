@@ -7,6 +7,8 @@ import { z } from "zod";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { FormField } from "@/components/ui/form-field";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { createPlan, fetchAddOns, fetchCoupons, fetchPricingMetrics } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
@@ -121,14 +123,32 @@ export function PricingPlanNewScreen() {
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Plan name" placeholder="Growth" testID="pricing-plan-name" error={errors.name?.message} {...register("name")} />
-                  <Field label="Plan code" placeholder="growth" testID="pricing-plan-code" error={errors.code?.message} {...register("code")} />
-                  <Field label="Currency" placeholder="USD" testID="pricing-plan-currency" error={errors.currency?.message} {...register("currency")} />
-                  <Field label="Base price" placeholder="49" testID="pricing-plan-base-price" error={errors.base_amount?.message} {...register("base_amount")} />
-                  <SelectField label="Billing interval" options={["monthly", "yearly"]} error={errors.billing_interval?.message} {...register("billing_interval")} />
-                  <SelectField label="Status" options={["draft", "active", "archived"]} error={errors.status?.message} {...register("status")} />
+                  <FormField label="Plan name" error={errors.name?.message}>
+                    <Input data-testid="pricing-plan-name" placeholder="Growth" {...register("name")} error={Boolean(errors.name)} />
+                  </FormField>
+                  <FormField label="Plan code" error={errors.code?.message}>
+                    <Input data-testid="pricing-plan-code" placeholder="growth" {...register("code")} error={Boolean(errors.code)} />
+                  </FormField>
+                  <FormField label="Currency" error={errors.currency?.message}>
+                    <Input data-testid="pricing-plan-currency" placeholder="USD" {...register("currency")} error={Boolean(errors.currency)} />
+                  </FormField>
+                  <FormField label="Base price" error={errors.base_amount?.message}>
+                    <Input data-testid="pricing-plan-base-price" placeholder="49" {...register("base_amount")} error={Boolean(errors.base_amount)} />
+                  </FormField>
+                  <FormField label="Billing interval" error={errors.billing_interval?.message}>
+                    <Select {...register("billing_interval")} error={Boolean(errors.billing_interval)}>
+                      {["monthly", "yearly"].map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Status" error={errors.status?.message}>
+                    <Select {...register("status")} error={Boolean(errors.status)}>
+                      {["draft", "active", "archived"].map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
+                    </Select>
+                  </FormField>
                   <div className="md:col-span-2">
-                    <TextareaField label="Description" placeholder="Best for teams moving from pilot to growth." testID="pricing-plan-description" error={errors.description?.message} {...register("description")} />
+                    <FormField label="Description" error={errors.description?.message}>
+                      <Textarea data-testid="pricing-plan-description" placeholder="Best for teams moving from pilot to growth." {...register("description")} error={Boolean(errors.description)} />
+                    </FormField>
                   </div>
                 </div>
 
@@ -188,7 +208,7 @@ export function PricingPlanNewScreen() {
                   </div>
                 </section>
 
-                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <Alert tone="danger">{errors.root.message}</Alert> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Button variant="secondary" size="lg" onClick={() => navigate({ to: "/pricing/plans" })}>Cancel</Button>
@@ -204,34 +224,3 @@ export function PricingPlanNewScreen() {
   );
 }
 
-function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Select {...selectProps} aria-invalid={Boolean(error)} error={Boolean(error)}>
-        {options.map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
-      </Select>
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}

@@ -4,7 +4,8 @@ import { CreditCard, ExternalLink, RefreshCw, RotateCcw, Send } from "lucide-rea
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import { type InputHTMLAttributes, useEffect, useState } from "react";
+import { FormField } from "@/components/ui/form-field";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -283,19 +284,45 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
               <div className="px-5 py-4">
                 <p className="text-xs font-medium text-text-faint mb-3">Billing profile</p>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <InputField label="Legal name" placeholder="Acme Billing LLC" {...register("legal_name")} />
-                  <InputField label="Billing email" placeholder="billing@acme.test" {...register("email")} />
-                  <InputField label="Phone" placeholder="+1 415 555 0100" {...register("phone")} />
-                  <InputField label="Tax identifier" placeholder="VAT / GST / EIN" {...register("tax_identifier")} />
-                  <InputField label="Tax codes" placeholder="GST_IN, VAT_DE" {...register("tax_codes_raw")} />
-                  <InputField label="Address line 1" placeholder="1 Billing Street" {...register("billing_address_line1")} />
-                  <InputField label="Address line 2" placeholder="Suite 200" {...register("billing_address_line2")} />
-                  <InputField label="City" placeholder="Bengaluru" {...register("billing_city")} />
-                  <InputField label="State" placeholder="Karnataka" {...register("billing_state")} />
-                  <InputField label="Postal code" placeholder="560001" {...register("billing_postal_code")} />
-                  <InputField label="Country" placeholder="IN" {...register("billing_country")} />
-                  <InputField label="Currency" placeholder="USD" {...register("currency")} />
-                  <InputField label="Billing connection code" placeholder="stripe_default" {...register("provider_code")} />
+                  <FormField label="Legal name">
+                    <input placeholder="Acme Billing LLC" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("legal_name")} />
+                  </FormField>
+                  <FormField label="Billing email">
+                    <input placeholder="billing@acme.test" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("email")} />
+                  </FormField>
+                  <FormField label="Phone">
+                    <input placeholder="+1 415 555 0100" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("phone")} />
+                  </FormField>
+                  <FormField label="Tax identifier">
+                    <input placeholder="VAT / GST / EIN" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("tax_identifier")} />
+                  </FormField>
+                  <FormField label="Tax codes">
+                    <input placeholder="GST_IN, VAT_DE" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("tax_codes_raw")} />
+                  </FormField>
+                  <FormField label="Address line 1">
+                    <input placeholder="1 Billing Street" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_address_line1")} />
+                  </FormField>
+                  <FormField label="Address line 2">
+                    <input placeholder="Suite 200" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_address_line2")} />
+                  </FormField>
+                  <FormField label="City">
+                    <input placeholder="Bengaluru" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_city")} />
+                  </FormField>
+                  <FormField label="State">
+                    <input placeholder="Karnataka" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_state")} />
+                  </FormField>
+                  <FormField label="Postal code">
+                    <input placeholder="560001" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_postal_code")} />
+                  </FormField>
+                  <FormField label="Country">
+                    <input placeholder="IN" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_country")} />
+                  </FormField>
+                  <FormField label="Currency">
+                    <input placeholder="USD" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("currency")} />
+                  </FormField>
+                  <FormField label="Billing connection code">
+                    <input placeholder="stripe_default" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("provider_code")} />
+                  </FormField>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-3">
@@ -512,18 +539,6 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   );
 }
 
-function InputField({ label, placeholder, ...props }: { label: string; placeholder: string } & InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="grid gap-1 text-sm text-text-secondary">
-      <span className="text-xs text-text-faint">{label}</span>
-      <input
-        {...props}
-        placeholder={placeholder}
-        className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
-      />
-    </label>
-  );
-}
 
 function emptyBillingProfileDraft(): CustomerBillingProfileInput {
   return {

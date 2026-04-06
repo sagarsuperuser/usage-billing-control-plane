@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { FormField } from "@/components/ui/form-field";
 import { Input, Select } from "@/components/ui/input";
 import { createPricingMetric } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
@@ -73,14 +75,26 @@ export function PricingMetricNewScreen() {
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Metric name" placeholder="API Calls" testID="pricing-metric-name" error={errors.name?.message} {...register("name")} />
-                  <Field label="Metric code" placeholder="api_calls" testID="pricing-metric-code" error={errors.key?.message} {...register("key")} />
-                  <Field label="Unit" placeholder="request" testID="pricing-metric-unit" error={errors.unit?.message} {...register("unit")} />
-                  <SelectField label="Aggregation" options={["sum", "count", "max"]} error={errors.aggregation?.message} {...register("aggregation")} />
-                  <Field label="Currency" placeholder="USD" testID="pricing-metric-currency" error={errors.currency?.message} {...register("currency")} />
+                  <FormField label="Metric name" error={errors.name?.message}>
+                    <Input data-testid="pricing-metric-name" placeholder="API Calls" {...register("name")} error={Boolean(errors.name)} />
+                  </FormField>
+                  <FormField label="Metric code" error={errors.key?.message}>
+                    <Input data-testid="pricing-metric-code" placeholder="api_calls" {...register("key")} error={Boolean(errors.key)} />
+                  </FormField>
+                  <FormField label="Unit" error={errors.unit?.message}>
+                    <Input data-testid="pricing-metric-unit" placeholder="request" {...register("unit")} error={Boolean(errors.unit)} />
+                  </FormField>
+                  <FormField label="Aggregation" error={errors.aggregation?.message}>
+                    <Select {...register("aggregation")} error={Boolean(errors.aggregation)}>
+                      {["sum", "count", "max"].map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Currency" error={errors.currency?.message}>
+                    <Input data-testid="pricing-metric-currency" placeholder="USD" {...register("currency")} error={Boolean(errors.currency)} />
+                  </FormField>
                 </div>
 
-                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <Alert tone="danger">{errors.root.message}</Alert> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Button variant="secondary" size="lg" onClick={() => navigate({ to: "/pricing/metrics" })}>Cancel</Button>
@@ -96,24 +110,3 @@ export function PricingMetricNewScreen() {
   );
 }
 
-function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Select {...selectProps} aria-invalid={Boolean(error)} error={Boolean(error)}>
-        {options.map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
-      </Select>
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}

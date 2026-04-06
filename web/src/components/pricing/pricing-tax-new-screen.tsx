@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { FormField } from "@/components/ui/form-field";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { createTax } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
@@ -83,16 +85,28 @@ export function PricingTaxNewScreen() {
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Tax name" placeholder="India GST 18" testID="pricing-tax-name" error={errors.name?.message} {...register("name")} />
-                  <Field label="Tax code" placeholder="gst_in_18" testID="pricing-tax-code" error={errors.code?.message} {...register("code")} />
-                  <SelectField label="Status" options={["active", "draft", "archived"]} error={errors.status?.message} {...register("status")} />
-                  <Field label="Rate (%)" placeholder="18" testID="pricing-tax-rate" error={errors.rate?.message} {...register("rate")} />
+                  <FormField label="Tax name" error={errors.name?.message}>
+                    <Input data-testid="pricing-tax-name" placeholder="India GST 18" {...register("name")} error={Boolean(errors.name)} />
+                  </FormField>
+                  <FormField label="Tax code" error={errors.code?.message}>
+                    <Input data-testid="pricing-tax-code" placeholder="gst_in_18" {...register("code")} error={Boolean(errors.code)} />
+                  </FormField>
+                  <FormField label="Status" error={errors.status?.message}>
+                    <Select {...register("status")} error={Boolean(errors.status)}>
+                      {["active", "draft", "archived"].map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Rate (%)" error={errors.rate?.message}>
+                    <Input data-testid="pricing-tax-rate" placeholder="18" {...register("rate")} error={Boolean(errors.rate)} />
+                  </FormField>
                   <div className="md:col-span-2">
-                    <TextareaField label="Description" placeholder="Applied to domestic B2C sales." testID="pricing-tax-description" error={errors.description?.message} {...register("description")} />
+                    <FormField label="Description" error={errors.description?.message}>
+                      <Textarea data-testid="pricing-tax-description" placeholder="Applied to domestic B2C sales." {...register("description")} error={Boolean(errors.description)} />
+                    </FormField>
                   </div>
                 </div>
 
-                {errors.root?.message ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p> : null}
+                {errors.root?.message ? <Alert tone="danger">{errors.root.message}</Alert> : null}
               </div>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Button variant="secondary" size="lg" onClick={() => navigate({ to: "/pricing/taxes" })}>Cancel</Button>
@@ -108,34 +122,3 @@ export function PricingTaxNewScreen() {
   );
 }
 
-function Field({ label, error, testID, ...inputProps }: { label: string; error?: string; testID?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Input data-testid={testID} {...inputProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-function SelectField({ label, error, options, ...selectProps }: { label: string; error?: string; options: string[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Select {...selectProps} aria-invalid={Boolean(error)} error={Boolean(error)}>
-        {options.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
-      </Select>
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-function TextareaField({ label, error, testID, ...textareaProps }: { label: string; error?: string; testID?: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Textarea data-testid={testID} {...textareaProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}

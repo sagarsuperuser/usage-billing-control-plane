@@ -10,6 +10,8 @@ import { z } from "zod";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { onboardCustomer } from "@/lib/api";
 import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
@@ -148,20 +150,38 @@ export function CustomerOnboardingScreen() {
             <form onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 p-6">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <InputField label="Customer external ID" placeholder="cust_acme_primary" error={errors.external_id?.message} {...register("external_id")} />
-                  <InputField label="Display name" placeholder="Acme Primary Customer" error={errors.display_name?.message} {...register("display_name")} />
-                  <InputField label="Billing email" placeholder="billing@acme.test" error={errors.email?.message} {...register("email")} />
+                  <FormField label="Customer external ID" error={errors.external_id?.message}>
+                    <Input placeholder="cust_acme_primary" {...register("external_id")} error={Boolean(errors.external_id)} />
+                  </FormField>
+                  <FormField label="Display name" error={errors.display_name?.message}>
+                    <Input placeholder="Acme Primary Customer" {...register("display_name")} error={Boolean(errors.display_name)} />
+                  </FormField>
+                  <FormField label="Billing email" error={errors.email?.message}>
+                    <Input placeholder="billing@acme.test" {...register("email")} error={Boolean(errors.email)} />
+                  </FormField>
                 </div>
 
                 <section className="rounded-lg border border-border bg-surface-secondary p-5">
                   <p className="text-xs font-medium text-text-muted">Billing profile</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <InputField label="Legal name" placeholder="Acme Primary Customer LLC" error={errors.legal_name?.message} {...register("legal_name")} />
-                    <InputField label="Billing address line 1" placeholder="1 Billing Street" error={errors.address_line1?.message} {...register("address_line1")} />
-                    <InputField label="Billing city" placeholder="Bengaluru" error={errors.city?.message} {...register("city")} />
-                    <InputField label="Billing postal code" placeholder="560001" error={errors.postal_code?.message} {...register("postal_code")} />
-                    <InputField label="Billing country" placeholder="IN" error={errors.country?.message} {...register("country")} />
-                    <InputField label="Currency" placeholder="USD" error={errors.currency?.message} {...register("currency")} />
+                    <FormField label="Legal name" error={errors.legal_name?.message}>
+                      <Input placeholder="Acme Primary Customer LLC" {...register("legal_name")} error={Boolean(errors.legal_name)} />
+                    </FormField>
+                    <FormField label="Billing address line 1" error={errors.address_line1?.message}>
+                      <Input placeholder="1 Billing Street" {...register("address_line1")} error={Boolean(errors.address_line1)} />
+                    </FormField>
+                    <FormField label="Billing city" error={errors.city?.message}>
+                      <Input placeholder="Bengaluru" {...register("city")} error={Boolean(errors.city)} />
+                    </FormField>
+                    <FormField label="Billing postal code" error={errors.postal_code?.message}>
+                      <Input placeholder="560001" {...register("postal_code")} error={Boolean(errors.postal_code)} />
+                    </FormField>
+                    <FormField label="Billing country" error={errors.country?.message}>
+                      <Input placeholder="IN" {...register("country")} error={Boolean(errors.country)} />
+                    </FormField>
+                    <FormField label="Currency" error={errors.currency?.message}>
+                      <Input placeholder="USD" {...register("currency")} error={Boolean(errors.currency)} />
+                    </FormField>
                   </div>
                 </section>
 
@@ -169,8 +189,12 @@ export function CustomerOnboardingScreen() {
                   <p className="text-xs font-medium text-text-muted">Payment setup</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
                     <div className="grid gap-4">
-                      <InputField label="Billing connection code" placeholder="stripe_default" error={errors.provider_code?.message} {...register("provider_code")} />
-                      <InputField label="Payment method type" placeholder="card" error={errors.payment_method_type?.message} {...register("payment_method_type")} />
+                      <FormField label="Billing connection code" error={errors.provider_code?.message}>
+                        <Input placeholder="stripe_default" {...register("provider_code")} error={Boolean(errors.provider_code)} />
+                      </FormField>
+                      <FormField label="Payment method type" error={errors.payment_method_type?.message}>
+                        <Input placeholder="card" {...register("payment_method_type")} error={Boolean(errors.payment_method_type)} />
+                      </FormField>
                     </div>
                     <div className="rounded-lg border border-border bg-surface p-4">
                       <p className="text-xs font-medium text-text-muted">Submission mode</p>
@@ -184,7 +208,7 @@ export function CustomerOnboardingScreen() {
                 </section>
 
                 {errors.root?.message ? (
-                  <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.root.message}</p>
+                  <Alert tone="danger">{errors.root.message}</Alert>
                 ) : null}
 
                 {result?.checkout_url ? (
@@ -232,12 +256,3 @@ export function CustomerOnboardingScreen() {
   );
 }
 
-function InputField({ label, error, ...inputProps }: { label: string; error?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="grid gap-2 text-sm text-text-secondary">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <Input {...inputProps} aria-invalid={Boolean(error)} error={Boolean(error)} />
-      {error ? <span className="text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
