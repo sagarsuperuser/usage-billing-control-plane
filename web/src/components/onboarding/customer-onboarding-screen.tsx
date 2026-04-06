@@ -31,8 +31,6 @@ const schema = z.object({
   postal_code: z.string(),
   country: z.string(),
   currency: z.string().min(1, "Required"),
-  provider_code: z.string(),
-  payment_method_type: z.string(),
   start_payment_setup: z.boolean(),
 });
 
@@ -63,8 +61,6 @@ export function CustomerOnboardingScreen() {
       postal_code: "",
       country: "",
       currency: "USD",
-      provider_code: "",
-      payment_method_type: "card",
       start_payment_setup: true,
     },
   });
@@ -81,7 +77,6 @@ export function CustomerOnboardingScreen() {
           display_name: data.display_name.trim(),
           email: data.email.trim(),
           start_payment_setup: data.start_payment_setup,
-          payment_method_type: data.payment_method_type.trim() || undefined,
           billing_profile: {
             legal_name: data.legal_name.trim(),
             email: data.email.trim(),
@@ -90,7 +85,6 @@ export function CustomerOnboardingScreen() {
             billing_postal_code: data.postal_code.trim(),
             billing_country: data.country.trim(),
             currency: data.currency.trim(),
-            provider_code: data.provider_code.trim(),
           },
         },
       }),
@@ -188,26 +182,13 @@ export function CustomerOnboardingScreen() {
 
                 <section className="rounded-lg border border-border bg-surface-secondary/50 p-5">
                   <SectionHeader title="Payment setup" />
-                  <div className="mt-4 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
-                    <div className="grid gap-4">
-                      <FormField label="Billing connection code" error={errors.provider_code?.message}>
-                        <Input placeholder="stripe_default" {...register("provider_code")} error={Boolean(errors.provider_code)} />
-                      </FormField>
-                      <FormField label="Payment method type" error={errors.payment_method_type?.message}>
-                        <Input placeholder="card" {...register("payment_method_type")} error={Boolean(errors.payment_method_type)} />
-                      </FormField>
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface p-4">
-                      <SectionHeader title="Submission mode" />
-                      <label className="mt-3 flex items-start gap-2.5 text-sm text-text-secondary">
-                        <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-border accent-blue-600" {...register("start_payment_setup")} />
-                        <span>
-                          <span className="font-medium text-text-primary">Start payment setup now</span>
-                          <span className="mt-1 block text-xs text-text-muted">The customer receives a hosted link to add their payment method immediately.</span>
-                        </span>
-                      </label>
-                    </div>
-                  </div>
+                  <label className="mt-4 flex items-start gap-2.5 text-sm text-text-secondary">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-border accent-blue-600" {...register("start_payment_setup")} />
+                    <span>
+                      <span className="font-medium text-text-primary">Start payment setup now</span>
+                      <span className="mt-1 block text-xs text-text-muted">The customer receives a secure hosted link to add their payment method. Uses your workspace's connected Stripe account.</span>
+                    </span>
+                  </label>
                 </section>
 
                 {errors.root?.message ? (

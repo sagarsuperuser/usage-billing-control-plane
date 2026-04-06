@@ -175,7 +175,6 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
   await page.getByLabel("Billing country").fill("IN");
   await page.getByLabel("Currency").fill("USD");
   await expect(page.getByText("Payment setup", { exact: true })).toBeVisible();
-  await page.getByLabel("Billing connection code").fill("stripe_default");
   await page.getByRole("button", { name: "Run customer setup" }).click();
 
   await expect.poll(() => mock.getCapturedCSRF()).toBe("csrf-tenant-123");

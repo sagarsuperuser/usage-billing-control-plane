@@ -14,6 +14,18 @@ func (s *Server) handleCustomerOnboarding(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Auto-resolve billing provider code from workspace binding if not provided.
+	if strings.TrimSpace(req.BillingProfile.ProviderCode) == "" && s.workspaceBillingBindingService != nil {
+		if ctx, err := s.workspaceBillingBindingService.ResolveEffectiveWorkspaceBillingContext(tenantID); err == nil {
+			req.BillingProfile.ProviderCode = strings.TrimSpace(ctx.BackendProviderCode)
+		}
+	}
+	// Default payment method type to "card" if not specified.
+	if strings.TrimSpace(req.PaymentMethodType) == "" {
+		req.PaymentMethodType = "card"
+	}
+
 	result, err := s.customerOnboardingService.OnboardCustomer(tenantID, req)
 	if err != nil {
 		writeDomainError(w, err)
