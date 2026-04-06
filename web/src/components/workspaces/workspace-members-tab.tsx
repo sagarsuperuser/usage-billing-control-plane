@@ -262,7 +262,7 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
       <div className="divide-y divide-border">
         {/* Members section */}
         <div>
-          <div className="flex items-center justify-between px-5 py-3">
+          <div className="flex items-center justify-between px-5 py-4">
             <div className="flex items-center gap-3">
               <p className="text-sm font-semibold text-text-primary">Members ({members.length})</p>
               <MiniPagination page={pagedMembers.page} totalPages={pagedMembers.totalPages} onPageChange={setMemberPage} label="Members" />
@@ -271,9 +271,9 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
               type="button"
               onClick={() => { resetInvite(); createInvitationMutation.reset(); setShowInviteModal(true); }}
               disabled={!csrfToken}
-              className="inline-flex h-7 items-center gap-1 rounded bg-slate-900 px-2.5 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
             >
-              <MailPlus className="h-3 w-3" />
+              <MailPlus className="h-3.5 w-3.5" />
               Invite
             </button>
           </div>
@@ -316,9 +316,9 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
 
         {/* Pending invites section */}
         <div>
-          <div className="flex items-center justify-between px-5 py-3">
+          <div className="flex items-center justify-between px-5 pb-3 pt-5">
             <div className="flex items-center gap-3">
-              <p className="text-sm font-medium text-text-secondary">Pending invites ({pendingInvitations.length})</p>
+              <p className="text-sm font-semibold text-text-primary">Pending invites ({pendingInvitations.length})</p>
               <MiniPagination page={pagedInvitations.page} totalPages={pagedInvitations.totalPages} onPageChange={setInvitePage} label="Pending invites" />
             </div>
           </div>

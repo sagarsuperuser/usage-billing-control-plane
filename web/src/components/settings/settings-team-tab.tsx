@@ -37,7 +37,7 @@ export function SettingsTeamTab({
             role="tab"
             aria-selected={active === tab.id}
             onClick={() => setActive(tab.id)}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-[13px] font-medium transition ${
+            className={`flex cursor-pointer items-center gap-2 border-b-2 px-4 py-2.5 text-[13px] font-medium transition ${
               active === tab.id
                 ? "border-blue-600 text-text-primary dark:border-blue-400"
                 : "border-transparent text-text-muted hover:text-text-secondary"
