@@ -129,7 +129,7 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                     {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
                       <Link
                         to={`/customers/${encodeURIComponent(payment.customer_external_id)}#payment-collection`}
-                        className="inline-flex h-8 items-center rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
+                        className="inline-flex h-8 items-center rounded-md border border-blue-600 bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700"
                       >
                         Open customer setup
                       </Link>

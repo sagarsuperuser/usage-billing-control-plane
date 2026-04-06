@@ -251,7 +251,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                   type="button"
                   onClick={handleSASubmit((data) => createServiceAccountMutation.mutate(data))}
                   disabled={!csrfToken || createServiceAccountMutation.isPending}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
                 >
                   {createServiceAccountMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ServerCog className="h-4 w-4" />}
                   Create
@@ -281,7 +281,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
               type="button"
               onClick={() => { resetSA(); setLatestCredentialSecret(null); setShowNewSAModal(true); }}
               disabled={!csrfToken}
-              className="inline-flex h-7 items-center gap-1 rounded bg-slate-900 px-2.5 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+              className="inline-flex h-7 items-center gap-1 rounded bg-blue-600 px-2.5 text-xs font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
             >
               <Plus className="h-3 w-3" />
               New
@@ -362,7 +362,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                 type="button"
                 onClick={() => issueCredentialMutation.mutate(selectedServiceAccount.id)}
                 disabled={!csrfToken || issueCredentialMutation.isPending || selectedServiceAccount.status !== "active"}
-                className="inline-flex h-7 items-center gap-1.5 rounded bg-slate-900 px-2.5 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex h-7 items-center gap-1.5 rounded bg-blue-600 px-2.5 text-xs font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
               >
                 {issueCredentialMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <KeyRound className="h-3 w-3" />}
                 Issue key

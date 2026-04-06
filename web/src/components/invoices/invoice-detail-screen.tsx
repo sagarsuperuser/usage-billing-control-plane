@@ -203,7 +203,7 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     {invoice.customer_external_id && invoice.lifecycle?.recommended_action === "collect_payment" ? (
                       <Link
                         to={`/customers/${encodeURIComponent(invoice.customer_external_id)}#payment-collection`}
-                        className="inline-flex h-8 items-center rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
+                        className="inline-flex h-8 items-center rounded-md border border-blue-600 bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700"
                       >
                         Collect payment
                       </Link>

@@ -222,7 +222,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     >
                       View invoices
                     </Link>
-                    <Link to="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
+                    <Link to="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-blue-600 bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700">
                       <CreditCard className="h-3.5 w-3.5" />
                       New customer
                     </Link>

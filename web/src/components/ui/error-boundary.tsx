@@ -37,7 +37,7 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, PageSt
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
-              className="inline-flex h-10 items-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+              className="inline-flex h-10 items-center rounded-lg border border-blue-600 bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700"
             >
               Try again
             </button>

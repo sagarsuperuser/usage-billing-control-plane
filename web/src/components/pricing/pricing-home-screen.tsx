@@ -81,7 +81,7 @@ export function PricingHomeScreen() {
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h1 className="text-sm font-semibold text-text-primary">Pricing catalog</h1>
               <div className="flex items-center gap-2">
-                <Link to="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800">
+                <Link to="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-600 bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700">
                   <Plus className="h-3.5 w-3.5" />
                   New metric
                 </Link>

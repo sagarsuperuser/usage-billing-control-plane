@@ -172,11 +172,10 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
             <CursorPagination page={auditPage} hasPrevious={auditHasPreviousPage} hasNext={auditHasNextPage} onPrevious={goToPreviousAuditPage} onNext={goToNextAuditPage} label="Audit events" />
             <Button
               variant="secondary"
-              size="sm"
               onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
               disabled={!selectedAuditServiceAccountIDValue}
             >
-              <Download className="h-3 w-3" />
+              <Download className="h-3.5 w-3.5" />
               Export
             </Button>
           </div>

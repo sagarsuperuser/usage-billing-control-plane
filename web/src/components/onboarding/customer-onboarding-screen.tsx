@@ -231,7 +231,7 @@ export function CustomerOnboardingScreen() {
                       <span>Overall: <span className="font-medium text-text-primary">{formatReadinessStatus(result.readiness.status)}</span> ({normalizeMissingSteps(result.readiness.missing_steps).length} checklist items remain)</span>
                     </div>
                     <div className="mt-5 flex flex-wrap gap-3">
-                      <Link to={`/customers/${encodeURIComponent(result.customer.external_id)}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                      <Link to={`/customers/${encodeURIComponent(result.customer.external_id)}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-blue-600 bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700">
                         View customer detail
                         <ArrowRight className="h-4 w-4" />
                       </Link>

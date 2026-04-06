@@ -693,7 +693,7 @@ function QuickFilterChip(props: { active: boolean; label: string; onClick: () =>
       type="button"
       onClick={props.onClick}
       className={`rounded-md border px-2.5 py-1 text-xs transition ${
-        props.active ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-surface text-text-secondary hover:bg-surface-secondary"
+        props.active ? "border-blue-600 bg-blue-600 text-white" : "border-border bg-surface text-text-secondary hover:bg-surface-secondary"
       }`}
     >
       {props.label}

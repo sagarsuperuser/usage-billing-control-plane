@@ -111,7 +111,7 @@ export function SubscriptionNewScreen() {
                   </a>
                 ) : null}
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <a href={`/subscriptions/${encodeURIComponent(mutation.data.subscription.id)}`} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                  <a href={`/subscriptions/${encodeURIComponent(mutation.data.subscription.id)}`} className="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-600 bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700">
                     Open subscription
                     <ArrowRight className="h-4 w-4" />
                   </a>

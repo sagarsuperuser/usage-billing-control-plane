@@ -71,7 +71,7 @@ export function DunningSummaryPanel({
           type="button"
           onClick={onSendReminder}
           disabled={!canWrite || sendingReminder}
-          className="mt-4 inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 inline-flex h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-blue-600 bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {sendingReminder ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
           Send collect-payment reminder
