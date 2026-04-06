@@ -29,11 +29,13 @@ export function SettingsTeamTab({
 
   return (
     <div>
-      <div className="flex gap-1 border-b border-border px-6 pt-4">
+      <div className="flex gap-1 border-b border-border px-6 pt-4" role="tablist">
         {subtabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={active === tab.id}
             onClick={() => setActive(tab.id)}
             className={`flex items-center gap-1.5 rounded-t-md px-3 py-2 text-xs font-medium transition ${
               active === tab.id

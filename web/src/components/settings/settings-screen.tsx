@@ -1,10 +1,11 @@
 
-import { useState } from "react";
 import { Building2, CreditCard, Users } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { ScopeNotice } from "@/components/auth/scope-notice";
 import { useUISession } from "@/hooks/use-ui-session";
+import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
 import { SettingsGeneralTab } from "./settings-general-tab";
 import { SettingsBillingTab } from "./settings-billing-tab";
@@ -18,11 +19,23 @@ const tabs = [
 
 type TabID = (typeof tabs)[number]["id"];
 
+const validTabs = new Set<string>(tabs.map((t) => t.id));
+
+function resolveTab(raw: string | null): TabID {
+  return raw && validTabs.has(raw) ? (raw as TabID) : "general";
+}
+
 export function SettingsScreen() {
+  const navigate = useNavigate();
+  const searchParams = useSearchParamsCompat();
+  const activeTab = resolveTab(searchParams.get("tab"));
   const { apiBaseURL, csrfToken, isAuthenticated, scope, isAdmin, session } = useUISession();
-  const [activeTab, setActiveTab] = useState<TabID>("general");
 
   const isTenantSession = isAuthenticated && scope === "tenant";
+
+  const setTab = (id: TabID) => {
+    navigate({ to: "/settings", search: { tab: id === "general" ? undefined : id }, replace: true });
+  };
 
   return (
     <div className="text-text-primary">
@@ -47,7 +60,7 @@ export function SettingsScreen() {
                   type="button"
                   role="tab"
                   aria-selected={activeTab === tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setTab(tab.id)}
                   className={`flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-medium transition ${
                     activeTab === tab.id
                       ? "border-slate-900 text-text-primary dark:border-white"
