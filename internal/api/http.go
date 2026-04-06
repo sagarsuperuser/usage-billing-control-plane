@@ -1033,6 +1033,10 @@ func (s *Server) registerRoutes() {
 	r.Group(func(r chi.Router) {
 		r.Use(s.requireAuth(RoleAdmin, authScopeTenant))
 
+		// Workspace settings
+		r.Get("/v1/workspace/settings", s.getWorkspaceSettings)
+		r.Patch("/v1/workspace/settings", s.updateWorkspaceSettings)
+
 		// Workspace members
 		r.Get("/v1/workspace/members", s.listWorkspaceMembers)
 		r.Patch("/v1/workspace/members/{id}", s.updateWorkspaceMember)

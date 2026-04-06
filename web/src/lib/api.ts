@@ -993,6 +993,47 @@ export async function revokeWorkspaceInvitation(input: {
   return payload.invitation;
 }
 
+// ---------------------------------------------------------------------------
+// Workspace settings (tenant-scoped)
+// ---------------------------------------------------------------------------
+
+export interface WorkspaceSettingsResponse {
+  workspace: {
+    id: string;
+    name: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  };
+  billing_settings?: WorkspaceBillingSettings;
+}
+
+export async function fetchWorkspaceSettings(input: {
+  runtimeBaseURL?: string;
+}): Promise<WorkspaceSettingsResponse> {
+  const payload = await apiRequest<WorkspaceSettingsResponse>("/v1/workspace/settings", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload;
+}
+
+export async function updateWorkspaceSettings(input: {
+  runtimeBaseURL?: string;
+  csrfToken?: string;
+  body: Record<string, unknown>;
+}): Promise<WorkspaceSettingsResponse> {
+  const payload = await apiRequest<WorkspaceSettingsResponse>("/v1/workspace/settings", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "PATCH",
+    csrfToken: input.csrfToken,
+    body: input.body,
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload;
+}
+
 export async function fetchTenantWorkspaceMembers(input: {
   runtimeBaseURL?: string;
 }): Promise<WorkspaceMember[]> {

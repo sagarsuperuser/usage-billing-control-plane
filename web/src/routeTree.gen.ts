@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from "./routes/__root"
 import { Route as WorkspaceSetupRouteImport } from "./routes/workspace-setup"
 import { Route as WorkspaceAccessRouteImport } from "./routes/workspace-access"
 import { Route as UsageEventsRouteImport } from "./routes/usage-events"
+import { Route as SettingsRouteImport } from "./routes/settings"
 import { Route as ResetPasswordRouteImport } from "./routes/reset-password"
 import { Route as ReplayOperationsRouteImport } from "./routes/replay-operations"
 import { Route as RegisterRouteImport } from "./routes/register"
@@ -65,6 +66,11 @@ const WorkspaceAccessRoute = WorkspaceAccessRouteImport.update({
 const UsageEventsRoute = UsageEventsRouteImport.update({
   id: "/usage-events",
   path: "/usage-events",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: "/settings",
+  path: "/settings",
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   "/register": typeof RegisterRoute
   "/replay-operations": typeof ReplayOperationsRoute
   "/reset-password": typeof ResetPasswordRoute
+  "/settings": typeof SettingsRoute
   "/usage-events": typeof UsageEventsRoute
   "/workspace-access": typeof WorkspaceAccessRoute
   "/workspace-setup": typeof WorkspaceSetupRoute
@@ -318,6 +325,7 @@ export interface FileRoutesByTo {
   "/register": typeof RegisterRoute
   "/replay-operations": typeof ReplayOperationsRoute
   "/reset-password": typeof ResetPasswordRoute
+  "/settings": typeof SettingsRoute
   "/usage-events": typeof UsageEventsRoute
   "/workspace-access": typeof WorkspaceAccessRoute
   "/workspace-setup": typeof WorkspaceSetupRoute
@@ -363,6 +371,7 @@ export interface FileRoutesById {
   "/register": typeof RegisterRoute
   "/replay-operations": typeof ReplayOperationsRoute
   "/reset-password": typeof ResetPasswordRoute
+  "/settings": typeof SettingsRoute
   "/usage-events": typeof UsageEventsRoute
   "/workspace-access": typeof WorkspaceAccessRoute
   "/workspace-setup": typeof WorkspaceSetupRoute
@@ -409,6 +418,7 @@ export interface FileRouteTypes {
     | "/register"
     | "/replay-operations"
     | "/reset-password"
+    | "/settings"
     | "/usage-events"
     | "/workspace-access"
     | "/workspace-setup"
@@ -453,6 +463,7 @@ export interface FileRouteTypes {
     | "/register"
     | "/replay-operations"
     | "/reset-password"
+    | "/settings"
     | "/usage-events"
     | "/workspace-access"
     | "/workspace-setup"
@@ -497,6 +508,7 @@ export interface FileRouteTypes {
     | "/register"
     | "/replay-operations"
     | "/reset-password"
+    | "/settings"
     | "/usage-events"
     | "/workspace-access"
     | "/workspace-setup"
@@ -542,6 +554,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ReplayOperationsRoute: typeof ReplayOperationsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SettingsRoute: typeof SettingsRoute
   UsageEventsRoute: typeof UsageEventsRoute
   WorkspaceAccessRoute: typeof WorkspaceAccessRoute
   WorkspaceSetupRoute: typeof WorkspaceSetupRoute
@@ -597,6 +610,13 @@ declare module "@tanstack/react-router" {
       path: "/usage-events"
       fullPath: "/usage-events"
       preLoaderRoute: typeof UsageEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/settings": {
+      id: "/settings"
+      path: "/settings"
+      fullPath: "/settings"
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/reset-password": {
@@ -886,6 +906,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ReplayOperationsRoute: ReplayOperationsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SettingsRoute: SettingsRoute,
   UsageEventsRoute: UsageEventsRoute,
   WorkspaceAccessRoute: WorkspaceAccessRoute,
   WorkspaceSetupRoute: WorkspaceSetupRoute,

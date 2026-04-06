@@ -626,3 +626,105 @@ func (s *Server) revokeServiceAccountCredential(w http.ResponseWriter, r *http.R
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"credential": revoked})
 }
+
+// ---------------------------------------------------------------------------
+// Workspace settings (tenant-scoped)
+// ---------------------------------------------------------------------------
+
+func (s *Server) getWorkspaceSettings(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.TenantID == "" {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	tenant, err := s.repo.GetTenant(principal.TenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	resp := map[string]any{
+		"workspace": map[string]any{
+			"id":         tenant.ID,
+			"name":       tenant.Name,
+			"status":     tenant.Status,
+			"created_at": tenant.CreatedAt,
+			"updated_at": tenant.UpdatedAt,
+		},
+	}
+	if s.workspaceBillingSettingsService != nil {
+		resp["billing_settings"] = s.buildWorkspaceBillingSettingsResponse(principal.TenantID)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) updateWorkspaceSettings(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.TenantID == "" {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	var req struct {
+		Name                 *string  `json:"name,omitempty"`
+		BillingEntityCode    *string  `json:"billing_entity_code,omitempty"`
+		NetPaymentTermDays   *int     `json:"net_payment_term_days,omitempty"`
+		TaxCodes             []string `json:"tax_codes,omitempty"`
+		InvoiceMemo          *string  `json:"invoice_memo,omitempty"`
+		InvoiceFooter        *string  `json:"invoice_footer,omitempty"`
+		DocumentLocale       *string  `json:"document_locale,omitempty"`
+		InvoiceGracePeriodDays *int   `json:"invoice_grace_period_days,omitempty"`
+		DocumentNumbering    *string  `json:"document_numbering,omitempty"`
+		DocumentNumberPrefix *string  `json:"document_number_prefix,omitempty"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Update workspace name if provided.
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			writeError(w, http.StatusBadRequest, "workspace name cannot be empty")
+			return
+		}
+		tenant, err := s.repo.GetTenant(principal.TenantID)
+		if err != nil {
+			writeDomainError(w, err)
+			return
+		}
+		tenant.Name = name
+		tenant.UpdatedAt = time.Now().UTC()
+		if _, err := s.repo.UpdateTenant(tenant); err != nil {
+			writeDomainError(w, err)
+			return
+		}
+	}
+
+	// Update billing settings if any billing field is provided.
+	if s.workspaceBillingSettingsService != nil {
+		ds := func(p *string) string {
+			if p == nil {
+				return ""
+			}
+			return *p
+		}
+		billingReq := service.UpdateWorkspaceBillingSettingsRequest{
+			BillingEntityCode:      ds(req.BillingEntityCode),
+			NetPaymentTermDays:     req.NetPaymentTermDays,
+			TaxCodes:               req.TaxCodes,
+			InvoiceMemo:            ds(req.InvoiceMemo),
+			InvoiceFooter:          ds(req.InvoiceFooter),
+			DocumentLocale:         ds(req.DocumentLocale),
+			InvoiceGracePeriodDays: req.InvoiceGracePeriodDays,
+			DocumentNumbering:      ds(req.DocumentNumbering),
+			DocumentNumberPrefix:   ds(req.DocumentNumberPrefix),
+		}
+		if _, err := s.workspaceBillingSettingsService.UpsertWorkspaceBillingSettings(r.Context(), principal.TenantID, billingReq); err != nil {
+			writeDomainError(w, err)
+			return
+		}
+	}
+
+	// Return fresh state.
+	s.getWorkspaceSettings(w, r)
+}

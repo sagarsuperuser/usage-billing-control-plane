@@ -9,7 +9,7 @@ import {
   Home,
   Layers3,
   ReceiptText,
-  ShieldCheck,
+  Settings,
   UserRoundPlus,
   Workflow,
 } from "lucide-react";
@@ -37,7 +37,7 @@ const revenueItems: NavItem[] = [
 ];
 
 const operationsItems: NavItem[] = [
-  { href: "/workspace-access", label: "Access", icon: ShieldCheck },
+  { href: "/settings", label: "Settings", icon: Settings },
   { href: "/usage-events", label: "Usage", icon: Activity },
   { href: "/dunning", label: "Dunning", icon: BellRing },
   { href: "/replay-operations", label: "Replay", icon: Workflow },
