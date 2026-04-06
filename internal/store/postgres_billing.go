@@ -654,9 +654,9 @@ func (s *PostgresStore) UpsertWorkspaceBillingSettings(input domain.WorkspaceBil
 	input.BillingEntityCode = normalizeOptionalText(input.BillingEntityCode)
 	input.InvoiceMemo = normalizeOptionalText(input.InvoiceMemo)
 	input.InvoiceFooter = normalizeOptionalText(input.InvoiceFooter)
-	input.DocumentLocale = normalizeOptionalText(input.DocumentLocale)
-	input.DocumentNumbering = normalizeOptionalText(input.DocumentNumbering)
-	input.DocumentNumberPrefix = normalizeOptionalText(input.DocumentNumberPrefix)
+	input.DocumentLocale = strings.TrimSpace(input.DocumentLocale)
+	input.DocumentNumbering = strings.TrimSpace(input.DocumentNumbering)
+	input.DocumentNumberPrefix = strings.TrimSpace(input.DocumentNumberPrefix)
 	if input.WorkspaceID == "" {
 		return domain.WorkspaceBillingSettings{}, fmt.Errorf("validation failed: workspace_id is required")
 	}
@@ -687,7 +687,7 @@ func (s *PostgresStore) UpsertWorkspaceBillingSettings(input domain.WorkspaceBil
 		ctx,
 		`INSERT INTO workspace_billing_settings (
 			workspace_id, billing_entity_code, net_payment_term_days, tax_codes, invoice_memo, invoice_footer, document_locale, invoice_grace_period_days, document_numbering, document_number_prefix, created_at, updated_at
-		) VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,NULLIF($9,''),NULLIF($10,''),$11,$12)
+		) VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),NULLIF($6,''),$7,$8,$9,$10,$11,$12)
 		ON CONFLICT (workspace_id) DO UPDATE SET
 			billing_entity_code = EXCLUDED.billing_entity_code,
 			net_payment_term_days = EXCLUDED.net_payment_term_days,
