@@ -104,11 +104,11 @@ export function SessionMenu() {
           {/* Workspace header */}
           <div className="bg-surface-secondary/80 px-3.5 py-3">
             <div className="flex items-center gap-2.5">
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-[11px] font-bold text-white">
-                {(tenantName || email).charAt(0).toUpperCase()}
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 text-[11px] font-bold text-white">
+                {(displayName || tenantName || email).charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-text-primary">{tenantName}</p>
+                <p className="truncate text-sm font-semibold text-text-primary">{displayName || tenantName}</p>
                 <p className="truncate text-[11px] text-text-faint">{email}</p>
               </div>
             </div>
