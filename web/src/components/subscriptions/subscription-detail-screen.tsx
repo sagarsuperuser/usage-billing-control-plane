@@ -4,6 +4,7 @@ import { CreditCard, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { PageContainer } from "@/components/ui/page-container";
@@ -142,15 +143,24 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                         {setupActionLabel}
                       </Button>
                     ) : null}
-                    <Button
-                      variant="danger"
-                      data-testid="subscription-archive"
-                      onClick={() => updateMutation.mutate({ status: "archived" })}
+                    <ConfirmDialog
+                      title="Cancel this subscription?"
+                      description="The subscription will be archived. Existing invoices remain, but no new billing cycles will run."
+                      confirmLabel="Cancel subscription"
+                      onConfirm={async () => { await updateMutation.mutateAsync({ status: "archived" }); }}
                       disabled={!canWrite || !csrfToken || !canArchive}
-                      loading={updateMutation.isPending}
                     >
-                      Cancel subscription
-                    </Button>
+                      {(open) => (
+                        <Button
+                          variant="danger"
+                          data-testid="subscription-archive"
+                          onClick={open}
+                          disabled={!canWrite || !csrfToken || !canArchive}
+                        >
+                          Cancel subscription
+                        </Button>
+                      )}
+                    </ConfirmDialog>
                   </div>
                 </div>
               </div>

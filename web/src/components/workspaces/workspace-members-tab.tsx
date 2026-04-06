@@ -1,5 +1,6 @@
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -334,9 +335,18 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
                     <td className="px-4 py-2.5 text-xs capitalize text-text-muted">{invite.role}</td>
                     <td className="px-4 py-2.5 text-xs text-text-faint">{formatRelativeTimestamp(invite.expires_at)}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <Button variant="danger" size="xs" onClick={() => revokeInvitationMutation.mutate(invite.id)} disabled={!csrfToken} loading={revokeInvitationMutation.isPending}>
-                        Revoke
-                      </Button>
+                      <ConfirmDialog
+                        title="Revoke this invitation?"
+                        description={`The invite link for ${invite.email} will stop working immediately.`}
+                        confirmLabel="Revoke invitation"
+                        onConfirm={async () => { await revokeInvitationMutation.mutateAsync(invite.id); }}
+                      >
+                        {(open) => (
+                          <Button variant="danger" size="xs" onClick={open} disabled={!csrfToken}>
+                            Revoke
+                          </Button>
+                        )}
+                      </ConfirmDialog>
                     </td>
                   </tr>
                 ))}
