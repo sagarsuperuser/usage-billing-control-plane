@@ -170,8 +170,8 @@ function ProfileNameField({ apiBaseURL, csrfToken, currentName }: { apiBaseURL: 
       <div className="grid gap-1">
         <span className="text-xs font-medium text-text-muted">Display name</span>
         <div className="flex items-center gap-2">
-          <p className="text-sm text-text-secondary">{currentName || "Not set"}</p>
-          <Button variant="ghost" size="sm" type="button" onClick={() => setEditing(true)}>
+          <p className="text-sm text-text-secondary">{currentName || <span className="text-text-faint italic">Not set</span>}</p>
+          <Button variant="secondary" size="xs" type="button" onClick={() => setEditing(true)}>
             Edit
           </Button>
         </div>
