@@ -9,7 +9,7 @@ import { format, parse, isValid, setHours, setMinutes } from "date-fns";
 /*  Portal dropdown — escapes overflow:hidden parent containers       */
 /* ------------------------------------------------------------------ */
 
-function DropdownPortal({ anchorRef, open, children }: { anchorRef: React.RefObject<HTMLElement | null>; open: boolean; children: React.ReactNode }) {
+function DropdownPortal({ anchorRef, portalRef, open, children }: { anchorRef: React.RefObject<HTMLElement | null>; portalRef: React.RefObject<HTMLDivElement | null>; open: boolean; children: React.ReactNode }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
@@ -20,7 +20,7 @@ function DropdownPortal({ anchorRef, open, children }: { anchorRef: React.RefObj
 
   if (!open) return null;
   return createPortal(
-    <div style={{ position: "absolute", top: pos.top, left: pos.left, zIndex: 50 }}>
+    <div ref={portalRef} style={{ position: "absolute", top: pos.top, left: pos.left, zIndex: 50 }}>
       {children}
     </div>,
     document.body,
@@ -72,6 +72,7 @@ export function DatePicker({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   const selectedDate = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined;
   const displayValue = selectedDate && isValid(selectedDate) ? format(selectedDate, "MMM d, yyyy") : "";
@@ -79,7 +80,10 @@ export function DatePicker({
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (portalRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -111,7 +115,7 @@ export function DatePicker({
         )}
       </button>
 
-      <DropdownPortal anchorRef={containerRef} open={open}>
+      <DropdownPortal anchorRef={containerRef} portalRef={portalRef} open={open}>
         <div className="rounded-xl border border-border bg-surface p-3 shadow-xl">
           <DayPicker
             mode="single"
@@ -149,6 +153,7 @@ export function DateTimePicker({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   // value format: "2026-04-05T14:30" (datetime-local compatible)
   const parsed = value ? new Date(value) : null;
@@ -161,7 +166,10 @@ export function DateTimePicker({
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (portalRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -198,7 +206,7 @@ export function DateTimePicker({
         )}
       </button>
 
-      <DropdownPortal anchorRef={containerRef} open={open}>
+      <DropdownPortal anchorRef={containerRef} portalRef={portalRef} open={open}>
         <div className="rounded-xl border border-border bg-surface p-3 shadow-xl">
           <DayPicker
             mode="single"
