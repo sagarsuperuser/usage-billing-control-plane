@@ -5,14 +5,17 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchWorkspaceSettings, updateWorkspaceSettings } from "@/lib/api";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
+import type { UISession } from "@/lib/types";
 
 export function SettingsGeneralTab({
   apiBaseURL,
   csrfToken,
+  session,
 }: {
   apiBaseURL: string;
   csrfToken: string;
+  session: UISession | null;
 }) {
   const queryClient = useQueryClient();
   const queryKey = ["workspace-settings", apiBaseURL];
@@ -46,6 +49,7 @@ export function SettingsGeneralTab({
         body: { name: data.name.trim() },
       }),
     onSuccess: () => {
+      showSuccess("Workspace updated");
       queryClient.invalidateQueries({ queryKey });
       queryClient.invalidateQueries({ queryKey: ["ui-session"] });
     },
@@ -70,14 +74,21 @@ export function SettingsGeneralTab({
   }
 
   return (
-    <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))} className="p-6">
-      <div className="max-w-lg space-y-6">
-        <div>
-          <h3 className="text-sm font-semibold text-text-primary">Workspace</h3>
-          <p className="mt-0.5 text-xs text-text-muted">General workspace configuration.</p>
+    <div className="divide-y divide-border">
+      {/* Your account */}
+      <div className="p-6">
+        <SectionHeader title="Your account" description="The account you're signed in with." />
+        <div className="mt-4 grid gap-3 max-w-lg">
+          <ReadOnlyField label="Email" value={session?.user_email ?? "..."} mono />
+          <ReadOnlyField label="Role" value={session?.role ?? "..."} />
+          <ReadOnlyField label="Display name" value={session?.display_name || "Not set"} />
         </div>
+      </div>
 
-        <div className="grid gap-4">
+      {/* Workspace details */}
+      <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))} className="p-6">
+        <SectionHeader title="Workspace" description="Your workspace identity and metadata." />
+        <div className="mt-4 grid gap-4 max-w-lg">
           <label className="grid gap-1.5">
             <span className="text-xs font-medium text-text-muted">Name</span>
             <input
@@ -97,44 +108,61 @@ export function SettingsGeneralTab({
               <button
                 type="button"
                 onClick={copyID}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition hover:bg-surface-secondary hover:text-text-primary"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition hover:bg-surface-secondary hover:text-text-primary"
               >
                 {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             </div>
           </div>
 
-          {workspace?.created_at ? (
-            <div className="grid gap-1.5">
-              <span className="text-xs font-medium text-text-muted">Created</span>
-              <p className="text-sm text-text-secondary">
-                {new Date(workspace.created_at).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
-            </div>
-          ) : null}
+          <div className="flex items-center gap-6 text-sm text-text-muted">
+            {workspace?.status ? (
+              <span className="flex items-center gap-1.5">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${workspace.status === "active" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                {workspace.status}
+              </span>
+            ) : null}
+            {workspace?.created_at ? (
+              <span>
+                Created {new Date(workspace.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        {saveMutation.isSuccess ? (
-          <p className="flex items-center gap-1.5 text-xs text-emerald-600">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Saved
-          </p>
+        {/* Sticky save bar */}
+        {isDirty ? (
+          <div className="mt-6 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950">
+            <p className="flex-1 text-xs text-amber-800 dark:text-amber-200">You have unsaved changes.</p>
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex h-8 items-center gap-2 rounded-md bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900"
+            >
+              {busy ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+              Save changes
+            </button>
+          </div>
         ) : null}
+      </form>
+    </div>
+  );
+}
 
-        <div className="flex gap-2 border-t border-border pt-4">
-          <button
-            type="submit"
-            disabled={!isDirty || busy}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-          >
-            {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
-            Save changes
-          </button>
-        </div>
-      </div>
-    </form>
+function SectionHeader({ title, description }: { title: string; description: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+      <p className="mt-0.5 text-xs text-text-muted">{description}</p>
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="grid gap-1">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
+      <p className={`text-sm text-text-secondary ${mono ? "font-mono" : ""}`}>{value}</p>
+    </div>
   );
 }

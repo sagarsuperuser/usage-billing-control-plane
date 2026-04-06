@@ -1,11 +1,11 @@
 
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchWorkspaceSettings, updateWorkspaceSettings } from "@/lib/api";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 
 interface BillingFields {
   billing_entity_code: string;
@@ -86,7 +86,10 @@ export function SettingsBillingTab({
       if (data.invoice_grace_period_days) body.invoice_grace_period_days = parseInt(data.invoice_grace_period_days, 10);
       return updateWorkspaceSettings({ runtimeBaseURL: apiBaseURL, csrfToken, body });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      showSuccess("Billing settings saved");
+      queryClient.invalidateQueries({ queryKey });
+    },
     onError: (err: Error) => showError(err.message),
   });
 
@@ -101,81 +104,98 @@ export function SettingsBillingTab({
   }
 
   return (
-    <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))} className="p-6">
-      <div className="max-w-2xl space-y-6">
-        <div>
-          <h3 className="text-sm font-semibold text-text-primary">Invoice & billing</h3>
-          <p className="mt-0.5 text-xs text-text-muted">Configure how invoices are generated and numbered.</p>
+    <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))}>
+      <div className="divide-y divide-border">
+        {/* Section: Entity & numbering */}
+        <div className="p-6">
+          <SectionHeader title="Entity & numbering" description="Identify your legal entity and control how invoices are numbered." />
+          <div className="mt-4 grid gap-4 max-w-2xl md:grid-cols-2">
+            <Field label="Billing entity code" hint="Identifier for your legal entity on invoices.">
+              <input placeholder="ACME-US" className={inputClass} {...register("billing_entity_code")} />
+            </Field>
+            <Field label="Document number prefix" hint="Prepended to invoice numbers, e.g. INV-">
+              <input placeholder="INV-" className={inputClass} {...register("document_number_prefix")} />
+            </Field>
+            <Field label="Document numbering" hint="Numbering scheme for invoices.">
+              <select className={inputClass} {...register("document_numbering")}>
+                <option value="">Default</option>
+                <option value="sequential">Sequential</option>
+                <option value="per_customer">Per customer</option>
+              </select>
+            </Field>
+            <Field label="Document locale" hint="Language for invoice text.">
+              <select className={inputClass} {...register("document_locale")}>
+                <option value="">Default (en)</option>
+                <option value="en">English</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="es">Spanish</option>
+              </select>
+            </Field>
+          </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Billing entity code" hint="Identifier for your legal entity on invoices.">
-            <input placeholder="ACME-US" className={inputClass} {...register("billing_entity_code")} />
-          </Field>
-          <Field label="Document number prefix" hint="Prepended to invoice numbers. e.g. INV-">
-            <input placeholder="INV-" className={inputClass} {...register("document_number_prefix")} />
-          </Field>
-          <Field label="Net payment terms (days)" hint="Days after issue before invoice is due.">
-            <input type="number" min="0" placeholder="30" className={inputClass} {...register("net_payment_term_days")} />
-          </Field>
-          <Field label="Grace period (days)" hint="Days after due date before dunning begins.">
-            <input type="number" min="0" placeholder="3" className={inputClass} {...register("invoice_grace_period_days")} />
-          </Field>
-          <Field label="Document numbering" hint="Numbering scheme: per_customer or sequential.">
-            <select className={inputClass} {...register("document_numbering")}>
-              <option value="">Default</option>
-              <option value="sequential">Sequential</option>
-              <option value="per_customer">Per customer</option>
-            </select>
-          </Field>
-          <Field label="Document locale" hint="Language for invoice generation.">
-            <select className={inputClass} {...register("document_locale")}>
-              <option value="">Default (en)</option>
-              <option value="en">English</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="es">Spanish</option>
-            </select>
-          </Field>
+        {/* Section: Payment terms */}
+        <div className="p-6">
+          <SectionHeader title="Payment terms" description="Control when invoices are due and when dunning begins." />
+          <div className="mt-4 grid gap-4 max-w-2xl md:grid-cols-2">
+            <Field label="Net payment terms (days)" hint="Days after issue before the invoice is due.">
+              <input type="number" min="0" placeholder="30" className={inputClass} {...register("net_payment_term_days")} />
+            </Field>
+            <Field label="Grace period (days)" hint="Days after due date before dunning starts.">
+              <input type="number" min="0" placeholder="3" className={inputClass} {...register("invoice_grace_period_days")} />
+            </Field>
+          </div>
         </div>
 
-        <div className="grid gap-4">
-          <Field label="Invoice memo" hint="Custom text shown on the invoice body.">
-            <textarea
-              rows={2}
-              placeholder="Thank you for your business."
-              className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
-              {...register("invoice_memo")}
-            />
-          </Field>
-          <Field label="Invoice footer" hint="Text at the bottom of every invoice.">
-            <textarea
-              rows={2}
-              placeholder="Acme Inc. | 123 Main St | support@acme.com"
-              className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
-              {...register("invoice_footer")}
-            />
-          </Field>
+        {/* Section: Invoice content */}
+        <div className="p-6">
+          <SectionHeader title="Invoice content" description="Custom text that appears on every invoice." />
+          <div className="mt-4 grid gap-4 max-w-2xl">
+            <Field label="Invoice memo" hint="Shown in the invoice body, above line items.">
+              <textarea
+                rows={2}
+                placeholder="Thank you for your business."
+                className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
+                {...register("invoice_memo")}
+              />
+            </Field>
+            <Field label="Invoice footer" hint="Shown at the bottom of every invoice.">
+              <textarea
+                rows={2}
+                placeholder="Acme Inc. | 123 Main St | support@acme.com"
+                className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
+                {...register("invoice_footer")}
+              />
+            </Field>
+          </div>
         </div>
+      </div>
 
-        {saveMutation.isSuccess ? (
-          <p className="flex items-center gap-1.5 text-xs text-emerald-600">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Billing settings saved
-          </p>
-        ) : null}
-
-        <div className="flex gap-2 border-t border-border pt-4">
+      {/* Unsaved changes bar */}
+      {isDirty ? (
+        <div className="sticky bottom-0 flex items-center gap-3 border-t border-amber-200 bg-amber-50 px-6 py-3 dark:border-amber-900 dark:bg-amber-950">
+          <p className="flex-1 text-xs text-amber-800 dark:text-amber-200">You have unsaved changes.</p>
           <button
             type="submit"
-            disabled={!isDirty || busy}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            disabled={busy}
+            className="inline-flex h-8 items-center gap-2 rounded-md bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900"
           >
-            {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+            {busy ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
             Save changes
           </button>
         </div>
-      </div>
+      ) : null}
     </form>
+  );
+}
+
+function SectionHeader({ title, description }: { title: string; description: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+      <p className="mt-0.5 text-xs text-text-muted">{description}</p>
+    </div>
   );
 }
 

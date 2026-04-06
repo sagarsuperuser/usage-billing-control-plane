@@ -42,6 +42,12 @@ export function SettingsScreen() {
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 lg:px-10">
         <AppBreadcrumbs items={[{ label: "Settings" }]} />
 
+        {/* Page header */}
+        <div>
+          <h1 className="text-lg font-semibold text-text-primary">Settings</h1>
+          <p className="mt-0.5 text-sm text-text-muted">Manage your workspace, billing configuration, and team access.</p>
+        </div>
+
         {isTenantSession && !isAdmin ? (
           <ScopeNotice
             title="Workspace admin role required"
@@ -74,7 +80,7 @@ export function SettingsScreen() {
             </div>
 
             {activeTab === "general" && (
-              <SettingsGeneralTab apiBaseURL={apiBaseURL} csrfToken={csrfToken} />
+              <SettingsGeneralTab apiBaseURL={apiBaseURL} csrfToken={csrfToken} session={session} />
             )}
             {activeTab === "billing" && (
               <SettingsBillingTab apiBaseURL={apiBaseURL} csrfToken={csrfToken} />
