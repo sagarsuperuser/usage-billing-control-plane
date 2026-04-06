@@ -43,7 +43,7 @@ const commands: CommandItem[] = [
   { id: "payments", label: "Payments", section: "Revenue", href: "/payments", icon: CreditCard, keywords: ["charge", "stripe"] },
 
   // Operations
-  { id: "access", label: "Workspace access", section: "Operations", href: "/workspace-access", icon: Settings, keywords: ["members", "service accounts", "team"] },
+  { id: "settings", label: "Settings", section: "Operations", href: "/settings", icon: Settings, keywords: ["workspace", "team", "billing", "members", "service accounts"] },
   { id: "usage", label: "Usage events", section: "Operations", href: "/usage-events", icon: Zap, keywords: ["events", "metering"] },
   { id: "dunning", label: "Dunning", section: "Operations", href: "/dunning", icon: ShieldCheck, keywords: ["collections", "retry", "failed"] },
   { id: "replay", label: "Replay", section: "Operations", href: "/replay-operations", icon: RefreshCw, keywords: ["reprocess", "jobs"] },

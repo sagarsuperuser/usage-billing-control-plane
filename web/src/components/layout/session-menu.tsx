@@ -177,12 +177,12 @@ export function SessionMenu() {
           {/* Links */}
           <div className="border-t border-border-light">
             <Link
-              to="/workspace-access"
+              to="/settings"
               onClick={closeMenu}
               className="flex h-9 items-center gap-2.5 px-3.5 text-xs text-text-muted transition hover:bg-surface-secondary"
             >
               <Settings className="h-3.5 w-3.5 text-text-faint" />
-              Workspace settings
+              Settings
             </Link>
           </div>
 

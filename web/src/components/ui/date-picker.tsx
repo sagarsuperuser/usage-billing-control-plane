@@ -1,8 +1,31 @@
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, X } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import { format, parse, isValid, setHours, setMinutes } from "date-fns";
+
+/* ------------------------------------------------------------------ */
+/*  Portal dropdown — escapes overflow:hidden parent containers       */
+/* ------------------------------------------------------------------ */
+
+function DropdownPortal({ anchorRef, open, children }: { anchorRef: React.RefObject<HTMLElement | null>; open: boolean; children: React.ReactNode }) {
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open || !anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX });
+  }, [open, anchorRef]);
+
+  if (!open) return null;
+  return createPortal(
+    <div style={{ position: "absolute", top: pos.top, left: pos.left, zIndex: 50 }}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Shared styles for react-day-picker (Stripe/Vercel pattern)        */
@@ -88,8 +111,8 @@ export function DatePicker({
         )}
       </button>
 
-      {open && (
-        <div className="absolute left-0 top-full z-40 mt-1 rounded-xl border border-border bg-surface p-3 shadow-xl">
+      <DropdownPortal anchorRef={containerRef} open={open}>
+        <div className="rounded-xl border border-border bg-surface p-3 shadow-xl">
           <DayPicker
             mode="single"
             selected={selectedDate}
@@ -104,7 +127,7 @@ export function DatePicker({
             labels={calendarLabels}
           />
         </div>
-      )}
+      </DropdownPortal>
     </div>
   );
 }
@@ -175,8 +198,8 @@ export function DateTimePicker({
         )}
       </button>
 
-      {open && (
-        <div className="absolute left-0 top-full z-40 mt-1 rounded-xl border border-border bg-surface p-3 shadow-xl">
+      <DropdownPortal anchorRef={containerRef} open={open}>
+        <div className="rounded-xl border border-border bg-surface p-3 shadow-xl">
           <DayPicker
             mode="single"
             selected={selectedDate}
@@ -232,7 +255,7 @@ export function DateTimePicker({
             )}
           </div>
         </div>
-      )}
+      </DropdownPortal>
     </div>
   );
 }
