@@ -1037,6 +1037,11 @@ func (s *Server) registerRoutes() {
 		r.Get("/v1/workspace/settings", s.getWorkspaceSettings)
 		r.Patch("/v1/workspace/settings", s.updateWorkspaceSettings)
 
+		// Workspace billing connection (Stripe setup)
+		r.Get("/v1/workspace/billing-connection", s.getWorkspaceBillingConnection)
+		r.Post("/v1/workspace/billing-connection", s.createWorkspaceBillingConnection)
+		r.Post("/v1/workspace/billing-connection/verify", s.verifyWorkspaceBillingConnection)
+
 		// Workspace members
 		r.Get("/v1/workspace/members", s.listWorkspaceMembers)
 		r.Patch("/v1/workspace/members/{id}", s.updateWorkspaceMember)

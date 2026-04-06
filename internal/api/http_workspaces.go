@@ -728,3 +728,173 @@ func (s *Server) updateWorkspaceSettings(w http.ResponseWriter, r *http.Request)
 	// Return fresh state.
 	s.getWorkspaceSettings(w, r)
 }
+
+// ---------------------------------------------------------------------------
+// Workspace billing connection (tenant-scoped Stripe setup)
+// ---------------------------------------------------------------------------
+
+type billingConnectionResponse struct {
+	ID            string     `json:"id"`
+	ProviderType  string     `json:"provider_type"`
+	Environment   string     `json:"environment"`
+	DisplayName   string     `json:"display_name"`
+	Status        string     `json:"status"`
+	SecretSet     bool       `json:"secret_configured"`
+	ConnectedAt   *time.Time `json:"connected_at,omitempty"`
+	LastSyncedAt  *time.Time `json:"last_synced_at,omitempty"`
+	LastSyncError string     `json:"last_sync_error,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+func buildBillingConnectionResponse(c domain.BillingProviderConnection) billingConnectionResponse {
+	return billingConnectionResponse{
+		ID:            c.ID,
+		ProviderType:  string(c.ProviderType),
+		Environment:   c.Environment,
+		DisplayName:   c.DisplayName,
+		Status:        string(c.Status),
+		SecretSet:     c.SecretRef != "",
+		ConnectedAt:   c.ConnectedAt,
+		LastSyncedAt:  c.LastSyncedAt,
+		LastSyncError: c.LastSyncError,
+		CreatedAt:     c.CreatedAt,
+	}
+}
+
+func (s *Server) getWorkspaceBillingConnection(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.TenantID == "" {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.billingProviderConnectionService == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"connection": nil})
+		return
+	}
+
+	// Find the tenant's billing provider connection.
+	tenant, err := s.repo.GetTenant(principal.TenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if tenant.BillingProviderConnectionID == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"connection": nil})
+		return
+	}
+	conn, err := s.billingProviderConnectionService.GetBillingProviderConnection(tenant.BillingProviderConnectionID)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"connection": nil})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connection": buildBillingConnectionResponse(conn)})
+}
+
+func (s *Server) createWorkspaceBillingConnection(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.TenantID == "" {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.billingProviderConnectionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
+		return
+	}
+
+	var req struct {
+		StripeSecretKey string `json:"stripe_secret_key"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	key := strings.TrimSpace(req.StripeSecretKey)
+	if key == "" {
+		writeError(w, http.StatusBadRequest, "stripe_secret_key is required")
+		return
+	}
+	if !strings.HasPrefix(key, "sk_test_") && !strings.HasPrefix(key, "sk_live_") {
+		writeError(w, http.StatusBadRequest, "stripe_secret_key must start with sk_test_ or sk_live_")
+		return
+	}
+
+	env := "test"
+	if strings.HasPrefix(key, "sk_live_") {
+		env = "live"
+	}
+
+	// 1. Create connection.
+	conn, err := s.billingProviderConnectionService.CreateBillingProviderConnection(r.Context(), service.CreateBillingProviderConnectionRequest{
+		ProviderType:    string(domain.BillingProviderTypeStripe),
+		Environment:     env,
+		DisplayName:     fmt.Sprintf("Stripe (%s)", env),
+		Scope:           string(domain.BillingProviderConnectionScopeTenant),
+		OwnerTenantID:   principal.TenantID,
+		StripeSecretKey: key,
+	}, strings.TrimSpace(principal.SubjectType), strings.TrimSpace(principal.SubjectID))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// 2. Verify (sync) the connection.
+	conn, err = s.billingProviderConnectionService.SyncBillingProviderConnection(r.Context(), conn.ID)
+	if err != nil {
+		// Connection created but verification failed — still return the connection.
+		s.logWarn("billing connection verification failed",
+			"component", "api", "connection_id", conn.ID, "tenant_id", principal.TenantID, "error", err)
+	}
+
+	// 3. If connected, bind to workspace + update tenant.
+	if conn.Status == domain.BillingProviderConnectionStatusConnected {
+		if s.workspaceBillingBindingService != nil {
+			_, _, bindErr := s.workspaceBillingBindingService.EnsureWorkspaceBillingBinding(service.EnsureWorkspaceBillingBindingRequest{
+				WorkspaceID:                 principal.TenantID,
+				BillingProviderConnectionID: conn.ID,
+				Backend:                     "stripe",
+				IsolationMode:               "shared",
+			})
+			if bindErr != nil {
+				s.logWarn("billing connection binding failed",
+					"component", "api", "connection_id", conn.ID, "tenant_id", principal.TenantID, "error", bindErr)
+			}
+		}
+		// Update tenant reference.
+		if tenant, err := s.repo.GetTenant(principal.TenantID); err == nil {
+			tenant.BillingProviderConnectionID = conn.ID
+			tenant.UpdatedAt = time.Now().UTC()
+			_, _ = s.repo.UpdateTenant(tenant)
+		}
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{"connection": buildBillingConnectionResponse(conn)})
+}
+
+func (s *Server) verifyWorkspaceBillingConnection(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.TenantID == "" {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if s.billingProviderConnectionService == nil {
+		writeError(w, http.StatusServiceUnavailable, "billing provider connections are not configured")
+		return
+	}
+
+	tenant, err := s.repo.GetTenant(principal.TenantID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	if tenant.BillingProviderConnectionID == "" {
+		writeError(w, http.StatusNotFound, "no billing connection configured")
+		return
+	}
+
+	conn, err := s.billingProviderConnectionService.SyncBillingProviderConnection(r.Context(), tenant.BillingProviderConnectionID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connection": buildBillingConnectionResponse(conn)})
+}

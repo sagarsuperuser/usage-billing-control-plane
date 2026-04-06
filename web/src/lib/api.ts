@@ -1078,10 +1078,65 @@ export async function updateWorkspaceSettings(input: {
   return payload;
 }
 
+// ---------------------------------------------------------------------------
+// Workspace billing connection (Stripe setup)
+// ---------------------------------------------------------------------------
+
+export interface BillingConnectionResponse {
+  id: string;
+  provider_type: string;
+  environment: string;
+  display_name: string;
+  status: string;
+  secret_configured: boolean;
+  connected_at?: string;
+  last_synced_at?: string;
+  last_sync_error?: string;
+  created_at: string;
+}
+
+export async function fetchWorkspaceBillingConnection(input: {
+  runtimeBaseURL?: string;
+}): Promise<BillingConnectionResponse | null> {
+  const payload = await apiRequest<{ connection: BillingConnectionResponse | null }>("/v1/workspace/billing-connection", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "GET",
+  });
+  return payload?.connection ?? null;
+}
+
+export async function createWorkspaceBillingConnection(input: {
+  runtimeBaseURL?: string;
+  csrfToken?: string;
+  stripeSecretKey: string;
+}): Promise<BillingConnectionResponse> {
+  const payload = await apiRequest<{ connection: BillingConnectionResponse }>("/v1/workspace/billing-connection", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+    body: { stripe_secret_key: input.stripeSecretKey },
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload.connection;
+}
+
+export async function verifyWorkspaceBillingConnection(input: {
+  runtimeBaseURL?: string;
+  csrfToken?: string;
+}): Promise<BillingConnectionResponse> {
+  const payload = await apiRequest<{ connection: BillingConnectionResponse }>("/v1/workspace/billing-connection/verify", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "POST",
+    csrfToken: input.csrfToken,
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload.connection;
+}
+
 export async function fetchTenantWorkspaceMembers(input: {
   runtimeBaseURL?: string;
 }): Promise<WorkspaceMember[]> {
-  const payload = await apiRequest<{ items: WorkspaceMember[] }>("/v1/workspace/members", {
+  const payload = await apiRequest<{ items: WorkspaceMember[] }>("/v1/workspace/members",  {
     runtimeBaseURL: input.runtimeBaseURL,
     method: "GET",
   });

@@ -1,10 +1,14 @@
 
-import { LoaderCircle } from "lucide-react";
-import { useEffect } from "react";
+import { CheckCircle2, LoaderCircle, RefreshCw, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchWorkspaceSettings, updateWorkspaceSettings } from "@/lib/api";
+import {
+  fetchWorkspaceSettings, updateWorkspaceSettings,
+  fetchWorkspaceBillingConnection, createWorkspaceBillingConnection, verifyWorkspaceBillingConnection,
+  type BillingConnectionResponse,
+} from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
 
 interface BillingFields {
@@ -104,9 +108,12 @@ export function SettingsBillingTab({
   }
 
   return (
-    <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))}>
-      <div className="divide-y divide-border">
-        {/* Section: Entity & numbering */}
+    <div>
+      <StripeConnectionCard apiBaseURL={apiBaseURL} csrfToken={csrfToken} />
+
+      <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))}>
+        <div className="divide-y divide-border">
+          {/* Section: Entity & numbering */}
         <div className="p-6">
           <SectionHeader title="Entity & numbering" description="Identify your legal entity and control how invoices are numbered." />
           <div className="mt-4 grid gap-4 max-w-2xl md:grid-cols-2">
@@ -185,6 +192,112 @@ export function SettingsBillingTab({
         </button>
       </div>
     </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stripe connection card
+// ---------------------------------------------------------------------------
+
+function StripeConnectionCard({ apiBaseURL, csrfToken }: { apiBaseURL: string; csrfToken: string }) {
+  const queryClient = useQueryClient();
+  const connQueryKey = ["workspace-billing-connection", apiBaseURL];
+  const [secretKey, setSecretKey] = useState("");
+
+  const connQuery = useQuery({
+    queryKey: connQueryKey,
+    queryFn: () => fetchWorkspaceBillingConnection({ runtimeBaseURL: apiBaseURL }),
+    staleTime: 30_000,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: () => createWorkspaceBillingConnection({ runtimeBaseURL: apiBaseURL, csrfToken, stripeSecretKey: secretKey.trim() }),
+    onSuccess: () => {
+      showSuccess("Stripe connected");
+      setSecretKey("");
+      queryClient.invalidateQueries({ queryKey: connQueryKey });
+    },
+    onError: (err: Error) => showError("Connection failed", err.message),
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: () => verifyWorkspaceBillingConnection({ runtimeBaseURL: apiBaseURL, csrfToken }),
+    onSuccess: () => {
+      showSuccess("Connection verified");
+      queryClient.invalidateQueries({ queryKey: connQueryKey });
+    },
+    onError: (err: Error) => showError("Verification failed", err.message),
+  });
+
+  const conn = connQuery.data;
+  const isConnected = conn?.status === "connected";
+  const isFailed = conn?.status === "sync_error";
+
+  return (
+    <div className="border-b border-border p-6">
+      <SectionHeader title="Stripe connection" description="Connect your Stripe account to process payments and manage subscriptions." />
+
+      {connQuery.isPending ? (
+        <div className="mt-4 flex items-center gap-2 text-sm text-text-muted">
+          <LoaderCircle className="h-4 w-4 animate-spin" /> Checking connection...
+        </div>
+      ) : isConnected && conn ? (
+        <div className="mt-4 max-w-2xl">
+          <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">Stripe connected</p>
+              <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-300">
+                Environment: <span className="font-medium">{conn.environment}</span>
+                {conn.connected_at ? ` · Connected ${new Date(conn.connected_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => verifyMutation.mutate()}
+              disabled={verifyMutation.isPending}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-3 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+            >
+              {verifyMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Verify
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 max-w-2xl">
+          {isFailed && conn ? (
+            <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300">
+              Connection failed: {conn.last_sync_error || "Stripe API key could not be verified."}
+            </div>
+          ) : null}
+          <div className="flex items-end gap-2">
+            <label className="grid flex-1 gap-1.5">
+              <span className="text-xs font-medium text-text-muted">Stripe secret key</span>
+              <input
+                type="password"
+                value={secretKey}
+                onChange={(e) => setSecretKey(e.target.value)}
+                placeholder="sk_test_... or sk_live_..."
+                className="h-10 rounded-lg border border-border bg-surface px-3 font-mono text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => connectMutation.mutate()}
+              disabled={connectMutation.isPending || !secretKey.trim().startsWith("sk_")}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            >
+              {connectMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              Connect
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-text-faint">
+            Find your API key in the <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noreferrer" className="underline hover:text-text-muted">Stripe Dashboard</a>. Your key is encrypted and stored securely.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
