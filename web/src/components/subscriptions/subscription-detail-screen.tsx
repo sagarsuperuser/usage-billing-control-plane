@@ -1,8 +1,9 @@
 
 import { useMemo, useState } from "react";
-import { CreditCard, LoaderCircle, Send } from "lucide-react";
+import { CreditCard, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import { Button } from "@/components/ui/button";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -135,26 +136,26 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {canRequestSetup ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
                         data-testid="subscription-request-setup"
                         onClick={() => (showResend ? resendMutation.mutate() : requestMutation.mutate())}
-                        disabled={!canWrite || !csrfToken || requestMutation.isPending || resendMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!canWrite || !csrfToken}
+                        loading={requestMutation.isPending || resendMutation.isPending}
                       >
-                        {requestMutation.isPending || resendMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : showResend ? <Send className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
+                        {!(requestMutation.isPending || resendMutation.isPending) ? (showResend ? <Send className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />) : null}
                         {setupActionLabel}
-                      </button>
+                      </Button>
                     ) : null}
-                    <button
-                      type="button"
+                    <Button
+                      variant="danger"
                       data-testid="subscription-archive"
                       onClick={() => updateMutation.mutate({ status: "archived" })}
-                      disabled={!canWrite || !csrfToken || updateMutation.isPending || !canArchive}
-                      className="inline-flex h-8 items-center rounded-md border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!canWrite || !csrfToken || !canArchive}
+                      loading={updateMutation.isPending}
                     >
                       Cancel subscription
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -267,16 +268,16 @@ export function SubscriptionDetailScreen({ subscriptionID }: { subscriptionID: s
                       ))}
                     </select>
                   </label>
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    size="lg"
                     data-testid="subscription-change-plan"
                     onClick={() => updateMutation.mutate({ plan_id: selectedPlanIDValue })}
-                    disabled={!canWrite || !csrfToken || updateMutation.isPending || !canChangePlan}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-4 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!canWrite || !csrfToken || !canChangePlan}
+                    loading={updateMutation.isPending}
                   >
-                    {updateMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
                     Apply plan change
-                  </button>
+                  </Button>
                 </div>
                 {selectedPlan ? <p className="mt-2 text-xs text-text-muted">Selected plan code: {selectedPlan.code}</p> : null}
                 {updateMutation.isError ? (

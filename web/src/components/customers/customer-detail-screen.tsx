@@ -1,7 +1,9 @@
 
 import { Link } from "@tanstack/react-router";
-import { CreditCard, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { CreditCard, ExternalLink, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+
+import { Button } from "@/components/ui/button";
 import { type InputHTMLAttributes, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -297,20 +299,20 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
                     onClick={handleProfileSubmit((data) => {
                       setProfileFlash(null);
                       billingProfileMutation.mutate(data);
                     })}
-                    disabled={!canWrite || !csrfToken || billingProfileMutation.isPending || !billingProfileDirty}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!canWrite || !csrfToken || !billingProfileDirty}
+                    loading={billingProfileMutation.isPending}
                   >
-                    {billingProfileMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+                    {!billingProfileMutation.isPending ? <CreditCard className="h-3.5 w-3.5" /> : null}
                     Save billing profile
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => resetProfile({
                       legal_name: profileBaseline.legal_name || "",
                       email: profileBaseline.email || "",
@@ -327,10 +329,9 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                       provider_code: profileBaseline.provider_code || "",
                     })}
                     disabled={!billingProfileDirty || billingProfileMutation.isPending}
-                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Reset
-                  </button>
+                  </Button>
                 </div>
 
                 {profileFlash ? (
@@ -366,15 +367,15 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <p className="text-xs font-medium text-text-muted mb-2">Email setup request</p>
                     <p className="text-xs text-text-muted mb-3">Use the email request first. Resend instead of creating duplicates.</p>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
                         onClick={() => (showResendRequest ? resendSetupMutation.mutate() : requestSetupMutation.mutate())}
-                        disabled={!canBeginPaymentSetup || requestSetupMutation.isPending || resendSetupMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!canBeginPaymentSetup}
+                        loading={requestSetupMutation.isPending || resendSetupMutation.isPending}
                       >
-                        {requestSetupMutation.isPending || resendSetupMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        {!(requestSetupMutation.isPending || resendSetupMutation.isPending) ? <Send className="h-3.5 w-3.5" /> : null}
                         {setupRequestActionLabel}
-                      </button>
+                      </Button>
                       {latestRequestedCheckoutURL ? (
                         <a href={latestRequestedCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -388,15 +389,15 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                     <p className="text-xs font-medium text-text-muted mb-2">Hosted setup link</p>
                     <p className="text-xs text-text-muted mb-3">Use only when you need to share the link directly.</p>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
+                      <Button
+                        variant="secondary"
                         onClick={() => beginSetupMutation.mutate()}
-                        disabled={!canBeginPaymentSetup || beginSetupMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!canBeginPaymentSetup}
+                        loading={beginSetupMutation.isPending}
                       >
-                        {beginSetupMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+                        {!beginSetupMutation.isPending ? <CreditCard className="h-3.5 w-3.5" /> : null}
                         Generate link
-                      </button>
+                      </Button>
                       {latestCheckoutURL ? (
                         <a href={latestCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -408,24 +409,25 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
                     onClick={() => refreshMutation.mutate()}
-                    disabled={!canWrite || !csrfToken || refreshMutation.isPending}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!canWrite || !csrfToken}
+                    loading={refreshMutation.isPending}
                   >
-                    {refreshMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    {!refreshMutation.isPending ? <RefreshCw className="h-3.5 w-3.5" /> : null}
                     Refresh payment setup
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => retryMutation.mutate()}
-                    disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!canWrite || !csrfToken}
+                    loading={retryMutation.isPending}
+                    className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
                   >
-                    {retryMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                    {!retryMutation.isPending ? <RotateCcw className="h-3.5 w-3.5" /> : null}
                     Retry billing sync
-                  </button>
+                  </Button>
                   <Link
                     to={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
                     className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"

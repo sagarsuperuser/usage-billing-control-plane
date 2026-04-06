@@ -1,11 +1,13 @@
 
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, LoaderCircle, Archive, Zap } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Archive, Zap } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { StatusChip } from "@/components/ui/status-chip";
 import { activatePlan, archivePlan, updatePlan, fetchAddOns, fetchCoupons, fetchPlan, fetchPricingMetrics } from "@/lib/api";
@@ -138,26 +140,16 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                   </div>
                   <div className="flex items-center gap-2">
                     {canWrite && isDraft ? (
-                      <button
-                        type="button"
-                        onClick={() => activateMutation.mutate()}
-                        disabled={activateMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        {activateMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                      <Button size="md" loading={activateMutation.isPending} onClick={() => activateMutation.mutate()} className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50">
+                        {!activateMutation.isPending ? <Zap className="h-3 w-3" /> : null}
                         Activate
-                      </button>
+                      </Button>
                     ) : null}
                     {canWrite && isActive ? (
-                      <button
-                        type="button"
-                        onClick={() => archiveMutation.mutate()}
-                        disabled={archiveMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-muted transition hover:bg-surface-secondary disabled:opacity-50"
-                      >
-                        {archiveMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
+                      <Button variant="secondary" size="md" loading={archiveMutation.isPending} onClick={() => archiveMutation.mutate()}>
+                        {!archiveMutation.isPending ? <Archive className="h-3 w-3" /> : null}
                         Archive
-                      </button>
+                      </Button>
                     ) : null}
                     <Link to="/pricing/plans" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
                       <ArrowLeft className="h-3.5 w-3.5" />
@@ -209,14 +201,9 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                       />
                     </label>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="submit"
-                        disabled={saveMutation.isPending || !editDirty}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-                      >
-                        {saveMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+                      <Button variant="primary" size="md" type="submit" loading={saveMutation.isPending} disabled={!editDirty}>
                         Save
-                      </button>
+                      </Button>
                       {saveMutation.isSuccess ? (
                         <span className="flex items-center gap-1 text-xs text-emerald-600">
                           <CheckCircle2 className="h-3 w-3" /> Saved

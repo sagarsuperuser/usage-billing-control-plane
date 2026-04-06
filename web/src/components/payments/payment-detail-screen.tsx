@@ -1,7 +1,9 @@
 
 import { Link } from "@tanstack/react-router";
-import { LoaderCircle, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
@@ -119,15 +121,15 @@ export function PaymentDetailScreen({ paymentID }: { paymentID: string }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {actionConfig?.emphasizeRetry ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
                         onClick={() => retryMutation.mutate()}
-                        disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!canWrite || !csrfToken}
+                        loading={retryMutation.isPending}
                       >
-                        {retryMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        {!retryMutation.isPending ? <RefreshCw className="h-3.5 w-3.5" /> : null}
                         Retry payment
-                      </button>
+                      </Button>
                     ) : null}
                     {payment.customer_external_id && payment.lifecycle.recommended_action === "collect_payment" ? (
                       <Link

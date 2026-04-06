@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { LoaderCircle, Save, X } from "lucide-react";
+import { Save, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { Button } from "@/components/ui/button";
 import { useSearchParamsCompat } from "@/hooks/use-search-params-compat";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -132,13 +134,12 @@ export function DunningConsoleScreen() {
                   <option value="escalated">Escalated</option>
                   <option value="resolved">Resolved</option>
                 </select>
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
                   onClick={() => setPolicyOpen(true)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                 >
                   Edit policy
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -212,9 +213,9 @@ export function DunningConsoleScreen() {
           <div className="w-full max-w-lg rounded-lg border border-border bg-surface shadow-lg">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold text-text-primary">Edit dunning policy</h2>
-              <button type="button" onClick={() => setPolicyOpen(false)} className="text-text-faint hover:text-text-secondary">
+              <Button variant="ghost" size="xs" onClick={() => setPolicyOpen(false)}>
                 <X className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             <div className="grid gap-4 px-5 py-4">
               {policyQuery.error ? (
@@ -310,23 +311,22 @@ export function DunningConsoleScreen() {
               ) : null}
             </div>
             <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => setPolicyOpen(false)}
-                className="h-8 rounded-lg border border-border px-3 text-sm font-medium text-text-secondary transition hover:bg-surface-secondary"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
                 data-testid="dunning-policy-save"
                 onClick={() => policyMutation.mutate()}
-                disabled={!canWrite || !csrfToken || policyMutation.isPending}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canWrite || !csrfToken}
+                loading={policyMutation.isPending}
               >
-                {policyMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {!policyMutation.isPending ? <Save className="h-3.5 w-3.5" /> : null}
                 Save policy
-              </button>
+              </Button>
             </div>
           </div>
         </div>

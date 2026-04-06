@@ -1,8 +1,10 @@
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { FileText, LoaderCircle, Mail, RefreshCw, X } from "lucide-react";
+import { FileText, Mail, RefreshCw, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+
+import { Button } from "@/components/ui/button";
 
 import { BillingActivityTimeline } from "@/components/billing/billing-activity-timeline";
 import { BillingFailureDiagnosisCard } from "@/components/billing/billing-failure-diagnosis";
@@ -127,9 +129,9 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                   >
                     Download
                   </a>
-                  <button type="button" onClick={() => setShowPDF(false)} className="inline-flex h-6 w-6 items-center justify-center rounded text-text-faint transition hover:bg-surface-tertiary hover:text-text-secondary">
+                  <Button variant="ghost" size="xs" onClick={() => setShowPDF(false)}>
                     <X className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
               <iframe
@@ -176,33 +178,32 @@ export function InvoiceDetailScreen({ invoiceID }: { invoiceID: string }) {
                     ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
                       onClick={() => setShowPDF(true)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       View PDF
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="secondary"
                       onClick={() => resendEmailMutation.mutate()}
-                      disabled={!canWrite || !csrfToken || resendEmailMutation.isPending}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!canWrite || !csrfToken}
+                      loading={resendEmailMutation.isPending}
                     >
-                      {resendEmailMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                      {!resendEmailMutation.isPending ? <Mail className="h-3.5 w-3.5" /> : null}
                       Resend email
-                    </button>
+                    </Button>
                     {actionConfig?.emphasizeRetry ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
                         onClick={() => retryMutation.mutate()}
-                        disabled={!canWrite || !csrfToken || retryMutation.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!canWrite || !csrfToken}
+                        loading={retryMutation.isPending}
                       >
-                        {retryMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        {!retryMutation.isPending ? <RefreshCw className="h-3.5 w-3.5" /> : null}
                         Retry payment
-                      </button>
+                      </Button>
                     ) : null}
                     {invoice.customer_external_id && invoice.lifecycle?.recommended_action === "collect_payment" ? (
                       <Link
@@ -479,15 +480,15 @@ function BillingDocumentRow({
             Open file
           </a>
         ) : null}
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           onClick={() => resendMutation.mutate()}
-          disabled={!canWrite || resendMutation.isPending}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!canWrite}
+          loading={resendMutation.isPending}
         >
-          {resendMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+          {!resendMutation.isPending ? <Mail className="h-3.5 w-3.5" /> : null}
           {resendLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -1,9 +1,9 @@
 
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { LoaderCircle } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import { Button } from "@/components/ui/button";
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { useUISession } from "@/hooks/use-ui-session";
 import { fetchDunningRunDetail, pauseDunningRun, resolveDunningRun, resumeDunningRun, retryDunningRunNow, sendCollectPaymentReminder } from "@/lib/api";
@@ -106,13 +106,12 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
                   ) : null}
                 </div>
                 <div className="relative">
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
                     onClick={() => setActionsOpen(!actionsOpen)}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                   >
                     Actions {actionsOpen ? "▴" : "▾"}
-                  </button>
+                  </Button>
                   {actionsOpen ? (
                     <div className="absolute right-0 top-full z-10 mt-1 w-56 rounded-lg border border-border bg-surface py-1 shadow-lg">
                       {run.next_action_type === "collect_payment_reminder" ? (
@@ -219,14 +218,15 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
 
 function ActionMenuItem({ label, pending, disabled, onClick }: { label: string; pending: boolean; disabled: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      disabled={disabled || pending}
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={disabled}
+      loading={pending}
       onClick={onClick}
-      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-secondary transition hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
+      className="w-full justify-start rounded-none px-3 py-2"
     >
-      {pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
       {label}
-    </button>
+    </Button>
   );
 }
