@@ -1016,6 +1016,10 @@ func (s *Server) handleUIRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUISelfServeCreateWorkspace(w http.ResponseWriter, r *http.Request) {
+	if s.tenantService == nil || s.repo == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace creation is not configured")
+		return
+	}
 
 	principal, ok := principalFromContext(r.Context())
 	if !ok || principal.SubjectID == "" {
@@ -1042,7 +1046,7 @@ func (s *Server) handleUISelfServeCreateWorkspace(w http.ResponseWriter, r *http
 		Name: name,
 	}, "")
 	if err != nil {
-		writeDomainError(w, err)
+		s.writeInternalError(w, r, http.StatusInternalServerError, "failed to create workspace", err)
 		return
 	}
 
@@ -1054,7 +1058,7 @@ func (s *Server) handleUISelfServeCreateWorkspace(w http.ResponseWriter, r *http
 		Status:   "active",
 	})
 	if err != nil {
-		writeDomainError(w, err)
+		s.writeInternalError(w, r, http.StatusInternalServerError, "failed to create workspace membership", err)
 		return
 	}
 
