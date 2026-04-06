@@ -2,7 +2,6 @@
 import { Building2, CreditCard, Users } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 
-import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Card } from "@/components/ui/card";
 import { PageContainer } from "@/components/ui/page-container";
 import { ScopeNotice } from "@/components/auth/scope-notice";
@@ -41,9 +40,6 @@ export function SettingsScreen() {
 
   return (
     <PageContainer>
-        <AppBreadcrumbs items={[{ label: "Settings" }]} />
-
-        {/* Page header */}
         <div>
           <h1 className="text-lg font-semibold text-text-primary">Settings</h1>
           <p className="mt-0.5 text-sm text-text-muted">Manage your workspace, billing configuration, and team access.</p>

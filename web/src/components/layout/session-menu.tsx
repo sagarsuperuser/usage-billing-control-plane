@@ -73,7 +73,7 @@ export function SessionMenu() {
   const role = session.role ?? "reader";
   const tenantID = session.tenant_id || "";
   const tenantName = session.tenant_name || tenantID || "Workspace";
-  const _displayName = session.display_name || "";
+  const displayName = session.display_name || "";
   const email = session.user_email || "";
   const closeMenu = () => { setOpen(false); setShowWorkspaces(false); };
 
@@ -89,11 +89,11 @@ export function SessionMenu() {
         onClick={() => { setOpen(!open); if (open) setShowWorkspaces(false); }}
         className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-surface-tertiary/80"
       >
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-[11px] font-bold text-white">
-          {(tenantName || email).charAt(0).toUpperCase()}
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 text-[11px] font-bold text-white">
+          {(displayName || tenantName || email).charAt(0).toUpperCase()}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-text-secondary">{tenantName}</span>
+          <span className="block truncate text-[13px] font-semibold text-text-secondary">{displayName || tenantName}</span>
           <span className="block truncate text-[11px] text-text-faint">{email}</span>
         </span>
       </button>

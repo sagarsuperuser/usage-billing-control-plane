@@ -1,4 +1,5 @@
 
+import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -436,10 +437,10 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                         </div>
                         {!isRevoked && (
                           <div className="flex shrink-0 gap-1">
-                            <button type="button" onClick={() => rotateCredentialMutation.mutate({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id })} disabled={!csrfToken || rotateCredentialMutation.isPending} className="inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[11px] font-medium text-text-muted transition hover:bg-surface-tertiary disabled:opacity-50">
-                              <RefreshCw className="h-2.5 w-2.5" />
+                            <Button variant="secondary" size="xs" onClick={() => rotateCredentialMutation.mutate({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id })} disabled={!csrfToken} loading={rotateCredentialMutation.isPending}>
+                              {!rotateCredentialMutation.isPending ? <RefreshCw className="h-2.5 w-2.5" /> : null}
                               Roll
-                            </button>
+                            </Button>
                             <ConfirmDialog
                               title="Revoke this key?"
                               description="This key will immediately stop working. Any integrations using it will break. This cannot be undone."
@@ -447,7 +448,7 @@ export function WorkspaceServiceAccountsTab({ apiBaseURL, csrfToken, session }: 
                               onConfirm={async () => { await revokeCredentialMutation.mutateAsync({ serviceAccountID: selectedServiceAccount.id, credentialID: credential.id }); }}
                             >
                               {(open) => (
-                                <button type="button" onClick={open} disabled={!csrfToken || revokeCredentialMutation.isPending} className="inline-flex h-6 items-center rounded border border-rose-200 px-1.5 text-[11px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50">Revoke</button>
+                                <Button variant="danger" size="xs" onClick={open} disabled={!csrfToken} loading={revokeCredentialMutation.isPending}>Revoke</Button>
                               )}
                             </ConfirmDialog>
                           </div>
