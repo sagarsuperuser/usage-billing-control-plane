@@ -172,20 +172,18 @@ export function SettingsBillingTab({
         </div>
       </div>
 
-      {/* Unsaved changes bar */}
-      {isDirty ? (
-        <div className="sticky bottom-0 flex items-center gap-3 border-t border-amber-200 bg-amber-50 px-6 py-3 dark:border-amber-900 dark:bg-amber-950">
-          <p className="flex-1 text-xs text-amber-800 dark:text-amber-200">You have unsaved changes.</p>
-          <button
-            type="submit"
-            disabled={busy}
-            className="inline-flex h-8 items-center gap-2 rounded-md bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900"
-          >
-            {busy ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
-            Save changes
-          </button>
-        </div>
-      ) : null}
+      {/* Save bar — always visible, disabled when clean */}
+      <div className="flex items-center gap-3 border-t border-border px-6 py-4">
+        {isDirty ? <p className="flex-1 text-xs text-amber-600 dark:text-amber-400">Unsaved changes</p> : <span className="flex-1" />}
+        <button
+          type="submit"
+          disabled={!isDirty || busy}
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+        >
+          {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+          Save changes
+        </button>
+      </div>
     </form>
   );
 }
