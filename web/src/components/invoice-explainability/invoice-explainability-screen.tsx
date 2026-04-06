@@ -65,7 +65,7 @@ export function InvoiceExplainabilityScreen() {
                   data-testid="explainability-load"
                   onClick={() => setSubmittedInvoiceID(invoiceID.trim())}
                   disabled={!invoiceID.trim()}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {explainabilityQuery.isFetching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
                   Load

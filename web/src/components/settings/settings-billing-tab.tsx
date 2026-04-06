@@ -298,7 +298,7 @@ function PaymentProviderCard({ apiBaseURL, csrfToken }: { apiBaseURL: string; cs
               type="button"
               onClick={() => connectMutation.mutate()}
               disabled={connectMutation.isPending || !secretKey.trim().startsWith("sk_")}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {connectMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
               Connect

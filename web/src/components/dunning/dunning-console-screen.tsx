@@ -135,7 +135,7 @@ export function DunningConsoleScreen() {
                 <button
                   type="button"
                   onClick={() => setPolicyOpen(true)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                 >
                   Edit policy
                 </button>
@@ -322,7 +322,7 @@ export function DunningConsoleScreen() {
                 data-testid="dunning-policy-save"
                 onClick={() => policyMutation.mutate()}
                 disabled={!canWrite || !csrfToken || policyMutation.isPending}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {policyMutation.isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Save policy

@@ -109,7 +109,7 @@ export function DunningRunDetailScreen({ runID }: { runID: string }) {
                   <button
                     type="button"
                     onClick={() => setActionsOpen(!actionsOpen)}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                   >
                     Actions {actionsOpen ? "▴" : "▾"}
                   </button>

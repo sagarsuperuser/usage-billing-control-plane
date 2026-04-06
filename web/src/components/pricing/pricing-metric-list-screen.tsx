@@ -52,7 +52,7 @@ export function PricingMetricListScreen() {
                 aria-label="Search" placeholder="Search..."
                 className="h-8 w-48 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
               />
-              <Link to="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-800">
+              <Link to="/pricing/metrics/new" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
                 <Plus className="h-3.5 w-3.5" />
                 New
               </Link>
