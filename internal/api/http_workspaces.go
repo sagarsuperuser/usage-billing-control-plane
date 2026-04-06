@@ -689,13 +689,13 @@ func (s *Server) updateWorkspaceSettings(w http.ResponseWriter, r *http.Request)
 		}
 		tenant, err := s.repo.GetTenant(principal.TenantID)
 		if err != nil {
-			writeDomainError(w, err)
+			s.writeInternalError(w, r, http.StatusInternalServerError, "failed to load workspace", err)
 			return
 		}
 		tenant.Name = name
 		tenant.UpdatedAt = time.Now().UTC()
 		if _, err := s.repo.UpdateTenant(tenant); err != nil {
-			writeDomainError(w, err)
+			s.writeInternalError(w, r, http.StatusInternalServerError, "failed to update workspace", err)
 			return
 		}
 	}
@@ -720,7 +720,7 @@ func (s *Server) updateWorkspaceSettings(w http.ResponseWriter, r *http.Request)
 			DocumentNumberPrefix:   ds(req.DocumentNumberPrefix),
 		}
 		if _, err := s.workspaceBillingSettingsService.UpsertWorkspaceBillingSettings(r.Context(), principal.TenantID, billingReq); err != nil {
-			writeDomainError(w, err)
+			s.writeInternalError(w, r, http.StatusInternalServerError, "failed to update billing settings", err)
 			return
 		}
 	}
