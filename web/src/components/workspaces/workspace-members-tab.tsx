@@ -1,4 +1,5 @@
 
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -167,15 +168,10 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
                       <option value="reader">Reader</option>
                     </select>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleInviteSubmit((data) => createInvitationMutation.mutate(data))}
-                    disabled={!csrfToken || createInvitationMutation.isPending}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    {createInvitationMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MailPlus className="h-4 w-4" />}
+                  <Button variant="primary" size="lg" onClick={handleInviteSubmit((data) => createInvitationMutation.mutate(data))} disabled={!csrfToken} loading={createInvitationMutation.isPending}>
+                    {!createInvitationMutation.isPending ? <MailPlus className="h-4 w-4" /> : null}
                     Send invite
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -229,23 +225,23 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
 
                     {roleDirty ? (
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: draftRole })} disabled={!canApplyRole} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg bg-slate-900 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50">Save</button>
-                        <button type="button" onClick={() => setMemberDraftRoles((c) => { const n = { ...c }; delete n[selectedMember.user_id]; return n; })} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg border border-border text-sm text-text-secondary hover:bg-surface-tertiary">Cancel</button>
+                        <Button variant="primary" className="flex-1" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: draftRole })} disabled={!canApplyRole} loading={updateMemberMutation.isPending}>Save</Button>
+                        <Button variant="secondary" className="flex-1" onClick={() => setMemberDraftRoles((c) => { const n = { ...c }; delete n[selectedMember.user_id]; return n; })}>Cancel</Button>
                       </div>
                     ) : selectedMember.status === "active" ? (
                       showSuspendConfirm ? (
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => removeMemberMutation.mutate(selectedMember.user_id)} disabled={!canSuspend} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg bg-rose-600 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50">Confirm</button>
-                          <button type="button" onClick={() => setConfirmingMemberAction(null)} className="flex-1 inline-flex h-8 items-center justify-center rounded-lg border border-border text-sm text-text-secondary hover:bg-surface-tertiary">Cancel</button>
+                          <Button variant="danger" className="flex-1" onClick={() => removeMemberMutation.mutate(selectedMember.user_id)} disabled={!canSuspend} loading={removeMemberMutation.isPending}>Confirm</Button>
+                          <Button variant="secondary" className="flex-1" onClick={() => setConfirmingMemberAction(null)}>Cancel</Button>
                         </div>
                       ) : (
-                        <button type="button" onClick={() => setConfirmingMemberAction({ userID: selectedMember.user_id, action: "suspend" })} disabled={!canSuspend} className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-rose-200 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">
+                        <Button variant="danger" className="w-full" onClick={() => setConfirmingMemberAction({ userID: selectedMember.user_id, action: "suspend" })} disabled={!canSuspend}>
                           <UserX className="h-3.5 w-3.5" />
                           Suspend member
-                        </button>
+                        </Button>
                       )
                     ) : (
-                      <button type="button" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: selectedMember.role as "reader" | "writer" | "admin" })} disabled={!canReactivate} className="inline-flex h-8 w-full items-center justify-center rounded-lg bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">Reactivate</button>
+                      <Button variant="primary" className="w-full" onClick={() => updateMemberMutation.mutate({ userID: selectedMember.user_id, role: selectedMember.role as "reader" | "writer" | "admin" })} disabled={!canReactivate} loading={updateMemberMutation.isPending}>Reactivate</Button>
                     )}
 
                     {selfMember ? <p className="text-xs text-text-faint">You cannot change your own membership.</p> : null}
@@ -339,9 +335,9 @@ export function WorkspaceMembersTab({ apiBaseURL, csrfToken, session }: Workspac
                     <td className="px-4 py-2.5 text-xs capitalize text-text-muted">{invite.role}</td>
                     <td className="px-4 py-2.5 text-xs text-text-faint">{formatRelativeTimestamp(invite.expires_at)}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <button type="button" onClick={() => revokeInvitationMutation.mutate(invite.id)} disabled={!csrfToken || revokeInvitationMutation.isPending} className="text-xs font-medium text-rose-600 hover:text-rose-800 disabled:opacity-50">
+                      <Button variant="danger" size="xs" onClick={() => revokeInvitationMutation.mutate(invite.id)} disabled={!csrfToken} loading={revokeInvitationMutation.isPending}>
                         Revoke
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}

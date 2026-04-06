@@ -1,4 +1,5 @@
 
+import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -169,15 +170,15 @@ export function WorkspaceAuditTab({ apiBaseURL, session }: WorkspaceAuditTabProp
           </select>
           <div className="ml-auto flex items-center gap-2">
             <CursorPagination page={auditPage} hasPrevious={auditHasPreviousPage} hasNext={auditHasNextPage} onPrevious={goToPreviousAuditPage} onNext={goToNextAuditPage} label="Audit events" />
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => downloadAuditCSV(selectedAuditServiceAccountIDValue)}
               disabled={!selectedAuditServiceAccountIDValue}
-              className="inline-flex h-7 items-center gap-1.5 rounded border border-border bg-surface px-2 text-xs font-medium text-text-muted transition hover:bg-surface-tertiary disabled:opacity-50"
             >
               <Download className="h-3 w-3" />
               Export
-            </button>
+            </Button>
           </div>
         </div>
 
