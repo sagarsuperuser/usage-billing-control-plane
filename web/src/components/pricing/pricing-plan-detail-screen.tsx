@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
 import { PageContainer } from "@/components/ui/page-container";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
