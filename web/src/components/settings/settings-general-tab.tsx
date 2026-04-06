@@ -1,6 +1,7 @@
 
 import { CheckCircle2, Copy, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchWorkspaceSettings, updateWorkspaceSettings } from "@/lib/api";
@@ -23,19 +24,26 @@ export function SettingsGeneralTab({
   });
 
   const workspace = settingsQuery.data?.workspace;
-  const [name, setName] = useState("");
   const [copied, setCopied] = useState(false);
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { isDirty, isSubmitting },
+  } = useForm<{ name: string }>({ defaultValues: { name: "" } });
+
+  // eslint-disable-next-line react-hooks/incompatible-library -- reset() from RHF triggers re-render by design
   useEffect(() => {
-    if (workspace?.name && !name) setName(workspace.name);
-  }, [workspace?.name, name]);
+    if (workspace?.name) reset({ name: workspace.name });
+  }, [workspace?.name, reset]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { name: string }) =>
       updateWorkspaceSettings({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
-        body: { name: name.trim() },
+        body: { name: data.name.trim() },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -44,8 +52,7 @@ export function SettingsGeneralTab({
     onError: (err: Error) => showError(err.message),
   });
 
-  const dirty = name.trim() !== (workspace?.name ?? "");
-  const busy = saveMutation.isPending;
+  const busy = isSubmitting || saveMutation.isPending;
 
   const copyID = () => {
     if (!workspace?.id) return;
@@ -63,7 +70,7 @@ export function SettingsGeneralTab({
   }
 
   return (
-    <div className="p-6">
+    <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))} className="p-6">
       <div className="max-w-lg space-y-6">
         <div>
           <h3 className="text-sm font-semibold text-text-primary">Workspace</h3>
@@ -75,10 +82,9 @@ export function SettingsGeneralTab({
             <span className="text-xs font-medium text-text-muted">Name</span>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
               placeholder="My workspace"
               className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2"
+              {...register("name")}
             />
           </label>
 
@@ -120,9 +126,8 @@ export function SettingsGeneralTab({
 
         <div className="flex gap-2 border-t border-border pt-4">
           <button
-            type="button"
-            disabled={!dirty || busy || !name.trim()}
-            onClick={() => saveMutation.mutate()}
+            type="submit"
+            disabled={!isDirty || busy}
             className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
           >
             {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -130,6 +135,6 @@ export function SettingsGeneralTab({
           </button>
         </div>
       </div>
-    </div>
+    </form>
   );
 }
