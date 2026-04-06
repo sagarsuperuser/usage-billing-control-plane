@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchWorkspaceSettings, updateWorkspaceSettings,
   fetchWorkspaceBillingConnection, createWorkspaceBillingConnection, verifyWorkspaceBillingConnection,
-  type BillingConnectionResponse,
 } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
 
