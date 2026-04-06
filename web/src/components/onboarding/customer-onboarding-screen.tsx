@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { PageContainer } from "@/components/ui/page-container";
-import { FormField } from "@/components/ui/form-field";
+import { FormField, SectionHeader } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { onboardCustomer } from "@/lib/api";
 import { formatReadinessStatus, normalizeMissingSteps } from "@/lib/readiness";
@@ -162,8 +162,8 @@ export function CustomerOnboardingScreen() {
                   </FormField>
                 </div>
 
-                <section className="rounded-lg border border-border bg-surface-secondary p-5">
-                  <p className="text-xs font-medium text-text-muted">Billing profile</p>
+                <section className="rounded-lg border border-border bg-surface-secondary/50 p-5">
+                  <SectionHeader title="Billing profile" />
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <FormField label="Legal name" error={errors.legal_name?.message}>
                       <Input placeholder="Acme Primary Customer LLC" {...register("legal_name")} error={Boolean(errors.legal_name)} />
@@ -186,8 +186,8 @@ export function CustomerOnboardingScreen() {
                   </div>
                 </section>
 
-                <section className="rounded-lg border border-border bg-surface-secondary p-5">
-                  <p className="text-xs font-medium text-text-muted">Payment setup</p>
+                <section className="rounded-lg border border-border bg-surface-secondary/50 p-5">
+                  <SectionHeader title="Payment setup" />
                   <div className="mt-4 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
                     <div className="grid gap-4">
                       <FormField label="Billing connection code" error={errors.provider_code?.message}>
@@ -198,12 +198,14 @@ export function CustomerOnboardingScreen() {
                       </FormField>
                     </div>
                     <div className="rounded-lg border border-border bg-surface p-4">
-                      <p className="text-xs font-medium text-text-muted">Submission mode</p>
-                      <label className="mt-3 flex items-center gap-2 text-sm text-text-secondary">
-                        <input type="checkbox" className="h-4 w-4 rounded border-slate-300" {...register("start_payment_setup")} />
-                        Start payment setup now
+                      <SectionHeader title="Submission mode" />
+                      <label className="mt-3 flex items-start gap-2.5 text-sm text-text-secondary">
+                        <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-border accent-blue-600" {...register("start_payment_setup")} />
+                        <span>
+                          <span className="font-medium text-text-primary">Start payment setup now</span>
+                          <span className="mt-1 block text-xs text-text-muted">The customer receives a hosted link to add their payment method immediately.</span>
+                        </span>
                       </label>
-                      <p className="mt-3 text-xs leading-relaxed text-text-muted">Leave this enabled when the payer should receive a hosted setup link immediately after the customer record is created.</p>
                     </div>
                   </div>
                 </section>
