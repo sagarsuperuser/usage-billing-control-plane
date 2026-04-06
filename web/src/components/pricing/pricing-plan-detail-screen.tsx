@@ -1,7 +1,8 @@
 
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, CheckCircle2, LoaderCircle, Archive, Zap } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppBreadcrumbs } from "@/components/layout/app-breadcrumbs";
@@ -45,17 +46,14 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   const isArchived = plan?.status === "archived";
 
   // Inline edit state (draft plans only).
-  const [editName, setEditName] = useState("");
-  const [editDesc, setEditDesc] = useState("");
-  const [editBase, setEditBase] = useState("");
+  const { register: registerEdit, handleSubmit: handleEditSubmit, reset: resetEdit, formState: { isDirty: editDirty } } = useForm<{ name: string; description: string; base: string }>({
+    defaultValues: { name: "", description: "", base: "" },
+  });
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- reset() from RHF triggers re-render by design
   useEffect(() => {
-    if (plan) {
-      setEditName(plan.name);
-      setEditDesc(plan.description ?? "");
-      setEditBase(String(plan.base_amount_cents / 100));
-    }
-  }, [plan]);
+    if (plan) resetEdit({ name: plan.name, description: plan.description ?? "", base: String(plan.base_amount_cents / 100) });
+  }, [plan, resetEdit]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["pricing-plan", apiBaseURL, planID] });
@@ -63,15 +61,15 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
   };
 
   const saveMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: { name: string; description: string; base: string }) =>
       updatePlan({
         runtimeBaseURL: apiBaseURL,
         csrfToken,
         planID,
         body: {
-          name: editName.trim(),
-          description: editDesc.trim() || undefined,
-          base_amount_cents: Math.round(parseFloat(editBase || "0") * 100),
+          name: data.name.trim(),
+          description: data.description.trim() || undefined,
+          base_amount_cents: Math.round(parseFloat(data.base || "0") * 100),
         },
       }),
     onSuccess: () => { showSuccess("Plan updated"); invalidate(); },
@@ -183,23 +181,21 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
 
               {/* Editable fields (draft only) */}
               {canWrite && isDraft ? (
-                <div className="px-5 py-4">
+                <form onSubmit={handleEditSubmit((data) => saveMutation.mutate(data))} className="px-5 py-4">
                   <p className="text-xs font-medium text-text-faint mb-3">Edit plan (available while draft)</p>
                   <div className="grid gap-3 max-w-lg">
                     <label className="grid gap-1">
                       <span className="text-xs text-text-muted">Name</span>
                       <input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
                         className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
+                        {...registerEdit("name")}
                       />
                     </label>
                     <label className="grid gap-1">
                       <span className="text-xs text-text-muted">Description</span>
                       <input
-                        value={editDesc}
-                        onChange={(e) => setEditDesc(e.target.value)}
                         className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
+                        {...registerEdit("description")}
                       />
                     </label>
                     <label className="grid gap-1">
@@ -208,16 +204,14 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                         type="number"
                         min="0"
                         step="0.01"
-                        value={editBase}
-                        onChange={(e) => setEditBase(e.target.value)}
                         className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
+                        {...registerEdit("base")}
                       />
                     </label>
                     <div className="flex items-center gap-2">
                       <button
-                        type="button"
-                        onClick={() => saveMutation.mutate()}
-                        disabled={saveMutation.isPending || !editName.trim()}
+                        type="submit"
+                        disabled={saveMutation.isPending || !editDirty}
                         className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
                       >
                         {saveMutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
@@ -230,7 +224,7 @@ export function PricingPlanDetailScreen({ planID }: { planID: string }) {
                       ) : null}
                     </div>
                   </div>
-                </div>
+                </form>
               ) : null}
 
               {/* Read-only details */}

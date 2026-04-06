@@ -36,7 +36,6 @@ export function SettingsGeneralTab({
     formState: { isDirty, isSubmitting },
   } = useForm<{ name: string }>({ defaultValues: { name: "" } });
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- reset() from RHF triggers re-render by design
   useEffect(() => {
     if (workspace?.name) reset({ name: workspace.name });
   }, [workspace?.name, reset]);
