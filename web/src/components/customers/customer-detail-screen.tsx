@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -56,6 +57,7 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const { apiBaseURL, csrfToken, canWrite, isAuthenticated, isLoading: _sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [profileFlash, setProfileFlash] = useState<string | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
   const { register, handleSubmit: handleProfileSubmit, reset: resetProfile, watch: watchProfile, formState: profileFormState } = useForm<BillingProfileFormValues>({
     resolver: zodResolver(billingProfileSchema),
     defaultValues: {
@@ -139,7 +141,8 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
         body: { ...data, tax_codes: parseCodeList(data.tax_codes_raw) },
       }),
     onSuccess: async () => {
-      setProfileFlash("Billing profile saved.");
+      showSuccess("Billing profile saved");
+      setEditingProfile(false);
       await Promise.all([customersQuery.refetch(), readinessQuery.refetch(), billingProfileQuery.refetch()]);
     },
     onError: (err: Error) => showError(err.message),
@@ -191,341 +194,195 @@ export function CustomerDetailScreen({ externalID }: { externalID: string }) {
   const billingProfileDirty = profileFormState.isDirty;
   const billingProfileReady = profileFormState.isValid;
 
+  const profileStatusDot = readiness?.billing_profile_status === "ready" ? "bg-emerald-500" : readiness?.billing_profile_status === "sync_error" ? "bg-rose-500" : "bg-amber-500";
+  const paymentDot = readiness?.default_payment_method_verified ? "bg-emerald-500" : readiness?.payment_setup_status === "error" ? "bg-rose-500" : "bg-slate-300";
+  const syncDot = readiness?.billing_profile?.last_sync_error ? "bg-rose-500" : readiness?.billing_profile?.last_synced_at ? "bg-emerald-500" : "bg-slate-300";
+
+  const formatAddress = (bp: CustomerBillingProfile | null) => {
+    if (!bp) return null;
+    const parts = [bp.billing_address_line1, bp.billing_address_line2, bp.billing_city, bp.billing_state, bp.billing_postal_code, bp.billing_country].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : null;
+  };
+
   return (
     <PageContainer>
         <AppBreadcrumbs items={[{ href: "/customers", label: "Customers" }, { label: customer?.display_name || externalID }]} />
 
-
         {isTenantSession ? (
           customersQuery.isLoading || readinessQuery.isLoading ? (
             <LoadingSkeleton variant="card" />
-          ) : customersQuery.isError || readinessQuery.isError || billingProfileQuery.isError || !customer || !readiness ? (
+          ) : customersQuery.isError || readinessQuery.isError || !customer || !readiness ? (
             <section className="rounded-lg border border-border bg-surface shadow-sm p-5">
               <p className="text-sm font-semibold text-text-primary">Customer not available</p>
-              <p className="mt-1 text-sm text-text-muted">The requested customer could not be loaded from the workspace APIs.</p>
+              <p className="mt-1 text-sm text-text-muted">The requested customer could not be loaded.</p>
             </section>
           ) : (
           <SectionErrorBoundary>
-            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm divide-y divide-border">
-              {/* ---- Header ---- */}
-              <div className="px-5 py-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <h1 className="text-base font-semibold text-text-primary truncate">{customer.display_name}</h1>
-                    <span className="font-mono text-xs text-text-faint">{customer.external_id}</span>
-                    <StatusChip tone={statusTone(readiness.status)}>{formatReadinessStatus(readiness.status)}</StatusChip>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      to={`/invoices?customer_external_id=${encodeURIComponent(customer.external_id)}`}
-                      className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
-                    >
-                      View invoices
-                    </Link>
-                    <Link to="/customers/new" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-blue-600 bg-blue-600 px-3 text-xs font-medium text-white transition hover:bg-blue-700">
-                      <CreditCard className="h-3.5 w-3.5" />
-                      New customer
-                    </Link>
-                  </div>
-                </div>
+            {/* ── Header ─────────────────────────────────────────── */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <h1 className="text-lg font-semibold text-text-primary truncate">{customer.display_name}</h1>
+                <span className="font-mono text-xs text-text-faint">{customer.external_id}</span>
+                <StatusChip tone={statusTone(readiness.status)}>{formatReadinessStatus(readiness.status)}</StatusChip>
               </div>
-
-              {/* ---- Details ---- */}
-              <div className="px-5 py-4">
-                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
-                  <div>
-                    <dt className="text-xs text-text-faint">Billing profile</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{formatReadinessStatus(readiness.billing_profile_status)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Payment setup</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{formatReadinessStatus(readiness.payment_setup_status)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Payment method</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{readiness.default_payment_method_verified ? "Verified" : "Awaiting setup"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Email</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{customer.email || "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Created</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(customer.created_at)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Last synced</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(readiness.billing_profile.last_synced_at)}</dd>
-                  </div>
-                </dl>
-              </div>
-
-              {/* ---- Readiness ---- */}
-              {nextActions.length > 0 ? (
-                <div className="px-5 py-4">
-                  <p className="text-xs font-medium text-text-faint mb-3">Open actions</p>
-                  <div className="grid gap-2">
-                    {nextActions.map((item) => (
-                      <div key={item} className="flex items-start gap-2 text-sm text-text-secondary">
-                        <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-semibold text-amber-700">!</span>
-                        {item}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* ---- Billing profile form ---- */}
-              <div className="px-5 py-4">
-                <p className="text-xs font-medium text-text-faint mb-3">Billing profile</p>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <FormField label="Legal name">
-                    <input placeholder="Acme Billing LLC" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("legal_name")} />
-                  </FormField>
-                  <FormField label="Billing email">
-                    <input placeholder="billing@acme.test" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("email")} />
-                  </FormField>
-                  <FormField label="Phone">
-                    <input placeholder="+1 415 555 0100" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("phone")} />
-                  </FormField>
-                  <FormField label="Tax identifier">
-                    <input placeholder="VAT / GST / EIN" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("tax_identifier")} />
-                  </FormField>
-                  <FormField label="Tax codes">
-                    <input placeholder="GST_IN, VAT_DE" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("tax_codes_raw")} />
-                  </FormField>
-                  <FormField label="Address line 1">
-                    <input placeholder="1 Billing Street" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_address_line1")} />
-                  </FormField>
-                  <FormField label="Address line 2">
-                    <input placeholder="Suite 200" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_address_line2")} />
-                  </FormField>
-                  <FormField label="City">
-                    <input placeholder="Bengaluru" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_city")} />
-                  </FormField>
-                  <FormField label="State">
-                    <input placeholder="Karnataka" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_state")} />
-                  </FormField>
-                  <FormField label="Postal code">
-                    <input placeholder="560001" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_postal_code")} />
-                  </FormField>
-                  <FormField label="Country">
-                    <input placeholder="IN" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("billing_country")} />
-                  </FormField>
-                  <FormField label="Currency">
-                    <input placeholder="USD" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("currency")} />
-                  </FormField>
-                  <FormField label="Billing connection code">
-                    <input placeholder="stripe_default" className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition placeholder:text-text-faint focus:ring-2" {...register("provider_code")} />
-                  </FormField>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Button
-                    variant="primary"
-                    onClick={handleProfileSubmit((data) => {
-                      setProfileFlash(null);
-                      billingProfileMutation.mutate(data);
-                    })}
-                    disabled={!canWrite || !csrfToken || !billingProfileDirty}
-                    loading={billingProfileMutation.isPending}
-                  >
-                    {!billingProfileMutation.isPending ? <CreditCard className="h-3.5 w-3.5" /> : null}
-                    Save billing profile
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => resetProfile({
-                      legal_name: profileBaseline.legal_name || "",
-                      email: profileBaseline.email || "",
-                      phone: profileBaseline.phone || "",
-                      tax_identifier: profileBaseline.tax_identifier || "",
-                      tax_codes_raw: (profileBaseline.tax_codes || []).join(", "),
-                      billing_address_line1: profileBaseline.billing_address_line1 || "",
-                      billing_address_line2: profileBaseline.billing_address_line2 || "",
-                      billing_city: profileBaseline.billing_city || "",
-                      billing_state: profileBaseline.billing_state || "",
-                      billing_postal_code: profileBaseline.billing_postal_code || "",
-                      billing_country: profileBaseline.billing_country || "",
-                      currency: profileBaseline.currency || "",
-                      provider_code: profileBaseline.provider_code || "",
-                    })}
-                    disabled={!billingProfileDirty || billingProfileMutation.isPending}
-                  >
-                    Reset
-                  </Button>
-                </div>
-
-                {profileFlash ? (
-                  <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    <p className="font-medium">{profileFlash}</p>
-                    <p className="mt-0.5 text-xs opacity-80">{billingProfileReady ? "Required billing fields are complete." : "Profile still needs required readiness fields."}</p>
-                  </div>
-                ) : null}
-                {billingProfileMutation.isError ? (
-                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <p className="font-medium">Billing profile could not be saved</p>
-                    <p className="mt-0.5 text-xs">{billingProfileMutation.error instanceof Error ? billingProfileMutation.error.message : "Saving the billing profile failed."}</p>
-                  </div>
-                ) : null}
-                {!billingProfileReady ? (
-                  <p className="mt-3 text-xs text-text-muted">Payment setup is blocked until the required billing fields are complete.</p>
-                ) : null}
-              </div>
-
-              {/* ---- Payment collection ---- */}
-              <div id="payment-collection" className="scroll-mt-24 px-5 py-4">
-                <p className="text-xs font-medium text-text-faint mb-1">Payment collection</p>
-                {collectionDiagnosis ? (
-                  <div className={`mt-2 rounded-md border px-4 py-3 text-sm ${customerCollectionDiagnosisToneClass(collectionDiagnosis.tone || "warning")}`}>
-                    <p className="font-medium">{collectionDiagnosis.title}</p>
-                    <p className="mt-0.5 text-xs opacity-80">{collectionDiagnosis.summary}</p>
-                    <p className="mt-1 text-xs opacity-80">Next: {collectionDiagnosis.nextStep}</p>
-                  </div>
-                ) : null}
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs font-medium text-text-muted mb-2">Email setup request</p>
-                    <p className="text-xs text-text-muted mb-3">Use the email request first. Resend instead of creating duplicates.</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="primary"
-                        onClick={() => (showResendRequest ? resendSetupMutation.mutate() : requestSetupMutation.mutate())}
-                        disabled={!canBeginPaymentSetup}
-                        loading={requestSetupMutation.isPending || resendSetupMutation.isPending}
-                      >
-                        {!(requestSetupMutation.isPending || resendSetupMutation.isPending) ? <Send className="h-3.5 w-3.5" /> : null}
-                        {setupRequestActionLabel}
-                      </Button>
-                      {latestRequestedCheckoutURL ? (
-                        <a href={latestRequestedCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Open sent link
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium text-text-muted mb-2">Hosted setup link</p>
-                    <p className="text-xs text-text-muted mb-3">Use only when you need to share the link directly.</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => beginSetupMutation.mutate()}
-                        disabled={!canBeginPaymentSetup}
-                        loading={beginSetupMutation.isPending}
-                      >
-                        {!beginSetupMutation.isPending ? <CreditCard className="h-3.5 w-3.5" /> : null}
-                        Generate link
-                      </Button>
-                      {latestCheckoutURL ? (
-                        <a href={latestCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Open link
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => refreshMutation.mutate()}
-                    disabled={!canWrite || !csrfToken}
-                    loading={refreshMutation.isPending}
-                  >
-                    {!refreshMutation.isPending ? <RefreshCw className="h-3.5 w-3.5" /> : null}
-                    Refresh payment setup
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => retryMutation.mutate()}
-                    disabled={!canWrite || !csrfToken}
-                    loading={retryMutation.isPending}
-                    className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  >
-                    {!retryMutation.isPending ? <RotateCcw className="h-3.5 w-3.5" /> : null}
-                    Retry billing sync
-                  </Button>
-                  <Link
-                    to={`/subscriptions?customer_external_id=${encodeURIComponent(customer.external_id)}`}
-                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary"
-                  >
-                    Open subscriptions
-                  </Link>
-                </div>
-
-                {beginSetupMutation.isError ? (
-                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <p className="font-medium">Payment setup link could not be generated</p>
-                    <p className="mt-0.5 text-xs">{beginSetupMutation.error instanceof Error ? beginSetupMutation.error.message : "Customer payment setup request failed."}</p>
-                  </div>
-                ) : null}
-                {requestSetupMutation.isError || resendSetupMutation.isError ? (
-                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <p className="font-medium">Payment setup request could not be sent</p>
-                    <p className="mt-0.5 text-xs">
-                      {(requestSetupMutation.error instanceof Error && requestSetupMutation.error.message) ||
-                        (resendSetupMutation.error instanceof Error && resendSetupMutation.error.message) ||
-                        "Customer payment setup email delivery failed."}
-                    </p>
-                  </div>
-                ) : null}
-                {readiness.payment_setup.last_request_status === "sent" ? (
-                  <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    <p className="font-medium">Payment setup request sent</p>
-                    <p className="mt-0.5 text-xs">
-                      Sent to {readiness.payment_setup.last_request_to_email || "the customer"} on {formatExactTimestamp(readiness.payment_setup.last_request_sent_at)}.
-                    </p>
-                  </div>
-                ) : null}
-                {readiness.payment_setup.last_request_status === "failed" ? (
-                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <p className="font-medium">Latest payment setup request failed</p>
-                    <p className="mt-0.5 text-xs">{readiness.payment_setup.last_request_error || "Email delivery failed. You can resend or fall back to the hosted link."}</p>
-                  </div>
-                ) : null}
-                {latestCheckoutURL ? (
-                  <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    <p className="font-medium">Hosted payment setup link ready</p>
-                    <p className="mt-0.5 text-xs">Share this manually, then refresh status once setup is complete.</p>
-                  </div>
-                ) : null}
-                {!canBeginPaymentSetup && readiness.payment_setup_status !== "ready" ? (
-                  <p className="mt-3 text-xs text-text-muted">Payment setup can be requested only after the customer is active and the billing profile is ready.</p>
-                ) : null}
-              </div>
-
-              {/* ---- Billing state ---- */}
-              <div className="px-5 py-4">
-                <p className="text-xs font-medium text-text-faint mb-3">Billing state</p>
-                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
-                  <div>
-                    <dt className="text-xs text-text-faint">Billing customer ID</dt>
-                    <dd className="mt-0.5 text-sm font-mono text-text-secondary">{customer.lago_customer_id || "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Last sync error</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{readiness.billing_profile.last_sync_error || "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Last verified</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(readiness.payment_setup.last_verified_at)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Customer status</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{formatReadinessStatus(customer.status)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-text-faint">Updated</dt>
-                    <dd className="mt-0.5 text-sm text-text-secondary">{formatExactTimestamp(customer.updated_at)}</dd>
-                  </div>
-                </dl>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link to={`/invoices?customer_external_id=${encodeURIComponent(customer.external_id)}`} className="inline-flex h-8 items-center rounded-lg border border-border bg-surface px-3 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
+                  View invoices
+                </Link>
+                <Link to={`/subscriptions/new`} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700">
+                  Create subscription
+                </Link>
               </div>
             </div>
+
+            {/* ── Status summary (3 cards) ────────────────────────── */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <p className="text-xs font-medium text-text-muted">Billing profile</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`inline-block h-2 w-2 rounded-full ${profileStatusDot}`} />
+                  <span className="text-sm font-medium text-text-primary">{formatReadinessStatus(readiness.billing_profile_status)}</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <p className="text-xs font-medium text-text-muted">Payment method</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`inline-block h-2 w-2 rounded-full ${paymentDot}`} />
+                  <span className="text-sm font-medium text-text-primary">{readiness.default_payment_method_verified ? "Verified" : formatReadinessStatus(readiness.payment_setup_status)}</span>
+                </div>
+                {canBeginPaymentSetup ? (
+                  <Button variant="primary" size="xs" className="mt-2" onClick={() => (showResendRequest ? resendSetupMutation.mutate() : requestSetupMutation.mutate())} loading={requestSetupMutation.isPending || resendSetupMutation.isPending}>
+                    {!(requestSetupMutation.isPending || resendSetupMutation.isPending) ? <Send className="h-2.5 w-2.5" /> : null}
+                    {showResendRequest ? "Resend link" : "Send setup link"}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <p className="text-xs font-medium text-text-muted">Stripe sync</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`inline-block h-2 w-2 rounded-full ${syncDot}`} />
+                  <span className="text-sm font-medium text-text-primary">{readiness.billing_profile?.last_sync_error ? "Error" : readiness.billing_profile?.last_synced_at ? "Connected" : "Pending"}</span>
+                </div>
+                {readiness.billing_profile?.last_sync_error ? (
+                  <Button variant="secondary" size="xs" className="mt-2" onClick={() => retryMutation.mutate()} loading={retryMutation.isPending} disabled={!canWrite || !csrfToken}>
+                    {!retryMutation.isPending ? <RotateCcw className="h-2.5 w-2.5" /> : null}
+                    Retry sync
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            {/* ── Next step banner (only if not ready) ───────────── */}
+            {collectionDiagnosis && collectionDiagnosis.tone !== "healthy" ? (
+              <div className={`flex items-center gap-4 rounded-lg border px-5 py-4 ${collectionDiagnosis.tone === "danger" ? "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950" : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950"}`}>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${collectionDiagnosis.tone === "danger" ? "text-rose-800 dark:text-rose-200" : "text-amber-800 dark:text-amber-200"}`}>{collectionDiagnosis.title}</p>
+                  <p className={`mt-0.5 text-xs ${collectionDiagnosis.tone === "danger" ? "text-rose-700 dark:text-rose-300" : "text-amber-700 dark:text-amber-300"}`}>{collectionDiagnosis.nextStep}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {/* ── Billing details (read-only / edit toggle) ──────── */}
+            <div className="rounded-lg border border-border bg-surface shadow-sm">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                <p className="text-sm font-semibold text-text-primary">Billing details</p>
+                <Button variant="secondary" size="xs" onClick={() => setEditingProfile(!editingProfile)}>
+                  {editingProfile ? "Cancel" : "Edit"}
+                </Button>
+              </div>
+
+              {editingProfile ? (
+                <div className="p-5">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FormField label="Legal name"><Input placeholder="Acme Billing LLC" {...register("legal_name")} /></FormField>
+                    <FormField label="Billing email"><Input placeholder="billing@acme.test" {...register("email")} /></FormField>
+                    <FormField label="Phone"><Input placeholder="+1 415 555 0100" {...register("phone")} /></FormField>
+                    <FormField label="Tax identifier"><Input placeholder="VAT / GST / EIN" {...register("tax_identifier")} /></FormField>
+                    <FormField label="Tax codes"><Input placeholder="GST_IN, VAT_DE" {...register("tax_codes_raw")} /></FormField>
+                    <FormField label="Address line 1"><Input placeholder="1 Billing Street" {...register("billing_address_line1")} /></FormField>
+                    <FormField label="Address line 2"><Input placeholder="Suite 200" {...register("billing_address_line2")} /></FormField>
+                    <FormField label="City"><Input placeholder="Bengaluru" {...register("billing_city")} /></FormField>
+                    <FormField label="State"><Input placeholder="Karnataka" {...register("billing_state")} /></FormField>
+                    <FormField label="Postal code"><Input placeholder="560001" {...register("billing_postal_code")} /></FormField>
+                    <FormField label="Country"><Input placeholder="IN" {...register("billing_country")} /></FormField>
+                    <FormField label="Currency"><Input placeholder="USD" {...register("currency")} /></FormField>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button variant="primary" onClick={handleProfileSubmit((data) => { setProfileFlash(null); billingProfileMutation.mutate(data); })} disabled={!canWrite || !csrfToken || !billingProfileDirty} loading={billingProfileMutation.isPending}>
+                      Save
+                    </Button>
+                    <Button variant="secondary" onClick={() => setEditingProfile(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-5">
+                  <dl className="grid gap-3 sm:grid-cols-2">
+                    {billingProfile?.legal_name ? <div><dt className="text-xs text-text-faint">Legal name</dt><dd className="mt-0.5 text-sm text-text-secondary">{billingProfile.legal_name}</dd></div> : null}
+                    {billingProfile?.email ? <div><dt className="text-xs text-text-faint">Email</dt><dd className="mt-0.5 text-sm text-text-secondary">{billingProfile.email}</dd></div> : null}
+                    {billingProfile?.phone ? <div><dt className="text-xs text-text-faint">Phone</dt><dd className="mt-0.5 text-sm text-text-secondary">{billingProfile.phone}</dd></div> : null}
+                    {formatAddress(billingProfile) ? <div><dt className="text-xs text-text-faint">Address</dt><dd className="mt-0.5 text-sm text-text-secondary">{formatAddress(billingProfile)}</dd></div> : null}
+                    {billingProfile?.currency ? <div><dt className="text-xs text-text-faint">Currency</dt><dd className="mt-0.5 text-sm text-text-secondary">{billingProfile.currency}</dd></div> : null}
+                    {billingProfile?.tax_identifier ? <div><dt className="text-xs text-text-faint">Tax ID</dt><dd className="mt-0.5 text-sm text-text-secondary">{billingProfile.tax_identifier}</dd></div> : null}
+                  </dl>
+                  {!billingProfile?.legal_name && !billingProfile?.email ? (
+                    <p className="text-sm text-text-faint italic">No billing details yet. Click Edit to add.</p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* ── Payment setup (only if billing profile ready) ──── */}
+            {readiness.billing_profile_status === "ready" ? (
+              <div className="rounded-lg border border-border bg-surface shadow-sm">
+                <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                  <p className="text-sm font-semibold text-text-primary">Payment setup</p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="secondary" size="xs" onClick={() => refreshMutation.mutate()} loading={refreshMutation.isPending} disabled={!canWrite || !csrfToken}>
+                      {!refreshMutation.isPending ? <RefreshCw className="h-2.5 w-2.5" /> : null}
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-5">
+                  {readiness.default_payment_method_verified ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                      <span className="text-sm font-medium text-text-primary">Payment method verified</span>
+                      {readiness.payment_setup.last_verified_at ? (
+                        <span className="text-xs text-text-faint">Last verified {formatExactTimestamp(readiness.payment_setup.last_verified_at)}</span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
+                        <span className="text-sm text-text-muted">{readiness.payment_setup_status === "pending" ? "Awaiting customer setup" : "Not configured"}</span>
+                      </div>
+                      {canBeginPaymentSetup ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button variant="primary" size="sm" onClick={() => (showResendRequest ? resendSetupMutation.mutate() : requestSetupMutation.mutate())} loading={requestSetupMutation.isPending || resendSetupMutation.isPending}>
+                            {!(requestSetupMutation.isPending || resendSetupMutation.isPending) ? <Send className="h-3 w-3" /> : null}
+                            {showResendRequest ? "Resend setup email" : "Send setup email"}
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => beginSetupMutation.mutate()} loading={beginSetupMutation.isPending}>
+                            {!beginSetupMutation.isPending ? <ExternalLink className="h-3 w-3" /> : null}
+                            Generate link
+                          </Button>
+                          {(latestCheckoutURL || latestRequestedCheckoutURL) ? (
+                            <a href={latestCheckoutURL || latestRequestedCheckoutURL} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium text-text-secondary transition hover:bg-surface-secondary">
+                              <ExternalLink className="h-3 w-3" />
+                              Open link
+                            </a>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </SectionErrorBoundary>
           )
         ) : null}

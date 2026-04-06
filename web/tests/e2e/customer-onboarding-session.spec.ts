@@ -181,5 +181,5 @@ test("tenant writer can onboard a customer from the UI", async ({ page }) => {
 
   await page.goto("/customers/cust_acme_primary");
   await expect(page.getByRole("heading", { name: "Acme Primary Customer" })).toBeVisible();
-  await expect(page.getByText("Payment collection")).toBeVisible();
+  await expect(page.getByText("Billing details")).toBeVisible();
 });

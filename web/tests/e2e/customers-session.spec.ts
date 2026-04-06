@@ -242,7 +242,7 @@ test("tenant writer can browse customers and open customer detail", async ({ pag
   await page.getByRole("link", { name: /Customer Alpha/i }).click();
   await expect(page).toHaveURL(/\/customers\/cust_alpha$/);
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
-  await expect(page.getByText("Payment collection")).toBeVisible();
+  await expect(page.getByText("Billing details")).toBeVisible();
 });
 
 test("tenant writer can edit the customer billing profile", async ({ page }) => {
@@ -261,13 +261,18 @@ test("tenant writer can edit the customer billing profile", async ({ page }) => 
   await page.getByTestId("session-login-submit").click();
 
   await expect(page.getByRole("heading", { name: "Customer Alpha" })).toBeVisible();
-  await expect(page.getByText("Billing profile").first()).toBeVisible();
+  await expect(page.getByText("Billing details").first()).toBeVisible();
+
+  // Click Edit to open the billing profile form
+  await page.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByLabel("Tax identifier")).toHaveValue("");
 
   await page.getByLabel("Tax identifier").fill("GSTIN-29ABCDE1234F2Z5");
   await page.getByLabel("Phone").fill("+91 80 5555 0100");
-  await page.getByRole("button", { name: "Save billing profile" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
 
+  // After save, form closes — re-open to verify
+  await page.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByLabel("Tax identifier")).toHaveValue("GSTIN-29ABCDE1234F2Z5");
   await expect(page.getByLabel("Phone")).toHaveValue("+91 80 5555 0100");
 });
