@@ -1,5 +1,5 @@
 
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,6 +28,7 @@ function statusTone(status: string): string {
 }
 
 export function PricingPlanListScreen() {
+  const navigate = useNavigate();
   const { apiBaseURL, isAuthenticated, isLoading: sessionLoading, scope } = useUISession();
   const isTenantSession = isAuthenticated && scope === "tenant";
   const [search, setSearch] = useState("");
@@ -88,11 +89,11 @@ export function PricingPlanListScreen() {
                   </thead>
                   <tbody className="divide-y divide-border-light">
                     {paginated.map((plan) => (
-                      <tr key={plan.id} className="transition hover:bg-surface-secondary">
+                      <tr key={plan.id} className="cursor-pointer transition hover:bg-surface-secondary" onClick={() => navigate({ to: `/pricing/plans/${encodeURIComponent(plan.id)}` })}>
                         <td className="px-5 py-3">
-                          <Link to={`/pricing/plans/${encodeURIComponent(plan.id)}`} className="block font-medium text-text-primary">
+                          <span className="font-medium text-text-primary hover:underline">
                             {plan.name}
-                          </Link>
+                          </span>
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-text-muted">{plan.code}</td>
                         <td className="px-4 py-3">
