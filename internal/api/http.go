@@ -987,6 +987,7 @@ func (s *Server) registerRoutes() {
 	r.Group(func(r chi.Router) {
 		r.Use(s.requireAuth(RoleReader, authScopeAuthenticated))
 		r.Post("/v1/ui/workspaces", s.handleUISelfServeCreateWorkspace)
+		r.Patch("/v1/ui/profile", s.handleUIUpdateProfile)
 	})
 
 	// ── Platform admin routes ───────────────────────────────────────────

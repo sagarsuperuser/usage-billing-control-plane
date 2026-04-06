@@ -1063,6 +1063,21 @@ export async function fetchWorkspaceSettings(input: {
   return payload;
 }
 
+export async function updateUserProfile(input: {
+  runtimeBaseURL?: string;
+  csrfToken?: string;
+  displayName: string;
+}): Promise<{ display_name: string }> {
+  const payload = await apiRequest<{ display_name: string }>("/v1/ui/profile", {
+    runtimeBaseURL: input.runtimeBaseURL,
+    method: "PATCH",
+    csrfToken: input.csrfToken,
+    body: { display_name: input.displayName },
+  });
+  if (!payload) throw new Error("unauthorized");
+  return payload;
+}
+
 export async function updateWorkspaceSettings(input: {
   runtimeBaseURL?: string;
   csrfToken?: string;

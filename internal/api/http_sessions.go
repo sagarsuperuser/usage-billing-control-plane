@@ -1105,3 +1105,55 @@ func (s *Server) redirectUISSOFailure(w http.ResponseWriter, r *http.Request, pr
 	target.RawQuery = query.Encode()
 	http.Redirect(w, r, target.String(), http.StatusFound)
 }
+
+// ---------------------------------------------------------------------------
+// User profile update (display name)
+// ---------------------------------------------------------------------------
+
+func (s *Server) handleUIUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok || principal.SubjectID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req struct {
+		DisplayName *string `json:"display_name,omitempty"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.DisplayName == nil {
+		writeError(w, http.StatusBadRequest, "no fields to update")
+		return
+	}
+
+	name := strings.TrimSpace(*req.DisplayName)
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "display name cannot be empty")
+		return
+	}
+
+	user, err := s.repo.GetUser(principal.SubjectID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	user.DisplayName = name
+	updated, err := s.repo.UpdateUser(user)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	// Update session so the new name is reflected immediately.
+	principal.DisplayName = updated.DisplayName
+	csrfToken := s.sessionManager.GetString(r.Context(), sessionCSRFKey)
+	s.putUISessionPrincipal(r.Context(), principal, csrfToken)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"display_name": updated.DisplayName,
+	})
+}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchWorkspaceSettings, updateWorkspaceSettings } from "@/lib/api";
+import { fetchWorkspaceSettings, updateWorkspaceSettings, updateUserProfile } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/toast";
 import type { UISession } from "@/lib/types";
 
@@ -80,7 +80,7 @@ export function SettingsGeneralTab({
         <div className="mt-4 grid gap-3 max-w-lg">
           <ReadOnlyField label="Email" value={session?.user_email ?? "..."} mono />
           <ReadOnlyField label="Role" value={session?.role ?? "..."} />
-          <ReadOnlyField label="Display name" value={session?.display_name || "Not set"} />
+          <ProfileNameField apiBaseURL={apiBaseURL} csrfToken={csrfToken} currentName={session?.display_name || ""} />
         </div>
       </div>
 
@@ -160,6 +160,75 @@ function ReadOnlyField({ label, value, mono }: { label: string; value: string; m
     <div className="grid gap-1">
       <span className="text-xs font-medium text-text-muted">{label}</span>
       <p className={`text-sm text-text-secondary ${mono ? "font-mono" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+function ProfileNameField({ apiBaseURL, csrfToken, currentName }: { apiBaseURL: string; csrfToken: string; currentName: string }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(currentName);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => { setName(currentName); }, [currentName]);
+
+  const mutation = useMutation({
+    mutationFn: () => updateUserProfile({ runtimeBaseURL: apiBaseURL, csrfToken, displayName: name.trim() }),
+    onSuccess: () => {
+      showSuccess("Display name updated");
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["ui-session"] });
+    },
+    onError: (err: Error) => showError(err.message),
+  });
+
+  const dirty = name.trim() !== currentName && name.trim().length > 0;
+
+  if (!editing) {
+    return (
+      <div className="grid gap-1">
+        <span className="text-xs font-medium text-text-muted">Display name</span>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-text-secondary">{currentName || "Not set"}</p>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-xs font-medium text-text-faint transition hover:text-text-secondary"
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-1">
+      <span className="text-xs font-medium text-text-muted">Display name</span>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          className="h-9 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-text-primary outline-none ring-slate-400 transition focus:ring-2"
+        />
+        <button
+          type="button"
+          onClick={() => mutation.mutate()}
+          disabled={!dirty || mutation.isPending}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900"
+        >
+          {mutation.isPending ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={() => { setName(currentName); setEditing(false); }}
+          className="text-xs font-medium text-text-faint transition hover:text-text-secondary"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
